@@ -1,0 +1,67 @@
+{
+  "cvFileName": "nguyen-van-a-resume.pdf",
+  "jdFileName": "senior-frontend-engineer-jd.pdf",
+  "mode": "jd",
+  "tier": "suggestions",
+  "result": {
+    "matchScore": 78,
+    "matchedKeywords": ["React", "TypeScript", "Node.js", "REST API", "MongoDB"],
+    "missingKeywords": ["Kubernetes", "GraphQL", "AWS Lambda"],
+    "skills": {
+      "cv": [
+        { "name": "React",      "category": "frontend",  "confidence": 0.95 },
+        { "name": "TypeScript", "category": "language",  "confidence": 0.9  },
+        { "name": "Node.js",    "category": "backend",   "confidence": 0.85 },
+        { "name": "MongoDB",    "category": "database",  "confidence": 0.8  }
+      ],
+      "jd": [
+        { "name": "React"      },
+        { "name": "TypeScript" },
+        { "name": "Kubernetes" },
+        { "name": "GraphQL"    }
+      ],
+      "matched": ["React", "TypeScript"],
+      "missing": ["Kubernetes", "GraphQL"]
+    },
+    "scores": {
+      "clarity":     4.2,
+      "structure":   3.8,
+      "relevance":   4.5,
+      "credibility": 3.5
+    },
+    "suggestions": {
+      "rewrittenBullets": [
+        {
+          "original":  "Worked on React projects at my previous company",
+          "rewritten": "Led migration of legacy jQuery codebase to React 18, improving page load time by 45% and reducing bundle size by 30% (3-month project, team of 4)",
+          "reasoning": "Added specific tech, quantified impact, and provided context",
+          "starElements": {
+            "situation": true,
+            "task":      true,
+            "action":    true,
+            "result":    true
+          }
+        }
+      ],
+      "missingSkillSuggestions": [
+        {
+          "skill":               "Kubernetes",
+          "priority":            "high",
+          "reason":              "Required for the role, mentioned 5 times in JD",
+          "resources":           ["https://kubernetes.io/docs/tutorials/"],
+          "estimatedTimeWeeks":  8
+        }
+      ],
+      "executiveSummary": "Strong technical match for frontend skills (React, TypeScript), but missing key infrastructure skills (Kubernetes, GraphQL). Recommend 2-3 months upskilling in cloud-native technologies before applying."
+    }
+  },
+  "planAtTime": "pro",
+  "meta": {
+    "pythonServiceVersion": "1.2.0",
+    "llmModel":             "llama-3.3-70b-versatile",
+    "llmProvider":          "groq",
+    "processingTimeMs":     87432,
+    "fallbackTriggered":    false,
+    "pythonEndpoint":       "/analyze/suggestions"
+  }
+}

@@ -1,0 +1,1458 @@
+import mongoose from "mongoose";
+import * as bookingsService from "../services/bookingsService.js";
+import * as paymentsService from "../services/paymentsService.js";
+import { tryCreditMentorForPaidEnrollment, tryCreditMentorForCompletedBooking } from "../services/mentorEarningsService.js";
+import { normalizeTransferRefs } from "../services/normalizeTransferRefsService.js";
+import { runInTransaction } from "../helpers/dbHelper.js";
+
+import { PayoutRequest } from "../models/PayoutRequest.js";
+import { Enrollment } from "../models/Enrollment.js";
+import { InterviewSession } from "../models/InterviewSession.js";
+import { Notification } from "../models/index.js";
+import { serializeCourseForApi, resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
+import {
+  applyPaidEnrollmentCountsToAdminCourses,
+  countPaidEnrollmentsByCourseIds,
+} from "../services/courseStatsService.js";
+const User = mongoose.model("User");
+const Mentor = mongoose.model("Mentor");
+const Booking = mongoose.model("Booking");
+const Course = mongoose.model("Course");
+const Report = mongoose.model("Report");
+
+function planCountsFromAgg(rows = []) {
+  const out = { free: 0, starter_pro: 0, elite_pro: 0 };
+  for (const row of rows) {
+    const key = String(row._id || "free");
+    if (Object.prototype.hasOwnProperty.call(out, key)) out[key] += Number(row.count) || 0;
+    else out.free += Number(row.count) || 0;
+  }
+  return out;
+}
+
+function statusCountsFromAgg(rows = []) {
+  const out = {};
+  for (const row of rows) {
+    out[String(row._id || "unknown")] = Number(row.count) || 0;
+  }
+  return out;
+}
+
+function serializeRecentBookingForAdmin(booking) {
+  const mentorUser = booking?.mentorId?.userId;
+  return {
+    _id: booking._id,
+    date: booking.date,
+    timeSlot: booking.timeSlot,
+    status: booking.status,
+    paymentStatus: booking.paymentStatus,
+    totalAmount: booking.totalAmount,
+    createdAt: booking.createdAt,
+    studentName: booking.userId?.name || booking.userId?.email || "—",
+    mentorName:
+      (typeof mentorUser === "object" && mentorUser?.name) ||
+      booking.mentorId?.title ||
+      "—",
+  };
+}
+
+/** Câu hỏi từ mảng LLM hoặc fallback questionText trong answers (phiên cũ). */
+function resolveAdminSessionQuestions(session) {
+  const fromBank = (session.questions || []).filter((q) => String(q?.question || "").trim());
+  if (fromBank.length) {
+    return fromBank.map((q, i) => ({
+      index: i + 1,
+      layer: q.layer || "",
+      question: q.question,
+      competencyName: q.competencyName || "",
+      source: "llm",
+    }));
+  }
+  const answers = Array.isArray(session.answers) ? session.answers : [];
+  return [...answers]
+    .sort((a, b) => (a.questionIndex ?? 0) - (b.questionIndex ?? 0))
+    .filter((a) => String(a?.questionText || "").trim())
+    .map((a, i) => ({
+      index: (a.questionIndex ?? i) + 1,
+      layer: "",
+      question: a.questionText,
+      competencyName: "",
+      source: "answer",
+      transcriptPreview: String(a.transcript || "").trim().slice(0, 160) || null,
+    }));
+}
+
+export const AdminController = {
+  // Lấy danh sách mentor (có cả ứng viên chờ duyệt role customer) — admin UI lọc theo ngữ cảnh.
+  getAllMentors: async (req, res, next) => {
+    try {
+      // Ép hệ thống kiểm tra và tạo hồ sơ mới nếu bạn vừa sửa ở Compass
+      const { ensureMentorProfilesForAllMentorUsers } = await import("../services/mentorProfileService.js");
+      await ensureMentorProfilesForAllMentorUsers();
+
+      const mentors = await Mentor.find()
+        .populate(
+          "userId",
+          "name email avatar role isActive profileWorkExperience profileEducation profileExtracurricular profileAwards desiredPosition currentCompany experience school",
+        )
+        .sort({ createdAt: -1 })
+        .lean();
+      
+      // Có userId: gồm cố vấn đã duyệt (role mentor) và ứng viên đang chờ (role customer).
+      const filtered = mentors.filter((m) => m.userId);
+      
+      res.json({ success: true, mentors: filtered });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getMentorById: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({ success: false, error: "mentorId không hợp lệ." });
+      }
+      const mentor = await Mentor.findById(id)
+        .populate("userId", "name email avatar role isActive plan")
+        .lean();
+      if (!mentor) return res.status(404).json({ success: false, error: "Không tìm thấy cố vấn." });
+
+      const sessionsCount = await Booking.countDocuments({ mentorId: mentor._id });
+      res.json({
+        success: true,
+        mentor: {
+          ...mentor,
+          stats: { ...(mentor.stats || {}), sessionsCount },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Duyệt/Kích hoạt mentor
+  toggleMentorStatus: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+      if (typeof isActive !== "boolean") {
+        return res.status(400).json({ success: false, error: "isActive phải là boolean." });
+      }
+
+      const update = isActive
+        ? {
+            isActive: true,
+            available: true,
+            isVerified: true,
+            verifiedAt: new Date(),
+            "adminReview.status": "approved",
+            "adminReview.reason": "",
+            "adminReview.reviewedAt": new Date(),
+            "adminReview.reviewedBy": req.userId || null,
+          }
+        : { isActive: false, available: false };
+
+      const mentor = await Mentor.findByIdAndUpdate(id, update, { new: true });
+
+      if (!mentor) return res.status(404).json({ success: false, error: "Không tìm thấy mentor" });
+
+      if (mentor.userId && isActive) {
+        await User.updateOne(
+          { _id: mentor.userId },
+          {
+            $set: {
+              role: "mentor",
+              desiredPosition: mentor.title || "",
+              currentCompany: mentor.company || "",
+              experience: mentor.experienceYears ?? 0,
+              skills: Array.isArray(mentor.specialties) ? mentor.specialties : [],
+              bio: mentor.bio || "",
+            },
+          },
+        );
+        try {
+          const { markMentorPendingNotificationsRead } = await import(
+            "../services/mentorMeService.js"
+          );
+          await markMentorPendingNotificationsRead(mentor.userId);
+          await Notification.create({
+            userId: mentor.userId,
+            type: "system",
+            title: "Hồ sơ mentor đã được duyệt",
+            body: "Chúc mừng! Bạn có thể truy cập khu vực Mentor trên ProInterview.",
+            metadata: { actionUrl: "/mentor/dashboard" },
+          });
+        } catch (notifErr) {
+          console.error("[Admin] mentor approved notification:", notifErr);
+        }
+      }
+
+      res.json({ success: true, mentor });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  rejectMentorApplication: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const reason = String(req.body?.reason || "").trim();
+      if (!reason) {
+        return res.status(400).json({ success: false, error: "Vui lòng nhập lý do từ chối hồ sơ." });
+      }
+
+      const mentor = await Mentor.findByIdAndUpdate(
+        id,
+        {
+          isActive: false,
+          available: false,
+          isVerified: false,
+          verifiedAt: null,
+          "adminReview.status": "rejected",
+          "adminReview.reason": reason,
+          "adminReview.reviewedAt": new Date(),
+          "adminReview.reviewedBy": req.userId || null,
+        },
+        { new: true },
+      );
+
+      if (!mentor) return res.status(404).json({ success: false, error: "Không tìm thấy cố vấn." });
+
+      if (mentor.userId) {
+        await User.updateOne({ _id: mentor.userId }, { $set: { role: "customer" } });
+        try {
+          const { markMentorPendingNotificationsRead } = await import(
+            "../services/mentorMeService.js"
+          );
+          await markMentorPendingNotificationsRead(mentor.userId);
+          const reasonShort =
+            reason.length > 220 ? `${reason.slice(0, 217)}…` : reason;
+          await Notification.create({
+            userId: mentor.userId,
+            type: "feedback",
+            title: "Hồ sơ mentor bị từ chối",
+            body: `Admin từ chối hồ sơ của bạn. Lý do: ${reasonShort}. Vui lòng cập nhật hồ sơ và đăng ký lại.`,
+            metadata: {
+              mentorId: mentor._id,
+              actionUrl: "/profile",
+            },
+          });
+        } catch (notifErr) {
+          console.error("[Admin] rejectMentorApplication notification:", notifErr);
+        }
+      }
+
+      res.json({ success: true, mentor });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Lấy danh sách toàn bộ User
+  getAllUsers: async (req, res, next) => {
+    try {
+      const users = await User.find().sort({ createdAt: -1 });
+      res.json({ success: true, users });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getUserById: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({ success: false, error: "userId không hợp lệ." });
+      }
+      const user = await User.findById(id).select("-passwordHash -authSessions").lean();
+      if (!user) return res.status(404).json({ success: false, error: "Không tìm thấy người dùng." });
+
+      const [bookingsCount, enrollmentsCount] = await Promise.all([
+        Booking.countDocuments({ userId: user._id }),
+        Enrollment.countDocuments({ userId: user._id }),
+      ]);
+
+      res.json({
+        success: true,
+        user: {
+          ...user,
+          stats: { bookingsCount, enrollmentsCount },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Khóa/Mở khóa User — khóa: vô hiệu JWT + xóa refresh (tokenVersion++, authSessions [])
+  toggleUserStatus: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { isActive } = req.body;
+      let user;
+      if (isActive === false) {
+        user = await User.findByIdAndUpdate(
+          id,
+          { $set: { isActive: false, authSessions: [] }, $inc: { tokenVersion: 1 } },
+          { new: true },
+        );
+      } else {
+        user = await User.findByIdAndUpdate(id, { $set: { isActive: true } }, { new: true });
+      }
+      if (!user) return res.status(404).json({ success: false, error: "Không tìm thấy người dùng" });
+      res.json({ success: true, user });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Lấy danh sách toàn bộ Booking
+  getAllBookings: async (req, res, next) => {
+    try {
+      const bookings = await Booking.find()
+        .populate("mentorId", "name email")
+        .populate("userId", "name email")
+        .sort({ createdAt: -1 });
+      res.json({ success: true, bookings });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getBookingById: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({ success: false, error: "bookingId không hợp lệ." });
+      }
+      const booking = await Booking.findById(id)
+        .populate({ path: "mentorId", select: "name email userId", populate: { path: "userId", select: "name email" } })
+        .populate("userId", "name email avatar phone")
+        .lean();
+      if (!booking) return res.status(404).json({ success: false, error: "Không tìm thấy lịch hẹn." });
+      res.json({ success: true, booking });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  updateBookingStatus: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const nextStatus = String(req.body?.status || "").trim();
+      const reason = String(req.body?.reason || "").trim();
+      const ALLOWED = new Set(["pending", "confirmed", "in_progress", "completed", "cancelled", "no_show"]);
+
+      if (!ALLOWED.has(nextStatus)) {
+        return res.status(400).json({ success: false, error: "Trạng thái booking không hợp lệ." });
+      }
+
+      if (nextStatus === "no_show") {
+        const result = await bookingsService.processBookingNoShow(id, { note: reason }, {
+          markedBy: "admin",
+          actorUserId: req.userId,
+        });
+        if (!result.ok) {
+          return res.status(result.status).json({ success: false, error: result.error });
+        }
+        return res.json({ success: true, booking: result.booking, refundAmountVnd: result.refundAmountVnd });
+      }
+
+      const booking = await Booking.findById(id);
+      if (!booking) return res.status(404).json({ success: false, error: "Không tìm thấy lịch hẹn." });
+
+      const payGate = bookingsService.assertBookingPaidBeforeActiveStatus(booking, nextStatus);
+      if (!payGate.ok) {
+        return res.status(payGate.status).json({ success: false, error: payGate.error });
+      }
+
+      booking.status = nextStatus;
+
+      if (nextStatus === "completed") {
+        booking.completedAt = new Date();
+      }
+      if (nextStatus === "cancelled") {
+        booking.cancelledAt = new Date();
+        booking.cancelledBy = "system";
+        booking.cancelReason = reason || booking.cancelReason || "Admin cập nhật trạng thái.";
+      }
+
+      await booking.save();
+
+      if (nextStatus === "completed") {
+        const credit = await tryCreditMentorForCompletedBooking(booking._id);
+        if (!credit.ok) {
+          console.error("[updateBookingStatus] mentor earnings:", credit.error || credit);
+        }
+      }
+
+      res.json({ success: true, booking });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Xác nhận đã nhận tiền chuyển khoản (booking paymentMethod = transfer, paymentStatus = pending). */
+  confirmBookingTransferPayment: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const force = Boolean(req.body?.force || req.body?.override);
+      const forceNote = String(req.body?.forceNote || req.body?.note || "").trim();
+      const result = await bookingsService.confirmBankTransferPaymentByAdmin(id, {
+        force,
+        forceNote,
+        adminUserId: req.userId || "",
+      });
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, booking: result.booking });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Admin xác nhận đã CK hoàn cho HV (booking paymentStatus = refund_pending). */
+  confirmBookingRefund: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const result = await bookingsService.confirmBankRefundByAdmin(id, {
+        adminUserId: req.userId || "",
+      });
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, booking: result.booking });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getPendingEnrollmentTransfers: async (_req, res) => {
+    try {
+      const enrollments = await Enrollment.find({
+        paymentMethod: "transfer",
+        paymentStatus: "pending",
+      })
+        .populate("userId", "name email")
+        .populate("courseId", "title price")
+        .sort({ updatedAt: -1 })
+        .limit(200)
+        .lean();
+      res.json({ success: true, enrollments });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Danh sách ghi danh có học phí (CK) — chờ + đã xác nhận, cho màn admin Học phí khóa học */
+  getCoursePaymentEnrollments: async (_req, res) => {
+    try {
+      const enrollments = await Enrollment.find({
+        pricePaid: { $gt: 0 },
+        paymentMethod: "transfer",
+      })
+        .populate("userId", "name email")
+        .populate({
+          path: "courseId",
+          select: "title price mentorId",
+          populate: { path: "mentorId", select: "name" },
+        })
+        .sort({ updatedAt: -1 })
+        .limit(200)
+        .lean();
+      res.json({ success: true, enrollments });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Tổng quan học phí khóa học (CK) cho admin Tài chính / Giao dịch */
+  getCourseFinanceSummary: async (_req, res) => {
+    try {
+      const pendAgg = await Enrollment.aggregate([
+        { $match: { paymentMethod: "transfer", paymentStatus: "pending", pricePaid: { $gt: 0 } } },
+        { $group: { _id: null, total: { $sum: "$pricePaid" }, count: { $sum: 1 } } },
+      ]);
+      const paidAgg = await Enrollment.aggregate([
+        { $match: { paymentStatus: "paid", pricePaid: { $gt: 0 } } },
+        { $group: { _id: null, total: { $sum: "$pricePaid" }, count: { $sum: 1 } } },
+      ]);
+
+      const pendingList = await Enrollment.find({
+        paymentMethod: "transfer",
+        paymentStatus: "pending",
+        pricePaid: { $gt: 0 },
+      })
+        .populate("userId", "name email")
+        .populate("courseId", "title price")
+        .sort({ updatedAt: -1 })
+        .limit(40)
+        .lean();
+
+      const recentPaidRows = await Enrollment.find({ paymentStatus: "paid", pricePaid: { $gt: 0 } })
+        .populate("userId", "name email")
+        .populate("courseId", "title")
+        .sort({ paidAt: -1, updatedAt: -1 })
+        .limit(50)
+        .lean();
+
+      res.json({
+        success: true,
+        courseFinance: {
+          pendingTransferCount: pendAgg[0]?.count || 0,
+          pendingTransferAmount: pendAgg[0]?.total || 0,
+          paidCollectedCount: paidAgg[0]?.count || 0,
+          paidCollectedAmount: paidAgg[0]?.total || 0,
+          pendingList,
+          recentPaidRows,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  confirmEnrollmentTransferPayment: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const force = Boolean(req.body?.force || req.body?.override);
+      const forceNote = String(req.body?.forceNote || req.body?.note || "").trim();
+      const result = await paymentsService.confirmEnrollmentTransferByAdmin(id, {
+        adminUserId: req.userId,
+        force,
+        forceNote,
+      });
+      if (!result.ok) {
+        return res.status(result.status || 400).json({ success: false, error: result.error });
+      }
+
+      const credit = await tryCreditMentorForPaidEnrollment(id);
+      if (!credit.ok) {
+        console.error("[confirmEnrollmentTransferPayment] mentor earnings:", credit.error || credit);
+      }
+
+      const populated = await Enrollment.findById(id)
+        .populate("userId", "name email")
+        .populate("courseId", "title price");
+      res.json({ success: true, enrollment: populated });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getPendingSubscriptionPayments: async (_req, res) => {
+    try {
+      const result = await paymentsService.listPendingSubscriptionTransfers();
+      if (!result.ok) {
+        return res.status(result.status || 500).json({ success: false, error: result.error });
+      }
+      res.json({
+        success: true,
+        payments: result.payments,
+        stats: result.stats || { paidCount: 0, paidTotalAmount: 0 },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  confirmSubscriptionTransferPayment: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const force = Boolean(req.body?.force || req.body?.override);
+      const forceNote = String(req.body?.forceNote || req.body?.note || "").trim();
+      const result = await paymentsService.confirmSubscriptionTransferByAdmin(id, {
+        adminUserId: req.userId,
+        force,
+        forceNote,
+      });
+      if (!result.ok) {
+        return res.status(result.status || 400).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, payment: result.payment });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  normalizeTransferReferences: async (req, res, next) => {
+    try {
+      const dryRun = Boolean(req.body?.dryRun);
+      const result = await normalizeTransferRefs({ dryRun });
+      res.json({ success: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getTransactionSupport: async (_req, res, next) => {
+    try {
+      const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+      const setName = String(hello?.setName || "").trim();
+      const msg = String(hello?.msg || "").trim();
+      const supported = Boolean(setName) || msg === "isdbgrid";
+      res.json({
+        success: true,
+        mongo: {
+          transactionSupported: supported,
+          topology: msg === "isdbgrid" ? "sharded-cluster" : setName ? "replica-set" : "standalone",
+          setName: setName || null,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getContentStats: async (_req, res, next) => {
+    try {
+      const CVAnalysis = mongoose.model("CVAnalysis");
+      const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const [
+        interviews,
+        cvAnalyses,
+        publishedCourses,
+        completedInterviews,
+        sessions7d,
+        completed7d,
+        scoreAgg7d,
+        fewShotReadyCount,
+      ] = await Promise.all([
+        InterviewSession.countDocuments(),
+        CVAnalysis.countDocuments(),
+        Course.countDocuments({ status: "published" }),
+        InterviewSession.countDocuments({ status: "completed" }),
+        InterviewSession.countDocuments({ createdAt: { $gte: since7d } }),
+        InterviewSession.countDocuments({ status: "completed", createdAt: { $gte: since7d } }),
+        InterviewSession.aggregate([
+          {
+            $match: {
+              status: "completed",
+              "feedback.overallScore": { $exists: true, $gt: 0 },
+              createdAt: { $gte: since7d },
+            },
+          },
+          { $group: { _id: null, avgScore: { $avg: "$feedback.overallScore" }, count: { $sum: 1 } } },
+        ]),
+        InterviewSession.countDocuments({
+          status: "completed",
+          "feedback.overallScore": { $gte: 80 },
+        }),
+      ]);
+      const scoreRow = scoreAgg7d[0] ?? null;
+      res.json({
+        success: true,
+        content: {
+          interviewSessions: interviews,
+          completedInterviews,
+          cvAnalyses,
+          publishedCourses,
+          interviewOps: {
+            periodDays: 7,
+            sessions7d,
+            completed7d,
+            avgScore7d: scoreRow?.avgScore != null ? Math.round(scoreRow.avgScore * 10) / 10 : null,
+            scoredSessions7d: scoreRow?.count ?? 0,
+            fewShotReadyCount,
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** GET /api/admin/content/interview-sessions — phiên gần đây + câu hỏi LLM đã lưu */
+  getRecentInterviewSessions: async (req, res, next) => {
+    try {
+      const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
+      const sessions = await InterviewSession.find()
+        .sort({ createdAt: -1 })
+        .limit(limit)
+        .populate("userId", "name email")
+        .select(
+          "userId status inferredRole inferredSeniority competencyProfile questions answers questionsAllowed createdAt completedAt",
+        )
+        .lean();
+
+      res.json({
+        success: true,
+        sessions: sessions.map((s) => {
+          const questions = resolveAdminSessionQuestions(s);
+          const roleParts = [
+            s.inferredRole,
+            s.inferredSeniority,
+            s.competencyProfile?.roleCategory,
+          ].filter(Boolean);
+          return {
+            id: String(s._id),
+            user: s.userId
+              ? { name: s.userId.name || "", email: s.userId.email || "" }
+              : null,
+            status: s.status,
+            role: roleParts.length ? roleParts.join(" · ") : "—",
+            questionCount: questions.length,
+            questionsAllowed: s.questionsAllowed ?? null,
+            questions,
+            answerCount: Array.isArray(s.answers) ? s.answers.length : 0,
+            createdAt: s.createdAt,
+            completedAt: s.completedAt || null,
+          };
+        }),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getCourseMediaOverview: async (req, res, next) => {
+    try {
+      const scope = String(req.query.scope || "all").toLowerCase();
+      const statusFilter =
+        scope === "published"
+          ? { status: "published" }
+          : scope === "pending"
+            ? { status: { $in: ["pending_review", "pending_update"] } }
+            : { status: { $in: ["published", "pending_update", "pending_review", "draft"] } };
+
+      const courses = await Course.find(statusFilter)
+        .select("title status modules thumbnail updatedAt publishedAt")
+        .populate({
+          path: "mentorId",
+          select: "userId",
+          populate: { path: "userId", select: "name email" },
+        })
+        .sort({ updatedAt: -1 })
+        .limit(100)
+        .lean();
+
+      const items = courses.map((c) => {
+        const modules = Array.isArray(c.modules) ? c.modules : [];
+        const lessons = modules.flatMap((m) => (Array.isArray(m.lessons) ? m.lessons : []));
+        const videoCount = lessons.filter((l) => String(l?.videoUrl || l?.contentUrl || "").trim()).length;
+        return {
+          _id: c._id,
+          title: c.title,
+          status: c.status,
+          mentorName: c.mentorId?.userId?.name || "—",
+          mentorEmail: c.mentorId?.userId?.email || "",
+          lessonCount: lessons.length,
+          videoCount,
+          thumbnail: c.thumbnail || "",
+          updatedAt: c.updatedAt,
+          publishedAt: c.publishedAt || null,
+        };
+      });
+
+      res.json({ success: true, scope, courses: items });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getSystemOverview: async (_req, res, next) => {
+    try {
+      let mongo = null;
+      try {
+        const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+        const setName = String(hello?.setName || "").trim();
+        const msg = String(hello?.msg || "").trim();
+        mongo = {
+          transactionSupported: Boolean(setName) || msg === "isdbgrid",
+          topology: msg === "isdbgrid" ? "sharded-cluster" : setName ? "replica-set" : "standalone",
+          setName: setName || null,
+        };
+      } catch {
+        mongo = { transactionSupported: false, topology: "unknown", setName: null };
+      }
+
+      res.json({
+        success: true,
+        overview: {
+          auth: {
+            accessTokenTtl: process.env.JWT_ACCESS_EXPIRES_IN || process.env.JWT_EXPIRES_IN || "15m",
+            refreshTokenDays: Number(process.env.REFRESH_TOKEN_DAYS) || 30,
+            jtiBlacklistOnLogout: true,
+            jtiBlacklistOnRefresh: true,
+            sessionFingerprintEnforced: process.env.AUTH_STRICT_SESSION_FINGERPRINT === "true",
+          },
+          plans: [
+            { key: "free", label: "Miễn phí", cvAnalysisLimit: 3, interviewLimit: 1 },
+            { key: "starter_pro", label: "Pro", cvAnalysisLimit: 20, interviewLimit: 10 },
+            { key: "elite_pro", label: "Elite", cvAnalysisLimit: 999, interviewLimit: 999 },
+          ],
+          payments: {
+            primaryChannel: "bank_transfer",
+            note: "Khách CK theo STK trên checkout (VITE_BANK_TRANSFER_*). Admin xác nhận qua payments ledger.",
+          },
+          mongo,
+          services: {
+            cvAnalyzer: process.env.CV_ANALYZER_URL ? "configured" : "missing CV_ANALYZER_URL",
+            llm: process.env.LLM_API_KEY ? "configured" : "missing LLM_API_KEY",
+          },
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Danh sách khóa học chờ duyệt
+  getPendingCourses: async (_req, res, next) => {
+    try {
+      const courses = await Course.find({ status: { $in: ["pending_review", "pending_update"] } })
+        .populate({
+          path: "mentorId",
+          select: "userId title company",
+          populate: { path: "userId", select: "name email avatar" },
+        })
+        .sort({ updatedAt: -1 });
+
+      const items = courses.map((c) => serializePendingCourseForAdmin(c));
+      const countMap = await countPaidEnrollmentsByCourseIds(items.map((i) => i._id));
+      const enriched = applyPaidEnrollmentCountsToAdminCourses(items, countMap);
+      const counts = {
+        total: enriched.length,
+        pendingReview: enriched.filter((x) => x.status === "pending_review").length,
+        pendingUpdate: enriched.filter((x) => x.status === "pending_update").length,
+      };
+      res.json({ success: true, courses: enriched, counts });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** GET /api/admin/courses/published — khóa đã duyệt / đang public */
+  getPublishedCourses: async (req, res, next) => {
+    try {
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+      const courses = await Course.find({ status: "published" })
+        .populate({
+          path: "mentorId",
+          select: "userId title company",
+          populate: { path: "userId", select: "name email avatar" },
+        })
+        .sort({ publishedAt: -1, updatedAt: -1 })
+        .limit(limit);
+
+      const items = courses.map((c) => serializePendingCourseForAdmin(c));
+      const countMap = await countPaidEnrollmentsByCourseIds(items.map((i) => i._id));
+      res.json({
+        success: true,
+        courses: applyPaidEnrollmentCountsToAdminCourses(items, countMap),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Duyệt khóa học
+  approveCourse: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const course = await Course.findById(id);
+      if (!course) return res.status(404).json({ success: false, error: "Không tìm thấy khóa học" });
+      if (course.status === "pending_update" && course.pendingUpdate) {
+        const next = course.pendingUpdate;
+        course.title = next.title ?? course.title;
+        course.description = next.description ?? course.description;
+        course.thumbnail = next.thumbnail ?? course.thumbnail;
+        course.level = next.level ?? course.level;
+        course.price = Number.isFinite(Number(next.price)) ? Number(next.price) : course.price;
+        course.isFree = typeof next.isFree === "boolean" ? next.isFree : course.isFree;
+        course.tags = Array.isArray(next.tags) ? next.tags : course.tags;
+        course.topics = Array.isArray(next.topics) ? next.topics : course.topics;
+        course.whatYoullLearn = Array.isArray(next.whatYoullLearn) ? next.whatYoullLearn : course.whatYoullLearn;
+        course.modules = Array.isArray(next.modules) ? next.modules : course.modules;
+      }
+      course.pendingUpdate = null;
+      course.status = "published";
+      course.publishedAt = new Date();
+      course.adminReview = { reason: "", reviewedAt: null, reviewedBy: null, lastAction: "" };
+      await course.save();
+      res.json({ success: true, course: serializePendingCourseForAdmin(course) });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Từ chối khóa học: trả lại nháp để mentor sửa
+  rejectCourse: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const reason = String(req.body?.reason || "").trim();
+      if (!reason) {
+        return res.status(400).json({ success: false, error: "Vui lòng nhập lý do từ chối." });
+      }
+
+      const course = await Course.findById(id).populate({
+        path: "mentorId",
+        select: "userId",
+        populate: { path: "userId", select: "name email" },
+      });
+      if (!course) return res.status(404).json({ success: false, error: "Không tìm thấy khóa học" });
+
+      const wasUpdate = course.status === "pending_update";
+      if (wasUpdate) {
+        course.pendingUpdate = null;
+        course.status = "published";
+      } else if (course.status === "pending_review") {
+        course.status = "draft";
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: "Chỉ từ chối được khóa đang chờ duyệt hoặc bản cập nhật chờ duyệt.",
+        });
+      }
+
+      course.adminReview = {
+        reason,
+        reviewedAt: new Date(),
+        reviewedBy: req.userId || null,
+        lastAction: "reject",
+      };
+      await course.save();
+
+      const mentorUserId = course.mentorId?.userId?._id || course.mentorId?.userId;
+      if (mentorUserId) {
+        try {
+          const title = wasUpdate ? "Bản cập nhật khóa học bị từ chối" : "Khóa học bị từ chối";
+          const reasonShort = reason.length > 200 ? `${reason.slice(0, 197)}…` : reason;
+          const body = wasUpdate
+            ? `Admin không duyệt bản cập nhật "${course.title}". Lý do: ${reasonShort}`
+            : `Admin từ chối khóa "${course.title}". Lý do: ${reasonShort}. Vui lòng chỉnh sửa và gửi duyệt lại.`;
+          await Notification.create({
+            userId: mentorUserId,
+            type: "feedback",
+            title,
+            body,
+            metadata: {
+              courseId: course._id,
+              actionUrl: "/mentor/courses",
+            },
+          });
+        } catch (notifErr) {
+          console.error("[Admin] rejectCourse notification:", notifErr);
+        }
+      }
+
+      res.json({ success: true, course: serializePendingCourseForAdmin(course) });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Gỡ khóa khỏi marketplace (archived). */
+  archiveCourse: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const reason =
+        String(req.body?.reason || "").trim() ||
+        "Khóa học đã được gỡ khỏi marketplace bởi quản trị viên.";
+
+      const course = await Course.findById(id).populate({
+        path: "mentorId",
+        select: "userId",
+        populate: { path: "userId", select: "name email" },
+      });
+      if (!course) return res.status(404).json({ success: false, error: "Không tìm thấy khóa học" });
+
+      if (!["published", "pending_update"].includes(course.status)) {
+        return res.status(400).json({
+          success: false,
+          error: "Chỉ gỡ được khóa đang hiển thị trên marketplace.",
+        });
+      }
+
+      course.pendingUpdate = null;
+      course.status = "archived";
+      course.adminReview = {
+        reason,
+        reviewedAt: new Date(),
+        reviewedBy: req.userId || null,
+        lastAction: "archive",
+      };
+      await course.save();
+
+      const mentorUserId = course.mentorId?.userId?._id || course.mentorId?.userId;
+      if (mentorUserId) {
+        try {
+          const reasonShort = reason.length > 200 ? `${reason.slice(0, 197)}…` : reason;
+          await Notification.create({
+            userId: mentorUserId,
+            type: "system",
+            title: "Khóa học đã bị gỡ khỏi marketplace",
+            body: `Khóa "${course.title}" không còn hiển thị cho học viên. Lý do: ${reasonShort}`,
+            metadata: {
+              courseId: course._id,
+              actionUrl: "/mentor/courses",
+            },
+          });
+        } catch (notifErr) {
+          console.error("[Admin] archiveCourse notification:", notifErr);
+        }
+      }
+
+      res.json({ success: true, course: serializePendingCourseForAdmin(course) });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getReports: async (req, res, next) => {
+    try {
+      const { listReportsForAdmin } = await import("../services/reportsService.js");
+      const result = await listReportsForAdmin(req.query ?? {});
+      if (!result.ok) return res.status(result.status || 500).json({ success: false, error: result.error });
+      res.json({
+        success: true,
+        reports: result.reports,
+        counts: result.counts,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getReviews: async (req, res, next) => {
+    try {
+      const { listReviewsForAdmin } = await import("../services/reviewsService.js");
+      const result = await listReviewsForAdmin(req.query ?? {});
+      if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
+      res.json({
+        success: true,
+        reviews: result.reviews,
+        counts: result.counts,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  setReviewVisibility: async (req, res, next) => {
+    try {
+      const { setReviewVisibilityForAdmin } = await import("../services/reviewsService.js");
+      const isVisible = req.body?.isVisible !== false;
+      const result = await setReviewVisibilityForAdmin(req.params.id, isVisible);
+      if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
+      res.json({ success: true, review: result.review });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  updateReport: async (req, res, next) => {
+    try {
+      const { updateReportStatusForAdmin } = await import("../services/reportsService.js");
+      const result = await updateReportStatusForAdmin(req.userId, req.params.id, req.body ?? {});
+      if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
+      res.json({ success: true, report: result.report });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Thống kê nhanh cho Dashboard & Phân tích admin
+  getStats: async (req, res, next) => {
+    try {
+      const [
+        userCount,
+        mentorCount,
+        bookingCount,
+        recentBookingsRaw,
+        planAgg,
+        enrollmentsPaid,
+        publishedCourses,
+        pendingCourses,
+        reportsOpen,
+        bookingStatusAgg,
+      ] = await Promise.all([
+        User.countDocuments({ role: "customer" }),
+        Mentor.countDocuments(),
+        Booking.countDocuments(),
+        Booking.find()
+          .sort({ createdAt: -1 })
+          .limit(8)
+          .populate({ path: "userId", select: "name email" })
+          .populate({
+            path: "mentorId",
+            select: "title",
+            populate: { path: "userId", select: "name" },
+          })
+          .select("date timeSlot status paymentStatus totalAmount createdAt userId mentorId")
+          .lean(),
+        User.aggregate([{ $group: { _id: { $ifNull: ["$plan", "free"] }, count: { $sum: 1 } } }]),
+        Enrollment.countDocuments({ paymentStatus: "paid" }),
+        Course.countDocuments({ status: "published" }),
+        Course.countDocuments({ status: { $in: ["pending_review", "pending_update"] } }),
+        Report.countDocuments({ status: { $in: ["pending", "reviewing"] } }),
+        Booking.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
+      ]);
+
+      res.json({
+        success: true,
+        stats: {
+          users: userCount,
+          mentors: mentorCount,
+          bookings: bookingCount,
+          recentBookings: recentBookingsRaw.map(serializeRecentBookingForAdmin),
+          plans: planCountsFromAgg(planAgg),
+          enrollmentsPaid,
+          courses: { published: publishedCourses, pendingReview: pendingCourses },
+          reportsOpen,
+          bookingsByStatus: statusCountsFromAgg(bookingStatusAgg),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getPayoutRequests: async (_req, res) => {
+    try {
+      const payouts = await PayoutRequest.find()
+        .populate({
+          path: "mentorId",
+          select: "name userId",
+          populate: { path: "userId", select: "name email" },
+        })
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .lean();
+      res.json({ success: true, payouts });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  approvePayoutRequest: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const payout = await PayoutRequest.findById(id);
+      if (!payout) return res.status(404).json({ success: false, error: "Không tìm thấy yêu cầu rút tiền." });
+      if (payout.status !== "pending") {
+        return res.status(400).json({ success: false, error: "Yêu cầu đã được xử lý trước đó." });
+      }
+
+      payout.status = "approved";
+      payout.reviewedAt = new Date();
+      payout.reviewedBy = req.userId || null;
+      payout.note = String(req.body?.note || "").trim();
+      await payout.save();
+
+      res.json({ success: true, payout });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Sau khi admin chuyển khoản thủ công cho mentor — chỉ từ trạng thái `approved`. */
+  markPayoutPaid: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const transferRef = String(req.body?.transferRef || "").trim().slice(0, 500);
+      const noteExtra = String(req.body?.note || "").trim().slice(0, 2000);
+      const payout = await PayoutRequest.findById(id);
+      if (!payout) return res.status(404).json({ success: false, error: "Không tìm thấy yêu cầu rút tiền." });
+      if (payout.status !== "approved") {
+        return res.status(400).json({
+          success: false,
+          error: "Chỉ xác nhận đã chuyển khoản khi yêu cầu đã được duyệt (chưa ghi nhận chi).",
+        });
+      }
+      payout.status = "paid";
+      payout.paidAt = new Date();
+      payout.transferRef = transferRef;
+      if (noteExtra) {
+        const prev = String(payout.note || "").trim();
+        payout.note = prev ? `${prev}\n${noteExtra}` : noteExtra;
+      }
+      await payout.save();
+
+      await Mentor.updateOne(
+        { _id: payout.mentorId },
+        { $inc: { "finance.pendingBalance": -Number(payout.amount || 0) } },
+      );
+
+      res.json({ success: true, payout });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  rejectPayoutRequest: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const reason = String(req.body?.reason || "").trim();
+      const payout = await PayoutRequest.findById(id);
+      if (!payout) return res.status(404).json({ success: false, error: "Không tìm thấy yêu cầu rút tiền." });
+      if (payout.status !== "pending") {
+        return res.status(400).json({ success: false, error: "Yêu cầu đã được xử lý trước đó." });
+      }
+
+      payout.status = "rejected";
+      payout.reviewedAt = new Date();
+      payout.reviewedBy = req.userId || null;
+      payout.rejectReason = reason;
+      await payout.save();
+
+      await Mentor.updateOne(
+        { _id: payout.mentorId },
+        {
+          $inc: {
+            "finance.availableBalance": Number(payout.amount || 0),
+            "finance.pendingBalance": -Number(payout.amount || 0),
+          },
+        },
+      );
+
+      res.json({ success: true, payout });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** GET /api/admin/interview-metrics — 7-day operational snapshot */
+  getInterviewMetrics: async (req, res) => {
+    try {
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+      const [
+        sessionsByStatus,
+        evalDurationStats,
+        scoreStats,
+        sessionsByDay,
+        topRoles,
+        fewShotReadyCount,
+        totalAllTime,
+      ] = await Promise.all([
+        // Sessions by status — last 7 days
+        InterviewSession.aggregate([
+          { $match: { createdAt: { $gte: since } } },
+          { $group: { _id: "$status", count: { $sum: 1 } } },
+        ]),
+
+        // Avg LLM evaluation latency (feedbackGeneratedAt − completedAt)
+        InterviewSession.aggregate([
+          { $match: {
+            feedbackGeneratedAt: { $exists: true },
+            completedAt:         { $exists: true },
+            createdAt:           { $gte: since },
+          }},
+          { $project: {
+            evalMs: { $subtract: ["$feedbackGeneratedAt", "$completedAt"] },
+          }},
+          { $group: {
+            _id:   null,
+            avgMs: { $avg: "$evalMs" },
+            count: { $sum: 1 },
+          }},
+        ]),
+
+        // Avg overall score for evaluated sessions
+        InterviewSession.aggregate([
+          { $match: {
+            status: "completed",
+            "feedback.overallScore": { $exists: true, $gt: 0 },
+            createdAt: { $gte: since },
+          }},
+          { $group: {
+            _id:      null,
+            avgScore: { $avg: "$feedback.overallScore" },
+            count:    { $sum: 1 },
+          }},
+        ]),
+
+        // Daily session count — last 7 days
+        InterviewSession.aggregate([
+          { $match: { createdAt: { $gte: since } } },
+          { $group: {
+            _id:   { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            count: { $sum: 1 },
+          }},
+          { $sort: { _id: 1 } },
+        ]),
+
+        // Top role categories in completed sessions
+        InterviewSession.aggregate([
+          { $match: {
+            status: "completed",
+            "competencyProfile.roleCategory": { $exists: true, $ne: "" },
+            createdAt: { $gte: since },
+          }},
+          { $group: {
+            _id:   "$competencyProfile.roleCategory",
+            count: { $sum: 1 },
+          }},
+          { $sort: { count: -1 } },
+          { $limit: 5 },
+        ]),
+
+        // Few-shot pool: completed sessions with high scores (eligible as training examples)
+        InterviewSession.countDocuments({
+          status: "completed",
+          "feedback.overallScore": { $gte: 80 },
+        }),
+
+        // All-time total
+        InterviewSession.countDocuments(),
+      ]);
+
+      res.json({
+        success: true,
+        period: "7d",
+        sessionsByStatus,
+        evalDuration: evalDurationStats[0] ?? { avgMs: null, count: 0 },
+        scoreStats:   scoreStats[0]        ?? { avgScore: null, count: 0 },
+        sessionsByDay,
+        topRoles,
+        fewShotReadyCount,
+        totalAllTime,
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+};
+
+function summarizeModules(modules = []) {
+  let lessonCount = 0;
+  let videoCount = 0;
+  let previewCount = 0;
+  let durationMinutes = 0;
+  const chapters = (Array.isArray(modules) ? modules : []).map((mod, idx) => {
+    const lessons = (mod.lessons || []).map((lesson) => {
+      lessonCount += 1;
+      const videoUrl = String(lesson.videoUrl || lesson.contentUrl || "").trim();
+      const hasVideo = Boolean(videoUrl);
+      if (hasVideo) videoCount += 1;
+      if (lesson.isFree) previewCount += 1;
+      durationMinutes += Number(lesson.durationMinutes) || 0;
+      return {
+        title: lesson.title || "Bài học",
+        durationMinutes: Number(lesson.durationMinutes) || 0,
+        hasVideo,
+        isPreview: Boolean(lesson.isFree),
+        videoUrl: videoUrl ? resolveStoredUploadUrl(videoUrl) : "",
+      };
+    });
+    return {
+      title: mod.title || `Chương ${idx + 1}`,
+      lessonCount: lessons.length,
+      lessons,
+    };
+  });
+  return {
+    chapterCount: chapters.length,
+    lessonCount,
+    videoCount,
+    previewCount,
+    durationMinutes,
+    chapters,
+  };
+}
+
+function pickReviewFields(src = {}) {
+  return {
+    title: src.title || "",
+    description: src.description || "",
+    thumbnail: src.thumbnail ? resolveStoredUploadUrl(src.thumbnail) : "",
+    level: src.level || "",
+    price: Number(src.price) || 0,
+    isFree: Boolean(src.isFree),
+    topics: Array.isArray(src.topics) ? src.topics : [],
+    tags: Array.isArray(src.tags) ? src.tags : [],
+    whatYoullLearn: Array.isArray(src.whatYoullLearn) ? src.whatYoullLearn.filter(Boolean) : [],
+  };
+}
+
+function detectPendingChanges(current, pending) {
+  const changes = [];
+  const pairs = [
+    ["Tiêu đề", "title"],
+    ["Mô tả", "description"],
+    ["Cấp độ", "level"],
+    ["Giá (VND)", "price", (v) => Number(v || 0).toLocaleString("vi-VN")],
+  ];
+  for (const [label, key, fmt] of pairs) {
+    const a = current[key];
+    const b = pending[key];
+    const left = fmt ? fmt(a) : a;
+    const right = fmt ? fmt(b) : b;
+    if (b != null && String(left) !== String(right)) {
+      changes.push({ label, from: left || "—", to: right || "—" });
+    }
+  }
+  const curMod = current.modules?.length ?? 0;
+  const nextMod = pending.modules?.length;
+  if (Number.isFinite(nextMod) && nextMod !== curMod) {
+    changes.push({ label: "Số chương", from: String(curMod), to: String(nextMod) });
+  }
+  const curLessons = summarizeModules(current.modules).lessonCount;
+  const nextLessons = summarizeModules(pending.modules).lessonCount;
+  if (pending.modules && nextLessons !== curLessons) {
+    changes.push({ label: "Số bài học", from: String(curLessons), to: String(nextLessons) });
+  }
+  if (pending.thumbnail && pending.thumbnail !== current.thumbnail) {
+    changes.push({ label: "Ảnh bìa", from: "Đã có", to: "Đã đổi" });
+  }
+  return changes;
+}
+
+/** Khóa học chờ admin — nội dung review + thống kê chương/bài. */
+export function serializePendingCourseForAdmin(course) {
+  const doc = serializeCourseForApi(course);
+  const isUpdate = doc.status === "pending_update";
+  const pending = doc.pendingUpdate && typeof doc.pendingUpdate === "object" ? doc.pendingUpdate : null;
+  const reviewSource = isUpdate && pending ? { ...doc, ...pending } : doc;
+  const content = summarizeModules(reviewSource.modules);
+  const review = pickReviewFields(reviewSource);
+  const mentor = doc.mentorId && typeof doc.mentorId === "object" ? doc.mentorId : null;
+  const mentorUser = mentor?.userId && typeof mentor.userId === "object" ? mentor.userId : null;
+
+  return {
+    _id: doc._id,
+    status: doc.status,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt,
+    publishedAt: doc.publishedAt,
+    mentor: mentor
+      ? {
+          name: mentorUser?.name || "Cố vấn",
+          email: mentorUser?.email || "",
+          avatar: mentorUser?.avatar ? resolveStoredUploadUrl(mentorUser.avatar) : "",
+          title: mentor.title || "",
+          company: mentor.company || "",
+        }
+      : { name: "Cố vấn", email: "", avatar: "", title: "", company: "" },
+    review: {
+      ...review,
+      ...content,
+      priceLabel: review.isFree || review.price <= 0 ? "Miễn phí" : `${review.price.toLocaleString("vi-VN")} ₫`,
+    },
+    pendingChanges:
+      isUpdate && pending
+        ? detectPendingChanges(
+            { ...pickReviewFields(doc), modules: doc.modules },
+            { ...pickReviewFields(pending), modules: pending.modules },
+          )
+        : [],
+    publishedSnapshot: isUpdate ? pickReviewFields(doc) : null,
+    stats: {
+      enrollmentCount: Number(doc.stats?.enrollmentCount || 0),
+      rating: Number(doc.stats?.rating || 0),
+      reviewCount: Number(doc.stats?.reviewCount || 0),
+    },
+    adminReview: doc.adminReview?.reason
+      ? {
+          reason: doc.adminReview.reason,
+          reviewedAt: doc.adminReview.reviewedAt,
+          lastAction: doc.adminReview.lastAction || "",
+        }
+      : null,
+  };
+}

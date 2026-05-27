@@ -1,0 +1,17 @@
+{
+  "name": "ProInterview",
+  "short_name": "ProInterview",
+  "description": "Nền tảng luyện phỏng vấn xin việc với AI và mentor",
+  "icons": [
+    {
+      "src": "/favicon-192.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "theme_color": "#8037f4",
+  "background_color": "#f3f0f9",
+  "display": "standalone",
+  "lang": "vi"
+}

@@ -1,0 +1,332 @@
+{
+  "seedVersion": "endpoint-seed-v1",
+  "generatedAt": "2026-04-29T14:12:03.480Z",
+  "password": "Dev123456",
+  "accounts": {
+    "adminDev": {
+      "id": "69f208cca9872f73da88fd96",
+      "email": "admin@dev.local",
+      "role": "admin"
+    },
+    "customerDev": {
+      "id": "69f208cca9872f73da88fd94",
+      "email": "customer@dev.local",
+      "role": "customer",
+      "plan": "free"
+    },
+    "customerReviewer": {
+      "id": "69f208ec6d61fc0305266205",
+      "email": "customer2@dev.local",
+      "role": "customer",
+      "plan": "free"
+    },
+    "customerStarter": {
+      "id": "69f208ec6d61fc0305266206",
+      "email": "starter.customer@dev.local",
+      "role": "customer",
+      "plan": "starter_pro"
+    },
+    "mentorDev": {
+      "id": "69f208cca9872f73da88fd95",
+      "email": "mentor@dev.local",
+      "role": "mentor",
+      "mentorPublicId": "u69f208cca9872f73da88fd95",
+      "mentorDocId": "69f208cca9872f73da88fd97"
+    },
+    "mentorCareer": {
+      "id": "69f208ec6d61fc0305266207",
+      "email": "mentor2@dev.local",
+      "role": "mentor",
+      "mentorPublicId": "u69f208ec6d61fc0305266207",
+      "mentorDocId": "69f208ec6d61fc0305266208"
+    }
+  },
+  "mentors": {
+    "primary": {
+      "id": "69f208cca9872f73da88fd97",
+      "publicId": "u69f208cca9872f73da88fd95",
+      "pricePerHour": 450000
+    },
+    "secondary": {
+      "id": "69f208ec6d61fc0305266208",
+      "publicId": "u69f208ec6d61fc0305266207",
+      "pricePerHour": 320000
+    }
+  },
+  "courses": {
+    "backend": {
+      "id": "69f208ec6d61fc0305266209",
+      "title": "[Seed endpoint-seed-v1] Backend Interview Mastery",
+      "lessonIds": [
+        {
+          "id": "69f211b314de2d0b425ea24f",
+          "title": "Backend Interview Overview",
+          "moduleTitle": "Backend Interview Foundations"
+        },
+        {
+          "id": "69f211b314de2d0b425ea251",
+          "title": "Backend Interview Checklist",
+          "moduleTitle": "Backend Interview Foundations"
+        },
+        {
+          "id": "69f211b314de2d0b425ea254",
+          "title": "Backend Interview Drill",
+          "moduleTitle": "Backend Interview Practice"
+        },
+        {
+          "id": "69f211b314de2d0b425ea256",
+          "title": "Backend Interview Quiz",
+          "moduleTitle": "Backend Interview Practice"
+        }
+      ]
+    },
+    "systemDesign": {
+      "id": "69f208ec6d61fc0305266213",
+      "title": "[Seed endpoint-seed-v1] Node.js System Design Clinic"
+    },
+    "cvCareer": {
+      "id": "69f208ec6d61fc030526621d",
+      "title": "[Seed endpoint-seed-v1] CV And Behavioral Interview Bootcamp",
+      "lessonIds": [
+        {
+          "id": "69f211b314de2d0b425ea273",
+          "title": "CV Bootcamp Overview",
+          "moduleTitle": "CV Bootcamp Foundations"
+        },
+        {
+          "id": "69f211b314de2d0b425ea275",
+          "title": "CV Bootcamp Checklist",
+          "moduleTitle": "CV Bootcamp Foundations"
+        },
+        {
+          "id": "69f211b314de2d0b425ea278",
+          "title": "CV Bootcamp Drill",
+          "moduleTitle": "CV Bootcamp Practice"
+        },
+        {
+          "id": "69f211b314de2d0b425ea27a",
+          "title": "CV Bootcamp Quiz",
+          "moduleTitle": "CV Bootcamp Practice"
+        }
+      ]
+    }
+  },
+  "bookings": {
+    "completedReviewed": {
+      "id": "69f208ec6d61fc0305266227",
+      "paymentRef": "seed-booking-endpoint-seed-v1-completed-reviewed",
+      "status": "completed"
+    },
+    "confirmedUpcoming": {
+      "id": "69f208ec6d61fc0305266228",
+      "paymentRef": "seed-booking-endpoint-seed-v1-confirmed-upcoming",
+      "status": "confirmed"
+    },
+    "pendingRequest": {
+      "id": "69f208ec6d61fc0305266229",
+      "paymentRef": "seed-booking-endpoint-seed-v1-pending-request",
+      "status": "pending"
+    },
+    "rescheduledConfirmed": {
+      "id": "69f208ec6d61fc030526622a",
+      "paymentRef": "seed-booking-endpoint-seed-v1-rescheduled-confirmed",
+      "status": "confirmed"
+    },
+    "cancelledBooking": {
+      "id": "69f208ec6d61fc030526622b",
+      "paymentRef": "seed-booking-endpoint-seed-v1-cancelled-booking",
+      "status": "cancelled"
+    },
+    "completedSecondReview": {
+      "id": "69f208ec6d61fc030526622c",
+      "paymentRef": "seed-booking-endpoint-seed-v1-completed-second-review",
+      "status": "completed"
+    },
+    "completedReadyForReview": {
+      "id": "69f208ec6d61fc030526622d",
+      "paymentRef": "seed-booking-endpoint-seed-v1-completed-ready-for-review",
+      "status": "completed"
+    },
+    "confirmedMentorSecondary": {
+      "id": "69f208ec6d61fc030526622e",
+      "paymentRef": "seed-booking-endpoint-seed-v1-confirmed-mentor-secondary",
+      "status": "confirmed"
+    }
+  },
+  "reviews": {
+    "mentorPrimary": {
+      "id": "69f208ec6d61fc0305266232",
+      "targetId": "69f208cca9872f73da88fd97",
+      "bookingId": "69f208ec6d61fc0305266227"
+    },
+    "mentorSecondary": {
+      "id": "69f208ec6d61fc0305266233",
+      "targetId": "69f208cca9872f73da88fd97",
+      "bookingId": "69f208ec6d61fc030526622c"
+    },
+    "courseBackend": {
+      "id": "69f208ec6d61fc0305266234",
+      "targetId": "69f208ec6d61fc0305266209"
+    }
+  },
+  "enrollments": {
+    "customerBackend": {
+      "id": "69f208ec6d61fc030526622f",
+      "courseId": "69f208ec6d61fc0305266209",
+      "progressPercent": 50
+    },
+    "reviewerBackend": {
+      "id": "69f208ec6d61fc0305266230",
+      "courseId": "69f208ec6d61fc0305266209",
+      "progressPercent": 100
+    },
+    "starterCv": {
+      "id": "69f208ec6d61fc0305266231",
+      "courseId": "69f208ec6d61fc030526621d",
+      "progressPercent": 25
+    }
+  },
+  "notifications": {
+    "customerDevUnreadExampleId": "69f208ec6d61fc030526623c",
+    "mentorDevUnreadExampleId": "69f208ec6d61fc0305266240"
+  },
+  "reports": {
+    "mentorComplaint": {
+      "id": "69f208ec6d61fc0305266243",
+      "targetId": "69f208ec6d61fc0305266208"
+    },
+    "courseComplaint": {
+      "id": "69f208ec6d61fc0305266244",
+      "targetId": "69f208ec6d61fc0305266213"
+    }
+  },
+  "endpointFixtures": {
+    "auth": {
+      "loginAccounts": [
+        {
+          "email": "admin@dev.local",
+          "password": "Dev123456"
+        },
+        {
+          "email": "customer@dev.local",
+          "password": "Dev123456"
+        },
+        {
+          "email": "customer2@dev.local",
+          "password": "Dev123456"
+        },
+        {
+          "email": "starter.customer@dev.local",
+          "password": "Dev123456"
+        },
+        {
+          "email": "mentor@dev.local",
+          "password": "Dev123456"
+        },
+        {
+          "email": "mentor2@dev.local",
+          "password": "Dev123456"
+        }
+      ]
+    },
+    "mentors": {
+      "listIds": [
+        "u69f208cca9872f73da88fd95",
+        "u69f208ec6d61fc0305266207"
+      ],
+      "reviewTarget": "u69f208cca9872f73da88fd95"
+    },
+    "bookings": {
+      "createExample": {
+        "mentorId": "u69f208cca9872f73da88fd95",
+        "date": "09/05/2026",
+        "timeSlot": "13:00",
+        "sessionType": "mock_interview",
+        "price": 450000,
+        "notes": "Live booking test from endpoint seed"
+      },
+      "getById": "69f208ec6d61fc0305266228",
+      "getByPaymentRef": "seed-booking-endpoint-seed-v1-confirmed-upcoming",
+      "cancelTarget": "69f208ec6d61fc0305266229",
+      "rescheduleTarget": "69f208ec6d61fc0305266228",
+      "mentorConfirmTarget": "69f208ec6d61fc0305266229",
+      "mentorCompleteTarget": "69f208ec6d61fc0305266228"
+    },
+    "courses": {
+      "getById": "69f208ec6d61fc0305266209",
+      "enrollTargetForCustomerDev": "69f208ec6d61fc0305266213"
+    },
+    "enrollments": {
+      "updateProgressExample": {
+        "enrollmentId": "69f208ec6d61fc030526622f",
+        "lessonId": "69f211b314de2d0b425ea254",
+        "isCompleted": true
+      }
+    },
+    "reviews": {
+      "createMentorReviewExample": {
+        "targetType": "mentor",
+        "targetId": "u69f208ec6d61fc0305266207",
+        "bookingId": "69f208ec6d61fc030526622d",
+        "rating": 5,
+        "comment": "Live review test from seeded completed booking.",
+        "tags": [
+          "seed-test",
+          "cv-review"
+        ]
+      },
+      "createCourseReviewExample": {
+        "targetType": "course",
+        "targetId": "69f208ec6d61fc030526621d",
+        "rating": 4,
+        "comment": "Live course review test.",
+        "tags": [
+          "seed-test",
+          "course"
+        ]
+      },
+      "mentorReplyTarget": "69f208ec6d61fc0305266233",
+      "deleteTargetOwnedByCustomerDev": "69f208ec6d61fc0305266234"
+    },
+    "reports": {
+      "mentorTargetId": "u69f208ec6d61fc0305266207",
+      "courseTargetId": "69f208ec6d61fc0305266213"
+    },
+    "notifications": {
+      "markReadTargetForCustomerDev": "69f208ec6d61fc030526623c"
+    },
+    "payments": {
+      "bookingIdForInitiate": "69f208ec6d61fc0305266229",
+      "historyAccounts": [
+        "customer@dev.local",
+        "starter.customer@dev.local"
+      ]
+    },
+    "plans": {
+      "freeAccount": "customer@dev.local",
+      "starterAccount": "starter.customer@dev.local"
+    },
+    "admin": {
+      "patchUserRoleTarget": "69f208ec6d61fc0305266205",
+      "mentorStatusTarget": "69f208ec6d61fc0305266208",
+      "userStatusTarget": "69f208ec6d61fc0305266205"
+    }
+  },
+  "collectionCounts": {
+    "users": 6,
+    "mentors": 2,
+    "bookings": 8,
+    "courses": 3,
+    "enrollments": 4,
+    "reviews": 3,
+    "payments": 6,
+    "notifications": 7,
+    "reports": 2,
+    "cvAnalyses": 2,
+    "interviewSessions": 2,
+    "subscriptions": 1,
+    "activities": 3,
+    "courseQAs": 1,
+    "mentorPeerReviews": 1
+  }
+}

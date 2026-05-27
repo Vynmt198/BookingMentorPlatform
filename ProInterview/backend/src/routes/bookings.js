@@ -1,0 +1,29 @@
+import { Router } from "express";
+import { authJwt } from "../middleware/authJwt.js";
+import { requireMentor } from "../middleware/requireMentor.js";
+import { asyncHandler } from "../middleware/asyncHandler.js";
+import { BookingsController } from "../controllers/bookingsController.js";
+
+export const bookingsRouter = Router();
+
+bookingsRouter.get("/", authJwt, asyncHandler(BookingsController.list));
+bookingsRouter.post("/", authJwt, asyncHandler(BookingsController.create));
+bookingsRouter.get("/mentor/list", authJwt, requireMentor, asyncHandler(BookingsController.listForMentor));
+bookingsRouter.get("/mentor/:id", authJwt, requireMentor, asyncHandler(BookingsController.getByIdForMentor));
+bookingsRouter.patch("/mentor/:id/start", authJwt, requireMentor, asyncHandler(BookingsController.startMeetingForMentor));
+bookingsRouter.patch("/mentor/:id/reschedule", authJwt, requireMentor, asyncHandler(BookingsController.rescheduleForMentor));
+bookingsRouter.patch("/mentor/:id/cancel", authJwt, requireMentor, asyncHandler(BookingsController.cancelForMentor));
+bookingsRouter.patch("/:id/submit-transfer", authJwt, asyncHandler(BookingsController.submitTransfer));
+bookingsRouter.patch("/:id/confirm", authJwt, requireMentor, asyncHandler(BookingsController.confirmForMentor));
+bookingsRouter.patch("/:id/start", authJwt, asyncHandler(BookingsController.startMeeting));
+bookingsRouter.patch("/:id/complete", authJwt, requireMentor, asyncHandler(BookingsController.completeForMentor));
+bookingsRouter.patch("/:id/notes", authJwt, requireMentor, asyncHandler(BookingsController.updateNotesForMentor));
+bookingsRouter.patch("/:id/reschedule", authJwt, asyncHandler(BookingsController.reschedule));
+bookingsRouter.patch("/:id/refund-destination", authJwt, asyncHandler(BookingsController.updateRefundDestination));
+bookingsRouter.patch("/:id/mentor-cancel-resolution", authJwt, asyncHandler(BookingsController.resolveMentorCancel));
+bookingsRouter.post("/:id/report-no-show", authJwt, asyncHandler(BookingsController.reportNoShow));
+bookingsRouter.get("/:id/rebook-credit", authJwt, asyncHandler(BookingsController.getRebookCredit));
+bookingsRouter.post("/:id/review", authJwt, asyncHandler(BookingsController.createReviewForBooking));
+bookingsRouter.get("/:id", authJwt, asyncHandler(BookingsController.getById));
+bookingsRouter.delete("/:id", authJwt, asyncHandler(BookingsController.cancel));
+bookingsRouter.get("/mentor/:id/booked-slots", asyncHandler(BookingsController.getBookedSlots));

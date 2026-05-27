@@ -1,0 +1,301 @@
+import { useEffect, useState } from "react";
+import { Link, useParams } from "react-router";
+import { motion } from "motion/react";
+import {
+  ArrowLeft,
+  Briefcase,
+  Building2,
+  ExternalLink,
+  Mail,
+  ShieldCheck,
+  Star,
+  Calendar,
+  User,
+  Lock,
+  Unlock,
+} from "lucide-react";
+import {
+  adminGlassTable,
+  adminPageWrap,
+  adminStatGrid4,
+} from "../../components/admin/AdminPageShell.jsx";
+import { adminApi } from "../../utils/adminApi.js";
+import { tryApi } from "../../utils/apiToast.js";
+import { avatarSrc } from "../../utils/mediaUrl.js";
+
+function vnd(amount) {
+  return `${Number(amount || 0).toLocaleString("vi-VN")} đ`;
+}
+
+function formatDate(iso) {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function InfoBlock({ icon: Icon, label, children }) {
+  return (
+    <div className="flex gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-4">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-violet-700 shadow-sm">
+        <Icon className="h-5 w-5" aria-hidden />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{label}</p>
+        <div className="mt-1 text-sm font-medium text-slate-900">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ ok, labelOk, labelNo }) {
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
+        ok
+          ? "border-lime-400/25 bg-lime-500/10 text-lime-900"
+          : "border-orange-400/25 bg-orange-500/10 text-orange-900"
+      }`}
+    >
+      {ok ? labelOk : labelNo}
+    </span>
+  );
+}
+
+export function AdminMentorDetail() {
+  const { id } = useParams();
+  const [mentor, setMentor] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      const res = await tryApi(() => adminApi.getMentorById(id), {
+        fallback: "Không tải được cố vấn.",
+        silent: true,
+      });
+      if (cancelled) return;
+      if (!res.success) {
+        setError(res.error || "Không tải được cố vấn.");
+        setMentor(null);
+      } else {
+        setMentor(res.mentor || null);
+        if (!res.mentor) setError("Không tìm thấy cố vấn.");
+      }
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const displayName = mentor?.name || mentor?.userId?.name || "Cố vấn";
+  const email = mentor?.userId?.email || "—";
+  const expertise = (mentor?.expertise || mentor?.specialties || []).filter(Boolean);
+  const rating = Number(mentor?.stats?.rating ?? mentor?.rating ?? 0);
+  const reviewCount = Number(mentor?.stats?.reviewCount ?? 0);
+  const sessions = Number(mentor?.stats?.sessionsCount ?? mentor?.totalSessions ?? 0);
+  const publicPath = mentor?.publicId || mentor?._id;
+
+  const toggleActive = async () => {
+    if (!mentor) return;
+    setBusy(true);
+    const next = !mentor.isActive;
+    const res = await tryApi(() => adminApi.updateMentorStatus(mentor._id, next), {
+      fallback: "Không cập nhật được trạng thái.",
+      successMessage: next ? "Đã kích hoạt cố vấn" : "Đã khóa cố vấn",
+    });
+    setBusy(false);
+    if (res.success) {
+      setMentor({ ...mentor, isActive: next, isVerified: next ? true : mentor.isVerified });
+    }
+  };
+
+  return (
+    <div className={adminPageWrap}>
+      <Link
+        to="/admin/mentors"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-700 hover:text-violet-900"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Danh sách cố vấn
+      </Link>
+
+      {loading && (
+        <p className="text-sm text-slate-500">Đang tải hồ sơ cố vấn…</p>
+      )}
+
+      {error && !loading && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">{error}</div>
+      )}
+
+      {mentor && !loading && (
+        <>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`${adminGlassTable} p-5 sm:p-6`}
+          >
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+              <img
+                src={avatarSrc(mentor.avatar || mentor.userId?.avatar)}
+                alt=""
+                className="h-24 w-24 shrink-0 rounded-2xl border-2 border-violet-100 object-cover shadow-md"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatusPill ok={mentor.isVerified} labelOk="Đã duyệt" labelNo="Chưa duyệt" />
+                  <StatusPill ok={mentor.isActive} labelOk="Đang hoạt động" labelNo="Đã khóa" />
+                </div>
+                <h3 className="mt-2 font-headline text-2xl font-black text-slate-900">{displayName}</h3>
+                <p className="mt-0.5 text-sm font-medium text-violet-800">{mentor.title || "—"}</p>
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600">
+                  <Mail className="h-4 w-4 shrink-0" />
+                  {email}
+                </p>
+                {mentor.company ? (
+                  <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600">
+                    <Building2 className="h-4 w-4 shrink-0" />
+                    {mentor.company}
+                  </p>
+                ) : null}
+                {publicPath ? (
+                  <Link
+                    to={`/mentors/${publicPath}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-violet-700 hover:underline"
+                  >
+                    Xem hồ sơ công khai
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </Link>
+                ) : null}
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void toggleActive()}
+                  className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-[10px] font-black uppercase tracking-wider disabled:opacity-50 ${
+                    mentor.isActive
+                      ? "border-amber-400/25 bg-amber-500/10 text-amber-900 hover:bg-amber-500/20"
+                      : "border-lime-400/25 bg-lime-500/10 text-lime-900 hover:bg-lime-500/20"
+                  }`}
+                >
+                  {mentor.isActive ? (
+                    <>
+                      <Lock className="h-4 w-4" />
+                      Khóa cố vấn
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="h-4 w-4" />
+                      Kích hoạt
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={adminStatGrid4}>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-amber-900">Đánh giá</p>
+              <p className="mt-1 flex items-center gap-1 text-2xl font-black text-amber-950">
+                <Star className="h-6 w-6 fill-amber-400 text-amber-400" />
+                {rating > 0 ? rating.toFixed(1) : "—"}
+              </p>
+              <p className="text-xs text-amber-800/80">{reviewCount} lượt đánh giá</p>
+            </div>
+            <div className="rounded-2xl border border-violet-200 bg-violet-50/80 p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-violet-900">Buổi mentor</p>
+              <p className="mt-1 text-2xl font-black text-violet-950">{sessions}</p>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900">Giá / giờ</p>
+              <p className="mt-1 text-2xl font-black text-emerald-950">
+                {vnd(mentor.pricePerHour || mentor.hourlyRate)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4">
+              <p className="text-[10px] font-black uppercase tracking-widest text-sky-900">Tham gia</p>
+              <p className="mt-1 text-sm font-bold text-sky-950">{formatDate(mentor.createdAt)}</p>
+            </div>
+          </motion.div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`${adminGlassTable} p-5`}>
+              <h4 className="mb-4 text-sm font-black uppercase tracking-wider text-slate-800">Hồ sơ chuyên môn</h4>
+              <div className="space-y-3">
+                <InfoBlock icon={Briefcase} label="Chuyên môn">
+                  {expertise.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {expertise.map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-900"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    "—"
+                  )}
+                </InfoBlock>
+                <InfoBlock icon={User} label="Mã công khai">
+                  <code className="text-xs text-slate-600">{mentor.publicId || "—"}</code>
+                </InfoBlock>
+                <InfoBlock icon={ShieldCheck} label="Vai trò tài khoản">
+                  {mentor.userId?.role || "mentor"}
+                  {mentor.userId?.plan ? ` · Gói ${mentor.userId.plan}` : ""}
+                </InfoBlock>
+              </div>
+            </motion.div>
+
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`${adminGlassTable} p-5`}>
+              <h4 className="mb-4 text-sm font-black uppercase tracking-wider text-slate-800">Giới thiệu</h4>
+              {mentor.bio ? (
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{mentor.bio}</p>
+              ) : (
+                <p className="text-sm text-slate-500">Mentor chưa điền phần giới thiệu.</p>
+              )}
+            </motion.div>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-wrap gap-3"
+          >
+            <Link
+              to={`/admin/bookings`}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+            >
+              <Calendar className="h-4 w-4" />
+              Lịch hẹn hệ thống
+            </Link>
+            <Link
+              to={`/admin/support`}
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-wider text-slate-700 hover:bg-slate-50"
+            >
+              Hỗ trợ & khiếu nại
+            </Link>
+          </motion.div>
+        </>
+      )}
+    </div>
+  );
+}

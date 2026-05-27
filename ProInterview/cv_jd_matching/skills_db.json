@@ -1,0 +1,55 @@
+{
+  "programming_languages": [
+    "python", "javascript", "typescript", "java", "c++", "c#", "go", "rust",
+    "kotlin", "swift", "ruby", "php", "scala", "r", "matlab", "bash", "sql",
+    "html", "css", "dart", "lua", "perl"
+  ],
+  "frameworks_libraries": [
+    "react", "vue", "angular", "next.js", "nuxt", "svelte",
+    "django", "flask", "fastapi", "express", "spring boot", "laravel",
+    "pytorch", "tensorflow", "keras", "scikit-learn", "pandas", "numpy",
+    "opencv", "hugging face", "transformers", "langchain",
+    "flutter", "react native", "electron"
+  ],
+  "databases": [
+    "postgresql", "mysql", "mongodb", "redis", "elasticsearch", "sqlite",
+    "cassandra", "dynamodb", "firebase", "supabase", "neo4j", "oracle"
+  ],
+  "cloud_devops": [
+    "aws", "gcp", "azure", "docker", "kubernetes", "terraform", "ansible",
+    "ci/cd", "github actions", "jenkins", "gitlab ci", "nginx", "linux",
+    "microservices", "serverless", "lambda", "s3", "ec2"
+  ],
+  "ai_ml": [
+    "machine learning", "deep learning", "nlp", "computer vision",
+    "reinforcement learning", "llm", "rag", "fine-tuning", "prompt engineering",
+    "data science", "feature engineering", "model deployment", "mlops",
+    "bert", "gpt", "whisper", "stable diffusion", "vector database"
+  ],
+  "soft_skills": [
+    "communication", "teamwork", "leadership", "problem solving",
+    "time management", "agile", "scrum", "kanban", "project management",
+    "critical thinking", "mentoring", "presentation"
+  ],
+  "tools": [
+    "git", "github", "gitlab", "jira", "confluence", "notion", "figma",
+    "postman", "swagger", "vscode", "jupyter", "tableau", "power bi",
+    "grafana", "prometheus", "datadog", "sentry"
+  ],
+  "aliases": {
+    "js": "javascript",
+    "ts": "typescript",
+    "py": "python",
+    "ml": "machine learning",
+    "dl": "deep learning",
+    "k8s": "kubernetes",
+    "pg": "postgresql",
+    "mongo": "mongodb",
+    "tf": "tensorflow",
+    "sk-learn": "scikit-learn",
+    "hf": "hugging face",
+    "llms": "llm",
+    "genai": "generative ai",
+    "cv": "computer vision"
+  }
+}

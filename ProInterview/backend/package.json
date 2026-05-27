@@ -1,0 +1,61 @@
+{
+  "name": "prointerview-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/scripts/seedUsers.js",
+    "seed:users": "node src/scripts/seedUsers.js",
+    "seed:ui-mock": "node src/scripts/seedUiMockData.js",
+    "db:prune-fake-mentors": "node src/scripts/pruneFakeMentors.js",
+    "seed:all": "node src/scripts/seedAll.js",
+    "seed:reviews": "node src/scripts/seedReviews.js",
+    "seed:reports": "node src/scripts/seedReports.js",
+    "seed:endpoint": "node src/scripts/seedEndpointData.js",
+    "sync:mentor-profiles": "node src/scripts/syncMentorProfiles.js",
+    "db:normalize-transfer-refs": "node src/scripts/normalizeTransferRefs.js",
+    "db:migrate-cv-analysis": "node src/scripts/migrate-cv-analysis.js",
+    "db:migrate-cv-analysis:dry": "node src/scripts/migrate-cv-analysis.js --dry-run",
+    "test": "npm run test:node && npm run test:dto && npm run test:python-cv",
+    "test:node": "node --test src/utils/apiErrors.test.js src/utils/planKeys.test.js src/utils/bookingSchedule.test.js src/utils/orderRef.test.js src/utils/securityGuards.test.js src/services/reviewsService.integration.test.js src/integration/cv.integration.test.js src/integration/cvMatch.integration.test.js src/integration/payments-transfer.integration.test.js src/integration/security.integration.test.js",
+    "test:payments": "node --test src/integration/payments-transfer.integration.test.js",
+    "test:python-cv": "cd ../cv_jd_matching && python -m unittest discover -s tests -p test_*.py -v",
+    "test:dto": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --testPathPatterns=__tests__"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    }
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^7.5.1",
+    "google-auth-library": "^9.15.1",
+    "helmet": "^8.1.0",
+    "hpp": "^0.2.3",
+    "joi": "^18.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.4.1",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.7"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "jest": "^30.4.2",
+    "mongodb-memory-server": "^11.1.0",
+    "nodemon": "^3.1.14"
+  }
+}

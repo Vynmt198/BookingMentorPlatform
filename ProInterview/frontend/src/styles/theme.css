@@ -1,0 +1,370 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* ─── Background / Foreground ─────────────────────────── */
+  --background: oklch(0.9650 0.0030 264.5);
+  --foreground: oklch(0.2094 0 0);
+
+  /* ─── Card ────────────────────────────────────────────── */
+  --card: oklch(1.0000 0 0);
+  --card-foreground: oklch(0.2094 0 0);
+
+  /* ─── Popover ─────────────────────────────────────────── */
+  --popover: oklch(1.0000 0 0);
+  --popover-foreground: oklch(0.2094 0 0);
+
+  /* ─── Primary: #8037f4 ───────────────────────────────── */
+  --primary: oklch(0.52 0.245 285.5);
+  --primary-foreground: oklch(1.0000 0 0);
+
+  /* ─── Secondary: #93f72b Lime CTA ─────────────────────── */
+  --secondary: oklch(0.91 0.22 123);
+  --secondary-foreground: oklch(0.12 0.02 285);
+
+  /* ─── Muted ───────────────────────────────────────────── */
+  --muted: oklch(0.9400 0.0050 264.5);
+  --muted-foreground: oklch(0.5200 0.0150 264.5);
+
+  /* ─── Accent: lime (cùng secondary) ───────────────────── */
+  --accent: oklch(0.93 0.21 124);
+  --accent-foreground: oklch(0.22 0.06 285);
+
+  /* ─── Destructive: tím đậm (không cam/đỏ) ─────────────── */
+  --destructive: oklch(0.38 0.14 285);
+  --destructive-foreground: oklch(1.0000 0 0);
+
+  /* ─── Border / Input / Ring ──────────────────────────── */
+  --border: oklch(0.9100 0.0060 264.5);
+  --input: oklch(0.9400 0.0050 264.5);
+  --ring: oklch(0.52 0.245 285.5);
+
+  /* ─── Chart Colors ────────────────────────────────────── */
+  --chart-1: oklch(0.52 0.245 285.5);
+  --chart-2: oklch(0.91 0.22 123);
+  --chart-3: oklch(0.91 0.22 123);
+  --chart-4: oklch(0.55 0.22 287);
+  --chart-5: oklch(0.72 0.12 290);
+
+  /* ─── Sidebar: Dark Purple Navy ──────────────────────── */
+  --sidebar: oklch(0.0920 0.0520 287.0);
+  --sidebar-foreground: oklch(1.0000 0 0);
+  --sidebar-primary: oklch(0.52 0.245 285.5);
+  --sidebar-primary-foreground: oklch(1.0000 0 0);
+  --sidebar-accent: oklch(0.1800 0.0400 287.0);
+  --sidebar-accent-foreground: oklch(1.0000 0 0);
+  --sidebar-border: oklch(0.2000 0.0300 287.0);
+  --sidebar-ring: oklch(0.52 0.245 285.5);
+
+  /* ─── Typography ──────────────────────────────────────── */
+  --font-sans: 'Lexend', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: JetBrains Mono, monospace;
+
+  /* ─── Radius ──────────────────────────────────────────── */
+  --radius: 1rem;
+
+  /* ─── Shadows ─────────────────────────────────────────── */
+  --shadow-2xs: 0px 1px 3px 0px rgba(0, 0, 0, 0.06);
+  --shadow-xs: 0px 1px 3px 0px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0px 2px 6px 0px rgba(0, 0, 0, 0.08), 0px 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow: 0px 4px 12px 0px rgba(0, 0, 0, 0.08), 0px 1px 3px -1px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0px 6px 16px 0px rgba(0, 0, 0, 0.10), 0px 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0px 10px 24px 0px rgba(0, 0, 0, 0.10), 0px 4px 6px -1px rgba(0, 0, 0, 0.07);
+  --shadow-xl: 0px 16px 40px 0px rgba(0, 0, 0, 0.12), 0px 8px 10px -1px rgba(0, 0, 0, 0.07);
+  --shadow-2xl: 0px 24px 60px 0px rgba(0, 0, 0, 0.15);
+  
+  --tracking-normal: -0.01em;
+  --spacing: 0.25rem;
+}
+
+/* Trang user (AppLayout) — cùng họ màu Home: sidebar sáng, tím làm accent */
+body:has(.app-user-shell) {
+  --sidebar: oklch(0.985 0.008 290);
+  --sidebar-foreground: oklch(0.32 0.045 285);
+  --sidebar-primary: oklch(0.52 0.245 285.5);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.955 0.022 290);
+  --sidebar-accent-foreground: oklch(0.34 0.07 285);
+  --sidebar-border: oklch(0.9 0.02 290);
+  --sidebar-ring: oklch(0.52 0.245 285.5);
+}
+
+/* Nền loang tím (fixed, sau nội dung z-1) */
+.app-shell-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-color: #f3f0f9;
+  background-image:
+    radial-gradient(ellipse 130% 58% at 50% 108%, rgba(45, 22, 72, 0.075), transparent 58%),
+    radial-gradient(ellipse 42% 36% at 93% 4%, rgba(72, 32, 185, 0.17), transparent 52%),
+    radial-gradient(ellipse 40% 34% at 4% 97%, rgba(58, 22, 145, 0.135), transparent 50%),
+    radial-gradient(ellipse 38% 32% at 88% 94%, rgba(68, 30, 168, 0.125), transparent 48%),
+    radial-gradient(ellipse 82% 68% at 50% 46%, rgba(255, 255, 255, 0.5), transparent 62%),
+    radial-gradient(ellipse 125% 95% at 88% -5%, rgba(128, 55, 244, 0.125), transparent 56%),
+    radial-gradient(ellipse 105% 90% at -8% 100%, rgba(128, 55, 244, 0.095), transparent 54%),
+    radial-gradient(ellipse 100% 85% at 38% 38%, rgba(155, 109, 255, 0.072), transparent 60%),
+    radial-gradient(ellipse 90% 75% at 85% 95%, rgba(128, 55, 244, 0.058), transparent 55%),
+    linear-gradient(
+      180deg,
+      rgba(243, 240, 249, 0.92) 0%,
+      rgba(237, 232, 248, 0.85) 22%,
+      rgba(210, 200, 232, 0.22) 42%,
+      rgba(225, 216, 242, 0.14) 56%,
+      rgba(198, 186, 222, 0.2) 72%,
+      rgba(243, 240, 249, 0.95) 100%
+    );
+  background-size: auto;
+}
+
+/* Home — nền ngoài loang rõ: tím nhạt hai bên, giữa sáng hơn (canvas rộng hơn cột nội dung) */
+.app-shell-ambient--home {
+  background-color: #dcd2eb;
+  background-image:
+    radial-gradient(ellipse 100% 92% at -10% 45%, rgba(128, 55, 244, 0.28), transparent 62%),
+    radial-gradient(ellipse 100% 92% at 110% 55%, rgba(128, 55, 244, 0.24), transparent 62%),
+    radial-gradient(ellipse 260% 120% at 50% -18%, rgba(139, 92, 246, 0.14), transparent 72%),
+    radial-gradient(ellipse 240% 110% at 50% 112%, rgba(99, 14, 212, 0.12), transparent 70%),
+    radial-gradient(ellipse 58% 54% at 50% 48%, rgba(255, 255, 255, 0.88), transparent 64%),
+    linear-gradient(
+      90deg,
+      #d4c8e8 0%,
+      #ddd2ef 10%,
+      #ebe4f6 22%,
+      #f6f4fc 42%,
+      #faf9fe 50%,
+      #f6f4fc 58%,
+      #ebe4f6 78%,
+      #ddd2ef 90%,
+      #d4c8e8 100%
+    );
+}
+
+.dark {
+  --background: oklch(0.12 0.045 292);
+  --foreground: oklch(1.0000 0 0);
+  --card: oklch(0.14 0.038 292);
+  --card-foreground: oklch(1.0000 0 0);
+  --popover: oklch(0.105 0.022 287);
+  --popover-foreground: oklch(1.0000 0 0);
+  --primary: oklch(0.62 0.25 287);
+  --primary-foreground: oklch(1.0000 0 0);
+  --secondary: oklch(0.93 0.21 124);
+  --secondary-foreground: oklch(0.12 0.02 285);
+  --muted: oklch(0.140 0.018 287);
+  --muted-foreground: oklch(0.55 0.04 287);
+  --accent: oklch(0.93 0.21 124);
+  --accent-foreground: oklch(0.22 0.06 285);
+  --destructive: oklch(0.45 0.16 285);
+  --destructive-foreground: oklch(1.0000 0 0);
+  --border: oklch(0.175 0.018 287);
+  --input: oklch(0.140 0.018 287);
+  --ring: oklch(0.62 0.25 287);
+  --sidebar: oklch(0.080 0.020 287);
+  --sidebar-foreground: oklch(1.0000 0 0);
+  --sidebar-primary: oklch(0.62 0.25 287);
+  --sidebar-primary-foreground: oklch(1.0000 0 0);
+  --sidebar-accent: oklch(0.135 0.018 287);
+  --sidebar-accent-foreground: oklch(1.0000 0 0);
+  --sidebar-border: oklch(0.175 0.018 287);
+  --sidebar-ring: oklch(0.62 0.25 287);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-serif: var(--font-serif);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+
+  --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
+  --tracking-tight: calc(var(--tracking-normal) - 0.025em);
+  --tracking-normal: var(--tracking-normal);
+  --tracking-wide: calc(var(--tracking-normal) + 0.025em);
+  --tracking-wider: calc(var(--tracking-normal) + 0.05em);
+  --tracking-widest: calc(var(--tracking-normal) + 0.1em);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    letter-spacing: var(--tracking-normal);
+  }
+}
+
+@layer components {
+  .app-page-title {
+    @apply text-xl font-black leading-tight tracking-tight text-foreground sm:text-2xl;
+  }
+
+  .app-page-subtitle {
+    @apply w-full text-sm font-medium leading-relaxed text-muted-foreground sm:text-base;
+  }
+}
+
+/* ─── ProInterview: chỉ trắng · tím · lime ─────────────────
+   Map palette Tailwind phổ biến → tông tím (neutral) / lime (success) */
+@theme {
+  /* Neutral → tím xám (thay slate/zinc/gray) */
+  --color-slate-50: #faf9fd;
+  --color-slate-100: #f3f0f9;
+  --color-slate-200: #e6e0f2;
+  --color-slate-300: #cfc6e6;
+  --color-slate-400: #a89bc4;
+  --color-slate-500: #7c6fa8;
+  --color-slate-600: #5a4d85;
+  --color-slate-700: #3d2f66;
+  --color-slate-800: #2a1f4d;
+  --color-slate-900: #1a1035;
+  --color-slate-950: #120b2e;
+
+  --color-zinc-50: #faf9fd;
+  --color-zinc-100: #f3f0f9;
+  --color-zinc-200: #e6e0f2;
+  --color-zinc-300: #cfc6e6;
+  --color-zinc-400: #a89bc4;
+  --color-zinc-500: #7c6fa8;
+  --color-zinc-600: #5a4d85;
+  --color-zinc-700: #3d2f66;
+  --color-zinc-800: #2a1f4d;
+  --color-zinc-900: #1a1035;
+
+  --color-gray-50: #faf9fd;
+  --color-gray-100: #f3f0f9;
+  --color-gray-200: #e6e0f2;
+  --color-gray-300: #cfc6e6;
+  --color-gray-400: #a89bc4;
+  --color-gray-500: #7c6fa8;
+  --color-gray-600: #5a4d85;
+  --color-gray-700: #3d2f66;
+  --color-gray-800: #2a1f4d;
+  --color-gray-900: #1a1035;
+
+  /* Success → lime */
+  --color-emerald-50: #f7ffe8;
+  --color-emerald-100: #eefcc8;
+  --color-emerald-200: #e2f99a;
+  --color-emerald-300: #d4f56b;
+  --color-emerald-400: #c8f24f;
+  --color-emerald-500: #93f72b;
+  --color-emerald-600: #7fe015;
+  --color-emerald-700: #6e9a00;
+  --color-emerald-800: #4a6800;
+  --color-emerald-900: #2d4000;
+  --color-green-50: #f7ffe8;
+  --color-green-100: #eefcc8;
+  --color-green-500: #93f72b;
+  --color-green-600: #7fe015;
+  --color-green-700: #6e9a00;
+
+  /* Warning → tím nhạt + lime nhạt (không vàng/cam) */
+  --color-amber-50: #f5f0ff;
+  --color-amber-100: #ebe4ff;
+  --color-amber-200: #ddd6fe;
+  --color-amber-300: #c4b5fd;
+  --color-amber-400: #a78bfa;
+  --color-amber-500: #8b6ee8;
+  --color-amber-600: #8037f4;
+  --color-amber-700: #6d2fd6;
+  --color-amber-800: #4a229f;
+  --color-amber-900: #3a1a7a;
+  --color-yellow-50: #f7ffe8;
+  --color-yellow-100: #eefcc8;
+  --color-yellow-500: #93f72b;
+  --color-orange-50: #f5f0ff;
+  --color-orange-500: #8037f4;
+  --color-orange-600: #6d2fd6;
+
+  /* Info / link blues → tím */
+  --color-sky-50: #f5f0ff;
+  --color-sky-100: #ebe4ff;
+  --color-sky-500: #a66ff8;
+  --color-sky-600: #8037f4;
+  --color-sky-900: #3a1a7a;
+  --color-blue-50: #f5f0ff;
+  --color-blue-100: #ebe4ff;
+  --color-blue-500: #8037f4;
+  --color-blue-600: #6d2fd6;
+  --color-blue-700: #5c2bc9;
+  --color-cyan-50: #f5f0ff;
+  --color-cyan-500: #a66ff8;
+  --color-indigo-50: #f5f0ff;
+  --color-indigo-500: #8037f4;
+  --color-indigo-600: #6d2fd6;
+
+  /* Error → tím đậm (không đỏ) */
+  --color-red-50: #f5f0ff;
+  --color-red-100: #ebe4ff;
+  --color-red-200: #ddd6fe;
+  --color-red-500: #5c2bc9;
+  --color-red-600: #4a229f;
+  --color-red-700: #3a1a7a;
+  --color-rose-50: #f5f0ff;
+  --color-rose-500: #8037f4;
+  --color-rose-600: #6d2fd6;
+
+  /* Pink/fuchsia → tím */
+  --color-fuchsia-50: #f5f0ff;
+  --color-fuchsia-100: #ebe4ff;
+  --color-fuchsia-500: #a66ff8;
+  --color-fuchsia-600: #8037f4;
+  --color-fuchsia-700: #6d2fd6;
+  --color-pink-50: #f5f0ff;
+  --color-pink-500: #a66ff8;
+
+  /* Teal → lime-violet */
+  --color-teal-50: #f7ffe8;
+  --color-teal-500: #93f72b;
+}

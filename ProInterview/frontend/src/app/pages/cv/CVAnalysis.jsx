@@ -1,0 +1,1215 @@
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate, useSearchParams, useLocation } from "react-router";
+import {
+  FileText,
+  ChevronDown,
+  ChevronRight,
+  Check,
+  X,
+  Zap,
+  AlertTriangle as Warning,
+  Briefcase,
+  ArrowLeft,
+  Lock,
+  Percent as SealPercent,
+  Trash2 as Trash,
+  Loader2,
+  Upload,
+  CloudUpload,
+  Eye,
+  RefreshCw,
+  BadgeCheck,
+} from "lucide-react";
+import { getPlans, getCVRemaining, incrementCVCount, CV_FREE_LIMIT, isLoggedIn } from "../../utils/auth";
+import { buildLoginPath } from "../../utils/authGate";
+import { apiUrl as expressApiUrl, isExpressBackendConfigured } from "../../utils/api";
+import { CvJdAnalysisPage, cvAnalysisPageHeader } from "../../components/cv/CvJdAnalysisFrame";
+import {
+  CV_FIELD_ANALYSIS_PATH,
+  CV_FIELD_HISTORY_PATH,
+  CV_JD_HISTORY_PATH,
+  cvAnalysisResultPath,
+} from "../../components/cv/CvJdAnalysisTabs";
+import { addCVAnalysisRecord } from "../../utils/history";
+import {
+  buildCvAnalysisSavePayload,
+  deleteCvAnalysis,
+  fetchCvAnalyses,
+  fetchCvAnalysisById,
+  formatCvSaveError,
+  saveCvAnalysis,
+} from "../../utils/cvApi";
+import { buildFieldAnalysisMockPipeline } from "../../data/cvFieldAnalysisMock.js";
+import {
+  formatSkillSuggestionReason,
+  mapPythonCvPipelineToAnalysis,
+} from "../../utils/cvMappers.js";
+import { uploadCvJdFiles } from "../../utils/cvFileUpload.js";
+import { projectId, publicAnonKey } from "/utils/supabase/info.js";
+
+// ─── API base ─────────────────────────────────────────────────────────────────
+const EDGE_FN = "make-server-64a0c849";
+const USE_EXPRESS_CV = isExpressBackendConfigured();
+const SUPABASE_CONFIGURED = Boolean(String(import.meta.env.VITE_SUPABASE_PROJECT_ID ?? "").trim());
+const API_BASE = SUPABASE_CONFIGURED
+  ? `https://${projectId}.supabase.co/functions/v1/${EDGE_FN}`
+  : "";
+
+function getSessionId() {
+  const key = "prointerview_session_id";
+  let id = localStorage.getItem(key);
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem(key, id); }
+  return id;
+}
+
+// This server does NOT list "apikey" in Access-Control-Allow-Headers,
+// so sending it as a header causes CORS preflight to fail with
+// "Failed to fetch". Only Authorization is safe to include.
+function apiHeaders(userToken) {
+  const t = userToken ?? "";
+  const hasToken = !!(t && t !== "null" && t !== "undefined" && t.length > 20);
+  if (!hasToken) return {};
+  return { "Authorization": `Bearer ${t}` };
+}
+
+function supabaseApiUrl(path) {
+  if (!SUPABASE_CONFIGURED) return "";
+  return `${API_BASE}/${path}`;
+}
+
+/**
+ * JWT từ backend (/api/auth). Edge function Supabase có thể không chấp nhận token này —
+ * khi đó CV vẫn chạy ở chế độ demo (không gửi Bearer).
+ */
+async function getForceRefreshedToken() {
+  try {
+    const { getFreshAccessToken } = await import("../../utils/auth");
+    return await getFreshAccessToken();
+  } catch {
+    return "";
+  }
+}
+
+/** Rebuild FormData for retry requests */
+function buildFd(
+  cvFile, reuseCV,
+  jdFile, reuseJD,
+  analyzeModeParam, selectedField
+) {
+  const fd = new FormData();
+  if (cvFile)         fd.append("cv", cvFile);
+  else if (reuseCV)   fd.append("cvPath", reuseCV.path);
+  if (jdFile && analyzeModeParam === "jd")       fd.append("jd", jdFile);
+  else if (reuseJD && analyzeModeParam === "jd") fd.append("jdPath", reuseJD.path);
+  fd.append("mode", analyzeModeParam);
+  if (selectedField) fd.append("field", selectedField);
+  return fd;
+}
+
+/** FastAPI trả `detail` (string hoặc mảng validation); Express dùng `error`. */
+function formatCvAnalyzerHttpError(status, body) {
+  const e = body ?? {};
+  if (typeof e.detail === "string" && e.detail.trim()) return e.detail.trim();
+  if (Array.isArray(e.detail)) {
+    const parts = e.detail
+      .map((d) => (d && typeof d === "object" && d.msg ? String(d.msg) : typeof d === "string" ? d : ""))
+      .filter(Boolean);
+    if (parts.length) return parts.join(" · ");
+  }
+  if (typeof e.error === "string" && e.error.trim()) return e.error.trim();
+  return `CV Analyzer lỗi ${status}`;
+}
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const DEFAULT_FIELD = "IT / Công nghệ";
+
+/** Ngành chọn được — các mục khác hiển thị badge «Sắp ra mắt». */
+const FIELD_OPTIONS = [
+  { label: DEFAULT_FIELD, available: true },
+  { label: "Marketing", available: false },
+  { label: "Tài chính / Kế toán", available: false },
+  { label: "Nhân sự", available: false },
+  { label: "Quản lý sản phẩm", available: false },
+  { label: "Thiết kế / UX", available: false },
+  { label: "Kinh doanh", available: false },
+  { label: "Vận hành", available: false },
+];
+
+const FILE_FORMAT_HINT = "Hỗ trợ .pdf, .doc, .docx, .txt · tối đa 10MB";
+
+const UPLOAD_PICK_BTN =
+  "mt-2.5 inline-flex items-center justify-center rounded-lg border border-violet-200 bg-white px-4 py-1.5 text-sm font-semibold text-violet-800 shadow-sm ring-1 ring-violet-100/80 transition hover:border-violet-300 hover:bg-violet-50";
+
+function preventDragDefaults(e) {
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+/** Chiều cao cố định — CV và JD luôn bằng nhau (chưa chọn / đã chọn) */
+const UPLOAD_ZONE_HEIGHT =
+  "flex h-[10.75rem] w-full flex-col items-center justify-between rounded-2xl border-2 border-dashed border-violet-200/90 bg-violet-50/25 px-5 py-4 text-center transition sm:h-[11rem] sm:px-6 sm:py-5";
+
+function CvUploadDropZone({ kind, hasFile, fileName, fileSizeKb, onPick, onClear, onFile }) {
+  const isCv = kind === "cv";
+  const headline = isCv
+    ? "Tải lên CV từ máy tính, chọn hoặc kéo thả"
+    : "Tải lên Job Description, chọn hoặc kéo thả";
+  const pickLabel = isCv ? "Chọn CV" : "Chọn JD";
+  const zoneLabel = isCv ? "CV của bạn" : "Job Description";
+
+  const dropHandlers = {
+    onDragEnter: preventDragDefaults,
+    onDragOver: preventDragDefaults,
+    onDrop: (e) => {
+      preventDragDefaults(e);
+      const f = e.dataTransfer.files?.[0];
+      if (f) onFile(f);
+    },
+  };
+
+  const shellClass = hasFile
+    ? UPLOAD_ZONE_HEIGHT
+    : `${UPLOAD_ZONE_HEIGHT} cursor-pointer hover:border-violet-300 hover:bg-violet-50/55`;
+
+  return (
+    <div className="flex h-full flex-col px-6 pt-6 sm:px-8 sm:pt-7">
+      <p className="mb-1.5 shrink-0 text-xs font-bold uppercase tracking-wide text-violet-600">
+        {zoneLabel}
+      </p>
+      <div
+        {...dropHandlers}
+        role={hasFile ? undefined : "button"}
+        tabIndex={hasFile ? undefined : 0}
+        onClick={hasFile ? undefined : onPick}
+        onKeyDown={
+          hasFile
+            ? undefined
+            : (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onPick();
+                }
+              }
+        }
+        className={shellClass}
+      >
+        <div className="flex w-full max-w-sm items-center justify-center gap-2">
+          <CloudUpload className="h-6 w-6 shrink-0 text-violet-400" strokeWidth={1.5} />
+          <p className="text-left text-xs font-bold leading-snug text-violet-950 sm:text-sm">{headline}</p>
+        </div>
+
+        {/* Khối giữa cố định 2 dòng — tránh lệch chiều cao CV vs JD */}
+        <div className="flex min-h-[2.75rem] w-full max-w-sm flex-col items-center justify-center gap-0.5 px-1">
+          {hasFile ? (
+            <>
+              <p
+                className="max-w-full truncate text-sm font-semibold leading-tight text-emerald-700"
+                title={fileName}
+              >
+                {fileName || "—"}
+              </p>
+              <p className="text-[11px] font-medium leading-none text-emerald-600/90">
+                {fileSizeKb != null ? `${fileSizeKb} KB` : "\u00a0"}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-center text-[11px] font-medium leading-snug text-violet-500">
+                {FILE_FORMAT_HINT}
+              </p>
+              <p className="text-[11px] leading-none text-transparent select-none" aria-hidden>
+                placeholder
+              </p>
+            </>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPick();
+          }}
+          className={
+            hasFile
+              ? `${UPLOAD_PICK_BTN} mt-0 shrink-0 text-emerald-800 hover:border-emerald-200 hover:bg-emerald-50`
+              : `${UPLOAD_PICK_BTN} mt-0 shrink-0`
+          }
+        >
+          {hasFile ? "Chọn tệp khác" : pickLabel}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+export function CVAnalysis() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  const routeMode = location.pathname.includes("/cv-analysis/field")
+    ? "field"
+    : location.pathname.includes("/cv-analysis/jd")
+      ? "jd"
+      : null;
+  const loginReturnPath = routeMode === "field" ? "/cv-analysis/field" : "/cv-analysis/jd";
+  
+  const [plans]            = useState(getPlans());
+  const [cvRemaining, setCvRemaining] = useState(getCVRemaining());
+
+  // Page-level view
+  const [pageView, setPageView] = useState("analysis");
+
+  // Upload / analysis flow
+  const [step, setStep]    = useState("upload");
+  const [cvUploaded, setCvUploaded] = useState(false);
+  const [jdUploaded, setJdUploaded] = useState(false);
+  const [selectedField, setSelectedField] = useState(() =>
+    routeMode === "field" ? DEFAULT_FIELD : ""
+  );
+  const [fieldOpen, setFieldOpen] = useState(false);
+
+  useEffect(() => {
+    if (routeMode === "field") {
+      setEnableField(true);
+      setEnableJD(false);
+      setSelectedField((prev) =>
+        prev === DEFAULT_FIELD ? prev : DEFAULT_FIELD
+      );
+    }
+  }, [routeMode]);
+  const [progress, setProgress] = useState(0);
+  const [loadingStage, setLoadingStage] = useState(0);
+
+  // Real file state
+  const [cvFile, setCvFile] = useState(null);
+  const [jdFile, setJdFile] = useState(null);
+  const cvInputRef = useRef(null);
+  const jdInputRef = useRef(null);
+
+  const [analyzeError,   setAnalyzeError]   = useState(null);
+
+  // Re-analysis from stored paths
+  const [reuseCV, setReuseCV] = useState(null);
+  const [reuseJD, setReuseJD] = useState(null);
+
+  // History
+  const [historyList,     setHistoryList]     = useState([]);
+  const [historyLoading,  setHistoryLoading]  = useState(false);
+  const [historyError,    setHistoryError]    = useState(null);
+  const [deletingId,      setDeletingId]      = useState(null);
+  const [loadingAnalysisId, setLoadingAnalysisId] = useState(null);
+
+  const [enableJD, setEnableJD] = useState(routeMode === "jd" || (routeMode !== "field" && USE_EXPRESS_CV));
+  const [enableField, setEnableField] = useState(routeMode === "field");
+
+  useEffect(() => {
+    if (!routeMode) {
+      navigate("/cv-analysis", { replace: true });
+      return;
+    }
+    if (routeMode === "jd") {
+      setEnableJD(true);
+      setEnableField(false);
+    } else if (routeMode === "field") {
+      setEnableJD(false);
+      setEnableField(true);
+    }
+  }, [routeMode, navigate]);
+
+  const canAnalyze  = plans.starterPro || plans.elitePro || cvRemaining > 0;
+  const hasCvInput = Boolean(cvUploaded || reuseCV || cvFile);
+  const hasJdInput = Boolean(jdUploaded || reuseJD || jdFile);
+  const needsJdForRoute = routeMode === "jd";
+  const readyToAnalyze =
+    routeMode === "jd"
+      ? hasCvInput && hasJdInput
+      : routeMode === "field"
+        ? hasCvInput && Boolean(selectedField)
+        : hasCvInput;
+
+  const primaryCtaLabel = needsJdForRoute
+    ? !hasCvInput
+      ? "Tải CV để tiếp tục"
+      : !hasJdInput
+        ? "Tải JD để phân tích"
+        : "Bắt đầu phân tích"
+    : !hasCvInput
+      ? "Tải CV để tiếp tục"
+      : enableField && !selectedField
+        ? "Chọn ngành để phân tích"
+        : "Bắt đầu phân tích";
+
+  const derivedMode = enableJD ? "jd" : enableField ? "field" : "cv-only";
+
+  const goToResultPage = useCallback(
+    (payload, { replay = false } = {}) => {
+      const mode = routeMode === "field" ? "field" : "jd";
+      navigate(cvAnalysisResultPath(mode, payload.analysisId), {
+        state: {
+          analysis: payload.analysis,
+          savedFileInfo: {
+            analysisId: payload.analysisId ?? null,
+            cvFileUrl: payload.cvFileUrl ?? null,
+            jdFileUrl: payload.jdFileUrl ?? null,
+            cvFileName: payload.cvFileName ?? cvFile?.name ?? reuseCV?.name ?? "cv",
+            jdFileName: payload.jdFileName ?? jdFile?.name ?? reuseJD?.name ?? null,
+          },
+          historySaveWarning: payload.historySaveWarning ?? null,
+          isReplayFromHistory: replay,
+          cvFile,
+          jdFile,
+        },
+      });
+    },
+    [navigate, routeMode, cvFile, jdFile, reuseCV, reuseJD],
+  );
+
+  const resetForm = () => {
+    setStep("upload"); setCvUploaded(false); setJdUploaded(false);
+    setCvFile(null); setJdFile(null); setSelectedField(""); setProgress(0);
+    setAnalyzeError(null);
+    setReuseCV(null); setReuseJD(null);
+    setEnableJD(false); setEnableField(false);
+  };
+
+  const openHistoryResult = useCallback(
+    (res) => {
+      if (!res?.success || !res.analysis) return false;
+      const mode =
+        res.historyItem?.mode === "field" || routeMode === "field" ? "field" : "jd";
+      navigate(cvAnalysisResultPath(mode, res.analysisId));
+      return true;
+    },
+    [navigate, routeMode],
+  );
+
+  // ── Load history when switching to history tab ──────────────────────────
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await fetchCvAnalyses();
+      if (!res.success) throw new Error(res.error || "Lỗi tải lịch sử");
+      setHistoryList(res.analyses ?? []);
+    } catch (err) {
+      setHistoryError(err.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (pageView === "history") loadHistory();
+  }, [pageView, loadHistory]);
+
+  // ── File change handlers ────────────────────────────────────────────────
+  const handleCVFile = (file) => {
+    setCvFile(file);
+    setCvUploaded(true);
+    setReuseCV(null);
+  };
+  const handleJDFile = (file) => {
+    setJdFile(file);
+    setJdUploaded(true);
+    setReuseJD(null);
+    setEnableJD(true);
+    setEnableField(false);
+  };
+
+  // ── Main analyze handler ────────────────────────────────────────────────
+  const handleAnalyze = async () => {
+    if (!isLoggedIn()) {
+      navigate(buildLoginPath(loginReturnPath));
+      return;
+    }
+    const hasCVInput = Boolean(cvUploaded || reuseCV || cvFile);
+    if (!hasCVInput) return;
+    if (needsJdForRoute && !Boolean(jdUploaded || reuseJD || jdFile)) return;
+    if (!canAnalyze) return;
+
+    if (!plans.starterPro && !plans.elitePro) {
+      setCvRemaining(prev => Math.max(0, prev - 1));
+      incrementCVCount();
+    }
+
+    setStep("loading"); setAnalyzeError(null); setProgress(0); setLoadingStage(0);
+
+    const hasJdInput = jdUploaded || !!reuseJD || !!jdFile;
+    const analyzeMode =
+      routeMode === "field" ? "field" : routeMode === "jd" ? "jd" : derivedMode === "cv-only" ? "field" : derivedMode;
+
+    if (routeMode === "field" && !selectedField) return;
+
+    if (cvFile || reuseCV) {
+      // ── Real API path ──────────────────────────────────────────────────
+      let pct = 0;
+      const timer = setInterval(() => {
+        pct = Math.min(pct + Math.random() * 5 + 1.5, 88);
+        setProgress(pct);
+        if (pct > 15) setLoadingStage(1);
+        if (pct > 40) setLoadingStage(2);
+        if (pct > 65) setLoadingStage(3);
+      }, 700);
+
+      try {
+        // Storage paths: set by Supabase flow; null for Python-service path
+        let cvStoragePath = null;
+        let jdStoragePath = null;
+
+        // ── Helpers ────────────────────────────────────────────────────────
+        const applyResult = (d) => {
+          addCVAnalysisRecord({
+            id: `cv-${Date.now()}`, date: new Date().toLocaleDateString("vi-VN"),
+            mode: analyzeMode , cvFile: cvFile?.name ?? reuseCV?.name ?? "cv",
+            jdFile: jdFile?.name ?? reuseJD?.name ?? null,
+            field: analyzeMode === "field" ? (selectedField || "IT / Công nghệ") : null,
+            company: d.analysis.company ?? null, position: d.analysis.position ?? null,
+            matchScore: d.analysis.matchScore, totalKeywords: d.analysis.totalKeywords,
+            matchedKeywords: d.analysis.matchedKeywords, missingKeywords: d.analysis.missingKeywords,
+            scores: d.analysis.scores, strengths: d.analysis.strengths,
+            weaknesses: d.analysis.weaknesses, suggestions: d.analysis.suggestions,
+          } );
+        };
+
+        // Force-refresh the session BEFORE sending so we always have the
+        // freshest JWT — avoids the "Invalid JWT" 401 caused by stale tokens.
+        // We deliberately do NOT send "apikey" as a header because this server's
+        // CORS config blocks it (causes FunctionsFetchError / "Failed to fetch").
+        const token = await getForceRefreshedToken();
+        
+        if (!token) {
+          clearInterval(timer);
+          setStep("upload");
+          setAnalyzeError("Vui lòng đăng nhập để phân tích CV.");
+          navigate(buildLoginPath(loginReturnPath));
+          return;
+        }
+        
+        console.log("✅ CV Analysis — authenticated, token ready");
+
+        let data;
+
+        if (analyzeMode === "jd") {
+          // ── Python CV Matcher (qua Express proxy /api/cv/analyze) ──────
+          const form = new FormData();
+          if (cvFile)   form.append("resume", cvFile);
+          if (jdFile)   form.append("jd", jdFile);
+
+          // Cascade: suggestions (full) → full (scores only) → analyze (basic)
+          const ollamaDown = (s) => s === 503 || s === 504;
+
+          let pyRes = await fetch(expressApiUrl("/api/cv/analyze/suggestions"), {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: form,
+          });
+
+          // Tier-2: Ollama có nhưng suggestions thất bại → thử scoring only
+          if (ollamaDown(pyRes.status)) {
+            const form2 = new FormData();
+            if (cvFile) form2.append("resume", cvFile);
+            if (jdFile) form2.append("jd", jdFile);
+            pyRes = await fetch(expressApiUrl("/api/cv/analyze/full"), {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: form2,
+            });
+          }
+
+          // Tier-3: Ollama hoàn toàn không chạy → basic skill-matching (không LLM)
+          let usedFallback = false;
+          if (ollamaDown(pyRes.status)) {
+            const form3 = new FormData();
+            if (cvFile) form3.append("resume", cvFile);
+            if (jdFile) form3.append("jd", jdFile);
+            pyRes = await fetch(expressApiUrl("/api/cv/analyze"), {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token}` },
+              body: form3,
+            });
+            usedFallback = true;
+          }
+
+          clearInterval(timer); setProgress(95); setLoadingStage(4);
+
+          if (!pyRes.ok) {
+            const errBody = await pyRes.json().catch(() => ({}));
+            throw new Error(formatCvAnalyzerHttpError(pyRes.status, errBody));
+          }
+
+          const raw = await pyRes.json();
+          const m    = raw.match       ?? {};
+          const s    = raw.scores      ?? null;
+          const sugg = raw.suggestions ?? {};
+
+          const hasPySuggestions =
+            (sugg.rewritten_bullets?.length ?? 0) > 0 ||
+            (sugg.missing_skill_suggestions?.length ?? 0) > 0;
+          const analysisTier = usedFallback
+            ? "basic"
+            : hasPySuggestions
+              ? "suggestions"
+              : s
+                ? "full"
+                : "basic";
+          const pythonEndpoint = usedFallback
+            ? "/analyze"
+            : hasPySuggestions
+              ? "/analyze/suggestions"
+              : s
+                ? "/analyze/full"
+                : "/analyze";
+
+          const matchedSkills = m.matching ?? [];
+          const missingSkills = m.missing  ?? [];
+
+          // Strengths từ matched skills, weaknesses từ missing
+          const strengths  = matchedSkills.slice(0, 6).map(sk => `Có kỹ năng "${sk}" phù hợp với yêu cầu JD`);
+          const weaknesses = missingSkills.slice(0, 6).map(sk => `Thiếu kỹ năng "${sk}" mà JD yêu cầu`);
+
+          // Map rewritten_bullets → "fix" suggestions (hiển thị trước — high value)
+          const bulletSuggestions = (sugg.rewritten_bullets ?? []).map(b => ({
+            type:          "fix",
+            priority:      b.confidence === "high" ? "high" : b.confidence === "low" ? "low" : "medium",
+            title:         `Cải thiện bullet: "${(b.original ?? "").slice(0, 65)}${(b.original ?? "").length > 65 ? "…" : ""}"`,
+            reason:        b.changes_made?.length
+                             ? b.changes_made.join(" · ")
+                             : "Viết lại theo chuẩn STAR + nhúng từ khóa JD.",
+            before:        b.original  ?? "",
+            after:         b.rewritten ?? "",
+            keywordsAdded: b.keywords_added ?? [],
+            starCheck:     b.star_check     ?? {},
+            confidence:    b.confidence     ?? "medium",
+          }));
+
+          // Map missing_skill_suggestions → "add" suggestions
+          const missSuggestions = (sugg.missing_skill_suggestions ?? []).map(item => ({
+            type:          "add",
+            priority:      item.priority,
+            title:         `Bổ sung kỹ năng "${item.skill}"`,
+            reason:        formatSkillSuggestionReason(item, {
+              mode: routeMode === "field" ? "field" : "jd",
+            }),
+            before:        `Chưa có trong CV — ước tính ${item.estimated_effort ?? "chưa rõ"}`,
+            after:
+              item.acquisition_path && String(item.acquisition_path).trim() &&
+              !/^(n\/a|không áp dụng)$/i.test(String(item.acquisition_path).trim())
+                ? item.acquisition_path
+                : item.skill
+                  ? `Bổ sung «${item.skill}» vào mục Kỹ năng hoặc mô tả kinh nghiệm.`
+                  : "",
+            keywordsAdded: [],
+            starCheck:     {},
+            confidence:    null,
+          }));
+
+          // Bullet rewrites trước, rồi mới skill gaps
+          const suggestions = [...bulletSuggestions, ...missSuggestions];
+
+          const analysisPayload = {
+              matchScore:      Math.round(m.match_score    ?? 0),
+              overallScore:    Math.round((s?.overall ?? 0) * 10),
+              totalKeywords:   m.summary?.jd_total         ?? 0,
+              matchedKeywords: matchedSkills,
+              missingKeywords: missingSkills,
+              scores: {
+                clarity:     s?.clarity?.score     ?? 0,
+                structure:   s?.structure?.score   ?? 0,
+                relevance:   s?.relevance?.score   ?? Math.round((m.match_score ?? 0) / 10),
+                credibility: s?.credibility?.score ?? 0,
+              },
+              scoreNotes: {
+                clarity:     s?.clarity?.reason     ?? (usedFallback ? "Chỉ phân tích cơ bản — không có điểm AI chi tiết." : ""),
+                structure:   s?.structure?.reason   ?? (usedFallback ? "Chỉ phân tích cơ bản — không có điểm AI chi tiết." : ""),
+                relevance:   s?.relevance?.reason   ?? (usedFallback ? `Ước tính từ tỷ lệ khớp từ khóa: ${Math.round(m.match_score ?? 0)}%` : ""),
+                credibility: s?.credibility?.reason ?? (usedFallback ? "Chỉ phân tích cơ bản — không có điểm AI chi tiết." : ""),
+              },
+              strengths,
+              weaknesses,
+              suggestions,
+              summary:  sugg.executive_summary ?? s?.summary ?? "",
+              cvText:   raw.resume_text ?? "",
+              jdText:   raw.jd_text     ?? "",
+          };
+
+          const planFlags = getPlans();
+          const planAtTime = planFlags.elitePro ? "enterprise" : planFlags.starterPro ? "pro" : "free";
+          const fileUpload = await uploadCvJdFiles(cvFile, jdFile, { includeJd: true });
+          const savePayload = buildCvAnalysisSavePayload({
+            analysis: analysisPayload,
+            cvFileName: cvFile?.name ?? reuseCV?.name ?? "cv.pdf",
+            jdFileName: jdFile?.name ?? reuseJD?.name ?? "",
+            cvFileUrl: fileUpload.cvFileUrl,
+            jdFileUrl: fileUpload.jdFileUrl,
+            cvFileId: fileUpload.cvFileId,
+            jdFileId: fileUpload.jdFileId,
+            analyzeMode: "jd",
+            tier: analysisTier,
+            planAtTime,
+            meta: { pythonEndpoint, fallbackTriggered: usedFallback },
+          });
+          const saveRes = await saveCvAnalysis(savePayload);
+          let historySaveWarning = formatCvSaveError(saveRes);
+          if (fileUpload.warnings.length) {
+            historySaveWarning = [historySaveWarning, ...fileUpload.warnings]
+              .filter(Boolean)
+              .join(" · ");
+          }
+          if (!saveRes.success) {
+            console.warn("[CV] Không lưu được lịch sử MongoDB:", saveRes.error, saveRes.message);
+          } else if (saveRes.analysisId) {
+            window.dispatchEvent(
+              new CustomEvent("cv-analysis-saved", {
+                detail: { mode: "jd", analysisId: saveRes.analysisId },
+              })
+            );
+          }
+
+          data = {
+            success: true,
+            analysisId: saveRes.analysisId || null,
+            historySaveWarning,
+            cvFileUrl: fileUpload.cvFileUrl,
+            jdFileUrl: fileUpload.jdFileUrl,
+            cvFileName: cvFile?.name ?? reuseCV?.name ?? "cv.pdf",
+            jdFileName: jdFile?.name ?? reuseJD?.name ?? null,
+            analysis: {
+              ...analysisPayload,
+              cvFileUrl: fileUpload.cvFileUrl,
+              jdFileUrl: fileUpload.jdFileUrl,
+            },
+          };
+        } else if (analyzeMode === "field") {
+          const fieldName = selectedField || "IT / Công nghệ";
+          let raw = null;
+          let usedFieldFallback = true;
+
+          if (USE_EXPRESS_CV && cvFile) {
+            const formField = new FormData();
+            formField.append("resume", cvFile);
+            formField.append("field", fieldName);
+            try {
+              const pyRes = await fetch(expressApiUrl("/api/cv/analyze/field"), {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: formField,
+              });
+              if (pyRes.ok) {
+                raw = await pyRes.json();
+                usedFieldFallback = Boolean(raw._fallback ?? raw._mock);
+              }
+            } catch (err) {
+              console.warn("[CV field] API unavailable, using mock", err);
+            }
+          }
+
+          if (!raw) {
+            raw = buildFieldAnalysisMockPipeline(fieldName);
+            usedFieldFallback = true;
+          }
+
+          clearInterval(timer);
+          setProgress(95);
+          setLoadingStage(4);
+
+          const analysisPayload = mapPythonCvPipelineToAnalysis(raw, {
+            usedFallback: usedFieldFallback,
+            field: fieldName,
+          });
+
+          const planFlags = getPlans();
+          const planAtTime = planFlags.elitePro ? "enterprise" : planFlags.starterPro ? "pro" : "free";
+          const fileUpload = await uploadCvJdFiles(cvFile, null, { includeJd: false });
+          const savePayload = buildCvAnalysisSavePayload({
+            analysis: analysisPayload,
+            cvFileName: cvFile?.name ?? reuseCV?.name ?? "cv.pdf",
+            jdFileName: "",
+            cvFileUrl: fileUpload.cvFileUrl,
+            cvFileId: fileUpload.cvFileId,
+            analyzeMode: "field",
+            tier: "suggestions",
+            planAtTime,
+            meta: {
+              pythonEndpoint: "/analyze/field",
+              fallbackTriggered: usedFieldFallback,
+              llmProvider: raw._mock ? "mock" : "unknown",
+            },
+          });
+          const saveRes = await saveCvAnalysis(savePayload);
+          let historySaveWarning = formatCvSaveError(saveRes);
+          if (fileUpload.warnings.length) {
+            historySaveWarning = [historySaveWarning, ...fileUpload.warnings]
+              .filter(Boolean)
+              .join(" · ");
+          }
+          if (!saveRes.success) {
+            console.warn("[CV] Không lưu được lịch sử field:", saveRes.error, saveRes.message);
+          } else if (saveRes.analysisId) {
+            window.dispatchEvent(
+              new CustomEvent("cv-analysis-saved", {
+                detail: { mode: "field", analysisId: saveRes.analysisId },
+              })
+            );
+          }
+
+          data = {
+            success: true,
+            analysisId: saveRes.analysisId || null,
+            historySaveWarning,
+            cvFileUrl: fileUpload.cvFileUrl,
+            cvFileName: cvFile?.name ?? reuseCV?.name ?? "cv.pdf",
+            analysis: {
+              ...analysisPayload,
+              cvFileUrl: fileUpload.cvFileUrl,
+            },
+          };
+        } else {
+          throw new Error("Chọn chế độ phân tích CV + JD hoặc theo ngành nghề từ trang hub.");
+        }
+
+        applyResult(data);
+
+        setProgress(100);
+        await new Promise((r) => setTimeout(r, 350));
+        goToResultPage(data);
+        setStep("upload");
+      } catch (err) {
+        clearInterval(timer);
+        console.error("CV analysis error:", err);
+        setAnalyzeError(err.message ?? "Lỗi phân tích");
+        setStep("upload");
+      }
+    } else {
+      // ── Demo path ──────────────────────────────────────────────────────
+      let p = 0;
+      const iv = setInterval(() => {
+        p += Math.random() * 15;
+        if (p >= 100) {
+          p = 100;
+          clearInterval(iv);
+          setTimeout(() => {
+            goToResultPage({ analysis: null, analysisId: null });
+            setStep("upload");
+          }, 400);
+        }
+        setProgress(Math.min(p, 100));
+        if (p > 20) setLoadingStage(1);
+        if (p > 50) setLoadingStage(2);
+        if (p > 75) setLoadingStage(3);
+      }, 400);
+    }
+  };
+
+  // ── Load a history item as the current result ───────────────────────────
+  const loadHistoryItem = async (id) => {
+    setLoadingAnalysisId(id);
+    try {
+      const res = await fetchCvAnalysisById(id);
+      if (!res.success) throw new Error(res.error || "Lỗi tải phân tích");
+      openHistoryResult(res);
+    } catch (err) {
+      alert(`Lỗi: ${err.message}`);
+    } finally {
+      setLoadingAnalysisId(null);
+    }
+  };
+
+  // ── Re-analyze from stored paths ────────────────────────────────────────
+  const reAnalyze = (item) => {
+    const target = item.mode === "field" || item.field ? "/cv-analysis/field" : "/cv-analysis/jd";
+    navigate(target);
+    if (item.cvStoragePath) setReuseCV({ path: item.cvStoragePath, name: item.cvFileName });
+    if (item.jdStoragePath && item.jdFileName) {
+      setReuseJD({ path: item.jdStoragePath, name: item.jdFileName });
+      setEnableJD(true);
+      setEnableField(false);
+    }
+    if (item.field) {
+      setSelectedField(item.field);
+      setEnableField(true);
+      setEnableJD(false);
+    }
+    // Pre-mark as uploaded so button activates
+    setCvUploaded(true);
+    if (item.hasJdFile) setJdUploaded(true);
+    setPageView("analysis");
+  };
+
+  // ── Delete history item ─────────────────────────────────────────────────
+  const deleteAnalysis = async (id) => {
+    if (!confirm("Xóa phân tích này và các file đính kèm?")) return;
+    setDeletingId(id);
+    try {
+      const res = await deleteCvAnalysis(id);
+      if (!res.success) throw new Error(res.error || "Không xóa được");
+      setHistoryList(prev => prev.filter(a => a.analysisId !== id));
+    } catch (err) {
+      alert(`Lỗi xóa: ${err.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const loadingSteps =
+    routeMode === "jd"
+      ? ["Đọc và xử lý file CV...", "Đọc và xử lý file JD...", "Gemini AI phân tích...", "Tạo gợi ý chi tiết..."]
+      : routeMode === "field"
+        ? [
+            "Đọc và xử lý file CV...",
+            "Phân tích khớp kỹ năng theo ngành...",
+            "Chấm điểm theo tiêu chí ngành...",
+            "Tạo gợi ý cải thiện...",
+          ]
+        : ["Đọc và xử lý file CV...", "Gemini AI phân tích...", "Chấm điểm tiêu chí...", "Tạo gợi ý chi tiết..."];
+
+  const pageHeader =
+    routeMode === "field" || routeMode === "jd"
+      ? cvAnalysisPageHeader(routeMode)
+      : cvAnalysisPageHeader("jd");
+
+  // ────────────────────────────────────────────────────────────────────────────
+  return (
+    <CvJdAnalysisPage
+      activeTab="analysis"
+      cardVariant={routeMode === "field" ? "field" : "default"}
+      showTabs={routeMode === "jd" || routeMode === "field"}
+      tabAnalysisPath={routeMode === "field" ? CV_FIELD_ANALYSIS_PATH : undefined}
+      tabHistoryPath={
+        routeMode === "field" ? CV_FIELD_HISTORY_PATH : CV_JD_HISTORY_PATH
+      }
+      {...pageHeader}
+      tabTrailing={
+        routeMode === "jd" && !plans.starterPro && !plans.elitePro && step === "upload" ? (
+          <span
+            className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold sm:text-[11px] ${
+              cvRemaining === 0
+                ? "bg-amber-100 text-amber-800 ring-1 ring-amber-200/80"
+                : "bg-violet-100 text-violet-800 ring-1 ring-violet-200/70"
+            }`}
+          >
+            {cvRemaining === 0 ? <Lock className="h-3 w-3" /> : <SealPercent className="h-3 w-3" />}
+            {cvRemaining}/{CV_FREE_LIMIT} lượt
+          </span>
+        ) : null
+      }
+    >
+      <div className="px-0 py-0 sm:px-0">
+
+      {/* ═══════════════════════��═══════════════════════════════════════════
+          HISTORY VIEW
+      ════════════════════════════════════════════════════════════════════ */}
+      {pageView === "history" && (
+        <div className="px-4 py-5 sm:px-5 sm:py-6">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm text-slate-600">Các phân tích đã lưu trên cloud — file gốc có thể tải lại</p>
+            <button onClick={loadHistory} className="flex items-center gap-1.5 text-xs font-medium text-[#8037f4] hover:underline">
+              <RefreshCw className="w-3.5 h-3.5" /> Làm mới
+            </button>
+          </div>
+
+          {historyLoading && (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 text-[#8037f4] animate-spin" />
+            </div>
+          )}
+
+          {historyError && (
+            <div className="rounded-2xl px-5 py-4 text-sm" style={{ background: "rgba(255,140,66,0.08)", border: "1.5px solid rgba(255,140,66,0.3)", color: "#c2550a" }}>
+              {historyError}
+            </div>
+          )}
+
+          {!historyLoading && !historyError && historyList.length === 0 && (
+            <div className="text-center py-20">
+              <CloudUpload className="mx-auto mb-4 h-14 w-14 text-slate-300" />
+              <p className="font-medium text-slate-700">Chưa có phân tích nào được lưu</p>
+              <p className="mt-1 text-sm text-slate-500">Tải lên CV và phân tích để kết quả được lưu tại đây</p>
+              <button onClick={() => setPageView("analysis")} className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: "#8037f4" }}>
+                <Upload className="w-4 h-4" /> Phân tích ngay
+              </button>
+            </div>
+          )}
+
+          {!historyLoading && historyList.length > 0 && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {historyList.map(item => {
+                const score = item.matchScore ?? 0;
+                const scoreColor = score >= 75 ? "#4A7A00" : score >= 55 ? "#8037f4" : "#CC5C00";
+                const scoreBg    = score >= 75 ? "rgba(180,240,0,0.12)" : score >= 55 ? "rgba(128, 55, 244,0.08)" : "rgba(255,140,66,0.1)";
+                return (
+                  <div key={item.analysisId} className="card-premium p-5 hover:shadow-md transition-shadow">
+                    {/* top row */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <span className="text-xs px-2 py-0.5 rounded-md font-medium" style={{ background: item.mode === "jd" ? "rgba(128, 55, 244,0.08)" : "rgba(255,214,0,0.15)", color: item.mode === "jd" ? "#8037f4" : "#997F00" }}>
+                            {item.mode === "jd" ? "CV+JD" : item.field ?? "Theo ngành"}
+                          </span>
+                          {item.company && <span className="truncate text-xs text-white/50">{item.company}</span>}
+                        </div>
+                        <p className="truncate text-sm font-semibold text-white">{item.position ?? item.cvFileName}</p>
+                        <p className="mt-0.5 text-xs text-white/50">{new Date(item.createdAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                      </div>
+                      <div className="flex-shrink-0 text-center px-3 py-1.5 rounded-xl" style={{ background: scoreBg }}>
+                        <span className="font-bold text-lg" style={{ color: scoreColor }}>{score}</span>
+                        <p className="text-xs" style={{ color: scoreColor, opacity: 0.7 }}>điểm</p>
+                      </div>
+                    </div>
+
+                    {/* files row */}
+                    <div className="flex gap-2 mb-4 flex-wrap">
+                      {item.hasCvFile && (
+                        <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(128, 55, 244,0.07)", color: "#8037f4" }}>
+                          <BadgeCheck className="w-3 h-3" /> {item.cvFileName}
+                        </span>
+                      )}
+                      {item.hasJdFile && item.jdFileName && (
+                        <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg" style={{ background: "rgba(128, 55, 244,0.07)", color: "#8037f4" }}>
+                          <BadgeCheck className="w-3 h-3" /> {item.jdFileName}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* actions */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => loadHistoryItem(item.analysisId)}
+                        disabled={loadingAnalysisId === item.analysisId}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold text-white transition-all hover:brightness-105"
+                        style={{ background: "#8037f4" }}
+                      >
+                        {loadingAnalysisId === item.analysisId
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <Eye className="w-3.5 h-3.5" />}
+                        Xem kết quả
+                      </button>
+                      <button
+                        onClick={() => reAnalyze(item)}
+                        title="Phân tích lại với file đã lưu"
+                        className="p-2 rounded-xl text-[#8037f4] hover:bg-[#8037f4]/10 transition-colors"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => deleteAnalysis(item.analysisId)}
+                        disabled={deletingId === item.analysisId}
+                        className="rounded-xl p-2 text-white/45 transition-colors hover:bg-red-500/15 hover:text-red-300"
+                      >
+                        {deletingId === item.analysisId
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <Trash className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════
+          ANALYSIS VIEW
+      ════════════════════════════════════════════════════════════════════ */}
+      {pageView === "analysis" && (
+        <div>
+
+          {/* ── UPLOAD ───────────────────────��──────────────────────────── */}
+          {step === "upload" && (
+            <div className={routeMode === "field" ? "min-h-[30rem] sm:min-h-[32rem]" : undefined}>
+              {/* Error */}
+              {analyzeError && (
+                <div className="flex items-start gap-3 rounded-2xl px-5 py-4 mb-6" style={{ background: "rgba(255,140,66,0.08)", border: "1.5px solid rgba(255,140,66,0.3)" }}>
+                  <Warning className="w-5 h-5 flex-shrink-0 mt-0.5 text-[#FF8C42]" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-[#c2550a]">Phân tích thất bại</p>
+                    <p className="text-xs mt-1 text-[#c2550a] opacity-80 leading-relaxed">{analyzeError}</p>
+                    {(analyzeError.includes("billing") || analyzeError.includes("quota") || analyzeError.includes("limit")) && (
+                      <div className="flex gap-4 mt-2 flex-wrap">
+                        <a href="https://console.cloud.google.com/billing" target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-bold underline text-[#c2550a] hover:opacity-70">
+                          → Bật billing Google Cloud
+                        </a>
+                        <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-bold underline text-[#c2550a] hover:opacity-70">
+                          → Lấy API key mới tại AI Studio
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setAnalyzeError(null)} className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700" aria-label="Đóng"><X className="h-4 w-4" /></button>
+                </div>
+              )}
+
+              {cvRemaining === 0 && !plans.starterPro && !plans.elitePro && (
+                <div className="mx-4 mb-0 mt-3 flex items-center justify-between gap-2 rounded-xl border border-amber-200/90 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 sm:mx-5">
+                  <span>Đã hết lượt miễn phí — nâng cấp để tiếp tục</span>
+                  <button type="button" onClick={() => navigate("/pricing")} className="font-bold text-[#6d2fd6] hover:underline">
+                    Xem gói
+                  </button>
+                </div>
+              )}
+
+              {/* Hidden inputs */}
+              <input ref={cvInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleCVFile(f); }} />
+              <input ref={jdInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleJDFile(f); }} />
+
+              <div
+                className={
+                  routeMode === "jd" && enableJD
+                    ? "grid items-stretch gap-6 pb-2 lg:grid-cols-2 lg:gap-8"
+                    : "pb-2"
+                }
+              >
+                <CvUploadDropZone
+                  kind="cv"
+                  hasFile={cvUploaded || !!reuseCV}
+                  fileName={cvFile?.name ?? reuseCV?.name}
+                  fileSizeKb={cvFile ? Math.round(cvFile.size / 1024) : null}
+                  onPick={() => cvInputRef.current?.click()}
+                  onFile={handleCVFile}
+                  onClear={() => {
+                    setCvUploaded(false);
+                    setCvFile(null);
+                    setReuseCV(null);
+                    if (cvInputRef.current) cvInputRef.current.value = "";
+                  }}
+                />
+                {routeMode === "jd" && enableJD && (
+                  <CvUploadDropZone
+                    kind="jd"
+                    hasFile={jdUploaded || !!reuseJD}
+                    fileName={jdFile?.name ?? reuseJD?.name}
+                    fileSizeKb={jdFile ? Math.round(jdFile.size / 1024) : null}
+                    onPick={() => jdInputRef.current?.click()}
+                    onFile={handleJDFile}
+                    onClear={() => {
+                      setJdUploaded(false);
+                      setJdFile(null);
+                      setReuseJD(null);
+                      if (jdInputRef.current) jdInputRef.current.value = "";
+                    }}
+                  />
+                )}
+              </div>
+
+              {routeMode === "field" && enableField && (
+                <div className="border-t border-violet-100 px-4 py-4 pb-6 sm:px-5 sm:pb-8">
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wide text-violet-700">Ngành nghề</p>
+                  <div className="relative z-20">
+                    <button
+                      type="button"
+                      onClick={() => setFieldOpen(!fieldOpen)}
+                      className="group flex w-full items-center justify-between rounded-sm border border-violet-200 bg-white px-4 py-3 text-sm transition-colors hover:border-violet-300"
+                    >
+                      <span className={selectedField ? "font-semibold text-violet-950" : "text-violet-500"}>
+                        {selectedField || "Chọn ngành nghề..."}
+                      </span>
+                      <ChevronDown className={`h-4 w-4 text-violet-500 transition-transform ${fieldOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {fieldOpen && (
+                      <div className="mt-2 max-h-64 overflow-y-auto rounded-sm border border-violet-200/90 bg-white shadow-lg ring-1 ring-violet-100/80">
+                        {FIELD_OPTIONS.map((opt) => {
+                          const isSelected = opt.available && selectedField === opt.label;
+                          return (
+                            <button
+                              key={opt.label}
+                              type="button"
+                              disabled={!opt.available}
+                              onClick={() => {
+                                if (!opt.available) return;
+                                setSelectedField(opt.label);
+                                setFieldOpen(false);
+                              }}
+                              className={`flex w-full items-center justify-between gap-3 border-b border-violet-100/90 px-4 py-3 text-left text-sm transition-colors last:border-0 ${
+                                opt.available
+                                  ? isSelected
+                                    ? "bg-violet-50/90 hover:bg-violet-50"
+                                    : "hover:bg-violet-50/60"
+                                  : "cursor-not-allowed bg-gradient-to-r from-slate-50 via-white to-violet-50/40 opacity-95"
+                              }`}
+                            >
+                              <span
+                                className={
+                                  opt.available
+                                    ? isSelected
+                                      ? "font-semibold text-violet-950"
+                                      : "font-medium text-violet-800"
+                                    : "font-medium text-slate-500"
+                                }
+                              >
+                                {opt.label}
+                              </span>
+                              {!opt.available && (
+                                <span className="inline-flex shrink-0 items-center rounded-sm border border-violet-200/70 bg-gradient-to-r from-violet-50 to-indigo-50 px-2 py-1 text-[10px] font-bold tracking-wide text-violet-700 shadow-sm">
+                                  Sắp ra mắt
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="border-t border-violet-100 bg-gradient-to-b from-violet-50/40 to-violet-50/70 px-6 py-6 sm:px-8 sm:py-8">
+                <button
+                  type="button"
+                  onClick={handleAnalyze}
+                  disabled={!canAnalyze || !readyToAnalyze}
+                  className={`flex w-full max-w-2xl mx-auto items-center justify-center gap-2 rounded-2xl py-4 text-base font-extrabold transition-all sm:py-4 sm:text-lg ${
+                    canAnalyze && readyToAnalyze
+                      ? "bg-gradient-to-r from-[#93f72b] via-[#93f72b] to-[#93f72b] text-violet-950 shadow-[0_8px_28px_rgba(196,255,71,0.35)] hover:brightness-105 active:scale-[0.99]"
+                      : "cursor-not-allowed bg-violet-200/60 text-violet-500"
+                  }`}
+                >
+                  <Zap className="h-5 w-5 shrink-0" strokeWidth={2.25} />
+                  {primaryCtaLabel}
+                </button>
+                <p className="mt-2.5 text-center text-[10px] font-medium text-violet-600/90 sm:text-[11px]">
+                  Dữ liệu được xử lý an toàn · Gemini AI
+                </p>
+              </div>
+
+            </div>
+          )}
+
+          {/* ── LOADING ─────────────────────────────────────────────────── */}
+          {step === "loading" && (
+            <div className="flex flex-col items-center justify-center px-4 py-16 sm:px-6 sm:py-20 max-w-md mx-auto text-center">
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-8 shadow-xl shadow-[#8037f4]/30" style={{ background: "#8037f4" }}>
+                <Loader2 className="w-10 h-10 text-white animate-spin" />
+              </div>
+              <h2 className="mb-3 text-xl font-semibold text-slate-900">Đang xử lý...</h2>
+              <p className="mb-8 text-sm text-slate-600">Hệ thống đang đọc file PDF và phân tích — vui lòng đợi.</p>
+              <div className="mb-3 h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, background: "#8037f4" }} />
+              </div>
+              <p className="text-[#8037f4] text-sm font-medium mb-6">{Math.round(progress)}%</p>
+              <div className="space-y-2 text-left w-full">
+                {loadingSteps.map((t, i) => (
+                  <div
+                    key={i}
+                    className={`flex items-center gap-2 text-sm transition-all duration-500 ${
+                      loadingStage > i ? "text-slate-800" : loadingStage === i ? "text-slate-700" : "text-slate-400"
+                    }`}
+                  >
+                    {loadingStage > i ? <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" /> : <Loader2 className={`w-4 h-4 flex-shrink-0 text-[#8037f4] ${loadingStage === i ? "animate-spin" : "opacity-40"}`} />}
+                    <span>{t}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+      </div>
+    </CvJdAnalysisPage>
+  );
+}

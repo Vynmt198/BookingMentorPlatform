@@ -1,0 +1,292 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+@import './brand.css';
+
+@theme {
+  /* Lime chủ đạo — dùng với nền #120B2E + chữ sáng */
+  --color-secondary-fixed-dim: #cfbdff;
+  --color-on-primary: #0a0a0c;
+  --color-primary-fixed-dim: #7fe015;
+  --color-surface-container-lowest: #120b2e;
+  --color-secondary: #7000ff;
+  --color-on-tertiary-container: #980de8;
+  --color-outline-variant: #434933;
+  --color-surface-variant: #2a2730;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-fixed: #2f004c;
+  --color-on-surface-variant: #c3caac;
+  --color-on-secondary-fixed: #ffffff;
+  --color-tertiary-fixed-dim: #e3b5ff;
+  --color-on-error-container: #ffdad6;
+  --color-secondary-fixed: #7000ff;
+  --color-on-background: #e6e0ee;
+  --color-surface-container-highest: #36333e;
+  --color-secondary-container: #7000ff;
+  --color-on-surface: #f1eff4;
+  --color-inverse-surface: #e6e0ee;
+  --color-surface-tint: #93f72b;
+  --color-tertiary-fixed: #f3daff;
+  --color-surface-dim: #0f0828;
+  --color-on-primary-container: #506e00;
+  --color-tertiary-container: #f3daff;
+  --color-error: #ffb4ab;
+  --color-surface-bright: #3b3842;
+  --color-outline: #8d9479;
+  --color-on-secondary-container: #ffffff;
+  --color-on-error: #690005;
+  --color-surface: #150d32;
+  --color-on-primary-fixed-variant: #384e00;
+  --color-on-tertiary-fixed-variant: #6e00ab;
+  --color-surface-container: #181621;
+  --color-on-secondary: #ffffff;
+  --color-error-container: #93000a;
+  --color-on-secondary-fixed-variant: #ffffff;
+  --color-inverse-primary: #4b6700;
+  --color-inverse-on-surface: #322f39;
+  --color-primary-fixed: #93f72b;
+  --color-on-primary-fixed: #0a0a0c;
+  --color-tertiary: #ffffff;
+  --color-surface-container-low: #160f36;
+  --color-primary-container: #d4ff7a;
+  --color-background: #120b2e;
+  --color-primary: #93f72b;
+  --color-surface-container-high: #1f1c2b;
+
+  --radius-DEFAULT: 1rem;
+  --radius-lg: 2rem;
+  --radius-xl: 3rem;
+
+  --font-headline: "Lexend", "Plus Jakarta Sans";
+  --font-body: "Lexend", "Manrope";
+  --font-label: "Lexend", "Manrope";
+}
+
+/* Lime hệ — dùng trong style inline / shadow */
+:root,
+.dark {
+  --pi-lime: #93f72b;
+  --pi-lime-soft: rgba(147, 247, 43, 0.14);
+  --pi-lime-glow: rgba(147, 247, 43, 0.38);
+  --pi-lime-border: rgba(147, 247, 43, 0.28);
+}
+
+/* ── Global modern base ────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: 'Lexend', 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  background: var(--background);
+  color: var(--foreground);
+}
+
+::selection {
+  background: var(--pi-lime-soft);
+  color: #fff;
+}
+
+/* ── Custom scrollbar ──────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 55, 244, 0.25);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--pi-lime) 55%, rgba(128, 55, 244, 0.5));
+}
+
+/* ── Smooth transitions for interactive elements ───── */
+button,
+a,
+input,
+select,
+textarea {
+  transition: all 0.2s ease;
+}
+
+/* ── Global focus ring ─────────────────────────────── */
+:focus-visible {
+  outline: 2px solid rgba(128, 55, 244, 0.6);
+  outline-offset: 2px;
+}
+
+/* ── Glassmorphism utility ─────────────────────────── */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.glass-dark {
+  background: rgba(18, 11, 46, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Nền gradient giống Dashboard — dùng cho interview flow trong AppLayout */
+.pi-page-dashboard-bg {
+  background: linear-gradient(165deg, #0a0618 0%, #07060e 45%, #12081f 100%);
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(112, 0, 255, 0.05) 0%, rgba(14, 14, 15, 0.8) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* ── Modern card ───────────────────────────────────── */
+.card-premium {
+  background-color: var(--card);
+  background-image: linear-gradient(
+    165deg,
+    rgba(196, 255, 71, 0.06) 0%,
+    rgba(255, 255, 255, 0.04) 38%,
+    rgba(255, 255, 255, 0.02) 100%
+  );
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(196, 255, 71, 0.12);
+  box-shadow:
+    0 4px 24px -4px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(196, 255, 71, 0.08) inset;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.card-premium:hover {
+  box-shadow:
+    0 16px 40px -8px rgba(0, 0, 0, 0.45),
+    0 0 36px -6px var(--pi-lime-glow),
+    0 0 0 1px var(--pi-lime-border) inset;
+  transform: translateY(-3px);
+  border-color: var(--pi-lime-border);
+}
+
+/* ── Premium Buttons ───────────────────────────────── */
+.btn-gradient {
+  background: #8037f4;
+  color: white;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 14px 0 rgba(128, 55, 244, 0.25);
+}
+
+.btn-gradient:hover {
+  background: #6d2fd6;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(128, 55, 244, 0.4);
+}
+
+.btn-gradient:active {
+  transform: translateY(1px);
+}
+
+.glow-purple {
+  position: relative;
+}
+
+.glow-purple::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  background: #93f72b;
+  filter: blur(12px);
+  opacity: 0;
+  border-radius: inherit;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.glow-purple:hover::before {
+  opacity: 0.6;
+}
+
+/* ── Gradient text ─────────────────────────────────── */
+.gradient-text {
+  color: #8037f4;
+}
+
+.gradient-text-lime {
+  color: #93f72b;
+}
+
+/* ── Shimmer loading skeleton ──────────────────────── */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #f3f0f9 25%, #e6e0f2 50%, #f3f0f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+/* ── Fade-in animation ─────────────────────────────── */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeInUp 0.4s ease forwards;
+}
+
+/* ── Badge ─────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ── Section divider gradient ──────────────────────── */
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(128, 55, 244, 0.2), transparent);
+}

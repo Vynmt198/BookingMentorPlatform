@@ -1,0 +1,7 @@
+@import 'tailwindcss' source(none);
+@source '../**/*.{js,ts,jsx,tsx}';
+
+@import 'tw-animate-css';
+
+/* Class-based dark mode for trang học (CourseLearning) */
+@custom-variant dark (&:is(.dark *));

@@ -1,0 +1,31 @@
+/* Token màu brand — import sau theme.css */
+:root {
+  --pi-purple: #8037f4;
+  --pi-purple-hover: #6d2fd6;
+  --pi-purple-light: #a66ff8;
+  --pi-purple-soft: rgba(128, 55, 244, 0.12);
+  --pi-purple-border: rgba(128, 55, 244, 0.28);
+  --pi-lime: #93f72b;
+  --pi-lime-hover: #7fe015;
+  --pi-lime-soft: rgba(147, 247, 43, 0.14);
+  --pi-lime-glow: rgba(147, 247, 43, 0.38);
+  --pi-lime-border: rgba(147, 247, 43, 0.28);
+}
+
+/* CTA lime phẳng — không gradient */
+.btn-brand-lime {
+  background: var(--pi-lime);
+  color: #0f172a;
+}
+.btn-brand-lime:hover {
+  background: var(--pi-lime-hover);
+}
+
+/* Nút / vùng tím phẳng */
+.btn-brand-purple {
+  background: var(--pi-purple);
+  color: #ffffff;
+}
+.btn-brand-purple:hover {
+  background: var(--pi-purple-hover);
+}
