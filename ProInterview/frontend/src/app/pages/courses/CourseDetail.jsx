@@ -27,6 +27,7 @@ import {
   StarRating,
   formatCourseDuration,
 } from "../../components/courses/CourseDetailSections";
+import { useCart } from "../../hooks/useCart";
 
 function mapApiCourse(c) {
   const stats = normalizeCourseStats(c.stats);
@@ -91,6 +92,7 @@ export function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const [enrollmentRow, setEnrollmentRow] = useState(null);
   const currentUser = getUser();
+  const { addToCart } = useCart();
 
   const reloadReviews = useCallback(async () => {
     if (!id) return;
@@ -173,6 +175,18 @@ export function CourseDetail() {
     }
   };
 
+  const handleAddToCart = () => {
+    if (!id || !course) return;
+    addToCart(
+      "Course",
+      id,
+      course.title,
+      course.price,
+      1,
+      course.thumbnail
+    );
+  };
+
   if (loading) {
     return (
       <MentorPageShell bottomPad="pb-24">
@@ -209,6 +223,7 @@ export function CourseDetail() {
       canTakeStudentActions={canTakeStudentActions}
       isReadOnlyMentorView={isReadOnlyMentorView}
       onEnroll={handleEnroll}
+      onAddToCart={handleAddToCart}
       onContinueLearn={() => navigate(`/courses/${course.id}/learn`)}
       onContinuePayment={() =>
         navigate(`/checkout?type=course&courseId=${course.id}&price=${course.price}`)

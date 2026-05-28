@@ -209,7 +209,16 @@ export async function handleSepayWebhook(body, authHeader) {
   }
 
   const targets = await findPendingTargets(orderRef);
-  const matched = targets.filter((t) => amountsMatch(t.expectedAmount, amount));
+  let matched = targets.filter((t) => amountsMatch(t.expectedAmount, amount));
+  let isBundle = false;
+
+  if (matched.length === 0 && targets.length > 1) {
+    const sum = targets.reduce((acc, t) => acc + t.expectedAmount, 0);
+    if (amountsMatch(sum, amount)) {
+      matched = targets;
+      isBundle = true;
+    }
+  }
 
   if (matched.length === 0) {
     await upsertSepayLog(sepayId, {
@@ -222,13 +231,48 @@ export async function handleSepayWebhook(body, authHeader) {
     return { ok: true, unmatched: true, reason: "no_match", orderRef };
   }
 
-  if (matched.length > 1) {
+  if (matched.length > 1 && !isBundle) {
     await upsertSepayLog(sepayId, {
       status: "unmatched",
       orderRef,
       resultMessage: `ambiguous: ${matched.length} pending orders`,
     });
     return { ok: true, unmatched: true, reason: "ambiguous", orderRef };
+  }
+
+  if (isBundle) {
+    let allOk = true;
+    let errors = [];
+    for (const target of matched) {
+      const confirm = await autoConfirmTarget(target, { sepayId, amount }); // amount is used for logging
+      if (!confirm.ok) {
+        allOk = false;
+        errors.push(`[${target.entityType} ${target.entityId}]: ${confirm.error}`);
+      }
+    }
+    
+    if (!allOk) {
+      await upsertSepayLog(sepayId, {
+        status: "failed",
+        orderRef,
+        resultMessage: `bundle confirm partial failure: ${errors.join(", ")}`,
+      });
+      return { ok: true, confirmed: false, error: errors.join(", "), orderRef };
+    }
+
+    await upsertSepayLog(sepayId, {
+      status: "processed",
+      orderRef,
+      resultMessage: `bundle auto confirmed ${matched.length} orders`,
+    });
+
+    return {
+      ok: true,
+      confirmed: true,
+      orderRef,
+      entityType: "bundle",
+      entityId: "multiple",
+    };
   }
 
   const target = matched[0];

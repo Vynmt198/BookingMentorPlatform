@@ -9,6 +9,7 @@ import {
   PaginationLink,
   PaginationEllipsis,
 } from "../../components/ui/pagination";
+import { useCart } from "../../hooks/useCart";
 
 import { fetchCourses } from "../../utils/courseApi";
 import { toastApiError } from "../../utils/apiToast";
@@ -239,7 +240,7 @@ function CoursesExploreSidebar({
   );
 }
 
-function CourseListRow({ course, formatPrice, onOpen }) {
+function CourseListRow({ course, formatPrice, onOpen, onAddToCart }) {
   const ratingDisplay = course.rating != null ? course.rating.toFixed(1) : "—";
 
   return (
@@ -299,10 +300,14 @@ function CourseListRow({ course, formatPrice, onOpen }) {
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            onOpen();
+            if (course.price > 0 && onAddToCart) {
+              onAddToCart();
+            } else {
+              onOpen();
+            }
           }}
           className="flex size-10 items-center justify-center rounded-sm border-2 border-[#8037f4] text-[#8037f4] transition-colors hover:bg-violet-50"
-          aria-label="Xem khóa học"
+          title={course.price > 0 ? "Thêm vào giỏ hàng" : "Xem khóa học"}
         >
           <ShoppingCart className="size-4" strokeWidth={2} />
         </button>
@@ -352,6 +357,7 @@ const getLevelBadge = (level) => {
 export function Courses() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { addToCart } = useCart();
 
   const [courses, setCourses] = useState([]);
   const [filterCategories, setFilterCategories] = useState(() => buildCourseFilterCategories());
@@ -557,6 +563,16 @@ export function Courses() {
                               course={course}
                               formatPrice={formatPrice}
                               onOpen={() => navigate(`/courses/${course.id}`)}
+                              onAddToCart={() =>
+                                addToCart(
+                                  "Course",
+                                  course.id,
+                                  course.title,
+                                  course.price,
+                                  1,
+                                  course.thumbnail
+                                )
+                              }
                             />
                           ))}
                         </div>

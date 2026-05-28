@@ -25,6 +25,8 @@ import { fetchCourseById } from "../../utils/courseApi";
 import { enrollmentApi } from "../../utils/enrollmentApi";
 import { createSubscriptionTransferPending, fetchTransferStatus } from "../../utils/paymentsApi";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
+import { useCart } from "../../hooks/useCart";
+import { cartApi } from "../../utils/cartApi";
 
 /* ─── Plan meta ─────────────────────────────────────────── */
 
@@ -264,7 +266,28 @@ function CheckoutPayPanel({ mode, fmt, rebookCreditVnd, bookingTotalEstimate, bo
   return null;
 }
 
-function OrderLineItem({ isBooking, isCourse, bookingMentor, courseInfo, plan, billing, bookingDate, bookingTime, baseTotal, fmt }) {
+function OrderLineItem({ isBooking, isCourse, isCartItem, bookingMentor, courseInfo, plan, billing, bookingDate, bookingTime, baseTotal, fmt }) {
+  if (isCartItem) {
+    return (
+      <div className={`${checkoutCard} flex gap-4 p-4 sm:p-5 mb-4`}>
+        <img
+          src={courseInfo?.thumbnail || "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&q=80"}
+          alt=""
+          className="h-20 w-28 shrink-0 rounded-lg border border-slate-200 object-cover sm:h-24 sm:w-32"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-semibold leading-snug text-slate-900 sm:text-lg">
+            {courseInfo?.title || "Đang tải..."}
+          </p>
+          <p className={`mt-1 ${labelMuted}`}>{courseInfo?.itemType || "Sản phẩm"}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-lg font-bold text-[#8037f4]">{fmt(baseTotal)}</p>
+          <p className={`mt-1 ${labelMuted}`}>x{courseInfo?.quantity || 1}</p>
+        </div>
+      </div>
+    );
+  }
   if (isCourse) {
     return (
       <div className={`${checkoutCard} flex gap-4 p-4 sm:p-5`}>
@@ -528,15 +551,19 @@ export function Checkout() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  /* ── Booking / Course / Plan mode ─────────────────────────────── */
+  /* ── Booking / Course / Plan / Cart mode ─────────────────────────────── */
   const isBooking = searchParams.get("type") === "booking";
   const isCourse = searchParams.get("type") === "course";
+  const isCart = searchParams.get("type") === "cart";
   const courseId = searchParams.get("courseId") ?? "";
   const isPlanCheckout = Boolean(searchParams.get("plan"));
-  const isPaidCheckout = isBooking || isCourse || isPlanCheckout;
+  const isPaidCheckout = isBooking || isCourse || isPlanCheckout || isCart;
   const mentorId = searchParams.get("mentorId") ?? "";
   const [bookingMentor, setBookingMentor] = React.useState(null);
   const [courseInfo, setCourseInfo] = React.useState(null);
+  
+  const { cart, cartTotal, clearCart } = useCart();
+  const cartItems = cart?.items || [];
 
   React.useEffect(() => {
     if (!isBooking || !mentorId) {
@@ -589,8 +616,8 @@ export function Checkout() {
   const coursePriceNum = isCourse ? Number((courseInfo?.price ?? courseUrlPrice) || 0) : 0;
   const planListPrice =
     billing === "yearly" ? plan.monthlyPrice * 12 : plan.monthlyPrice;
-  const baseTotal = isBooking ? bookingPrice : isCourse ? coursePriceNum : planListPrice;
-  const total = isBooking ? bookingPrice : isCourse ? coursePriceNum : price;
+  const baseTotal = isBooking ? bookingPrice : isCourse ? coursePriceNum : isCart ? cartTotal : planListPrice;
+  const total = isBooking ? bookingPrice : isCourse ? coursePriceNum : isCart ? cartTotal : price;
 
   const [transferOrderNum, setTransferOrderNum] = useState(() => `PI${Math.floor(Math.random() * 900000 + 100000)}`);
 
@@ -776,6 +803,35 @@ export function Checkout() {
         return { ok: false };
       } catch {
         const msg = "Lỗi hệ thống khi ghi danh.";
+        setCardError(msg);
+        toastApiError(msg);
+        return { ok: false };
+      }
+    }
+
+    if (isCart) {
+      if (cartItems.length === 0) {
+        setCardError("Giỏ hàng đang trống.");
+        return { ok: false };
+      }
+      setCardError("");
+      try {
+        const apiRes = await cartApi.checkout({ paymentMethod: "transfer", orderNum: transferOrderNum });
+        if (apiRes.success) {
+          const serverOrder = extractOrderPart(apiRes.orderNum || transferOrderNum);
+          if (serverOrder) setTransferOrderNum(serverOrder);
+          setBankEnrollmentId("cart-" + serverOrder); // Fake id to trigger the awaiting_transfer step
+          setAppStep("awaiting_transfer");
+          if (!silent) toastApiSuccess("Đã gộp đơn hàng. Quét QR và chuyển khoản — hệ thống tự xác nhận toàn bộ.");
+          clearCart();
+          return { ok: true, isCart: true };
+        }
+        const msg = apiRes.message || "Không thể gộp đơn hàng.";
+        setCardError(msg);
+        toastApiError(msg);
+        return { ok: false };
+      } catch {
+        const msg = "Lỗi hệ thống khi thanh toán giỏ hàng.";
         setCardError(msg);
         toastApiError(msg);
         return { ok: false };
@@ -1053,7 +1109,7 @@ export function Checkout() {
         <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:items-start">
           {/* Cột trái ~70%: sản phẩm + CK + QR */}
           <div className="min-w-0 space-y-4">
-            {!compactRebook && (
+            {!compactRebook && !isCart && (
               <OrderLineItem
                 isBooking={isBooking}
                 isCourse={isCourse}
@@ -1066,6 +1122,20 @@ export function Checkout() {
                 baseTotal={baseTotal}
                 fmt={fmt}
               />
+            )}
+            
+            {isCart && cartItems.length > 0 && (
+              <div className="space-y-4">
+                {cartItems.map((item) => (
+                  <OrderLineItem
+                    key={item._id}
+                    isCartItem={true}
+                    courseInfo={item}
+                    baseTotal={item.price * item.quantity}
+                    fmt={fmt}
+                  />
+                ))}
+              </div>
             )}
 
             <div className={`${checkoutCard} p-5 sm:p-6`}>

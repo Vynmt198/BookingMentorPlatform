@@ -3,6 +3,7 @@ import { RouterProvider } from "react-router";
 import { Toaster } from "./components/ui/sonner";
 import { router } from "./routes";
 import { restoreSession, hasAuthCredentials, isProtectedAppPath } from "./utils/auth";
+import { CartProvider } from "./hooks/useCart";
 
 const AUTH_STORAGE_KEYS = new Set([
   "prointerview_auth",
@@ -72,9 +73,9 @@ export default function App() {
   }
 
   return (
-    <>
+    <CartProvider>
       <RouterProvider router={router} />
       <Toaster position="top-right" closeButton duration={4500} />
-    </>
+    </CartProvider>
   );
 }

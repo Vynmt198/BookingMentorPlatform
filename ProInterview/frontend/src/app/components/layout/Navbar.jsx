@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
-import { Bell, BookOpen, Calendar, LogIn, LogOut, Menu, Settings, Shield, User, UserPlus, X } from "lucide-react";
+import { Bell, BookOpen, Calendar, LogIn, LogOut, Menu, Settings, Shield, User, UserPlus, X, ShoppingCart } from "lucide-react";
 import { TopNavShell } from "./TopNavShell";
 import {
   fetchNotifications,
@@ -26,6 +26,8 @@ import { CUSTOMER_NAV_ITEMS, isCustomerNavActive } from "./customerNav";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "./customerShellLayout";
 import { BrandLogo } from "../brand/BrandLogo";
 import { buildLoginPath, buildRegisterPath } from "../../utils/authGate";
+import { useCart } from "../../hooks/useCart";
+import { CartDrawer } from "../shared/CartDrawer";
 
 const PAGE_TITLES = {
   "/my-bookings": { label: "Lịch hẹn của tôi", sub: "Tất cả buổi mentor đã đặt" },
@@ -113,6 +115,7 @@ function CustomerNavbar() {
   const initials = getInitials(displayName);
   const loginHref = buildLoginPath(`${location.pathname}${location.search}`);
   const registerHref = buildRegisterPath(`${location.pathname}${location.search}`);
+  const { cartItemsCount, setIsCartOpen } = useCart();
 
   React.useEffect(() => {
     setMobileOpen(false);
@@ -233,6 +236,27 @@ function CustomerNavbar() {
             onClick={() => setMobileOpen((o) => !o)}
           >
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+
+          <button
+            type="button"
+            className="relative inline-flex size-9 items-center justify-center rounded-xl transition-all focus:outline-none hover:bg-[#8037f4]/10"
+            aria-label="Giỏ hàng"
+            onClick={() => setIsCartOpen(true)}
+          >
+            <ShoppingCart className="h-5 w-5 text-[#8037f4]/75" />
+            {cartItemsCount > 0 && (
+              <span
+                className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#1d1a26]"
+                style={{
+                  background: "#93f72b",
+                  fontSize: "0.6rem",
+                  boxShadow: "0 2px 8px rgba(180,245,0,0.45)",
+                }}
+              >
+                {cartItemsCount > 9 ? "9+" : cartItemsCount}
+              </span>
+            )}
           </button>
 
           {loggedIn ? (
@@ -434,6 +458,8 @@ function CustomerNavbar() {
           </div>
         </div>
       ) : null}
+
+      <CartDrawer />
     </>
   );
 }

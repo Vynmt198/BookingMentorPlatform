@@ -16,6 +16,7 @@ import {
   BadgeCheck,
   Pencil,
   MessageCircle,
+  Plus,
 } from "lucide-react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import {
@@ -94,6 +95,7 @@ export function CoursePurchaseCard({
   onEnroll,
   onContinueLearn,
   onContinuePayment,
+  onAddToCart,
 }) {
   const price = Number(course.price) || 0;
   const discountPrice = Number(course.discountPrice) || 0;
@@ -151,28 +153,52 @@ export function CoursePurchaseCard({
             Mentor chỉ xem
           </button>
         ) : hasPendingPayment && canTakeStudentActions ? (
-          <button
-            type="button"
-            onClick={onContinuePayment}
-            className="flex w-full items-center justify-center gap-2 rounded-sm bg-[#8037f4] py-3 text-sm font-bold text-white transition-all hover:bg-[#5b2bc4]"
-          >
-            <ShoppingCart className="size-4" />
-            Tiếp tục thanh toán
-          </button>
+          <div className="flex flex-col gap-2 w-full">
+            <button
+              type="button"
+              onClick={onContinuePayment}
+              className="flex w-full items-center justify-center gap-2 rounded-sm bg-[#8037f4] py-3 text-sm font-bold text-white transition-all hover:bg-[#5b2bc4]"
+            >
+              <ShoppingCart className="size-4" />
+              Tiếp tục thanh toán
+            </button>
+            {price > 0 ? (
+              <button
+                type="button"
+                onClick={onAddToCart}
+                className="flex w-full items-center justify-center gap-2 rounded-sm border-2 border-[#8037f4] bg-white py-2.5 text-sm font-bold text-[#8037f4] transition-all hover:bg-violet-50"
+              >
+                <Plus className="size-4" />
+                Thêm vào giỏ hàng
+              </button>
+            ) : null}
+          </div>
         ) : (
-          <button
-            type="button"
-            onClick={canTakeStudentActions ? onEnroll : undefined}
-            disabled={!canTakeStudentActions}
-            className="flex w-full items-center justify-center gap-2 rounded-sm bg-[#8037f4] py-3 text-sm font-bold text-white transition-all hover:bg-[#5b2bc4] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <ShoppingCart className="size-4" />
-            {canTakeStudentActions
-              ? price === 0
-                ? "Đăng ký miễn phí"
-                : "Ghi danh khóa học"
-              : "Mentor chỉ xem"}
-          </button>
+          <div className="flex flex-col gap-2 w-full">
+            <button
+              type="button"
+              onClick={canTakeStudentActions ? onEnroll : undefined}
+              disabled={!canTakeStudentActions}
+              className="flex w-full items-center justify-center gap-2 rounded-sm bg-[#8037f4] py-3 text-sm font-bold text-white transition-all hover:bg-[#5b2bc4] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ShoppingCart className="size-4" />
+              {canTakeStudentActions
+                ? price === 0
+                  ? "Đăng ký miễn phí"
+                  : "Mua ngay"
+                : "Mentor chỉ xem"}
+            </button>
+            {canTakeStudentActions && price > 0 ? (
+              <button
+                type="button"
+                onClick={onAddToCart}
+                className="flex w-full items-center justify-center gap-2 rounded-sm border-2 border-[#8037f4] bg-white py-2.5 text-sm font-bold text-[#8037f4] transition-all hover:bg-violet-50"
+              >
+                <Plus className="size-4" />
+                Thêm vào giỏ hàng
+              </button>
+            ) : null}
+          </div>
         )}
 
         <div>

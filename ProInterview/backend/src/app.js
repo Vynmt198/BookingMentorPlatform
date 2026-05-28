@@ -29,6 +29,7 @@ import { cvRouter } from "./routes/cv.js";
 import { cvMatchRouter } from "./routes/cvMatch.js";
 import { uploadRouter } from "./routes/upload.js";
 import { mockCoursesRouter } from "./routes/mockCourses.js";
+import cartRouter from "./routes/cart.js";
 import { notFoundHandler, globalErrorHandler } from "./middleware/errorHandler.js";
 
 export function createApp() {
@@ -188,6 +189,7 @@ export function createApp() {
   app.use("/api/cv", cvMatchRouter);
   app.use("/api/upload", uploadRouter);
   app.use("/api/mock", mockCoursesRouter);
+  app.use("/api/cart", cartRouter);
 
   app.use(notFoundHandler);
   app.use(globalErrorHandler);
