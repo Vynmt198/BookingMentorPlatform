@@ -71,7 +71,7 @@ export function CVAnalysisResultContent({
     : DEMO_SCORES;
   const suggestionDisplayMode = derivedMode === "field" ? "field" : "jd";
   const suggestionsData = R?.suggestions ?? DEMO_SUGGESTIONS;
-  const strengthsData = R?.strengths ?? ["React & TypeScript — khớp JD", "Node.js + REST API phù hợp"];
+  const strengthsData = R?.strengths ?? ["React & TypeScript, khớp JD", "Node.js + REST API phù hợp"];
   const weaknessesData = R?.weaknesses ?? ["Thiếu Docker, AWS"];
   const highCount = suggestionsData.filter((s) => s.priority === "high").length;
   const mediumCount = suggestionsData.filter((s) => s.priority === "medium").length;
@@ -99,7 +99,7 @@ export function CVAnalysisResultContent({
                 <div className="flex items-center gap-4 rounded-2xl px-5 py-4 mb-6" style={{ background: "rgba(128, 55, 244, 0.08)", border: "1.5px solid rgba(128, 55, 244,0.2)" }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(128, 55, 244,0.15)" }}><Lock className="w-5 h-5 text-[#8037f4]" /></div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-slate-900">Đang xem bản xem trước — Gói Free</p>
+                    <p className="text-sm font-bold text-slate-900">Đang xem bản xem trước, Gói Free</p>
                     <p className="mt-0.5 text-xs text-slate-600">Phần đánh giá chi tiết & gợi ý bị ẩn. Nâng cấp để xem đầy đủ.</p>
                   </div>
                   <button onClick={() => navigate("/pricing")} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white flex-shrink-0" style={{ background: "#8037f4" }}>
@@ -121,7 +121,7 @@ export function CVAnalysisResultContent({
                 <div className="flex items-start justify-between flex-wrap gap-4">
                   <div>
                     <p className="text-indigo-200 text-sm mb-2">
-                      {derivedMode === "jd" ? `Mức độ phù hợp CV${R?.company ? ` — ${R.company}` : ""}${R?.position ? ` · ${R.position}` : ""}` : "Điểm chất lượng CV"}
+                      {derivedMode === "jd" ? `Mức độ phù hợp CV${R?.company ? `, ${R.company}` : ""}${R?.position ? ` · ${R.position}` : ""}` : "Điểm chất lượng CV"}
                     </p>
                     <div className="flex items-end gap-3 mb-2">
                       <span style={{ fontSize: "3.5rem", fontWeight: 800, lineHeight: 1 }}>{derivedMode === "jd" ? `${matchScore}%` : matchScore}</span>
@@ -182,7 +182,7 @@ export function CVAnalysisResultContent({
                 </div>
               )}
 
-              {/* Keywords — nền sáng trong card trắng: dùng slate + emerald/orange đậm */}
+              {/* Keywords, nền sáng trong card trắng: dùng slate + emerald/orange đậm */}
               {derivedMode === "jd" && (
                 <div className="mb-6 grid gap-6 md:grid-cols-2">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
@@ -235,7 +235,7 @@ export function CVAnalysisResultContent({
                 </div>
               )}
 
-              {/* Detailed scoring — nền card-premium sáng: chữ slate, không dùng text-white */}
+              {/* Detailed scoring, nền card-premium sáng: chữ slate, không dùng text-white */}
               <div className="relative mb-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div className="flex items-center gap-2.5 border-b border-slate-200 bg-violet-50/80 px-6 py-4">
                   <div className="flex h-8 w-8 items-center justify-center rounded-md bg-violet-100">
@@ -353,7 +353,7 @@ export function CVAnalysisResultContent({
                 )}
               </div>
 
-              {/* Suggestions — theme sáng, tương phản rõ */}
+              {/* Suggestions, theme sáng, tương phản rõ */}
               <div className="relative mb-6 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-violet-50/80 px-6 py-4">
                   <div className="flex items-center gap-2.5">
@@ -536,15 +536,15 @@ export function CVAnalysisResultContent({
                 )}
               </div>
 
-              {/* CTAs — nền sáng trong card trắng: chữ tối + viền rõ */}
+              {/* CTAs, nền sáng trong card trắng: chữ tối + viền rõ */}
               <div className="flex gap-3 flex-wrap pt-1">
                 <button
                   type="button"
-                  onClick={() => navigate("/mentors")}
+                  onClick={() => navigate("/interview")}
                   className="flex items-center gap-2 rounded-xl bg-[#8037f4] px-6 py-3 text-sm font-semibold text-white shadow-md transition-colors hover:bg-[#5C28D9]"
                 >
-                  <Users className="h-4 w-4 shrink-0" aria-hidden />
-                  Đặt lịch Mentor
+                  <Mic className="h-4 w-4 shrink-0" aria-hidden />
+                  Phỏng vấn với AI
                 </button>
                 <button
                   type="button"

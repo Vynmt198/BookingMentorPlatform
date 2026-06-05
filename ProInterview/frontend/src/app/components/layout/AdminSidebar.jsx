@@ -80,6 +80,10 @@ const MAIN_GROUPS = [
     title: "Nội dung",
     items: [
       { to: "/admin/content/courses", label: "Khóa học", icon: BookOpen },
+<<<<<<< Updated upstream
+=======
+      { to: "/admin/content/questions", label: "Phỏng vấn AI", icon: FileQuestion },
+>>>>>>> Stashed changes
       { to: "/admin/achievements", label: "Thành tựu", icon: Star },
     ],
   },

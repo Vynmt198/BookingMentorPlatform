@@ -1,83 +1,66 @@
 import React from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import {
-  Star,
-  Calendar as CalendarBlank,
-  Briefcase,
-  Medal,
-  Video as VideoCamera,
-  ArrowRight,
-  ShieldCheck,
-  Zap as Lightning,
-  AlertTriangle as Warning,
-} from "lucide-react";
 import { AnimatePresence } from "motion/react";
 import { fetchMentor, fetchMentorPublicReviews } from "../../utils/mentorApi";
 import { ReportMentorModal } from "../../components/modals/ReportMentorModal";
-import { ReviewReplyBlock } from "../../components/reviews/ReviewReplyBlock";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
+import { MentorProfileHeader } from "../../components/mentor/profile/MentorProfileHeader";
+import { MentorProfileAside } from "../../components/mentor/profile/MentorProfileAside";
+import {
+  MentorIntroSection,
+  MentorWorkSection,
+  MentorSkillsSection,
+  MentorReviewsSection,
+} from "../../components/mentor/profile/MentorProfileSections";
 import { toastApiError } from "../../utils/apiToast";
+import {
+  buildReviewRatingSummary,
+  buildWorkEntriesForDisplay,
+  formatRecurringScheduleRows,
+  mentorFieldTags,
+} from "../../utils/mentorProfileHelpers";
+import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
+import { formatEducationDisplay } from "../../utils/profileEducationHistory";
 
-const INVALID_COMPANY = new Set(["-", "—", "n/a", "na", "none", ""]);
+const PROFILE_TABS = [
+  { id: "intro", label: "Giới thiệu" },
+  { id: "work", label: "Kinh nghiệm làm việc" },
+  { id: "skills", label: "Kỹ năng" },
+  { id: "reviews", label: "Đánh giá" },
+];
 
-function normalizeCompanies(mentor) {
-  const raw =
-    Array.isArray(mentor.companies) && mentor.companies.length
-      ? mentor.companies
-      : mentor.company
-        ? [mentor.company]
-        : [];
-  return raw
-    .map((c) => String(c || "").trim())
-    .filter((c) => c && !INVALID_COMPANY.has(c.toLowerCase()));
-}
-
-function displayTitle(mentor) {
-  const title = (mentor.title || "").trim();
-  if (title && title.toLowerCase() !== "mentor") return title;
-  if (mentor.field) return mentor.field;
-  return "Mentor ProInterview";
-}
-
-function formatPriceVnd(amount) {
-  const n = Number(amount) || 0;
-  return `${n.toLocaleString("vi-VN")}đ`;
-}
-
-function StatCell({ label, children }) {
+function TabBar({ activeTab, onChange }) {
   return (
-    <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
-      <div className="mb-0.5 text-base font-bold text-slate-900">{children}</div>
-      <p className="text-xs font-medium text-slate-500">{label}</p>
+    <div
+      className="flex gap-1 overflow-x-auto border-b border-slate-200/90"
+      role="tablist"
+      aria-label="Nội dung hồ sơ mentor"
+    >
+      {PROFILE_TABS.map((tab) => {
+        const active = activeTab === tab.id;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(tab.id)}
+            className={`shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
+              active
+                ? "border-[#8037f4] text-[#8037f4]"
+                : "border-transparent text-slate-500 hover:text-slate-800"
+            }`}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function SectionCard({ title, icon: Icon, children, className = "" }) {
-  return (
-    <section className={`glass-card p-5 sm:p-6 ${className}`.trim()}>
-      {title ? (
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900">
-          {Icon ? <Icon size={16} className="shrink-0 text-violet-600" aria-hidden /> : null}
-          {title}
-        </h3>
-      ) : null}
-      {children}
-    </section>
-  );
-}
-
-function EmptyBlock({ icon: Icon, message }) {
-  return (
-    <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-violet-200/80 bg-violet-50/40 px-4 py-8 text-center">
-      {Icon ? (
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-violet-500 shadow-sm">
-          <Icon size={20} strokeWidth={1.75} aria-hidden />
-        </div>
-      ) : null}
-      <p className="max-w-sm text-sm text-slate-600">{message}</p>
-    </div>
-  );
+function SectionDivider() {
+  return <hr className="my-8 border-slate-200/90" />;
 }
 
 export function MentorProfile() {
@@ -91,10 +74,12 @@ export function MentorProfile() {
   const bookingHref = rebookFrom
     ? `/booking/${id}?rebookFrom=${encodeURIComponent(rebookFrom)}`
     : `/booking/${id}`;
+
   const [mentor, setMentor] = React.useState(null);
   const [loadingMentor, setLoadingMentor] = React.useState(true);
   const [showReportModal, setShowReportModal] = React.useState(false);
   const [realReviews, setRealReviews] = React.useState([]);
+  const [activeTab, setActiveTab] = React.useState("intro");
 
   React.useEffect(() => {
     if (!id) {
@@ -146,33 +131,41 @@ export function MentorProfile() {
 
   const ratingDisplay = Number(mentor.rating || 0).toFixed(1);
   const reviewCount = mentor.reviews ?? 0;
-  const sessionCount = mentor.sessionsDone ?? 0;
-  const bioText = (mentor.bio || "").trim();
-  const avatarUrl = mentor.avatar?.trim();
-  const initials = (mentor.name || "M")
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0])
-    .join("")
-    .toUpperCase();
-  const companies = normalizeCompanies(mentor);
-  const primaryCompany = companies[0] || null;
-  const tagList =
-    mentor.tags?.length > 0 ? mentor.tags : mentor.specialties?.length ? mentor.specialties : [];
   const experienceYears = Number(mentor.experience) || 0;
-  const subtitle = displayTitle(mentor);
-  const responseLabel = (mentor.responseTime || "< 24 giờ").trim();
+  const bioText = (mentor.bio || "").trim();
+  const skillTags = mentorFieldTags(mentor);
+  const workEntries = buildWorkEntriesForDisplay(mentor);
+  const scheduleRows = formatRecurringScheduleRows(mentor.recurringSchedule);
+  const reviewSummary = buildReviewRatingSummary(realReviews);
+  const education = formatEducationDisplay(mentor.profileEducation || "");
+  const awards = String(mentor.profileAwards || "").trim();
 
-  const bookingFeatures = [
-    { icon: VideoCamera, text: "Hỗ trợ Zoom / Google Meet" },
-    { icon: CalendarBlank, text: "Tự chọn lịch trình linh hoạt" },
-    { icon: ShieldCheck, text: "Cam kết roadmap đầu ra" },
-    { icon: Lightning, text: "Feedback gửi sau 24 giờ" },
-  ];
+  const goBook = () => navigate(bookingHref);
+
+  const introFull = (
+    <div className="space-y-0">
+      <MentorIntroSection
+        mentor={mentor}
+        bioText={bioText}
+        education={education}
+        awards={awards}
+      />
+      <SectionDivider />
+      <MentorWorkSection mentor={mentor} workEntries={workEntries} compactTitle />
+      <SectionDivider />
+      <MentorSkillsSection skillTags={skillTags} compactTitle />
+      <SectionDivider />
+      <MentorReviewsSection
+        realReviews={realReviews}
+        reviewSummary={reviewSummary}
+        compactTitle
+      />
+    </div>
+  );
 
   return (
     <MentorPageShell bottomPad="pb-24">
+<<<<<<< Updated upstream
       <div className="relative z-10 mx-auto max-w-6xl px-4 pb-8 pt-6 sm:px-6 sm:pt-8">
         <div className="grid items-start gap-6 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px]">
           {/* Cột trái */}
@@ -208,35 +201,43 @@ export function MentorProfile() {
                       Đang bận
                     </span>
                   )}
+=======
+      <div className={`relative z-10 pb-8 pt-6 sm:pt-8 ${CUSTOMER_SHELL_GUTTER}`}>
+        <div className={`${CUSTOMER_SHELL_MAX} w-full`}>
+          <div className="grid items-start gap-6 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_320px]">
+            <div className="min-w-0 space-y-5">
+              <MentorProfileHeader
+                mentor={mentor}
+                ratingDisplay={ratingDisplay}
+                reviewCount={reviewCount}
+                experienceYears={experienceYears}
+              />
+
+              <div className="glass-card overflow-hidden">
+                <div className="px-4 pt-2 sm:px-6">
+                  <TabBar activeTab={activeTab} onChange={setActiveTab} />
+>>>>>>> Stashed changes
                 </div>
 
-                <div className="min-w-0 flex-1 text-center sm:text-left">
-                  {primaryCompany ? (
-                    <p className="mb-2 text-xs font-medium uppercase tracking-wide text-violet-700">
-                      {primaryCompany}
-                    </p>
+                <div className="p-4 sm:p-6">
+                  {activeTab === "intro" ? introFull : null}
+                  {activeTab === "work" ? (
+                    <MentorWorkSection mentor={mentor} workEntries={workEntries} />
                   ) : null}
-                  <h1 className="font-headline text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                    {mentor.name}
-                  </h1>
-                  <p className="mt-1 text-base text-slate-600">{subtitle}</p>
-
-                  <div className="mt-5 grid grid-cols-3 gap-3 border-t border-violet-100 pt-5 sm:gap-6">
-                    <StatCell label={`${reviewCount} đánh giá`}>
-                      <span className="inline-flex items-center justify-center gap-1 sm:justify-start">
-                        <Star size={16} className="fill-amber-400 text-amber-400" aria-hidden />
-                        {ratingDisplay}
-                      </span>
-                    </StatCell>
-                    <StatCell label="Buổi mentor">
-                      {sessionCount > 0 ? `${sessionCount}+` : "0"}
-                    </StatCell>
-                    <StatCell label="Phản hồi">{responseLabel}</StatCell>
-                  </div>
+                  {activeTab === "skills" ? (
+                    <MentorSkillsSection skillTags={skillTags} />
+                  ) : null}
+                  {activeTab === "reviews" ? (
+                    <MentorReviewsSection
+                      realReviews={realReviews}
+                      reviewSummary={reviewSummary}
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>
 
+<<<<<<< Updated upstream
             {/* Giới thiệu & chuyên môn */}
             <SectionCard title="Giới thiệu & chuyên môn" icon={Lightning}>
               {tagList.length > 0 ? (
@@ -360,64 +361,16 @@ export function MentorProfile() {
                 )}
               </div>
             </SectionCard>
+=======
+            <MentorProfileAside
+              mentor={mentor}
+              bookingHref={bookingHref}
+              onBook={goBook}
+              onReport={() => setShowReportModal(true)}
+              scheduleRows={scheduleRows}
+            />
+>>>>>>> Stashed changes
           </div>
-
-          {/* Sidebar đặt lịch */}
-          <aside className="lg:sticky lg:top-6 lg:self-start">
-            <div className="glass-card overflow-hidden border-violet-200/60 p-5 shadow-[0_12px_40px_rgba(128,55,244,0.08)] sm:p-6">
-              <div className="border-b border-violet-100 pb-5 text-center">
-                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
-                  Chi phí mentor
-                </p>
-                <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-                  {formatPriceVnd(mentor.price)}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">/ 60 phút đào tạo 1-1</p>
-              </div>
-
-              <ul className="my-5 space-y-3">
-                {bookingFeatures.map((item) => (
-                  <li key={item.text} className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-violet-100 bg-violet-50 text-violet-700">
-                      <item.icon size={16} strokeWidth={1.75} aria-hidden />
-                    </div>
-                    <span className="pt-1.5 text-sm text-slate-700">{item.text}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                type="button"
-                onClick={() => navigate(bookingHref)}
-                className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl bg-lime-300 py-3.5 text-sm font-semibold text-slate-900 shadow-md transition hover:brightness-95 active:scale-[0.99]"
-              >
-                Đặt lịch ngay
-                <ArrowRight size={18} aria-hidden />
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(bookingHref)}
-                className="w-full rounded-xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-              >
-                Xem lịch trống
-              </button>
-
-              <div className="mt-5 space-y-3 border-t border-violet-100 pt-5">
-                <p className="flex items-start gap-2 text-xs leading-snug text-emerald-800">
-                  <ShieldCheck size={16} className="mt-0.5 shrink-0" aria-hidden />
-                  Hoàn tiền 100% nếu không hài lòng (theo chính sách nền tảng)
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowReportModal(true)}
-                  className="flex w-full items-center justify-center gap-2 text-xs font-medium text-slate-500 transition-colors hover:text-red-600"
-                >
-                  <Warning size={14} aria-hidden />
-                  Báo cáo mentor
-                </button>
-              </div>
-            </div>
-          </aside>
         </div>
       </div>
 

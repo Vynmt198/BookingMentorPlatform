@@ -27,9 +27,10 @@ import { adminRouter } from "./routes/admin.js";
 import { enrollmentsRouter } from "./routes/enrollments.js";
 import { cvRouter } from "./routes/cv.js";
 import { cvMatchRouter } from "./routes/cvMatch.js";
+import { interviewsRouter } from "./routes/interviews.js";
 import { uploadRouter } from "./routes/upload.js";
 import { mockCoursesRouter } from "./routes/mockCourses.js";
-import cartRouter from "./routes/cart.js";
+import { aiProvidersRouter } from "./routes/aiProviders.js";
 import { notFoundHandler, globalErrorHandler } from "./middleware/errorHandler.js";
 
 export function createApp() {
@@ -56,9 +57,10 @@ export function createApp() {
 
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: isProd ? 500 : 1500,
+    max: isProd ? 500 : 10_000,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => req.path === "/health",
     message: { success: false, error: "Quá nhiều yêu cầu. Vui lòng thử lại sau." },
   });
 
@@ -145,6 +147,7 @@ export function createApp() {
       enrollments: "/api/enrollments",
 
       cv: "/api/cv",
+      interviews: "/api/interviews",
       upload: "/api/upload",
 
     });
@@ -187,9 +190,10 @@ export function createApp() {
   app.use("/api/enrollments", enrollmentsRouter);
   app.use("/api/cv", cvRouter);
   app.use("/api/cv", cvMatchRouter);
+  app.use("/api/interviews", interviewsRouter);
   app.use("/api/upload", uploadRouter);
   app.use("/api/mock", mockCoursesRouter);
-  app.use("/api/cart", cartRouter);
+  app.use("/api/ai", aiProvidersRouter);
 
   app.use(notFoundHandler);
   app.use(globalErrorHandler);

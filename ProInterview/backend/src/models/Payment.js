@@ -22,6 +22,8 @@ const paymentSchema = new Schema(
       enum: ["pending", "success", "failed", "refund_pending", "refunded", "partial_refund", "cancelled"],
       default: "pending",
     },
+    /** Hết hạn cửa sổ CK SePay (subscription / ledger transfer). */
+    paymentExpiresAt: { type: Date },
     paidAt: { type: Date },
     refundedAt: { type: Date },
     refundAmount: { type: Number, default: 0 },

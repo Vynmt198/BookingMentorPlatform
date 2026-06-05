@@ -352,7 +352,7 @@ export function Booking() {
           <button
             type="button"
             onClick={() => navigate("/mentors")}
-            className="rounded-full bg-[#93f72b] px-6 py-2 text-sm font-bold text-[#000000] shadow-sm transition hover:brightness-95"
+            className="rounded-full bg-[#93f72b] px-6 py-2 text-sm font-bold text-slate-900 shadow-sm transition hover:brightness-95"
           >
             Về danh sách mentor
           </button>
@@ -428,7 +428,7 @@ export function Booking() {
                             }}
                             className={`flex flex-col items-center rounded-xl py-3 transition-all ${
                               isSelected
-                                ? "bg-[#8037f4] text-white shadow-[0_8px_24px_rgba(128,55,244,0.35)]"
+                                ? "bg-gradient-to-br from-[#8037f4] to-[#a66ff8] text-white shadow-[0_8px_24px_rgba(128,55,244,0.35)]"
                                 : canBookDay
                                   ? "border border-slate-200 bg-white text-slate-900 shadow-sm hover:border-violet-300 hover:shadow-md"
                                   : "cursor-not-allowed border border-slate-100 bg-slate-50 opacity-45"
@@ -465,7 +465,7 @@ export function Booking() {
                 ))}
                 <div className="flex flex-wrap items-center gap-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
                   <span className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-[#8037f4]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#8037f4] to-[#a66ff8]" />
                     Đã chọn
                   </span>
                   <span className="flex items-center gap-1.5">
@@ -524,7 +524,7 @@ export function Booking() {
                               onClick={() => setSelectedTime(time)}
                               className={`relative rounded-xl py-3 text-sm font-bold transition-all ${
                                 selected
-                                  ? "bg-[#8037f4] text-white shadow-[0_6px_20px_rgba(128,55,244,0.35)]"
+                                  ? "bg-gradient-to-br from-[#8037f4] to-[#a66ff8] text-white shadow-[0_6px_20px_rgba(128,55,244,0.35)]"
                                   : disabled
                                     ? "cursor-not-allowed border border-slate-100 bg-slate-50 text-slate-400"
                                     : "border border-slate-200 bg-white text-slate-900 shadow-sm hover:border-violet-300 hover:text-[#8037f4]"
@@ -583,7 +583,7 @@ export function Booking() {
               onClick={() => setStep(2)}
               className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-black uppercase tracking-wide transition-all active:scale-[0.98] ${
                 selectedDay && selectedTime
-                  ? "bg-[#8037f4] text-white shadow-[0_8px_28px_rgba(128,55,244,0.35)] hover:shadow-[0_12px_36px_rgba(128,55,244,0.45)]"
+                  ? "bg-gradient-to-br from-[#8037f4] to-[#a66ff8] text-white shadow-[0_8px_28px_rgba(128,55,244,0.35)] hover:shadow-[0_12px_36px_rgba(128,55,244,0.45)]"
                   : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
               }`}
             >
@@ -601,7 +601,7 @@ export function Booking() {
         {step === 2 && (
           <div className="space-y-5">
             {showSmartBanner && suggestedData && (
-              <div className="flex items-start gap-3 rounded-2xl border border-lime-200 bg-violet-50 p-4">
+              <div className="flex items-start gap-3 rounded-2xl border border-lime-200 bg-gradient-to-br from-lime-50 to-violet-50 p-4">
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-lime-100">
                   <Sparkle className="h-5 w-5 text-[#4d6600]" />
                 </div>
@@ -614,7 +614,7 @@ export function Booking() {
                     <button
                       type="button"
                       onClick={handleUseSmartFill}
-                      className="rounded-lg bg-[#8037f4] px-4 py-1.5 text-xs font-black text-white shadow-lg"
+                      className="rounded-lg bg-gradient-to-br from-[#8037f4] to-[#a66ff8] px-4 py-1.5 text-xs font-black text-white shadow-lg"
                     >
                       Dùng ngay
                     </button>

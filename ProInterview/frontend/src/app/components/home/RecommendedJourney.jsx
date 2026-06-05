@@ -1,21 +1,22 @@
 import React from "react";
 import { useNavigate } from "react-router";
+import { navigateToInterview } from "../../utils/authGate";
 import {
   Zap as Lightning,
+  Brain,
   GraduationCap,
   Users,
   ArrowRight,
   ChevronRight as CaretRight,
-  FileText,
 } from "lucide-react";
 
 const JOURNEY_STEPS = [
   {
     number: "01",
-    icon: FileText,
-    title: "Phân tích CV/JD",
-    desc: "Tối ưu hồ sơ và biết chỗ cần chỉnh trước khi nộp",
-    route: "/cv-analysis",
+    icon: Brain,
+    title: "Phỏng vấn AI",
+    desc: "Luyện tập với AI và nhận phản hồi chi tiết",
+    route: "/interview",
     color: "#8037f4",
     bgColor: "rgba(128, 55, 244,0.12)",
     borderColor: "rgba(128, 55, 244,0.35)",
@@ -86,7 +87,9 @@ export function RecommendedJourney({
               <button
                 key={i}
                 onClick={() =>
-                  navigate(step.route)
+                  step.route === "/interview"
+                    ? navigateToInterview(navigate)
+                    : navigate(step.route)
                 }
                 className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:brightness-110"
                 style={{
@@ -216,7 +219,9 @@ export function RecommendedJourney({
               <button
                 key={i}
                 onClick={() =>
-                  navigate(step.route)
+                  step.route === "/interview"
+                    ? navigateToInterview(navigate)
+                    : navigate(step.route)
                 }
                 className="group flex flex-col items-center text-center transition-all hover:-translate-y-1"
               >

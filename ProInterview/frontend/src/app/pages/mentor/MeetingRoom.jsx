@@ -17,6 +17,7 @@ import {
   completeMentorBooking,
   startBookingMeeting,
 } from "../../utils/bookingsApi";
+import { KnowledgeCaptureModal } from "../../components/mentor/KnowledgeCaptureModal";
 import {
   buildProInterviewMeetUrl,
   canEnterMeetingRoom,
@@ -24,6 +25,7 @@ import {
   isBookingInLiveWindow,
 } from "../../utils/meetingLinks";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
+import { sessionTypeLabel } from "../../utils/sessionTypeLabels";
 
 export function MeetingRoom() {
   const { sessionId } = useParams();
@@ -36,6 +38,8 @@ export function MeetingRoom() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [jitsiUrl, setJitsiUrl] = useState("");
   const [earlyNotice, setEarlyNotice] = useState("");
+  const [showKnowledgeModal, setShowKnowledgeModal] = useState(false);
+  const [bookingMeta, setBookingMeta] = useState({ role: "", field: "" });
 
   useEffect(() => {
     const u = getUser();
@@ -94,6 +98,11 @@ export function MeetingRoom() {
           mentorName: b.mentorName || b.mentor?.name || "Mentor",
           customerName: b.customerName || b.user?.name || b.customer?.name || "Học viên",
         });
+        // Lưu metadata booking để pre-fill KnowledgeCaptureModal
+        setBookingMeta({
+          role: sessionTypeLabel(b.sessionType, ""),
+          field: "",
+        });
         setJoined(true);
         setJitsiUrl(buildProInterviewMeetUrl(sessionId, u.name || u.email || "User"));
       } catch {
@@ -126,7 +135,8 @@ export function MeetingRoom() {
       const res = await completeMentorBooking(sessionId);
       if (res.success) {
         toastApiSuccess("Đã kết thúc buổi học.");
-        navigate(`/mentor/session-feedback/${sessionId}`);
+        // Mở knowledge capture modal thay vì navigate ngay
+        setShowKnowledgeModal(true);
       } else {
         toastApiError(res.error, "Không thể kết thúc buổi học.");
       }
@@ -157,13 +167,6 @@ export function MeetingRoom() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
               type="button"
-              onClick={() => navigate(-1)}
-              className="px-8 py-3 bg-white/10 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-white/15"
-            >
-              Quay lại
-            </button>
-            <button
-              type="button"
               onClick={() => navigate(isMentor ? "/mentor/dashboard" : `/session/${sessionId}`)}
               className="px-8 py-3 bg-[#93f72b] text-slate-900 rounded-2xl text-xs font-black uppercase tracking-widest"
             >
@@ -192,6 +195,16 @@ export function MeetingRoom() {
 
   return (
     <div className="min-h-svh bg-[#07060E] flex flex-col relative overflow-hidden font-sans">
+      {/* Knowledge Capture Modal — mentor chia sẻ insights sau buổi học */}
+      {showKnowledgeModal && (
+        <KnowledgeCaptureModal
+          bookingId={sessionId}
+          defaultRole={bookingMeta.role}
+          defaultField={bookingMeta.field}
+          onClose={() => { setShowKnowledgeModal(false); navigate("/mentor/dashboard"); }}
+          onDone={() => { setShowKnowledgeModal(false); navigate("/mentor/dashboard"); }}
+        />
+      )}
       <motion.div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none opacity-20">
         <div className="absolute top-0 w-full h-[600px] bg-gradient-to-b from-violet-600/20 to-transparent blur-[100px]" />
       </motion.div>

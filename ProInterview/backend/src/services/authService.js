@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import { User, toPublicUser } from "../models/User.js";
+import { sanitizeNotificationPrefsPatch } from "../constants/notificationPrefs.js";
 import * as emailService from "./emailService.js";
 import {
   buildSessionFingerprint,
@@ -221,8 +222,29 @@ export async function refreshAccessToken(rawRefresh, req, options = {}) {
 
   sub.lastUsedAt = new Date();
   user.authSessions = user.authSessions.filter((s) => !s._id.equals(sid));
-  const { refreshToken } = pushNewSession(user, req);
-  await user.save();
+  let { refreshToken } = pushNewSession(user, req);
+
+  // Retry up to 3 lần khi gặp Mongoose VersionError (concurrent saves trong interview room).
+  // Mỗi lần: re-fetch user mới nhất, rebuild session, thử save lại.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await user.save();
+      break; // success
+    } catch (err) {
+      if (err.name !== "VersionError") throw err;
+      if (attempt === 2) {
+        // Hết retry — trả lỗi graceful thay vì crash 500
+        return { ok: false, status: 409, error: "Xung đột phiên đăng nhập. Vui lòng thử lại." };
+      }
+      // Re-fetch user mới nhất và rebuild session
+      const fresh = await User.findById(user._id).select("+authSessions");
+      if (!fresh) return { ok: false, status: 401, error: "Tài khoản không còn tồn tại." };
+      fresh.authSessions = fresh.authSessions.filter((s) => !s._id.equals(sid));
+      const { refreshToken: newRT } = pushNewSession(fresh, req);
+      refreshToken = newRT; // dùng token từ retry
+      user = fresh;
+    }
+  }
 
   const access = issueAccessToken(user);
   if (!access.ok) return access;
@@ -643,6 +665,13 @@ export async function loginWithGoogle(body, req) {
     };
   }
 
+  /** Nâng resolution Google avatar từ s96-c → s400-c để tránh mờ */
+  function upgradeGooglePhotoRes(url) {
+    if (typeof url !== "string" || !url) return url;
+    // Dạng: ...=s96-c hoặc ...=s96 → đổi thành =s400-c
+    return url.replace(/=s\d+(-c)?$/, "=s400-c");
+  }
+
   let user = await User.findOne({
     $or: [{ googleId: sub }, { googleSub: sub }],
   }).select("+googleSub +authSessions");
@@ -658,11 +687,13 @@ export async function loginWithGoogle(body, req) {
           error: "Email này đã liên kết với tài khoản Google khác.",
         };
       }
-      const pic = typeof payload.picture === "string" ? payload.picture : undefined;
+      const pic = typeof payload.picture === "string" ? upgradeGooglePhotoRes(payload.picture) : undefined;
+      // Cập nhật avatar từ Google nếu: chưa có avatar, hoặc avatar hiện tại là Google URL (không phải file upload riêng)
+      const hasCustomUpload = typeof byEmail.avatar === "string" && byEmail.avatar.includes("/uploads/");
       await User.findByIdAndUpdate(byEmail._id, {
         $set: {
           googleId: sub,
-          ...(pic && !byEmail.avatar ? { avatar: pic } : {}),
+          ...(pic && !hasCustomUpload ? { avatar: pic } : {}),
         },
         $unset: { googleSub: 1 },
       });
@@ -678,7 +709,7 @@ export async function loginWithGoogle(body, req) {
       name,
       role: "customer",
       googleId: sub,
-      avatar: typeof payload.picture === "string" ? payload.picture : undefined,
+      avatar: typeof payload.picture === "string" ? upgradeGooglePhotoRes(payload.picture) : undefined,
     });
     user = await User.findById(user._id).select("+googleSub +authSessions");
   }
@@ -797,6 +828,21 @@ export async function patchMeUser(userId, body, req, options = {}) {
   }
   if (typeof body.profileAwards === "string") {
     user.profileAwards = body.profileAwards.trim();
+  }
+
+  if (body.notificationPrefs && typeof body.notificationPrefs === "object") {
+    const patch = sanitizeNotificationPrefsPatch(user.role, body.notificationPrefs);
+    if (patch) {
+      if (!user.settings || typeof user.settings !== "object") {
+        user.settings = {};
+      }
+      const prev =
+        user.settings.notificationPrefs && typeof user.settings.notificationPrefs === "object"
+          ? user.settings.notificationPrefs
+          : {};
+      user.settings.notificationPrefs = { ...prev, ...patch };
+      user.markModified("settings");
+    }
   }
 
   if (typeof body.email === "string") {

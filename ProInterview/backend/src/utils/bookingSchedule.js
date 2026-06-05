@@ -23,3 +23,10 @@ export function isBookingInLiveWindow(booking, { earlyMinutes = 15, lateMinutesA
   const now = Date.now();
   return now >= start - earlyMinutes * 60 * 1000 && now <= end + lateMinutesAfterEnd * 60 * 1000;
 }
+
+/** Khung giờ phải sau thời điểm hiện tại. */
+export function isBookingSlotInFuture(dateStr, timeSlot, nowMs = Date.now()) {
+  const ms = parseBookingStartMs(dateStr, timeSlot);
+  if (!Number.isFinite(ms)) return false;
+  return ms > nowMs;
+}

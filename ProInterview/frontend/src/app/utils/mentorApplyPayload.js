@@ -1,3 +1,4 @@
+import { serializeEducationHistory } from "./profileEducationHistory";
 import {
   estimateExperienceYears,
   formatWorkHistoryLines,
@@ -34,6 +35,12 @@ export function buildMentorApplyPayload(form) {
   const companies = workHistoryToCompanies(entries);
   const companiesFromText = splitCsv(form.workExperience ?? form.careerHistory);
 
+  const eduEntries = Array.isArray(form.educationHistory) ? form.educationHistory : [];
+  const profileEducation =
+    eduEntries.length > 0
+      ? serializeEducationHistory(eduEntries)
+      : String(form.education ?? "").trim();
+
   return {
     title: String(current?.role ?? form.title ?? "").trim(),
     company: String(current?.company ?? form.company ?? "").trim(),
@@ -48,6 +55,9 @@ export function buildMentorApplyPayload(form) {
     portfolioLink: String(form.portfolioLink ?? "").trim(),
     responseTime: String(form.responseTime ?? "").trim() || "< 24 giờ",
     timezone: String(form.timezone ?? "").trim() || "Asia/Ho_Chi_Minh",
+    profileEducation,
+    profileExtracurricular: String(form.extracurricular ?? "").trim(),
+    profileAwards: String(form.awards ?? "").trim(),
   };
 }
 

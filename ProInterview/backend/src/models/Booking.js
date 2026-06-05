@@ -31,6 +31,10 @@ const bookingSchema = new Schema(
       required: true,
     },
     notes: { type: String, default: "" },
+    cvFileName: { type: String, default: "" },
+    jdFileName: { type: String, default: "" },
+    cvFileUrl: { type: String, default: "" },
+    jdFileUrl: { type: String, default: "" },
     meetingLink: { type: String, default: "" },
 
     status: {
@@ -55,6 +59,8 @@ const bookingSchema = new Schema(
       default: "",
     },
     paymentRef: { type: String, default: "" },
+    /** Hết hạn cửa sổ CK SePay (mặc định 15 phút từ lúc tạo đơn). */
+    paymentExpiresAt: { type: Date },
     /** Khách đã bấm “đã chuyển” và gửi mã tham chiếu CK (chờ admin xác nhận). */
     transferSubmittedAt: { type: Date },
     /** Audit admin xác nhận CK (để UI hiển thị truy vết, không cần join payments). */

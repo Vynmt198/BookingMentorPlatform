@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { 
-  ArrowLeft, 
   Star, 
   Clock, 
   CheckCircle2, 
@@ -17,6 +16,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 import { fetchMentorBookingById, updateMentorNotes } from "../../utils/bookingsApi";
+import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl";
+import { sessionTypeLabel } from "../../utils/sessionTypeLabels";
 
 export function MentorSessionFeedback() {
   const { sessionId } = useParams();
@@ -103,15 +104,8 @@ ${generalNotes || "Không có ghi chú thêm."}
           className="space-y-10"
         >
           {/* Header Section */}
-          <div className="flex items-center justify-between mb-16">
-            <button 
-              onClick={() => navigate(-1)} 
-              className="group flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 hover:text-slate-900 transition-all"
-            >
-              <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" /> Quay lại
-            </button>
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-slate-200 to-transparent mx-10" />
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Session Feedback</span>
+          <div className="mb-16 flex items-center justify-end">
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Session Feedback</span>
           </div>
 
           <div className="text-center space-y-4 mb-20">
@@ -128,7 +122,7 @@ ${generalNotes || "Không có ghi chú thêm."}
                 <div className="sticky top-24 space-y-6">
                   <div className="bg-white rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-100 text-center">
                     <img 
-                      src={booking?.customerAvatar || "https://i.pravatar.cc/150?u=mentee"} 
+                      src={avatarSrc(booking?.customerAvatar) || DEFAULT_AVATAR} 
                       alt={booking?.customerName}
                       className="w-24 h-24 rounded-[32px] mx-auto mb-6 object-cover ring-8 ring-slate-50 shadow-inner"
                     />
@@ -138,7 +132,7 @@ ${generalNotes || "Không có ghi chú thêm."}
                     <div className="mt-8 pt-8 border-t border-slate-50 space-y-4">
                       <div className="text-left">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Vị trí phỏng vấn</p>
-                        <p className="text-xs font-bold text-slate-700">{booking?.sessionType === "mock_interview" ? "Phỏng vấn giả định" : "Tư vấn lộ trình"}</p>
+                        <p className="text-xs font-bold text-slate-700">{sessionTypeLabel(booking?.sessionType)}</p>
                       </div>
                     </div>
                   </div>

@@ -1,106 +1,105 @@
+import { uploadToCloudinary, deleteLocalFile } from "../utils/cloudinaryUpload.js";
 import { getPublicBaseUrl } from "../utils/publicBaseUrl.js";
+import { logger } from "../config/logger.js";
+
+/**
+ * Thử upload lên Cloudinary; nếu chưa cấu hình hoặc lỗi → fallback URL local.
+ * Trả về string URL cuối cùng để dùng luôn.
+ */
+async function resolveUrl(req, file, cloudinaryOptions) {
+  try {
+    const cdn = await uploadToCloudinary(file.path, cloudinaryOptions);
+    if (cdn) {
+      deleteLocalFile(file.path);
+      logger.info("upload_cloudinary_ok", { folder: cloudinaryOptions.folder, url: cdn.url });
+      return { url: cdn.url, absoluteUrl: cdn.url };
+    }
+  } catch (err) {
+    logger.warn("upload_cloudinary_failed", { error: err.message, folder: cloudinaryOptions.folder });
+  }
+  // Fallback: local static file
+  const rel = `/uploads/${file.filename}`;
+  const baseUrl = getPublicBaseUrl(req);
+  return { url: rel, absoluteUrl: `${baseUrl}${rel}` };
+}
 
 export const UploadController = {
-  /** Upload ảnh đại diện */
+  /** Upload ảnh đại diện — avatar (JPEG/PNG/WebP) */
   uploadAvatar: async (req, res, next) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, error: "Không tìm thấy file" });
-      }
-      const rel = `/uploads/${req.file.filename}`;
-      const baseUrl = getPublicBaseUrl(req);
-      res.json({
-        success: true,
-        url: rel,
-        absoluteUrl: `${baseUrl}${rel}`,
-        message: "Upload ảnh đại diện thành công",
+      if (!req.file) return res.status(400).json({ success: false, error: "Không tìm thấy file" });
+      const { url, absoluteUrl } = await resolveUrl(req, req.file, {
+        folder:        "prointerview/avatars",
+        resource_type: "image",
+        transformation: [{ width: 400, height: 400, crop: "fill", quality: "auto:good", fetch_format: "auto" }],
       });
-    } catch (error) {
-      next(error);
-    }
+      res.json({ success: true, url, absoluteUrl, message: "Upload ảnh đại diện thành công" });
+    } catch (error) { next(error); }
   },
 
   /** Upload CV (PDF/DOC) */
   uploadCV: async (req, res, next) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, error: "Không tìm thấy file" });
-      }
-      const rel = `/uploads/${req.file.filename}`;
-      const baseUrl = getPublicBaseUrl(req);
+      if (!req.file) return res.status(400).json({ success: false, error: "Không tìm thấy file" });
+      const { url, absoluteUrl } = await resolveUrl(req, req.file, {
+        folder:        "prointerview/cv-files",
+        resource_type: "raw",
+        use_filename:  true,
+        unique_filename: true,
+      });
       res.json({
-        success: true,
-        url: rel,
-        absoluteUrl: `${baseUrl}${rel}`,
-        fileId: req.file.filename,
+        success: true, url, absoluteUrl,
+        fileId:   req.file.filename,
         fileName: req.file.originalname,
         message: "Upload CV thành công",
       });
-    } catch (error) {
-      next(error);
-    }
+    } catch (error) { next(error); }
   },
 
-  /** Upload JD (PDF/DOC) — cùng thư mục uploads */
+  /** Upload JD (PDF) */
   uploadJD: async (req, res, next) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, error: "Không tìm thấy file" });
-      }
-      const rel = `/uploads/${req.file.filename}`;
-      const baseUrl = getPublicBaseUrl(req);
+      if (!req.file) return res.status(400).json({ success: false, error: "Không tìm thấy file" });
+      const { url, absoluteUrl } = await resolveUrl(req, req.file, {
+        folder:        "prointerview/jd-files",
+        resource_type: "raw",
+        use_filename:  true,
+        unique_filename: true,
+      });
       res.json({
-        success: true,
-        url: rel,
-        absoluteUrl: `${baseUrl}${rel}`,
-        fileId: req.file.filename,
+        success: true, url, absoluteUrl,
+        fileId:   req.file.filename,
         fileName: req.file.originalname,
         message: "Upload JD thành công",
       });
-    } catch (error) {
-      next(error);
-    }
+    } catch (error) { next(error); }
   },
 
-  /** Upload thumbnail khóa học */
+  /** Upload ảnh bìa khóa học */
   uploadCourseThumbnail: async (req, res, next) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ success: false, error: "Không tìm thấy file" });
-      }
-      const rel = `/uploads/${req.file.filename}`;
-      const baseUrl = getPublicBaseUrl(req);
-      res.json({
-        success: true,
-        url: rel,
-        absoluteUrl: `${baseUrl}${rel}`,
-        message: "Upload ảnh bìa khóa học thành công",
+      if (!req.file) return res.status(400).json({ success: false, error: "Không tìm thấy file" });
+      const { url, absoluteUrl } = await resolveUrl(req, req.file, {
+        folder:        "prointerview/course-thumbnails",
+        resource_type: "image",
+        transformation: [{ width: 1280, height: 720, crop: "fill", quality: "auto:good", fetch_format: "auto" }],
       });
-    } catch (error) {
-      next(error);
-    }
+      res.json({ success: true, url, absoluteUrl, message: "Upload ảnh bìa khóa học thành công" });
+    } catch (error) { next(error); }
   },
 
   /** Upload video bài học */
   uploadCourseVideo: async (req, res, next) => {
     try {
-      console.log("[UploadController] Received video upload request");
-      if (!req.file) {
-        console.error("[UploadController] No file found in request");
-        return res.status(400).json({ success: false, error: "Không tìm thấy file" });
-      }
-      console.log(`[UploadController] File saved: ${req.file.filename}`);
-
-      const rel = `/uploads/${req.file.filename}`;
-      const baseUrl = getPublicBaseUrl(req);
-      res.json({
-        success: true,
-        url: rel,
-        absoluteUrl: `${baseUrl}${rel}`,
-        message: "Upload video bài học thành công",
+      if (!req.file) return res.status(400).json({ success: false, error: "Không tìm thấy file" });
+      const { url, absoluteUrl } = await resolveUrl(req, req.file, {
+        folder:        "prointerview/course-videos",
+        resource_type: "video",
+        use_filename:  true,
+        unique_filename: true,
+        // eager: [{ streaming_profile: "hd", format: "m3u8" }], // HLS nếu cần
       });
-    } catch (error) {
-      next(error);
-    }
-  }
+      res.json({ success: true, url, absoluteUrl, message: "Upload video bài học thành công" });
+    } catch (error) { next(error); }
+  },
 };

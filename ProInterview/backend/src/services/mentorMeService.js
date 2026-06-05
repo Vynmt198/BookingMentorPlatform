@@ -123,7 +123,7 @@ export async function applyForMentor(userId, body) {
   if (!mongoose.isValidObjectId(uid)) return { ok: false, status: 401, error: "Phiên đăng nhập không hợp lệ." };
 
   const user = await User.findById(uid).select(
-    "name email role isActive avatar profileExtracurricular profileEducation profileWorkExperience profileAwards school",
+    "name email role isActive avatar bio desiredPosition position currentCompany experience skills expertise school profileExtracurricular profileEducation profileWorkExperience profileAwards",
   );
   if (!user || user.isActive === false) {
     return { ok: false, status: 404, error: "Không tìm thấy tài khoản hợp lệ." };
@@ -150,18 +150,35 @@ export async function applyForMentor(userId, body) {
   if (!bio) {
     return { ok: false, status: 400, error: "Vui lòng điền Giới thiệu bản thân." };
   }
-  const hasWork =
+  if (!specialties.length) {
+    return { ok: false, status: 400, error: "Vui lòng điền Kỹ năng & chứng chỉ." };
+  }
+  const workRaw = String(
+    body?.workExperience ?? body?.profileWorkExperience ?? user.profileWorkExperience ?? "",
+  ).trim();
+  let hasWork =
     companies.length > 0 ||
     title.length > 0 ||
-    String(body?.company || "").trim().length > 0 ||
-    (Number.isFinite(experienceYears) && experienceYears > 0);
-  const hasExtracurricular = String(user.profileExtracurricular ?? "").trim().length > 0;
-  if (!hasWork && !hasExtracurricular) {
-    return {
-      ok: false,
-      status: 400,
-      error: "Vui lòng điền Kinh nghiệm làm việc hoặc Hoạt động ngoại khóa.",
-    };
+    String(body?.company || "").trim().length > 0;
+  if (!hasWork && workRaw.startsWith("{")) {
+    try {
+      const data = JSON.parse(workRaw);
+      if (data?.version === 1 && Array.isArray(data.entries)) {
+        hasWork = data.entries.some(
+          (e) =>
+            String(e?.role ?? "").trim() ||
+            String(e?.company ?? "").trim() ||
+            String(e?.note ?? "").trim(),
+        );
+      }
+    } catch {
+      /* ignore */
+    }
+  } else if (!hasWork && workRaw && !workRaw.startsWith("{")) {
+    hasWork = true;
+  }
+  if (!hasWork) {
+    return { ok: false, status: 400, error: "Vui lòng điền Kinh nghiệm làm việc." };
   }
   if (!Number.isFinite(targetRate) || targetRate <= 0) {
     return { ok: false, status: 400, error: "Vui lòng nhập mức phí mong muốn (VNĐ/60 phút)." };
@@ -175,7 +192,9 @@ export async function applyForMentor(userId, body) {
     companies = [company];
   }
 
-  const profileEducation = String(user.profileEducation || user.school || "").trim();
+  const profileEducation = String(
+    body?.profileEducation ?? body?.education ?? user.profileEducation ?? user.school ?? "",
+  ).trim();
   const profileWorkExperience = buildProfileWorkExperienceText(
     user,
     body,
@@ -183,8 +202,27 @@ export async function applyForMentor(userId, body) {
     company,
     expYears,
   );
-  const profileExtracurricular = String(user.profileExtracurricular ?? "").trim();
-  const profileAwards = String(user.profileAwards ?? "").trim();
+  const profileExtracurricular = String(
+    body?.profileExtracurricular ?? body?.extracurricular ?? user.profileExtracurricular ?? "",
+  ).trim();
+  const profileAwards = String(body?.profileAwards ?? body?.awards ?? user.profileAwards ?? "").trim();
+
+  if (bio) user.bio = bio;
+  if (profileEducation) user.profileEducation = profileEducation;
+  if (profileWorkExperience) user.profileWorkExperience = profileWorkExperience;
+  if (profileExtracurricular) user.profileExtracurricular = profileExtracurricular;
+  if (profileAwards) user.profileAwards = profileAwards;
+  if (mentorTitle) {
+    user.desiredPosition = mentorTitle;
+    user.position = mentorTitle;
+  }
+  if (company) user.currentCompany = company;
+  if (expYears >= 0) user.experience = expYears;
+  if (specialties.length) {
+    user.skills = specialties;
+    user.expertise = specialties;
+  }
+  await user.save();
 
   const baseProfile = {
     name: String(user.name || "Mentor").trim() || "Mentor",
@@ -260,6 +298,10 @@ export function toPublicMentorMe(doc) {
     companies: m.companies ?? [],
     linkedinUrl: m.linkedinUrl ?? "",
     portfolioUrl: m.portfolioUrl ?? "",
+    profileEducation: m.profileEducation ?? "",
+    profileWorkExperience: m.profileWorkExperience ?? "",
+    profileExtracurricular: m.profileExtracurricular ?? "",
+    profileAwards: m.profileAwards ?? "",
     experienceYears: m.experienceYears ?? 0,
     pricePerHour: m.pricePerHour ?? 0,
     sessionTypes: m.sessionTypes ?? [],

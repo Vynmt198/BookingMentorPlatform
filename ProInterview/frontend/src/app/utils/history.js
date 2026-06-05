@@ -1,4 +1,5 @@
 const CV_HISTORY_KEY = "prointerview_cv_history";
+const INTERVIEW_HISTORY_KEY = "prointerview_interview_history";
 
 function readJsonArray(key) {
   try {
@@ -15,6 +16,10 @@ export function getCVAnalysisHistory() {
   return readJsonArray(CV_HISTORY_KEY);
 }
 
+export function getStoredInterviewHistory() {
+  return readJsonArray(INTERVIEW_HISTORY_KEY);
+}
+
 /** @deprecated Lịch sử CV lưu trên MongoDB qua `/api/cv/analyses`; không gọi sau khi đã lưu API. */
 export function addCVAnalysisRecord(record) {
   try {
@@ -27,16 +32,29 @@ export function addCVAnalysisRecord(record) {
   }
 }
 
+export function addInterviewRecord(record) {
+  try {
+    const history = getStoredInterviewHistory();
+    const updated = [record, ...history];
+    localStorage.setItem(INTERVIEW_HISTORY_KEY, JSON.stringify(updated));
+    return updated;
+  } catch {
+    return [record];
+  }
+}
+
 function mapApiAnalysisToLocal(doc) {
   if (!doc) return null;
   return {
     id: doc.analysisId || doc.id || doc._id,
+    analysisId: doc.analysisId || doc.id || doc._id,
     position: doc.position || "",
     company: doc.company || null,
     cvFile: doc.cvFileName || doc.cvFile || "cv",
     jdFile: doc.jdFileName || doc.jdFile || null,
     matchScore: doc.matchScore ?? doc.score ?? null,
     matchedKeywords: doc.matchedKeywords || [],
+    missingKeywords: doc.missingKeywords || [],
     date: doc.createdAt || doc.date || new Date().toISOString(),
     field: doc.field || null,
     mode: doc.mode || null,

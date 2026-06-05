@@ -71,6 +71,8 @@ export function apiBookingToLocal(b) {
     note: "",
     cvFile,
     jdFile,
+    cvFileUrl: b.cvFileUrl || "",
+    jdFileUrl: b.jdFileUrl || "",
     status: mapBookingStatus(b.status),
     paymentStatus: b.paymentStatus || "pending",
     paymentRef: ref,
@@ -83,6 +85,8 @@ export function apiBookingToLocal(b) {
     refundReceiveAccountHolder: b.refundReceiveAccountHolder || "",
     mentorNotes: b.mentorNotes || "",
     isReviewed: Boolean(b.reviewId),
+    rescheduleHistory: Array.isArray(b.rescheduleHistory) ? b.rescheduleHistory : [],
+    rescheduleCount: Array.isArray(b.rescheduleHistory) ? b.rescheduleHistory.length : 0,
   };
 }
 

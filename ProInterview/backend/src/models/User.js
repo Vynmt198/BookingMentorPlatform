@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
+import { publicNotificationPrefsForRole } from "../constants/notificationPrefs.js";
 
 const { Schema } = mongoose;
 
@@ -52,6 +53,8 @@ const userSchema = new Schema(
       emailNotifications: { type: Boolean, default: true },
       profileVisibility: { type: String, enum: ["public", "private"], default: "public" },
       shareInterviewResults: { type: Boolean, default: false },
+      /** Bật/tắt loại thông báo in-app — { mentor: {...}, customer: {...} } */
+      notificationPrefs: { type: Schema.Types.Mixed, default: () => ({}) },
     },
 
     integrations: {
@@ -196,6 +199,10 @@ export function toPublicUser(doc) {
     hasGoogleLogin: Boolean(
       (typeof googleId === "string" && googleId.trim()) ||
         (typeof googleSub === "string" && googleSub.trim())
+    ),
+    notificationPrefs: publicNotificationPrefsForRole(
+      plain.role,
+      plain.settings?.notificationPrefs,
     ),
   };
   return out;

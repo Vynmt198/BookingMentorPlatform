@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { Mentor, toPublicMentor } from "../models/Mentor.js";
+import { Mentor, toPublicMentor, toPublicMentorDetail } from "../models/Mentor.js";
 import { ensureMentorProfilesForAllMentorUsers } from "./mentorProfileService.js";
 
 function isMongoReady() {
@@ -62,5 +62,5 @@ export async function getMentorById(rawId) {
   if (!mentor || !isBookableMentorDoc(mentor)) {
     return { ok: false, status: 404, error: "Not found" };
   }
-  return { ok: true, mentor: toPublicMentor(mentor) };
+  return { ok: true, mentor: toPublicMentorDetail(mentor) };
 }

@@ -5,16 +5,16 @@ export const CV_JD_ANALYSIS_PATH = "/cv-analysis/jd";
 export const CV_FIELD_ANALYSIS_PATH = "/cv-analysis/field";
 export const CV_JD_RESULT_PATH = "/cv-analysis/jd/result";
 export const CV_FIELD_RESULT_PATH = "/cv-analysis/field/result";
-/** Lịch sử riêng từng tính năng — tab Lịch sử trên trang JD/field trỏ đúng path này */
+/** Lịch sử riêng từng tính năng, tab Lịch sử trên trang JD/field trỏ đúng path này */
 export const CV_JD_HISTORY_PATH = "/cv-analysis/jd/history";
 export const CV_FIELD_HISTORY_PATH = "/cv-analysis/field/history";
 
-/** URL trang kết quả — có hoặc không có id bản ghi đã lưu */
+/** URL trang kết quả, có hoặc không có id bản ghi đã lưu */
 export function cvAnalysisResultPath(mode, analysisId) {
   const base = mode === "field" ? CV_FIELD_RESULT_PATH : CV_JD_RESULT_PATH;
   return analysisId ? `${base}/${encodeURIComponent(analysisId)}` : base;
 }
-/** Legacy — redirect sang jd/history */
+/** Legacy, redirect sang jd/history */
 export const CV_LEGACY_HISTORY_PATH = "/cv-analysis/history";
 
 function buildTabs(analysisPath, historyPath) {
@@ -29,7 +29,7 @@ function buildTabs(analysisPath, historyPath) {
  * @param {"analysis"|"history"} activeTab
  * @param {string} [analysisPath]
  * @param {string} [historyPath]
- * @param {React.ReactNode} [trailing] — ví dụ badge lượt miễn phí
+ * @param {React.ReactNode} [trailing], ví dụ badge lượt miễn phí
  */
 export function CvJdAnalysisTabs({
   activeTab,
@@ -58,7 +58,11 @@ export function CvJdAnalysisTabs({
               }}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all sm:px-3.5 sm:py-2 sm:text-sm ${
                 active
+<<<<<<< Updated upstream
                   ? "bg-white text-[#8037f4] shadow-sm ring-1 ring-violet-200/80"
+=======
+                  ? "bg-white text-[#630ed4] shadow-sm ring-1 ring-violet-200/80"
+>>>>>>> Stashed changes
                   : "text-violet-600 hover:bg-violet-50/80 hover:text-violet-900"
               }`}
             >

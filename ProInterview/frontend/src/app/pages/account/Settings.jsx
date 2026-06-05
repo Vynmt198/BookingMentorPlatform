@@ -7,25 +7,58 @@ import {
   LogOut,
   CheckCircle,
   ShieldCheck,
-  UserCircle,
   ChevronRight,
 } from "lucide-react";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
 import { logout, getUser, updateUser, refreshUserProfile } from "../../utils/auth";
 import { LoginSessionsSection } from "../../components/account/LoginSessionsSection";
 import { AccountDangerZone } from "../../components/account/AccountDangerZone";
+import {
+  mentorPageTitle,
+  mentorPageSubtitle,
+  mentorAccentText,
+} from "../../components/mentor/mentorTypography";
 
-const NOTIF_PREFS_KEY = "prointerview_notif_prefs";
+const NOTIF_PREFS_KEY_CUSTOMER = "prointerview_notif_prefs";
+const NOTIF_PREFS_KEY_MENTOR = "prointerview_notif_prefs_mentor";
 
-function loadNotifPrefs() {
+function notifStorageKey(role) {
+  return role === "mentor" ? NOTIF_PREFS_KEY_MENTOR : NOTIF_PREFS_KEY_CUSTOMER;
+}
+
+/** Tiêu đề / nhãn, in hoa qua CSS */
+const SETTINGS_TITLE_CLS =
+  "text-xs font-bold uppercase tracking-wide text-slate-800";
+/** Mô tả, viết thường, câu bình thường */
+const ITEM_DESC_CLS = "text-sm text-slate-500 leading-relaxed tracking-normal";
+
+function loadNotifPrefs(storageKey) {
   try {
-    const raw = localStorage.getItem(NOTIF_PREFS_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : null;
   } catch {
     return null;
   }
+}
+
+function mergeNotifPrefs(defaults, storageKey) {
+  const saved = loadNotifPrefs(storageKey);
+  if (!saved) return defaults;
+  return defaults.map((d) => {
+    const hit = saved.find((s) => s.id === d.id);
+    return hit ? { ...d, value: !!hit.value } : d;
+  });
+}
+
+function mergeNotifFromServer(defaults, serverPrefs, isMentor) {
+  const slice = isMentor ? serverPrefs?.mentor : serverPrefs?.customer;
+  if (!slice || typeof slice !== "object") return defaults;
+  return defaults.map((d) => ({
+    ...d,
+    value: typeof slice[d.id] === "boolean" ? slice[d.id] : d.value,
+  }));
 }
 
 /* ─── Reusable components ───────────────────────────────── */
@@ -65,7 +98,7 @@ function SectionCard({
                {Icon && <Icon size={18} strokeWidth={2} />}
             </div>
             <div>
-               <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-700">{title}</h3>
+               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-800">{title}</h3>
             </div>
          </div>
       )}
@@ -122,61 +155,151 @@ function SaveBar({
 }
 
 /* ─── TAB: Notifications ────────────────────────────────── */
+<<<<<<< Updated upstream
 const DEFAULT_NOTIFS = [
   { id: "interview_reminder", label: "Nhắc nhở lịch mentor", description: "Thông báo trước 1 giờ khi có buổi hẹn", value: true },
   { id: "mentor_feedback", label: "Phản hồi từ Mentor", description: "Khi mentor gửi đánh giá luyện tập", value: true },
   { id: "streak_reminder", label: "Nhắc nhở duy trì streak", description: "Nhắc bạn luyện tập đều đặn", value: true },
+=======
+const DEFAULT_CUSTOMER_NOTIFS = [
+  {
+    id: "interview_reminder",
+    label: "Nhắc lịch phỏng vấn",
+    description: "Thông báo trước buổi hẹn khoảng 1 giờ.",
+    value: true,
+  },
+  {
+    id: "mentor_feedback",
+    label: "Phản hồi từ mentor",
+    description: "Khi mentor gửi góp ý sau buổi hoặc nhận xét của bạn.",
+    value: true,
+  },
+  {
+    id: "streak_reminder",
+    label: "Nhắc luyện tập đều đặn",
+    description: "Nhắc luyện phỏng vấn AI và hoàn thành mục tiêu tuần.",
+    value: true,
+  },
+>>>>>>> Stashed changes
 ];
 
-function NotificationsTab() {
-  const [push, setPush] = useState(() => {
-    const saved = loadNotifPrefs();
-    if (!saved) return DEFAULT_NOTIFS;
-    return DEFAULT_NOTIFS.map((d) => {
-      const hit = saved.find((s) => s.id === d.id);
-      return hit ? { ...d, value: !!hit.value } : d;
-    });
-  });
+const DEFAULT_MENTOR_NOTIFS = [
+  {
+    id: "booking_request",
+    label: "Yêu cầu đặt lịch mới",
+    description: "Có lịch mới hoặc học viên đã thanh toán.",
+    value: true,
+  },
+  {
+    id: "session_reminder",
+    label: "Nhắc buổi mentor sắp tới",
+    description: "Nhắc trước buổi khoảng 1 giờ.",
+    value: true,
+  },
+  {
+    id: "mentee_review",
+    label: "Đánh giá từ học viên",
+    description: "Học viên gửi nhận xét sau buổi.",
+    value: true,
+  },
+  {
+    id: "booking_change",
+    label: "Đổi hoặc hủy lịch",
+    description: "Hủy buổi, đổi lịch hoặc cập nhật hoàn tiền.",
+    value: true,
+  },
+  {
+    id: "payout_update",
+    label: "Cập nhật tài chính",
+    description: "Thu nhập, rút tiền và xác nhận từ admin.",
+    value: true,
+  },
+  {
+    id: "peer_review_course",
+    label: "Đánh giá chéo khóa học",
+    description: "Có khóa học cần bạn đánh giá chéo.",
+    value: true,
+  },
+];
+
+function NotificationsTab({ isMentor, profileFromServer, onProfileSynced }) {
+  const defaults = isMentor ? DEFAULT_MENTOR_NOTIFS : DEFAULT_CUSTOMER_NOTIFS;
+  const storageKey = notifStorageKey(isMentor ? "mentor" : "customer");
+  const sectionTitle = isMentor ? "Thông báo mentor" : "Trung tâm thông báo";
+
+  const initialPrefs = () => {
+    if (profileFromServer?.notificationPrefs) {
+      return mergeNotifFromServer(defaults, profileFromServer.notificationPrefs, isMentor);
+    }
+    return mergeNotifPrefs(defaults, storageKey);
+  };
+
+  const [push, setPush] = useState(initialPrefs);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const defs = isMentor ? DEFAULT_MENTOR_NOTIFS : DEFAULT_CUSTOMER_NOTIFS;
+    if (profileFromServer?.notificationPrefs) {
+      setPush(mergeNotifFromServer(defs, profileFromServer.notificationPrefs, isMentor));
+    } else {
+      setPush(mergeNotifPrefs(defs, storageKey));
+    }
+    setDirty(false);
+  }, [isMentor, profileFromServer?.notificationPrefs, storageKey]);
 
   const toggle = (id) => {
     setPush((prev) => prev.map((t) => (t.id === id ? { ...t, value: !t.value } : t)));
     setDirty(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
+    const prefMap = Object.fromEntries(push.map(({ id, value }) => [id, value]));
+    const payload = isMentor
+      ? { notificationPrefs: { mentor: prefMap } }
+      : { notificationPrefs: { customer: prefMap } };
+    const res = await updateUser(payload);
+    setSaving(false);
+    if (!res.success) {
+      toastApiError(res.error, "Không lưu được cài đặt thông báo.");
+      return;
+    }
     try {
       localStorage.setItem(
-        NOTIF_PREFS_KEY,
+        storageKey,
         JSON.stringify(push.map(({ id, value }) => ({ id, value }))),
       );
-      setDirty(false);
-      toastApiSuccess("Đã lưu cài đặt thông báo");
     } catch {
-      toastApiError("Không lưu được cài đặt trên trình duyệt.");
-    } finally {
-      setSaving(false);
+      /* cache optional */
     }
+    const u = getUser();
+    onProfileSynced?.(u);
+    setDirty(false);
+    toastApiSuccess("Đã lưu, thông báo sẽ áp dụng theo lựa chọn của bạn.");
+  };
+
+  const handleReset = () => {
+    setPush(defaults);
+    setDirty(false);
   };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <SectionCard title="Trung tâm Thông báo" icon={Bell}>
+      <SectionCard title={sectionTitle} icon={Bell}>
         <div className="space-y-4">
           {push.map((item) => (
             <div key={item.id} className="group flex items-center justify-between gap-6 rounded-2xl border border-slate-200 bg-white p-5">
               <div>
-                <p className="mb-0.5 text-sm font-bold text-slate-900">{item.label}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">{item.description}</p>
+                <p className={`mb-0.5 ${SETTINGS_TITLE_CLS}`}>{item.label}</p>
+                <p className={ITEM_DESC_CLS}>{item.description}</p>
               </div>
               <ToggleSwitch enabled={item.value} onChange={() => toggle(item.id)} colorClass="bg-[#7fe015]" />
             </div>
           ))}
         </div>
       </SectionCard>
-      <SaveBar dirty={dirty} saving={saving} saved={false} onSave={handleSave} onReset={() => { setPush(DEFAULT_NOTIFS); setDirty(false); }} />
+      <SaveBar dirty={dirty} saving={saving} saved={false} onSave={handleSave} onReset={handleReset} />
     </div>
   );
 }
@@ -184,8 +307,18 @@ function NotificationsTab() {
 /* ─── TAB: Security ─────────────────────────────────────── */
 const MIN_PASS = 6;
 const DEFAULT_SECURITY_PREFS = [
-  { id: "two_factor", label: "Xác thực 2 bước", description: "Trình quản lý hệ thống", value: false },
-  { id: "login_alert", label: "Thông báo đăng nhập mới", description: "Trình quản lý hệ thống", value: true },
+  {
+    id: "two_factor",
+    label: "Xác thực 2 bước",
+    description: "Tăng cường bảo vệ tài khoản khi đăng nhập.",
+    value: false,
+  },
+  {
+    id: "login_alert",
+    label: "Thông báo đăng nhập mới",
+    description: "Nhận thông báo khi tài khoản được đăng nhập từ thiết bị lạ.",
+    value: true,
+  },
 ];
 
 function SecurityTab({ profileFromServer, onProfileSynced }) {
@@ -260,8 +393,8 @@ function SecurityTab({ profileFromServer, onProfileSynced }) {
           {securityPrefs.map((item) => (
             <div key={item.id} className="group flex items-center justify-between gap-6 rounded-2xl border border-slate-200 bg-white p-5">
               <div>
-                <p className="mb-0.5 text-sm font-bold text-slate-900">{item.label}</p>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">{item.description}</p>
+                <p className={`mb-0.5 ${SETTINGS_TITLE_CLS}`}>{item.label}</p>
+                <p className={ITEM_DESC_CLS}>{item.description}</p>
               </div>
               <ToggleSwitch
                 enabled={item.value}
@@ -273,17 +406,15 @@ function SecurityTab({ profileFromServer, onProfileSynced }) {
         </div>
       </SectionCard>
 
-      <SectionCard title="Cấu hình Bảo mật" icon={ShieldCheck}>
+      <SectionCard title="Đổi mật khẩu" icon={ShieldCheck}>
          <div className="grid md:grid-cols-2 gap-8 mb-6">
-            <div className="space-y-3 md:col-span-2">
-               <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                 Mật khẩu hiện tại
-                 {needsCurrentPassword ? (
-                   <span className="text-amber-400/90"> — bắt buộc</span>
-                 ) : (
-                  <span className="text-slate-400"> — không bắt buộc (đã liên kết Google)</span>
-                 )}
-               </label>
+            <div className="space-y-2 md:col-span-2">
+               <label className={SETTINGS_TITLE_CLS}>Mật khẩu hiện tại</label>
+               {!needsCurrentPassword && (
+                 <p className={ITEM_DESC_CLS}>
+                   Không bắt buộc nếu bạn đang đăng nhập bằng Google.
+                 </p>
+               )}
                <input
                  type="password"
                  autoComplete="current-password"
@@ -297,8 +428,8 @@ function SecurityTab({ profileFromServer, onProfileSynced }) {
                  onChange={(e) => setCurrentPassword(e.target.value)}
                />
             </div>
-            <div className="space-y-3">
-               <label className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Mật khẩu mới</label>
+            <div className="space-y-2">
+               <label className={SETTINGS_TITLE_CLS}>Mật khẩu mới</label>
                <input
                  type="password"
                  autoComplete="new-password"
@@ -308,8 +439,8 @@ function SecurityTab({ profileFromServer, onProfileSynced }) {
                  onChange={(e) => setNewPassword(e.target.value)}
                />
             </div>
-            <div className="space-y-3">
-               <label className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Xác nhận mật khẩu mới</label>
+            <div className="space-y-2">
+               <label className={SETTINGS_TITLE_CLS}>Xác nhận mật khẩu mới</label>
                <input
                  type="password"
                  autoComplete="new-password"
@@ -324,33 +455,29 @@ function SecurityTab({ profileFromServer, onProfileSynced }) {
            type="button"
            disabled={saving}
            onClick={handleUpdatePassword}
-           className="px-8 py-4 rounded-xl bg-slate-100 border border-slate-300 text-slate-700 text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+           className={`px-8 py-4 rounded-xl bg-slate-100 border border-slate-300 text-slate-700 hover:bg-slate-200 transition-all disabled:opacity-50 ${SETTINGS_TITLE_CLS}`}
          >
             {saving ? "Đang lưu…" : "Cập nhật mật khẩu"}
          </button>
       </SectionCard>
 
       <LoginSessionsSection SectionCard={SectionCard} />
+
+      <AccountDangerZone SectionCard={SectionCard} />
     </div>
   );
-}
-
-/* ─── TAB: Account ──────────────────────────────────────── */
-function AccountTab({ onLogout }) {
-  return <AccountDangerZone SectionCard={SectionCard} onLogout={onLogout} />;
 }
 
 /* ─── Main Settings Page ────────────────────────────────── */
 const TABS = [
   { id: "notifications", label: "Thông báo", icon: Bell },
   { id: "security", label: "Bảo mật", icon: ShieldCheck },
-  { id: "account", label: "Tài khoản", icon: UserCircle },
 ];
 
 export function Settings() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("notifications");
-  /** Đồng bộ GET /me ngay khi vào Cài đặt — tránh tab Bảo mật đọc localStorage cũ thiếu hasGoogleLogin */
+  /** Đồng bộ GET /me ngay khi vào Cài đặt, tránh tab Bảo mật đọc localStorage cũ thiếu hasGoogleLogin */
   const [profileFromServer, setProfileFromServer] = useState(() => getUser());
 
   useEffect(() => {
@@ -367,6 +494,8 @@ export function Settings() {
     await logout();
     navigate("/");
   };
+
+  const isMentor = profileFromServer?.role === "mentor";
 
   return (
     <MentorPageShell bottomPad="pb-32">
@@ -424,28 +553,19 @@ export function Settings() {
         }
       `}</style>
 
-      {/* ── Hero ── */}
-      <header className="relative border-b border-slate-200 pb-10 pt-8 sm:pb-12 sm:pt-10">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.11]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(255,255,255,0.55) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.45) 1px,transparent 1px)",
-            backgroundSize: "32px 32px",
-          }}
-          aria-hidden
-        />
-        <div className="relative z-10 mx-auto max-w-6xl px-6 sm:px-8">
-          <h1 className="font-headline app-page-title mb-2">
-            Hệ thống Cài đặt
+      <div className="relative z-10 mx-auto max-w-7xl px-6 pb-16 sm:px-8 sm:pb-20">
+        <div className="mb-10 flex flex-col gap-3 md:mb-12">
+          <h1 className={mentorPageTitle}>
+            <span>Cài đặt</span>{" "}
+            <span className={mentorAccentText}>tài khoản</span>
           </h1>
-          <p className="app-page-subtitle">
-            Quản trị cấu hình bảo mật và cá nhân hóa trải nghiệm ProInterview Web.
+          <p className={mentorPageSubtitle}>
+            {isMentor
+              ? "Thông báo, bảo mật và phiên đăng nhập."
+              : "Thông báo và bảo mật tài khoản."}
           </p>
         </div>
-      </header>
 
-      <div className="relative z-10 mx-auto mt-10 max-w-6xl px-6 sm:mt-12 sm:px-8">
          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
             {/* Sidebar Navigation */}
             <aside className="lg:col-span-3">
@@ -462,8 +582,13 @@ export function Settings() {
                            }`}
                         >
                            <div className="flex items-center gap-3">
+<<<<<<< Updated upstream
                               <tab.icon size={18} strokeWidth={2} className={`shrink-0 transition-transform duration-300 ${isActive ? "scale-105 text-[#8037f4]" : "group-hover:translate-x-0.5"}`} />
                               <span className="text-[10px] font-bold uppercase tracking-[0.18em]">{tab.label}</span>
+=======
+                              <tab.icon size={18} strokeWidth={2} className={`shrink-0 transition-transform duration-300 ${isActive ? "scale-105 text-black" : "group-hover:translate-x-0.5"}`} />
+                              <span className="text-sm font-semibold tracking-normal">{tab.label}</span>
+>>>>>>> Stashed changes
                            </div>
                            {isActive && <ChevronRight size={14} className="shrink-0 text-[#8037f4]/35" strokeWidth={2} />}
                         </button>
@@ -472,7 +597,7 @@ export function Settings() {
                   <div className="mt-2 border-t border-slate-200 pt-2">
                      <button type="button" onClick={handleLogout} className="flex w-full items-center gap-3 rounded-[20px] px-5 py-4 text-left text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300">
                         <LogOut size={18} strokeWidth={2} />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.18em]">Đăng xuất</span>
+                        <span className="text-sm font-semibold tracking-normal">Đăng xuất</span>
                      </button>
                   </div>
                </div>
@@ -481,15 +606,18 @@ export function Settings() {
             {/* Dynamic Content Area */}
             <main className="lg:col-span-9">
                <div className="min-h-[400px]">
-                  {activeTab === "notifications" && <NotificationsTab />}
+                  {activeTab === "notifications" && (
+                    <NotificationsTab
+                      isMentor={isMentor}
+                      profileFromServer={profileFromServer}
+                      onProfileSynced={(u) => setProfileFromServer(u ?? getUser())}
+                    />
+                  )}
                   {activeTab === "security" && (
                     <SecurityTab
                       profileFromServer={profileFromServer}
                       onProfileSynced={(u) => setProfileFromServer(u)}
                     />
-                  )}
-                  {activeTab === "account" && (
-                    <AccountTab onLogout={handleLogout} />
                   )}
                </div>
             </main>

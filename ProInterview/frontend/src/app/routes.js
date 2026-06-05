@@ -61,6 +61,7 @@ import {
   AdminFinance,
   AdminTransactions,
   AdminPayouts,
+  AdminContentQuestions,
   AdminSystemSettings,
 } from "./pages/admin/AdminPlaceholders.jsx";
 import { AdminContentCourses } from "./pages/admin/AdminContentCourses.jsx";
@@ -71,22 +72,38 @@ import { AdminMentorDetail } from "./pages/admin/AdminMentorDetail.jsx";
 import { AdminBookingDetail } from "./pages/admin/AdminBookingDetail.jsx";
 import { AdminAchievements } from "./pages/admin/AdminAchievements.jsx";
 
+/** Đã đăng nhập mentor/admin → hub riêng, không xem landing customer. */
+function roleHomeLoader() {
+  const user = getUser();
+  if (user?.role === "mentor") throw redirect("/mentor/dashboard");
+  if (user?.role === "admin") throw redirect("/admin");
+  return null;
+}
+
 export const router = createHashRouter([
   {
     path: "/",
     Component: AppLayout,
     children: [
-      { index: true, Component: Home },
+      { index: true, loader: roleHomeLoader, Component: Home },
       { path: "mentors", Component: Mentors },
       { path: "mentors/:id", Component: MentorProfile },
       { path: "courses", Component: Courses },
       { path: "courses/:id", Component: CourseDetail },
       { path: "pricing", Component: Pricing },
+<<<<<<< Updated upstream
       { path: "about", Component: About },
       { path: "achievements", Component: PublicAchievements },
       { path: "blog", Component: Blog },
       { path: "terms", Component: Terms },
       { path: "privacy", Component: Privacy },
+=======
+      { path: "about", loader: () => redirect("/") },
+      { path: "achievements", loader: () => redirect("/") },
+      { path: "blog", loader: () => redirect("/") },
+      { path: "terms", loader: () => redirect("/") },
+      { path: "privacy", loader: () => redirect("/") },
+>>>>>>> Stashed changes
       { path: "cv-analysis", Component: CVAnalysisHub },
       { path: "cv-analysis/jd/history", Component: AnalysisHistory },
       { path: "cv-analysis/jd/result/:analysisId", Component: CVAnalysisResult },
@@ -106,6 +123,10 @@ export const router = createHashRouter([
           );
         },
       },
+      { path: "interview", loader: () => redirect("/") },
+      { path: "interview/gender", loader: () => redirect("/") },
+      { path: "interview/room", loader: () => redirect("/") },
+      { path: "interview/feedback", loader: () => redirect("/") },
       {
         loader: requireAuthLoader,
         Component: ProtectedOutlet,
@@ -157,6 +178,7 @@ export const router = createHashRouter([
   { path: "/payment-return", Component: PaymentReturn },
   { path: "/payment-success", Component: SuccessPage },
   { path: "/payment-failure", Component: FailurePage },
+  { path: "/avatar-demo", loader: () => redirect("/") },
   { path: "/courses/:id/learn", loader: requireAuthLoader, Component: CourseLearning },
   { path: "/meeting/:sessionId", loader: requireAuthLoader, Component: MeetingRoom },
   {
@@ -178,6 +200,7 @@ export const router = createHashRouter([
       { path: "course-payments", Component: AdminCoursePayments },
       { path: "subscription-payments", Component: AdminSubscriptionPayments },
       { path: "bookings/:id", Component: AdminBookingDetail },
+      { path: "content/questions", Component: AdminContentQuestions },
       {
         path: "content/videos",
         loader: () => redirect("/admin/content/courses?view=incomplete"),
@@ -186,7 +209,12 @@ export const router = createHashRouter([
       { path: "settings", Component: AdminSystemSettings },
       { path: "reviews", Component: AdminReviews },
       { path: "support", Component: AdminSupport },
+<<<<<<< Updated upstream
       { path: "achievements", Component: AdminAchievements },
+=======
+      { path: "achievements", loader: () => redirect("/admin") },
+      { path: "interview-metrics", loader: () => redirect("/admin/content/questions") },
+>>>>>>> Stashed changes
     ],
   },
   { path: "*", loader: () => redirect("/") },

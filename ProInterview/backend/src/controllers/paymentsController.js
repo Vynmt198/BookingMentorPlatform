@@ -38,6 +38,7 @@ export class PaymentsController {
         paymentId: result.paymentId,
         providerRef: result.providerRef,
         idempotent: Boolean(result.idempotent),
+        paymentExpiresAt: result.paymentExpiresAt,
       });
     } catch (err) {
       next(err);
@@ -140,6 +141,9 @@ export class PaymentsController {
         entityId: result.entityId,
         redirectTo: result.redirectTo,
         sepayAuto: Boolean(result.sepayAuto),
+        paymentExpiresAt: result.paymentExpiresAt ?? null,
+        expiresInMs: result.expiresInMs ?? 0,
+        timeoutMinutes: result.timeoutMinutes ?? 15,
       });
     } catch (err) {
       next(err);

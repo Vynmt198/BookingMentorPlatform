@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 
 /**
- * Thanh bước ngang — đồng bộ luồng phỏng vấn AI & tạo khóa học mentor.
+ * Thanh bước ngang, đồng bộ luồng phỏng vấn AI & tạo khóa học mentor.
  * @param {{ steps: { n: number, label: string }[], current: number, className?: string, ariaLabel?: string }} props
  */
 export function FlowStepBar({
@@ -34,7 +34,11 @@ export function FlowStepBar({
         <span
           className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
             active || done
+<<<<<<< Updated upstream
               ? "bg-[#8037f4] text-white shadow-[0_4px_14px_rgba(128,55,244,0.28)]"
+=======
+              ? "bg-[#630ed4] text-white shadow-[0_4px_14px_rgba(128,55,244,0.28)]"
+>>>>>>> Stashed changes
               : "border-2 border-violet-200 bg-white text-violet-400"
           }`}
         >
@@ -42,7 +46,11 @@ export function FlowStepBar({
         </span>
         <span
           className={`max-w-[7.5rem] text-center text-[11px] font-bold uppercase leading-tight tracking-wide sm:max-w-none sm:text-xs ${
+<<<<<<< Updated upstream
             active ? "text-[#8037f4]" : done ? "text-violet-800" : "text-violet-400"
+=======
+            active ? "text-[#630ed4]" : done ? "text-violet-800" : "text-violet-400"
+>>>>>>> Stashed changes
           }`}
         >
           {s.label}

@@ -1,6 +1,4 @@
 import React from "react";
-import { useNavigate } from "react-router";
-import { ArrowLeft } from "lucide-react";
 
 const BADGE_COLORS = {
   purple: "bg-primary/10 text-primary border border-primary/20",
@@ -12,27 +10,12 @@ const BADGE_COLORS = {
 export function PageHeader({
   title,
   subtitle,
-  backTo,
-  backLabel = "Quay lại",
   actions,
   badge,
   badgeColor = "purple",
 }) {
-  const navigate = useNavigate();
-
   return (
     <div className="mb-8">
-      {/* Back button */}
-      {backTo && (
-        <button
-          onClick={() => navigate(backTo)}
-          className="group inline-flex items-center gap-2 mb-5 text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-lg hover:bg-muted -ml-3"
-        >
-          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
-          {backLabel}
-        </button>
-      )}
-
       {/* Header row */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div className="flex-1 min-w-0">

@@ -17,5 +17,6 @@ export { Report } from "./Report.js";
 export { Activity } from "./Activity.js";
 export { CourseQA } from "./CourseQA.js";
 export { MentorPeerReview } from "./MentorPeerReview.js";
+export { MentorKnowledge } from "./MentorKnowledge.js";
 export { SecurityLog } from "./SecurityLog.js";
 export { SepayWebhookEvent } from "./SepayWebhookEvent.js";

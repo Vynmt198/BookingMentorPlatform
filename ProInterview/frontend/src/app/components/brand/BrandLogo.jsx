@@ -6,11 +6,11 @@ const BRAND_LOGO_SRC = "/Logo.png";
 const LOGO_FRAMES = {
   default: "h-[80px] md:h-[130px]",
   compact: "h-[56px] md:h-[72px]",
-  /** Navbar customer — ôm logo, hơi bé hơn một nấc */
+  /** Navbar customer, ôm logo, hơi bé hơn một nấc */
   navbar: "h-9 sm:h-10 md:h-11",
-  /** Đăng nhập / đăng ký — vừa thanh top h-20 */
+  /** Đăng nhập / đăng ký, vừa thanh top h-20 */
   auth: "h-9 sm:h-10",
-  /** Footer — ~nửa default */
+  /** Footer, ~nửa default */
   footer: "h-8 md:h-[52px]",
 };
 

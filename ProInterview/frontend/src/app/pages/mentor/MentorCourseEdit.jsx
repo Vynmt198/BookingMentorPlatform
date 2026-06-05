@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router";
 import {
-   ArrowLeft,
    BookOpen,
    Users,
    MessageCircle as ChatCircle,
@@ -771,18 +770,9 @@ function CreateCourseForm({ navigate }) {
    const canContinueStep2 = totalLessons > 0 && lessonsWithVideo > 0;
 
    return (
-      <MentorPageShell bottomPad="pb-24" extraStyles={MENTOR_COURSE_EDIT_EXTRA_CSS}>
+      <MentorPageShell bottomPad="pb-24" className="!min-h-0" extraStyles={MENTOR_COURSE_EDIT_EXTRA_CSS}>
          <style>{mentorValidationKeyframes}</style>
          <div className="relative z-10 mx-auto max-w-4xl px-4 pb-8 pt-8 sm:px-6 sm:pt-12">
-            <button
-               type="button"
-               onClick={() => navigate("/mentor/courses")}
-               className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-violet-700 transition hover:text-violet-900"
-            >
-               <ArrowLeft size={16} />
-               Quay lại quản lý khóa học
-            </button>
-
             <header className="mb-8">
                <p className="text-xs font-semibold uppercase tracking-widest text-violet-600">Mentor · Khóa học</p>
                <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Tạo khóa học mới</h1>
@@ -825,7 +815,6 @@ function CreateCourseForm({ navigate }) {
                         setThumbnailFileName(name);
                      }}
                      canContinue={canContinueStep2}
-                     onBack={() => setStep(1)}
                      onNext={() => setStep(3)}
                   />
                )}
@@ -852,7 +841,6 @@ function CreateCourseForm({ navigate }) {
                         </dl>
                      </div>
                      <CourseCreateFooter
-                        onBack={() => setStep(2)}
                         extra={
                            <>
                               <button
@@ -1076,7 +1064,11 @@ export function MentorCourseEdit() {
             <div className="text-center">
                <BookOpen size={64} className="mx-auto mb-6 text-violet-700 opacity-20" />
                <h2 className="mb-8 text-xl font-black tracking-tight sm:text-2xl">Không tìm thấy khóa học</h2>
+<<<<<<< Updated upstream
                <button onClick={() => navigate("/mentor/courses")} className="px-10 py-4 rounded-3xl bg-primary-fixed text-[#000000] text-xs font-black uppercase tracking-widest shadow-xl">Quay lại quản lý</button>
+=======
+               <button onClick={() => navigate("/mentor/courses")} className="px-10 py-4 rounded-3xl bg-primary-fixed text-black text-xs font-black uppercase tracking-widest shadow-xl">Về quản lý khóa học</button>
+>>>>>>> Stashed changes
             </div>
          </div>
       );
@@ -1102,14 +1094,6 @@ export function MentorCourseEdit() {
                   Khóa học này đã được lưu trữ và không còn hiển thị trên trang Khám phá.
                </div>
             ) : null}
-            <button
-               type="button"
-               onClick={() => navigate("/mentor/courses")}
-               className="mb-6 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-violet-700 transition hover:text-violet-900"
-            >
-               <ArrowLeft size={14} /> Quản lý khóa học
-            </button>
-
             <div className="glass-card mb-8 overflow-hidden">
                <div className="flex flex-col gap-6 p-6 sm:p-8 lg:flex-row lg:items-start">
                   <div className="group/thumb relative mx-auto shrink-0 lg:mx-0">

@@ -15,7 +15,11 @@ export const mentorLabelClass =
   "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-600";
 
 export const mentorPrimaryBtnClass =
+<<<<<<< Updated upstream
   "inline-flex items-center justify-center gap-2 rounded-[10px] bg-[#8037f4] px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#8037f4] active:scale-[0.98]";
+=======
+  "inline-flex items-center justify-center gap-2 rounded-[10px] bg-[#8037f4] px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#630ed4] active:scale-[0.98]";
+>>>>>>> Stashed changes
 
 export const mentorGhostBtnClass =
   "inline-flex items-center justify-center rounded-[10px] border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-slate-400 hover:bg-slate-50";

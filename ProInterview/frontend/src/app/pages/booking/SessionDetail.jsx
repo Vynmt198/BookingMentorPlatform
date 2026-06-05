@@ -1129,7 +1129,7 @@ export function SessionDetail() {
             {/* Live banner */}
             <div
               className="rounded-2xl p-5 flex items-center gap-4"
-              style={{ background: "#1F1B2E", border: "1px solid rgba(180,240,0,0.2)" }}
+              style={{ background: "linear-gradient(135deg, #1F1B2E, #2D2640)", border: "1px solid rgba(180,240,0,0.2)" }}
             >
               <div className="relative">
                 <div className="w-4 h-4 rounded-full" style={{ background: "#B4F000" }} />

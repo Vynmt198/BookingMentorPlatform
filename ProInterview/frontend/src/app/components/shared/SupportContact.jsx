@@ -1,4 +1,5 @@
 import { Mail as EnvelopeSimple, Phone, MessageCircle as ChatCircleDots } from "lucide-react";
+import { SUPPORT_EMAIL } from "../../constants/brandVoice";
 
 export function SupportContact() {
   return (
@@ -29,7 +30,7 @@ export function SupportContact() {
 
       <div className="space-y-3">
         <a
-          href="mailto:support@prointerview.vn"
+          href={`mailto:${SUPPORT_EMAIL}`}
           className="flex items-center gap-3 p-3 rounded-xl transition-all hover:bg-[#F9FAFB]"
           style={{ border: "1px solid #E5E7EB" }}
         >
@@ -39,7 +40,7 @@ export function SupportContact() {
               Email
             </p>
             <p className="text-sm font-semibold" style={{ color: "#1F1F1F" }}>
-              support@prointerview.vn
+              {SUPPORT_EMAIL}
             </p>
           </div>
         </a>
@@ -65,14 +66,22 @@ export function SupportContact() {
         className="mt-4 p-3 rounded-xl text-xs"
         style={{ background: "#F9FAFB", color: "#6B7280" }}
       >
-        <strong>Chính sách hỗ trợ:</strong>
-        <ul className="mt-2 space-y-1 list-disc list-inside">
-          <li>Mentor hủy ≥24h: đổi lịch / đổi mentor / hoàn 100%</li>
-          <li>Mentor hủy &lt;24h: hoàn 100% ưu tiên</li>
-          <li>Mentor no-show: hoàn 100% + ghi vi phạm mentor</li>
-          <li>Bạn hủy từ 24 giờ trở lên trước buổi: hoàn 100% (đã thanh toán)</li>
-          <li>Đổi lịch qua hệ thống hoặc support@prointerview.vn</li>
+        <strong>Chính sách buổi mentor:</strong>
+        <p className="mt-2 font-semibold text-slate-700">Bạn hủy:</p>
+        <ul className="mt-1 space-y-0.5 list-disc list-inside">
+          <li>Từ 24 giờ trước buổi: hoàn 100%</li>
+          <li>12–24 giờ: hoàn 50%</li>
+          <li>Dưới 12 giờ hoặc không tham gia: không hoàn</li>
         </ul>
+        <p className="mt-2 font-semibold text-slate-700">Mentor hủy / no-show:</p>
+        <ul className="mt-1 space-y-0.5 list-disc list-inside">
+          <li>Hủy từ 24 giờ trở lên: đổi lịch / đổi mentor / hoàn 100%</li>
+          <li>Hủy dưới 24 giờ: hoàn 100% ưu tiên</li>
+          <li>No-show: hoàn 100% + vi phạm mentor</li>
+        </ul>
+        <p className="mt-2">
+          Muốn đổi giờ: hủy buổi (hoàn theo mốc) rồi đặt lại. Đổi lịch trên cùng buổi chỉ khi mentor hủy từ 24 giờ trở lên.
+        </p>
       </div>
     </div>
   );

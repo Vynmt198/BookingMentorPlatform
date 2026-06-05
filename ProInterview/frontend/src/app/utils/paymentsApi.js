@@ -49,6 +49,7 @@ export async function createSubscriptionTransferPending({ amount, planKey, order
         paymentId: body.paymentId,
         providerRef: body.providerRef,
         idempotent: Boolean(body.idempotent),
+        paymentExpiresAt: body.paymentExpiresAt ?? null,
       };
     }
     return { success: false, error: body.error || "Không tạo được giao dịch chờ CK." };
@@ -95,6 +96,9 @@ export async function fetchTransferStatus(orderRef) {
         entityId: body.entityId,
         redirectTo: body.redirectTo,
         sepayAuto: Boolean(body.sepayAuto),
+        paymentExpiresAt: body.paymentExpiresAt ?? null,
+        expiresInMs: Number(body.expiresInMs) || 0,
+        timeoutMinutes: Number(body.timeoutMinutes) || 15,
       };
     }
     return { success: false, error: body.error || "Không lấy được trạng thái." };

@@ -50,7 +50,11 @@ function authedGet(path) {
       if (!res.ok) return { success: false, error: body.error || `Lỗi ${res.status}` };
       return { success: true, ...body };
     })
-    .catch(() => ({ success: false, error: "Không kết nối được backend." }));
+    .catch(() => ({
+      success: false,
+      error:
+        "Không kết nối được backend. Kiểm tra `npm run dev:full` trong frontend — backend phải chạy cổng 5000.",
+    }));
 }
 
 function authedSend(method, path, payload) {
@@ -67,7 +71,11 @@ function authedSend(method, path, payload) {
       }
       return { success: true, ...body };
     })
-    .catch(() => ({ success: false, error: "Không kết nối được backend." }));
+    .catch(() => ({
+      success: false,
+      error:
+        "Không kết nối được backend. Kiểm tra `npm run dev:full` trong frontend — backend phải chạy cổng 5000.",
+    }));
 }
 
 export async function listBookings() {
@@ -171,4 +179,14 @@ export async function startBookingMeeting(id, { asMentor = false } = {}) {
 export async function updateMentorNotes(id, body) {
   if (!id) return { success: false, error: "Thiếu id." };
   return authedSend("PATCH", `/api/bookings/${encodeURIComponent(id)}/notes`, body);
+}
+
+/**
+ * Mentor chia sẻ insights sau buổi coaching (POST /api/bookings/:id/mentor-knowledge).
+ * @param {string} bookingId
+ * @param {{ menteeRole?, field?, questionsAsked?, commonMistakes?, keyInsights?, fullAdvice? }} payload
+ */
+export async function saveMentorKnowledge(bookingId, payload) {
+  if (!bookingId) return { success: false, error: "Thiếu bookingId." };
+  return authedSend("POST", `/api/bookings/${encodeURIComponent(bookingId)}/mentor-knowledge`, payload);
 }

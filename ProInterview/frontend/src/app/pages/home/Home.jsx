@@ -82,8 +82,8 @@ const FEATURES = [
   },
 ];
 
-const STEP_ICONS = [FileText, Users, GraduationCap];
-const STEP_COLORS = ["#7000ff", "#7000ff", "#7000ff"];
+const STEP_ICONS = [FileText, VideoCamera, Users, GraduationCap];
+const STEP_COLORS = ["#7000ff", "#7000ff", "#7000ff", "#7000ff"];
 
 const STEPS = HOME_SECTION_COPY.steps.map((s, i) => ({
   ...s,

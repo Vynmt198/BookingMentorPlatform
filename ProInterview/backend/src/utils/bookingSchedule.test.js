@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseBookingStartMs, isBookingInLiveWindow } from "./bookingSchedule.js";
+import { parseBookingStartMs, isBookingInLiveWindow, isBookingSlotInFuture } from "./bookingSchedule.js";
 
 test("parseBookingStartMs parses DD/MM/YYYY and HH:mm", () => {
   const ms = parseBookingStartMs("29/05/2026", "14:00");
@@ -13,4 +13,9 @@ test("parseBookingStartMs parses DD/MM/YYYY and HH:mm", () => {
 
 test("isBookingInLiveWindow returns false for invalid date", () => {
   assert.equal(isBookingInLiveWindow({ date: "", timeSlot: "" }), true);
+});
+
+test("isBookingSlotInFuture rejects past", () => {
+  const t = new Date(2020, 5, 1, 12, 0, 0, 0).getTime();
+  assert.equal(isBookingSlotInFuture("01/06/2020", "11:00", t), false);
 });

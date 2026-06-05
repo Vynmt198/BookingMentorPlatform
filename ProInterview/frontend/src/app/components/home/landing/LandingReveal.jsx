@@ -5,35 +5,35 @@ const EASE = [0.22, 1, 0.36, 1];
 const EASE_OUT = [0.16, 1, 0.3, 1];
 const EASE_BOUNCE = [0.34, 1.45, 0.64, 1];
 
-/** Preset hiệu ứng theo section — mỗi block landing một “cảm giác” khác */
+/** Preset hiệu ứng theo section, mỗi block landing một “cảm giác” khác */
 export const SECTION_MOTION = {
-  /** Hero: copy — blur + trượt lên */
+  /** Hero: copy, blur + trượt lên */
   heroCopy: {
     hidden: { opacity: 0, y: 28, scale: 0.98, filter: "blur(10px)" },
     visible: { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" },
     duration: 0.72,
   },
-  /** Hero: video — từ phải + scale nhẹ */
+  /** Hero: video, từ phải + scale nhẹ */
   heroVideo: {
     hidden: { opacity: 0, x: 48, scale: 0.9, rotate: 3 },
     visible: { opacity: 1, x: 0, scale: 1, rotate: 0 },
     duration: 0.68,
     ease: EASE_BOUNCE,
   },
-  /** Hero: stats — nổi từ dưới */
+  /** Hero: stats, nổi từ dưới */
   heroStats: {
     hidden: { opacity: 0, y: 36, scale: 0.94 },
     visible: { opacity: 1, y: 0, scale: 1 },
     duration: 0.58,
   },
-  /** 4 bước: header — fade + trượt (không clipPath — dễ nuốt mascot) */
+  /** 4 bước: header, fade + trượt (không clipPath, dễ nuốt mascot) */
   featuresHead: {
     hidden: { opacity: 0, y: 28, scale: 0.97 },
     visible: { opacity: 1, y: 0, scale: 1 },
     duration: 0.6,
     ease: EASE_OUT,
   },
-  /** 4 bước: từng card — xen kẽ trái/phải */
+  /** 4 bước: từng card, xen kẽ trái/phải */
   featuresStep: (index) => ({
     hidden: {
       opacity: 0,
@@ -45,20 +45,20 @@ export const SECTION_MOTION = {
     visible: { opacity: 1, y: 0, x: 0, rotate: 0, scale: 1 },
     duration: 0.62,
   }),
-  /** CV — skew nhẹ + trượt lên */
+  /** CV, skew nhẹ + trượt lên */
   cv: {
     hidden: { opacity: 0, y: 52, skewY: 4, scale: 0.97 },
     visible: { opacity: 1, y: 0, skewY: 0, scale: 1 },
     duration: 0.68,
   },
-  /** Mentor — từ phải, perspective */
+  /** Mentor, từ phải, perspective */
   mentor: {
     hidden: { opacity: 0, x: 64, rotateY: -8, scale: 0.96 },
     visible: { opacity: 1, x: 0, rotateY: 0, scale: 1 },
     duration: 0.7,
     ease: EASE_OUT,
   },
-  /** Khóa học — từ trái + bounce */
+  /** Khóa học, từ trái + bounce */
   courses: {
     hidden: { opacity: 0, x: -56, scale: 0.94 },
     visible: { opacity: 1, x: 0, scale: 1 },
@@ -84,14 +84,14 @@ function useSectionInView(once = true, variant) {
   const ref = useRef(null);
   const inView = useInView(ref, {
     once,
-    // Header 4 bước thấp hơn cards — cần threshold thấp để không kẹt opacity:0
+    // Header 4 bước thấp hơn cards, cần threshold thấp để không kẹt opacity:0
     amount: variant === "featuresHead" ? 0.08 : 0.16,
     margin: variant === "featuresHead" ? "0px 0px -12% 0px" : "-8% 0px -5% 0px",
   });
   return { ref, inView };
 }
 
-/** Reveal theo preset section — thay cho LandingReveal generic */
+/** Reveal theo preset section, thay cho LandingReveal generic */
 export function SectionReveal({
   children,
   className = "",
@@ -125,7 +125,7 @@ export function SectionReveal({
   );
 }
 
-/** Section 4 bước — hiệu ứng gốc (blur + trượt) */
+/** Section 4 bước, hiệu ứng gốc (blur + trượt) */
 export function LandingReveal({
   children,
   className = "",
@@ -207,7 +207,7 @@ export function LandingItem({ children, className = "" }) {
   );
 }
 
-/** Hero stats — pop từng ô */
+/** Hero stats, pop từng ô */
 export function HeroStatItem({ children, className = "" }) {
   const reduceMotion = useReducedMotion();
 

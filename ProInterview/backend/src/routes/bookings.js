@@ -24,6 +24,7 @@ bookingsRouter.patch("/:id/mentor-cancel-resolution", authJwt, asyncHandler(Book
 bookingsRouter.post("/:id/report-no-show", authJwt, asyncHandler(BookingsController.reportNoShow));
 bookingsRouter.get("/:id/rebook-credit", authJwt, asyncHandler(BookingsController.getRebookCredit));
 bookingsRouter.post("/:id/review", authJwt, asyncHandler(BookingsController.createReviewForBooking));
+bookingsRouter.post("/:id/mentor-knowledge", authJwt, requireMentor, asyncHandler(BookingsController.saveMentorKnowledge));
 bookingsRouter.get("/:id", authJwt, asyncHandler(BookingsController.getById));
 bookingsRouter.delete("/:id", authJwt, asyncHandler(BookingsController.cancel));
 bookingsRouter.get("/mentor/:id/booked-slots", asyncHandler(BookingsController.getBookedSlots));

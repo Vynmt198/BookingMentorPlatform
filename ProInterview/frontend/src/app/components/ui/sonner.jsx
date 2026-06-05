@@ -15,6 +15,7 @@ const Toaster = ({ ...props }) => {
           toast: TOAST_CLASS,
           title: "!font-bold !text-[#000000]",
           description: "!text-slate-600",
+<<<<<<< Updated upstream
           actionButton: "!bg-[#8037f4] !text-white",
           cancelButton: "!bg-violet-50 !text-[#8037f4]",
           closeButton:
@@ -23,6 +24,16 @@ const Toaster = ({ ...props }) => {
           error: "!border-violet-300/80",
           warning: "!border-amber-200/80",
           info: "!border-l-4 !border-l-[#8037f4] !bg-violet-50",
+=======
+          actionButton: "!bg-[#630ed4] !text-white",
+          cancelButton: "!bg-violet-50 !text-[#630ed4]",
+          closeButton:
+            "!border-violet-200 !bg-violet-50 !text-[#630ed4] hover:!bg-violet-100",
+          success: "!border-emerald-200/80 !shadow-emerald-500/10",
+          error: "!border-violet-300/80",
+          warning: "!border-amber-200/80",
+          info: "!border-l-4 !border-l-[#630ed4] !from-violet-50/95 !to-white !bg-gradient-to-r",
+>>>>>>> Stashed changes
         },
       }}
       style={{
