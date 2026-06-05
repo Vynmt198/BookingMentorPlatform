@@ -155,32 +155,10 @@ function SaveBar({
 }
 
 /* ─── TAB: Notifications ────────────────────────────────── */
-<<<<<<< Updated upstream
 const DEFAULT_NOTIFS = [
   { id: "interview_reminder", label: "Nhắc nhở lịch mentor", description: "Thông báo trước 1 giờ khi có buổi hẹn", value: true },
   { id: "mentor_feedback", label: "Phản hồi từ Mentor", description: "Khi mentor gửi đánh giá luyện tập", value: true },
   { id: "streak_reminder", label: "Nhắc nhở duy trì streak", description: "Nhắc bạn luyện tập đều đặn", value: true },
-=======
-const DEFAULT_CUSTOMER_NOTIFS = [
-  {
-    id: "interview_reminder",
-    label: "Nhắc lịch phỏng vấn",
-    description: "Thông báo trước buổi hẹn khoảng 1 giờ.",
-    value: true,
-  },
-  {
-    id: "mentor_feedback",
-    label: "Phản hồi từ mentor",
-    description: "Khi mentor gửi góp ý sau buổi hoặc nhận xét của bạn.",
-    value: true,
-  },
-  {
-    id: "streak_reminder",
-    label: "Nhắc luyện tập đều đặn",
-    description: "Nhắc luyện phỏng vấn AI và hoàn thành mục tiêu tuần.",
-    value: true,
-  },
->>>>>>> Stashed changes
 ];
 
 const DEFAULT_MENTOR_NOTIFS = [
@@ -582,13 +560,8 @@ export function Settings() {
                            }`}
                         >
                            <div className="flex items-center gap-3">
-<<<<<<< Updated upstream
                               <tab.icon size={18} strokeWidth={2} className={`shrink-0 transition-transform duration-300 ${isActive ? "scale-105 text-[#8037f4]" : "group-hover:translate-x-0.5"}`} />
                               <span className="text-[10px] font-bold uppercase tracking-[0.18em]">{tab.label}</span>
-=======
-                              <tab.icon size={18} strokeWidth={2} className={`shrink-0 transition-transform duration-300 ${isActive ? "scale-105 text-black" : "group-hover:translate-x-0.5"}`} />
-                              <span className="text-sm font-semibold tracking-normal">{tab.label}</span>
->>>>>>> Stashed changes
                            </div>
                            {isActive && <ChevronRight size={14} className="shrink-0 text-[#8037f4]/35" strokeWidth={2} />}
                         </button>

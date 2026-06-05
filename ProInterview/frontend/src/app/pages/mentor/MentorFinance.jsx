@@ -180,11 +180,6 @@ function WithdrawalModal({
               <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#93f72b]/20 ring-4 ring-[#93f72b]/10">
                 <CheckCircle size={36} className="text-[#630ed4]" strokeWidth={2.5} />
               </div>
-<<<<<<< Updated upstream
-              <h2 className="text-xl font-black sm:text-2xl text-slate-900 tracking-tighter">Yêu cầu thành công!</h2>
-              <p className="text-sm text-zinc-500 font-medium px-4">Số tiền của bạn đang được hệ thống xử lý và sẽ chuyển khoản trong vòng 1-2 ngày làm việc.</p>
-              <button onClick={onClose} className="w-full py-4 rounded-2xl bg-white text-slate-900 text-[10px] font-black uppercase tracking-widest shadow-xl">Đóng cửa sổ</button>
-=======
               <div>
                 <h2 className="text-xl font-bold text-slate-900">Yêu cầu đã gửi</h2>
                 <p className="mt-2 text-sm leading-relaxed text-slate-500">
@@ -198,7 +193,6 @@ function WithdrawalModal({
               >
                 Đóng
               </button>
->>>>>>> Stashed changes
             </div>
           ) : (
             <>
@@ -346,20 +340,7 @@ function WithdrawalModal({
                   </p>
                 ) : null}
               </div>
-<<<<<<< Updated upstream
-              <button 
-                onClick={handleWithdraw}
-                disabled={!hasEnoughAmount || loading || savingAccount || !isAccountReady}
-                className="w-full py-5 rounded-3xl bg-primary-fixed text-[#000000] text-[10px] font-black uppercase tracking-widest shadow-[0_15px_40px_rgba(196, 255, 71,0.32)] hover:scale-[1.02] disabled:opacity-30 disabled:hover:scale-100 transition-all">
-                {loading ? "Đang xử lý..." : "Xác nhận gửi yêu cầu"}
-              </button>
-              <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-[0.2em]">
-                Hạn mức rút tối thiểu 100.000 ₫ {!isAccountReady ? "• Cần ngân hàng hợp lệ + STK 8-19 số" : ""}
-              </p>
-            </div>
-=======
             </>
->>>>>>> Stashed changes
           )}
         </motion.div>
     </motion.div>,
@@ -473,11 +454,7 @@ export function MentorFinance() {
                  <div className="flex flex-wrap gap-4">
                     <button 
                        onClick={() => setShowWithdraw(true)}
-<<<<<<< Updated upstream
-                       className="px-10 py-5 rounded-3xl bg-primary-fixed text-[#000000] text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-[0_15px_40px_rgba(196, 255, 71,0.32)]">
-=======
                        className="px-10 py-5 rounded-3xl bg-primary-fixed text-black text-sm font-semibold hover:scale-105 transition-all shadow-[0_15px_40px_rgba(196, 255, 71,0.32)]">
->>>>>>> Stashed changes
                        Rút tiền ngay
                     </button>
                     <button
@@ -600,11 +577,7 @@ export function MentorFinance() {
               </div>
               <div className="flex gap-2">
                  {["all", "income", "withdraw"].map(t => (
-<<<<<<< Updated upstream
-                    <button key={t} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-white text-slate-900' : 'bg-slate-50 text-zinc-500 hover:text-slate-900'}`} onClick={() => setActiveTab(t)}>
-=======
                     <button key={t} className={`px-6 py-3 rounded-2xl text-sm font-semibold transition-all ${activeTab === t ? 'bg-white text-slate-900 shadow-sm' : 'bg-slate-50 text-zinc-500 hover:text-slate-900'}`} onClick={() => setActiveTab(t)}>
->>>>>>> Stashed changes
                        {t === 'all' ? 'Tất cả' : t === 'income' ? 'Thu nhập' : 'Rút tiền'}
                     </button>
                  ))}
@@ -825,11 +798,7 @@ export function MentorFinance() {
               <button
                 type="button"
                 onClick={() => setSelectedTx(null)}
-<<<<<<< Updated upstream
-                className="mt-8 w-full py-3 rounded-xl bg-white text-slate-900 text-[10px] font-black uppercase tracking-widest shadow-xl"
-=======
                 className="mt-8 w-full rounded-xl bg-[#93f72b] py-3 text-sm font-bold text-[#120B2E] shadow-[0_8px_24px_rgba(147,247,43,0.35)] transition hover:brightness-105"
->>>>>>> Stashed changes
               >
                 Đóng
               </button>

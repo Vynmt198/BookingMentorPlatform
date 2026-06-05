@@ -10,11 +10,7 @@ import { Payment } from "../models/Payment.js";
 import { ensureMentorProfilesForAllMentorUsers } from "./mentorProfileService.js";
 import { recordAdminTransferSuccess, recordTransferPending, recordTransferSubmitted } from "./paymentsService.js";
 import { tryCreditMentorForCompletedBooking } from "./mentorEarningsService.js";
-<<<<<<< Updated upstream
-import { resolveBookingPlatformFeeRate } from "./mentorCommissionService.js";
-=======
 import { deliverNotification } from "./notificationDeliveryService.js";
->>>>>>> Stashed changes
 import { runInTransaction } from "../helpers/dbHelper.js";
 import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
 import { isBookingInLiveWindow, isBookingSlotInFuture } from "../utils/bookingSchedule.js";

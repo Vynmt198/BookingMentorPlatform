@@ -6,21 +6,12 @@
  */
 
 export const HOME_COPY = {
-<<<<<<< Updated upstream
   badge: "Bạn đồng hành luyện phỏng vấn",
   titleLine1: "Chuẩn bị",
   titleHighlight: "hồ sơ & kỹ năng",
   titleLine2: "cùng mentor thật",
   cta: "Phân tích CV ngay",
   ctaMentor: "Tìm mentor ngay",
-=======
-  badge: "Nền tảng luyện phỏng vấn dành cho IT",
-  titleLine1: "Phỏng vấn",
-  titleHighlight: "1:1 với AI",
-  titleLine2Suffix: "qua",
-  titleExtraLines: ["mô phỏng", "hội thoại", "thông minh"],
-  cta: "Thử phỏng vấn miễn phí",
->>>>>>> Stashed changes
   stats: [
     { value: "10,000+", label: "Lượt luyện trên ProInterview" },
     { value: "500+", label: "Mentor HR/Manager thật" },
@@ -53,38 +44,9 @@ export const HOME_SECTION_COPY = {
       desc: "Kết nối với Mentor để được góp ý cụ thể và có chiến lược chuẩn bị phù hợp.",
     },
     {
-<<<<<<< Updated upstream
       step: "03",
       title: "Khóa học",
       desc: "Video và bài tập mentor duyệt. Học xong biết áp dụng vào CV và buổi phỏng vấn.",
-=======
-      step: "04",
-      title: "Khóa học từ Mentor",
-      desc: "Video từ Mentor giúp bạn bổ sung kiến thức, luyện kỹ năng và chuẩn bị bài bản hơn cho hành trình ứng tuyển.",
-    },
-  ],
-  /** Cùng ý bản gốc — 2 câu/card, độ dài cân bằng để hiển thị đều. */
-  steps: [
-    {
-      step: "01",
-      title: "Tối ưu CV theo vị trí ứng tuyển",
-      desc: "ProInterview giúp bạn đối chiếu CV với vị trí ứng tuyển, chỉ rõ điểm khớp và điểm thiếu. Bạn biết phần nào nên cải thiện trước khi nộp hồ\u00a0sơ.",
-    },
-    {
-      step: "02",
-      title: "Luyện phỏng vấn với AI",
-      desc: "Phỏng vấn với AI theo đúng vị trí ứng tuyển, nhận góp ý sau từng câu trả lời. Bạn biết mình cần sửa gì để trả lời rõ ràng hơn.",
-    },
-    {
-      step: "03",
-      title: "Kết nối Mentor 1:1",
-      desc: "Kết nối với Mentor để nhận góp ý cụ thể qua từng buổi mock. Bạn có chiến lược chuẩn bị phù hợp với mục tiêu ứng tuyển.",
-    },
-    {
-      step: "04",
-      title: "Khóa học từ Mentor",
-      desc: "Video từ Mentor giúp bạn bổ sung kiến thức và luyện kỹ năng thực tế. Bạn chuẩn bị bài bản hơn cho hành trình ứng tuyển sắp tới.",
->>>>>>> Stashed changes
     },
   ],
   features: [
@@ -167,15 +129,9 @@ export const CV_HUB_HERO_COPY = {
 };
 
 export const MENTOR_SHOWCASE_COPY = {
-<<<<<<< Updated upstream
   badge: "Mentor 1:1 thật",
   titleLine1: "Đã phân tích CV,",
   titleLine2: "hẹn mentor, biết ôn gì tiếp",
-=======
-  badge: "Kết nối Mentor 1:1",
-  titleLine1: "Từ luyện tập với AI",
-  titleLine2: "đến trao đổi thực tế cùng\u00a0Mentor",
->>>>>>> Stashed changes
   steps: [
     {
       title: "Chọn Mentor phù hợp",
@@ -207,17 +163,6 @@ export const MENTOR_BOOKING_COPY = {
   sessionVia: "Buổi 1:1 qua Zoom / Google Meet",
   flexibleSchedule: "Tự chọn khung giờ linh hoạt.",
   feedbackAfter: "Góp ý sau buổi Mentor.",
-};
-
-/** Copy ngắn — chi tiết bảng: `constants/bookingPolicy.js` + `BookingPolicySummary`. */
-export const BOOKING_POLICY_COPY = {
-  refundTitle: "Chính sách khi bạn hủy",
-  refundDetail:
-    "Từ 24 giờ trước buổi: hoàn 100%. 12–24 giờ: hoàn 50%. Dưới 12 giờ hoặc không tham gia: không hoàn.",
-  mentorCancelTitle: "Chính sách khi Mentor hủy / no-show",
-  mentorCancelRefund:
-    "Mentor hủy từ 24 giờ trở lên: đổi lịch, đổi Mentor hoặc hoàn 100% · Dưới 24 giờ: hoàn 100% ưu tiên · No-show: hoàn 100% + vi phạm Mentor.",
-  userChangeSlotNote: "Đổi giờ: hủy buổi rồi đặt lại.",
 };
 
 export const COURSES_SHOWCASE_COPY = {
