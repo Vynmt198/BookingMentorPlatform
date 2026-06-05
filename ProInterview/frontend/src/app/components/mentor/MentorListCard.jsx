@@ -117,7 +117,7 @@ export function MentorListCard({ mentor, onOpenProfile, onBook }) {
           onClick={onOpenProfile}
           className="group block w-full min-w-0 max-w-full rounded-sm text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8037f4]"
         >
-          <h3 className="flex min-w-0 items-center gap-0.5 text-sm font-bold leading-tight text-slate-900 group-hover:text-[#8037f4] md:flex-wrap md:gap-1.5 md:text-lg">
+          <h3 className="flex min-w-0 items-center gap-0.5 text-sm font-bold leading-tight text-[#8037f4] group-hover:text-violet-700 md:flex-wrap md:gap-1.5 md:text-lg">
             <span className="min-w-0 flex-1 truncate">{mentor.name}</span>
             {mentor.isVerified ? (
               <BadgeCheck

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
 import { publicNotificationPrefsForRole } from "../constants/notificationPrefs.js";
+import { normalizePlanKey } from "../utils/planKeys.js";
 
 const { Schema } = mongoose;
 
@@ -134,6 +135,14 @@ const userSchema = new Schema(
 
 userSchema.index({ role: 1 });
 userSchema.index({ plan: 1 });
+
+/** Dữ liệu cũ: starter_pro / elite_pro → student / professional trước khi validate enum. */
+userSchema.pre("validate", function normalizeLegacyPlan() {
+  if (this.plan) {
+    const normalized = normalizePlanKey(this.plan);
+    if (normalized) this.plan = normalized;
+  }
+});
 
 /**
  * Mỗi khi User được lưu qua Mongoose (đăng ký, PATCH /me, …) mà role là mentor
