@@ -57,8 +57,11 @@ export async function initiatePayment(userId, body) {
     amount = Math.round(amount);
     referenceId = new mongoose.Types.ObjectId(String(userId));
     referenceModel = "Subscription";
-    const rawPlan = String(body?.planKey ?? body?.plan ?? "starter_pro").toLowerCase();
-    const subscriptionPlan = rawPlan.includes("elite") ? "elite_pro" : "starter_pro";
+    const rawPlan = String(body?.planKey ?? body?.plan ?? "student").toLowerCase();
+    let subscriptionPlan = "student";
+    if (rawPlan.includes("premium")) subscriptionPlan = "premium";
+    else if (rawPlan.includes("professional") || rawPlan.includes("career") || rawPlan.includes("elite")) subscriptionPlan = "professional";
+    else if (rawPlan.includes("student") || rawPlan.includes("basic") || rawPlan.includes("starter")) subscriptionPlan = "student";
     providerResponse = { plan: subscriptionPlan };
   } else {
     return { ok: false, status: 400, error: "type phải là booking hoặc subscription." };
@@ -337,9 +340,7 @@ export async function recordTransferPending({
         $set.providerRef = nextRef;
       }
       if (planKey && t === "subscription") {
-        $set["providerResponse.plan"] = String(planKey).toLowerCase().includes("elite")
-          ? "elite_pro"
-          : "starter_pro";
+        $set["providerResponse.plan"] = planKeyFromSubscriptionMeta(planKey) || "student";
       }
       if (billing && t === "subscription") {
         $set["providerResponse.billing"] = billing === "yearly" ? "yearly" : "monthly";
@@ -369,7 +370,7 @@ export async function recordTransferPending({
   const planMeta =
     planKey && t === "subscription"
       ? {
-          plan: String(planKey).toLowerCase().includes("elite") ? "elite_pro" : "starter_pro",
+          plan: planKeyFromSubscriptionMeta(planKey) || "student",
           billing: billing === "yearly" ? "yearly" : "monthly",
         }
       : {};
@@ -420,7 +421,7 @@ export async function recordTransferPending({
 }
 
 function normalizeSubscriptionPlanKey(raw) {
-  return planKeyFromSubscriptionMeta(raw) || "starter_pro";
+  return planKeyFromSubscriptionMeta(raw) || "student";
 }
 
 /** Gói Pro/Elite — chuyển khoản: tạo payment pending + mã PI làm nội dung CK. */
@@ -513,7 +514,7 @@ export async function listPendingSubscriptionTransfers() {
         id: String(p._id),
         amount: p.amount,
         providerRef: p.providerRef || "",
-        plan: pr.plan === "elite_pro" ? "elite_pro" : "starter_pro",
+        plan: planKeyFromSubscriptionMeta(pr.plan) || "student",
         status: p.status,
         createdAt: p.createdAt,
         transferSubmittedAt: pr.submittedAt || null,
@@ -729,7 +730,7 @@ export async function listPaymentHistory(userId, limit = 50) {
 
 async function applySubscriptionPlanFromPayment(pay) {
   if (!pay || pay.type !== "subscription") return;
-  const plan = pay.providerResponse?.plan === "elite_pro" ? "elite_pro" : "starter_pro";
+  const plan = planKeyFromSubscriptionMeta(pay.providerResponse?.plan) || "student";
   const billing = pay.providerResponse?.billing === "yearly" ? "yearly" : "monthly";
   const planExpiresAt = new Date();
   if (billing === "yearly") {
@@ -737,16 +738,18 @@ async function applySubscriptionPlanFromPayment(pay) {
   } else {
     planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
   }
-  const quota =
-    plan === "elite_pro"
-      ? { cvAnalysisLimit: 999, interviewLimit: 999 }
-      : { cvAnalysisLimit: 20, interviewLimit: 10 };
+  const QUOTA_MAP = {
+    student:      { cvAnalysisLimit: 999, mentorSessionLimit: 1   },
+    professional: { cvAnalysisLimit: 999, mentorSessionLimit: 4   },
+    premium:      { cvAnalysisLimit: 999, mentorSessionLimit: 999 },
+  };
+  const quota = QUOTA_MAP[plan] || QUOTA_MAP.student;
   await User.findByIdAndUpdate(pay.userId, {
     $set: {
       plan,
       planExpiresAt,
       "quota.cvAnalysisLimit": quota.cvAnalysisLimit,
-      "quota.interviewLimit": quota.interviewLimit,
+      "quota.mentorSessionLimit": quota.mentorSessionLimit,
     },
   });
 }

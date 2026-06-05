@@ -319,7 +319,7 @@ export function CVAnalysis() {
     }
   }, [routeMode, navigate]);
 
-  const canAnalyze  = plans.starterPro || plans.elitePro || cvRemaining > 0;
+  const canAnalyze  = plans.student || plans.professional || plans.premium || cvRemaining > 0;
   const hasCvInput = Boolean(cvUploaded || reuseCV || cvFile);
   const hasJdInput = Boolean(jdUploaded || reuseJD || jdFile);
   const needsJdForRoute = routeMode === "jd";
@@ -430,7 +430,7 @@ export function CVAnalysis() {
     if (needsJdForRoute && !Boolean(jdUploaded || reuseJD || jdFile)) return;
     if (!canAnalyze) return;
 
-    if (!plans.starterPro && !plans.elitePro) {
+    if (!plans.student && !plans.professional && !plans.premium) {
       setCvRemaining(prev => Math.max(0, prev - 1));
       incrementCVCount();
     }
@@ -636,7 +636,7 @@ export function CVAnalysis() {
           };
 
           const planFlags = getPlans();
-          const planAtTime = planFlags.elitePro ? "enterprise" : planFlags.starterPro ? "pro" : "free";
+          const planAtTime = planFlags.premium ? "premium" : planFlags.professional ? "professional" : planFlags.student ? "student" : "free";
           const fileUpload = await uploadCvJdFiles(cvFile, jdFile, { includeJd: true });
           const savePayload = buildCvAnalysisSavePayload({
             analysis: analysisPayload,
@@ -721,7 +721,7 @@ export function CVAnalysis() {
           });
 
           const planFlags = getPlans();
-          const planAtTime = planFlags.elitePro ? "enterprise" : planFlags.starterPro ? "pro" : "free";
+          const planAtTime = planFlags.premium ? "premium" : planFlags.professional ? "professional" : planFlags.student ? "student" : "free";
           const fileUpload = await uploadCvJdFiles(cvFile, null, { includeJd: false });
           const savePayload = buildCvAnalysisSavePayload({
             analysis: analysisPayload,
@@ -882,7 +882,7 @@ export function CVAnalysis() {
       }
       {...pageHeader}
       tabTrailing={
-        routeMode === "jd" && !plans.starterPro && !plans.elitePro && step === "upload" ? (
+        routeMode === "jd" && !plans.student && !plans.professional && !plans.premium && step === "upload" ? (
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold sm:text-[11px] ${
               cvRemaining === 0
@@ -1044,7 +1044,7 @@ export function CVAnalysis() {
                 </div>
               )}
 
-              {cvRemaining === 0 && !plans.starterPro && !plans.elitePro && (
+              {cvRemaining === 0 && !plans.student && !plans.professional && !plans.premium && (
                 <div className="mx-4 mb-0 mt-3 flex items-center justify-between gap-2 rounded-xl border border-amber-200/90 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 sm:mx-5">
                   <span>Đã hết lượt miễn phí — nâng cấp để tiếp tục</span>
                   <button type="button" onClick={() => navigate("/pricing")} className="font-bold text-[#8037f4] hover:underline">

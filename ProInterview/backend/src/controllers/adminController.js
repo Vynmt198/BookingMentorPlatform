@@ -49,7 +49,7 @@ function parseMonthRange(rawMonth) {
 }
 
 function planCountsFromAgg(rows = []) {
-  const out = { free: 0, starter_pro: 0, elite_pro: 0 };
+  const out = { free: 0, student: 0, professional: 0, premium: 0 };
   for (const row of rows) {
     const key = String(row._id || "free");
     if (Object.prototype.hasOwnProperty.call(out, key)) out[key] += Number(row.count) || 0;
@@ -950,9 +950,10 @@ export const AdminController = {
             sessionFingerprintEnforced: process.env.AUTH_STRICT_SESSION_FINGERPRINT === "true",
           },
           plans: [
-            { key: "free", label: "Miễn phí", cvAnalysisLimit: 3, interviewLimit: 1 },
-            { key: "starter_pro", label: "Pro", cvAnalysisLimit: 20, interviewLimit: 10 },
-            { key: "elite_pro", label: "Elite", cvAnalysisLimit: 999, interviewLimit: 999 },
+            { key: "free", label: "Miễn phí", cvAnalysisLimit: 2, mentorSessionLimit: 0, price: 0 },
+            { key: "student", label: "Student", cvAnalysisLimit: 999, mentorSessionLimit: 1, price: 150000 },
+            { key: "professional", label: "Professional", cvAnalysisLimit: 999, mentorSessionLimit: 4, price: 500000 },
+            { key: "premium", label: "Premium", cvAnalysisLimit: 999, mentorSessionLimit: 999, price: 2000000 },
           ],
           payments: {
             primaryChannel: "bank_transfer",

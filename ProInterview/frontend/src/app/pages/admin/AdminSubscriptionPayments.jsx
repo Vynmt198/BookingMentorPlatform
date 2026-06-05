@@ -11,9 +11,13 @@ function vnd(n) {
 }
 
 function planLabel(plan) {
-  if (plan === "elite_pro") return "Elite Pro";
-  if (plan === "starter_pro") return "Starter Pro";
+  if (plan === "premium") return "Cao cấp";
+  if (plan === "professional") return "Chuyên nghiệp";
+  if (plan === "student") return "Sinh viên";
   if (plan === "free") return "Miễn phí";
+  // backward-compat
+  if (plan === "elite_pro") return "Chuyên nghiệp (cũ)";
+  if (plan === "starter_pro") return "Sinh viên (cũ)";
   return plan || "—";
 }
 
@@ -180,9 +184,11 @@ export function AdminSubscriptionPayments() {
                 filtered.map((row) => {
                   const ref = row.providerRef || row.paymentRef || "—";
                   const planTone =
-                    row.plan === "elite_pro"
-                      ? "border-violet-300 bg-violet-100 text-violet-900"
-                      : "border-violet-200 bg-violet-50 text-violet-800";
+                    row.plan === "premium"
+                      ? "border-violet-400 bg-violet-200 text-violet-900"
+                      : row.plan === "professional" || row.plan === "elite_pro"
+                        ? "border-violet-300 bg-violet-100 text-violet-900"
+                        : "border-violet-200 bg-violet-50 text-violet-800";
                   return (
                     <tr key={row.id} className="group transition-colors hover:bg-violet-50/40">
                       <td className={`${tdCell} min-w-0`}>

@@ -16,15 +16,14 @@ const userSchema = new Schema(
     avatar: { type: String, default: "" },
 
     role: { type: String, enum: ["customer", "mentor", "admin"], default: "customer" },
-    plan: { type: String, enum: ["free", "starter_pro", "elite_pro"], default: "free" },
+    plan: { type: String, enum: ["free", "student", "professional", "premium"], default: "free" },
     planExpiresAt: { type: Date, default: null },
 
     quota: {
       cvAnalysisUsed: { type: Number, default: 0 },
-      cvAnalysisLimit: { type: Number, default: 3 },
-      interviewUsed: { type: Number, default: 0 },
-      interviewLimit: { type: Number, default: 1 },
-      interviewQuestionsAllowed: { type: Number, default: 3 },
+      cvAnalysisLimit: { type: Number, default: 2 },
+      mentorSessionUsed: { type: Number, default: 0 },
+      mentorSessionLimit: { type: Number, default: 0 },
       resetAt: { type: Date, default: Date.now },
     },
 

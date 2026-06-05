@@ -7,11 +7,14 @@ export function filterHighlightKeywords(list) {
   return arr.map((k) => String(k ?? "").trim()).filter((k) => k.length >= 2);
 }
 
-/** Số lượt CV còn lại từ quota API (elite = không giới hạn). */
+/** Số lượt CV còn lại từ quota API (student/professional/premium = không giới hạn). */
 export function computeCvRemainingFromQuota(quota, planKey) {
-  if (planKey === "elite_pro") return Number.POSITIVE_INFINITY;
+  const p = String(planKey || "free").toLowerCase();
+  if (p === "student" || p === "professional" || p === "premium") return Number.POSITIVE_INFINITY;
+  // backward-compat
+  if (p === "elite_pro" || p === "starter_pro") return Number.POSITIVE_INFINITY;
   if (!quota) return 0;
-  const limit = Number(quota.cvAnalysisLimit) || 3;
+  const limit = Number(quota.cvAnalysisLimit) || 2;
   const used = Number(quota.cvAnalysisUsed) || 0;
   return Math.max(0, limit - used);
 }

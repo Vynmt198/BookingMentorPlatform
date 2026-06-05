@@ -353,8 +353,9 @@ function getPaymentBadge(paymentStatus, status) {
 
 function planDisplayName(plan) {
   const p = String(plan || "free").toLowerCase();
-  if (p === "elite_pro") return "Elite Pro";
-  if (p === "starter_pro") return "Pro";
+  if (p === "premium") return "Cao cấp";
+  if (p === "professional") return "Chuyên nghiệp";
+  if (p === "student") return "Sinh viên";
   return "Miễn phí";
 }
 
