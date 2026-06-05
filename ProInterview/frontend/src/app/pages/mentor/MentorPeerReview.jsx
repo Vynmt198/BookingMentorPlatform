@@ -378,11 +378,7 @@ export function MentorPeerReview() {
                         <button
                            onClick={submitReview}
                            disabled={submitting}
-<<<<<<< Updated upstream
-                           className="py-3 rounded-xl bg-primary-fixed text-[#000000] text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
-=======
                            className="rounded-xl bg-primary-fixed py-3 text-sm font-semibold text-slate-900 disabled:opacity-50"
->>>>>>> Stashed changes
                         >
                            {submitting ? "Đang gửi..." : "Gửi đánh giá"}
                         </button>

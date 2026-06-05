@@ -153,11 +153,7 @@ export function CvAnalysisFeatureShowcase({ onCtaClick }) {
                   <div className="cv-analysis-glass-card -rotate-1 scale-100 transform rounded-3xl border border-[#ccc3d8] bg-white px-[1.5rem] py-[0.875rem] shadow-xl transition-all duration-300 hover:scale-[1.02] sm:px-[1.75rem] sm:py-[1.15rem]">
                     <div className="mb-3 flex items-center gap-2.5 sm:mb-3.5">
                       <div className="flex h-[1.7rem] w-[1.7rem] shrink-0 items-center justify-center rounded-lg bg-violet-100 sm:h-[1.95rem] sm:w-[1.95rem]">
-<<<<<<< Updated upstream
                         <FileText className="h-[0.7rem] w-[0.7rem] text-[#8037f4] sm:h-[0.825rem] sm:w-[0.825rem]" />
-=======
-                        <FileText className="h-[0.7rem] w-[0.7rem] text-[#630ed4] sm:h-[0.825rem] sm:w-[0.825rem]" />
->>>>>>> Stashed changes
                       </div>
                       <h3 className={ty.cardTitle}>Từ khóa khớp với JD</h3>
                     </div>

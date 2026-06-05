@@ -1,15 +1,10 @@
 /** Palette: #8037f4 · #000000 · #28552a · #93f72b — đồng bộ `src/styles/brand.css` */
 export const BRAND_PURPLE = "#8037f4";
-<<<<<<< Updated upstream
 export const BRAND_BLACK = "#000000";
 export const BRAND_GREEN_DARK = "#28552a";
 export const BRAND_LIME = "#93f72b";
 
 export const BRAND_PURPLE_HOVER = "color-mix(in srgb, #8037f4 88%, #000000)";
-=======
-export const BRAND_PURPLE_HOVER = "#630ed4";
-export const BRAND_PURPLE_LIGHT = "#a66ff8";
->>>>>>> Stashed changes
 export const BRAND_PURPLE_SOFT = "rgba(128, 55, 244, 0.12)";
 export const BRAND_PURPLE_SOFT_LIGHT = "rgba(128, 55, 244, 0.08)";
 export const BRAND_PURPLE_BORDER = "rgba(128, 55, 244, 0.28)";

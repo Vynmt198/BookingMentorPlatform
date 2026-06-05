@@ -165,7 +165,6 @@ export function MentorProfile() {
 
   return (
     <MentorPageShell bottomPad="pb-24">
-<<<<<<< Updated upstream
       <div className="relative z-10 mx-auto max-w-6xl px-4 pb-8 pt-6 sm:px-6 sm:pt-8">
         <div className="grid items-start gap-6 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px]">
           {/* Cột trái */}
@@ -201,22 +200,6 @@ export function MentorProfile() {
                       Đang bận
                     </span>
                   )}
-=======
-      <div className={`relative z-10 pb-8 pt-6 sm:pt-8 ${CUSTOMER_SHELL_GUTTER}`}>
-        <div className={`${CUSTOMER_SHELL_MAX} w-full`}>
-          <div className="grid items-start gap-6 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_320px]">
-            <div className="min-w-0 space-y-5">
-              <MentorProfileHeader
-                mentor={mentor}
-                ratingDisplay={ratingDisplay}
-                reviewCount={reviewCount}
-                experienceYears={experienceYears}
-              />
-
-              <div className="glass-card overflow-hidden">
-                <div className="px-4 pt-2 sm:px-6">
-                  <TabBar activeTab={activeTab} onChange={setActiveTab} />
->>>>>>> Stashed changes
                 </div>
 
                 <div className="p-4 sm:p-6">
@@ -237,7 +220,6 @@ export function MentorProfile() {
               </div>
             </div>
 
-<<<<<<< Updated upstream
             {/* Giới thiệu & chuyên môn */}
             <SectionCard title="Giới thiệu & chuyên môn" icon={Lightning}>
               {tagList.length > 0 ? (
@@ -361,15 +343,6 @@ export function MentorProfile() {
                 )}
               </div>
             </SectionCard>
-=======
-            <MentorProfileAside
-              mentor={mentor}
-              bookingHref={bookingHref}
-              onBook={goBook}
-              onReport={() => setShowReportModal(true)}
-              scheduleRows={scheduleRows}
-            />
->>>>>>> Stashed changes
           </div>
         </div>
       </div>

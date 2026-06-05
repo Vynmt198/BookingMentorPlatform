@@ -96,13 +96,9 @@ const mentorSchema = new Schema(
     },
     pricing: {
       mentorActivatedAt: { type: Date, default: null },
-<<<<<<< Updated upstream
-      platformFeeRate: { type: Number, default: null },
-=======
       /** Override phí booking theo hợp đồng riêng của mentor (0..1) */
       platformFeeRate: { type: Number, default: null },
       /** Override phí khóa học theo hợp đồng riêng của mentor (0..1) */
->>>>>>> Stashed changes
       coursePlatformFeeRate: { type: Number, default: null },
       isEarlyMentor: { type: Boolean, default: false },
       earlyMentorRank: { type: Number, default: null },

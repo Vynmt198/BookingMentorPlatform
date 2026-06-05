@@ -825,13 +825,6 @@ export function MentorMeetingDetail() {
                     Buổi hẹn này đã dời 1 lần — không thể dời thêm.
                   </p>
                 )}
-<<<<<<< Updated upstream
-                {actionError && <p className="text-xs text-red-400 font-bold">{actionError}</p>}
-                <div className="flex justify-end gap-3">
-                  <button onClick={() => setActionModal("")} className="px-5 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-black text-zinc-300">Đóng</button>
-                  <button onClick={handleMentorReschedule} disabled={busyAction !== "" || !canReschedule || loadingSlots || slotOptions.length === 0} className="px-5 py-3 rounded-xl bg-primary-fixed text-[#000000] text-xs font-black disabled:opacity-60">
-                    {busyAction === "reschedule" ? "Đang dời lịch..." : "Xác nhận dời lịch"}
-=======
 
                 <div>
                   <label htmlFor="reschedule-new-slot" className={rescheduleFieldLabel}>
@@ -907,7 +900,6 @@ export function MentorMeetingDetail() {
                     className="rounded-lg bg-primary-fixed px-5 py-2.5 text-sm font-bold text-slate-900 shadow-[0_8px_24px_rgba(196,255,71,0.35)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {busyAction === "reschedule" ? "Đang dời lịch…" : "Xác nhận dời lịch"}
->>>>>>> Stashed changes
                   </button>
                 </div>
               </div>

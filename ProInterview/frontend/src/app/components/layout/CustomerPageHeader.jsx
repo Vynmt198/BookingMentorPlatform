@@ -48,7 +48,6 @@ export function CustomerPageHeader({
 }) {
   return (
     <header className={`${className} ${centered ? "text-center" : ""}`}>
-<<<<<<< Updated upstream
       <div
         className={`mb-2 flex flex-wrap items-center gap-3 ${centered ? "justify-center" : "justify-between"}`}
       >
@@ -62,21 +61,6 @@ export function CustomerPageHeader({
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
       <h1 className="font-headline text-[clamp(1.75rem,3.5vw,2.5rem)] font-extrabold leading-[1.12] tracking-tight text-[#000000]">
-=======
-      {(badge || actions) && (
-        <div
-          className={`mb-2 flex flex-wrap items-center gap-3 ${centered ? "justify-center" : "justify-between"}`}
-        >
-          {badge ? (
-            <CustomerPageBadge pulse={badgePulse} className={centered ? "" : ""}>
-              {badge}
-            </CustomerPageBadge>
-          ) : null}
-          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
-        </div>
-      )}
-      <h1 className="font-headline text-[clamp(1.75rem,3.5vw,2.5rem)] font-extrabold leading-[1.12] tracking-tight text-[#1a1b23]">
->>>>>>> Stashed changes
         {title}
       </h1>
       {subtitle ? (

@@ -371,11 +371,7 @@ export function MentorDashboard() {
             </h1>
           </div>
           <div className="flex gap-4">
-<<<<<<< Updated upstream
-              <button type="button" onClick={() => navigate("/mentor/schedule")} className="flex items-center gap-2 rounded-xl bg-[#93f72b] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-[#0a0814] shadow-[0_8px_24px_rgba(196,255,71,0.22)] transition-all hover:brightness-110">
-=======
               <button type="button" onClick={() => navigate("/mentor/schedule")} className="flex items-center gap-2 rounded-xl bg-[#93f72b] px-5 py-2.5 text-xs font-bold text-[#120B2E] shadow-[0_8px_24px_rgba(147,247,43,0.28)] transition-all hover:brightness-105">
->>>>>>> Stashed changes
                  <Plus size={16} /> Tạo lịch mới
               </button>
           </div>

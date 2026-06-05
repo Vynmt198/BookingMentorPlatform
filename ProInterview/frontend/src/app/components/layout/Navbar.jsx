@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
-import { Bell, BookOpen, Calendar, LogIn, LogOut, Menu, Settings, Shield, User, UserPlus, X } from "lucide-react";
+import { Bell, BookOpen, Calendar, LogIn, LogOut, Menu, Settings, Shield, ShoppingCart, User, UserPlus, X } from "lucide-react";
 import { TopNavShell } from "./TopNavShell";
 import {
   fetchNotifications,
@@ -26,6 +26,8 @@ import { CUSTOMER_NAV_ITEMS, isCustomerNavActive } from "./customerNav";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "./customerShellLayout";
 import { BrandLogo } from "../brand/BrandLogo";
 import { buildLoginPath, buildRegisterPath } from "../../utils/authGate";
+import { useCart } from "../../hooks/useCart";
+import { CartDrawer } from "../shared/CartDrawer";
 
 const PAGE_TITLES = {
   "/my-bookings": {
@@ -118,6 +120,7 @@ function CustomerNavbar() {
   const initials = getInitials(displayName);
   const loginHref = buildLoginPath(`${location.pathname}${location.search}`);
   const registerHref = buildRegisterPath(`${location.pathname}${location.search}`);
+  const { cartItemsCount, setIsCartOpen } = useCart();
   const isHome = location.pathname === "/" || location.pathname === "";
 
   React.useEffect(() => {
@@ -243,7 +246,6 @@ function CustomerNavbar() {
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
 
-<<<<<<< Updated upstream
           <button
             type="button"
             className="relative inline-flex size-9 items-center justify-center rounded-xl transition-all focus:outline-none hover:bg-[#8037f4]/10"
@@ -265,8 +267,6 @@ function CustomerNavbar() {
             )}
           </button>
 
-=======
->>>>>>> Stashed changes
           {loggedIn ? (
             <>
               <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
@@ -466,6 +466,8 @@ function CustomerNavbar() {
           </div>
         </div>
       ) : null}
+
+      <CartDrawer />
     </>
   );
 }

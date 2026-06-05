@@ -66,11 +66,7 @@ function LessonRow({ title, active, locked }) {
       <span
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full sm:h-[1.375rem] sm:w-[1.375rem] ${
           active
-<<<<<<< Updated upstream
             ? "bg-[#8037f4] text-white"
-=======
-            ? "bg-white/20 text-white"
->>>>>>> Stashed changes
             : locked
               ? "bg-slate-100 text-slate-400"
               : "bg-violet-50 text-violet-400"
@@ -82,7 +78,6 @@ function LessonRow({ title, active, locked }) {
           <BookOpen className="h-2.5 w-2.5" strokeWidth={2.5} />
         )}
       </span>
-<<<<<<< Updated upstream
       <span className="min-w-0 flex-1">
         <span
           className={`block text-[11px] font-semibold leading-snug sm:text-xs ${
@@ -91,14 +86,6 @@ function LessonRow({ title, active, locked }) {
         >
           {title}
         </span>
-=======
-      <span
-        className={`min-w-0 flex-1 text-[11px] font-semibold leading-snug sm:text-xs ${
-          active ? "text-white" : locked ? "text-slate-400" : "text-slate-700"
-        }`}
-      >
-        {title}
->>>>>>> Stashed changes
       </span>
     </li>
   );
@@ -116,7 +103,6 @@ function CoursesLearningMockup() {
         className="pointer-events-none absolute left-1/2 top-0 z-[2] w-[11rem] -translate-x-1/2 translate-y-[calc(-38%+0.5rem)] sm:w-[12rem] lg:w-[12.2rem]"
         aria-hidden
       >
-<<<<<<< Updated upstream
         <div className="courses-mascot-sticker relative mx-auto w-fit">
           <img
             src="/mascot-courses-ready.png?v=7"
@@ -131,13 +117,6 @@ function CoursesLearningMockup() {
             </div>
           </div>
         </div>
-=======
-        <img
-          src="/mascot-courses-pose8-removebg.png?v=1"
-          alt=""
-          className="relative z-[1] block h-auto w-full object-contain"
-        />
->>>>>>> Stashed changes
       </div>
 
       <div
@@ -149,11 +128,7 @@ function CoursesLearningMockup() {
             key={label}
             className={`inline-flex items-center rounded-xl px-3 py-1.5 text-[11px] font-bold sm:px-3.5 sm:py-2 sm:text-xs ${
               idx === 0
-<<<<<<< Updated upstream
                 ? "bg-[#8037f4] text-white shadow-md shadow-violet-500/25"
-=======
-                ? "bg-[#630ed4] text-white shadow-md shadow-violet-500/25"
->>>>>>> Stashed changes
                 : "text-slate-600"
             }`}
           >
@@ -178,11 +153,7 @@ function CoursesLearningMockup() {
               />
             </span>
             <div className="min-w-0 flex-1">
-<<<<<<< Updated upstream
               <p className="line-clamp-1 text-xs font-bold leading-snug text-[#000000] sm:text-sm">
-=======
-              <p className="line-clamp-2 text-xs font-bold leading-snug text-[#1a1b23] sm:text-sm">
->>>>>>> Stashed changes
                 {DEMO_COURSE.title}
               </p>
               <p className="text-[10px] font-medium text-slate-500 sm:text-[11px]">
@@ -190,11 +161,7 @@ function CoursesLearningMockup() {
               </p>
             </div>
           </div>
-<<<<<<< Updated upstream
           <p className="mb-2 text-xs font-bold text-[#8037f4] sm:text-sm">
-=======
-          <p className="mb-2.5 text-xs font-bold text-[#630ed4] sm:text-sm">
->>>>>>> Stashed changes
             Gồm {DEMO_COURSE.lessonsCount} bài video · {formatDurationMinutes(DEMO_COURSE.duration)}
           </p>
           <ul className="space-y-1.5">
@@ -217,11 +184,7 @@ function CoursesLearningMockup() {
         <div className="flex h-full flex-col justify-between gap-2.5 sm:gap-3">
           <div className="rounded-2xl border border-violet-100/80 bg-white px-3.5 py-2.5 shadow-sm sm:px-4 sm:py-3">
             <div className="flex items-center gap-2 text-[11px] font-bold text-slate-800 sm:text-xs">
-<<<<<<< Updated upstream
               <Video className="h-4 w-4 shrink-0 text-[#8037f4]" />
-=======
-              <Video className="h-4 w-4 shrink-0 text-[#630ed4]" />
->>>>>>> Stashed changes
               {COURSES_SHOWCASE_COPY.panelVideoTitle}
             </div>
             <p className="mt-1.5 text-[11px] font-medium leading-snug text-slate-600 sm:text-xs">
@@ -241,21 +204,13 @@ function CoursesLearningMockup() {
                 <p className="line-clamp-2 text-[11px] font-bold leading-snug text-slate-800 sm:text-xs">
                   {mod.title}
                 </p>
-<<<<<<< Updated upstream
                 <span className="shrink-0 text-[11px] font-bold text-[#8037f4]">
-=======
-                <span className="shrink-0 text-[11px] font-bold text-[#630ed4]">
->>>>>>> Stashed changes
                   {mod.done}/{mod.total}
                 </span>
               </div>
               <div className="h-2 overflow-hidden rounded-full bg-violet-100">
                 <div
-<<<<<<< Updated upstream
                   className="h-full rounded-full bg-[#8037f4]"
-=======
-                  className="h-full rounded-full bg-gradient-to-r from-[#630ed4] to-[#a66ff8]"
->>>>>>> Stashed changes
                   style={{ width: `${mod.pct}%` }}
                 />
               </div>
@@ -279,13 +234,8 @@ export function CoursesFeatureShowcase({ onCtaClick }) {
     >
       <style>{`
         .courses-mock-panel {
-<<<<<<< Updated upstream
           background: #f0ebf8;
           border: 2px solid rgba(128, 55, 244, 0.4);
-=======
-          background: linear-gradient(165deg, #f0ebf8 0%, #ebe4f6 50%, #e6ddf3 100%);
-          border: 2px solid #8037f4;
->>>>>>> Stashed changes
           box-shadow: 0 12px 32px rgba(99, 14, 212, 0.1);
         }
       `}</style>

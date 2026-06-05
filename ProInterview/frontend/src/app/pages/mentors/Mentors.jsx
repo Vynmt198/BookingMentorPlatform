@@ -4,18 +4,15 @@ import { useNavigate, useSearchParams } from "react-router";
 import {
   Search as MagnifyingGlass,
   Star,
+  Clock,
   X,
   Loader2 as CircleNotch,
   AlertCircle,
 } from "lucide-react";
-import { MentorListCard } from "../../components/mentor/MentorListCard";
 import { fetchMentors } from "../../utils/mentorApi";
 import { fetchRebookCredit } from "../../utils/bookingsApi";
 import { toastApiError } from "../../utils/apiToast";
-import {
-  MENTOR_FILTER_FIELDS,
-  mentorMatchesFilterField,
-} from "../../constants/mentorFilterFields";
+import { MENTOR_FILTER_FIELDS } from "../../constants/mentorFilterFields";
 import { CustomerPageHeader } from "../../components/layout/CustomerPageHeader";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
 import {
@@ -43,7 +40,7 @@ const RATING_OPTIONS = [
   { label: "3.5+", min: 3.5 },
 ];
 
-const MENTORS_PAGE_SIZE = 8;
+const MENTORS_PAGE_SIZE = 12;
 
 function MentorsSidebar({
   selectedField,
@@ -57,28 +54,13 @@ function MentorsSidebar({
   onClear,
   hasFilter,
 }) {
-  const filterSectionsOpenOnDesktop = () =>
-    typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches;
-
-  const [openField, setOpenField] = useState(filterSectionsOpenOnDesktop);
-  const [openExp, setOpenExp] = useState(filterSectionsOpenOnDesktop);
-  const [openPrice, setOpenPrice] = useState(filterSectionsOpenOnDesktop);
-  const [openRating, setOpenRating] = useState(filterSectionsOpenOnDesktop);
-
-  const collapseFilterSections = () => {
-    setOpenField(false);
-    setOpenExp(false);
-    setOpenPrice(false);
-    setOpenRating(false);
-  };
+  const [openField, setOpenField] = useState(true);
+  const [openExp, setOpenExp] = useState(true);
+  const [openPrice, setOpenPrice] = useState(true);
+  const [openRating, setOpenRating] = useState(true);
 
   return (
-    <ExploreFilterSidebar
-      onClear={onClear}
-      hasFilter={hasFilter}
-      mobileCollapsible
-      onMobilePanelOpen={collapseFilterSections}
-    >
+    <ExploreFilterSidebar onClear={onClear} hasFilter={hasFilter}>
       <FilterSection title="Lĩnh vực" open={openField} onToggle={() => setOpenField((v) => !v)}>
         {MENTOR_FILTER_FIELDS.map((field) => (
           <FilterRadio
@@ -211,11 +193,10 @@ export function Mentors() {
         search === "" ||
         m.name.toLowerCase().includes(q) ||
         m.title.toLowerCase().includes(q) ||
-        (m.bio || "").toLowerCase().includes(q) ||
         m.field.toLowerCase().includes(q) ||
         m.tags.some((t) => t.toLowerCase().includes(q));
 
-      const matchField = mentorMatchesFilterField(m, selectedField);
+      const matchField = !selectedField || m.field === selectedField;
 
       const matchExp =
         !selectedExp ||
@@ -274,25 +255,20 @@ export function Mentors() {
               <p className="font-bold">Credit đổi mentor</p>
               <p className="mt-1 text-xs leading-relaxed text-violet-900/90">
                 Bạn có <strong>{Number(rebookCredit.creditVnd || 0).toLocaleString("vi-VN")}₫</strong> từ lịch mentor đã
-                hủy. Chọn <strong>mentor khác</strong>, nếu giá buổi mới ≤ credit thì{" "}
+                hủy. Chọn <strong>mentor khác</strong> — nếu giá buổi mới ≤ credit thì{" "}
                 <strong>không cần chuyển khoản lại</strong>.
               </p>
             </div>
           ) : null}
 
           <CustomerPageHeader
+            badge="Mentor 1:1"
             title={
               <>
-<<<<<<< Updated upstream
                 Tìm Mentor <span className="text-[#8037f4]">phù hợp</span>
-=======
-                <span className="font-extrabold text-[#630ed4]">Kết nối Mentor</span>{" "}
-                <span className="font-extrabold text-[#1a1b23]">phù hợp</span>
->>>>>>> Stashed changes
               </>
             }
-            subtitle="Kết nối với Mentor để có thêm góc nhìn thực tế từ ngành, hiểu kỳ vọng của nhà tuyển dụng và chuẩn bị tự tin hơn cho buổi phỏng vấn thật."
-            subtitleClassName="mt-3 max-w-full text-sm font-medium leading-relaxed text-slate-600 sm:text-base"
+            subtitle="Sau buổi mock 1-1, bạn nhận feedback cụ thể — biết cần sửa gì và tự tin hơn khi vào vòng phỏng vấn thật."
             className="mb-6"
           />
 
@@ -333,7 +309,6 @@ export function Mentors() {
                   ) : null}
                 </div>
 
-<<<<<<< Updated upstream
                 <div className="mb-4 rounded-xl bg-violet-50 px-4 py-3">
                   <p className="text-sm font-semibold text-violet-950">
                     {loading ? (
@@ -366,57 +341,14 @@ export function Mentors() {
                     )}
                   </p>
                 </div>
-=======
-                {hasFilter ? (
-                  <div className="mb-4 rounded-xl bg-gradient-to-r from-violet-100/80 via-violet-50/50 to-slate-50 px-4 py-3">
-                    <p className="text-sm font-semibold text-violet-950">
-                      {loading ? (
-                        <span className="inline-flex items-center gap-2">
-                          <CircleNotch className="size-4 animate-spin" />
-                          Đang tải...
-                        </span>
-                      ) : (
-                        <>
-                          <span className="text-lg font-black">{filteredMentors.length}</span> mentor phù hợp
-                          {search ? (
-                            <span className="font-normal text-slate-600"> · &ldquo;{search}&rdquo;</span>
-                          ) : null}
-                          {selectedField ? (
-                            <span className="font-normal text-slate-600"> · {selectedField}</span>
-                          ) : null}
-                          {selectedExp ? (
-                            <span className="font-normal text-slate-600">
-                              {" "}
-                              · {EXPERIENCE_OPTIONS.find((o) => o.value === selectedExp)?.label}
-                            </span>
-                          ) : null}
-                          {selectedPriceIndex != null ? (
-                            <span className="font-normal text-slate-600">
-                              {" "}
-                              · {PRICE_OPTIONS[selectedPriceIndex].label}
-                            </span>
-                          ) : null}
-                          {selectedRating ? (
-                            <span className="font-normal text-slate-600"> · {selectedRating}</span>
-                          ) : null}
-                        </>
-                      )}
-                    </p>
-                  </div>
-                ) : null}
->>>>>>> Stashed changes
 
                 {loading ? (
-                  <div className="divide-y divide-slate-200/90">
-                    {[...Array(4)].map((_, i) => (
-                      <div key={i} className="flex gap-4 py-7">
-                        <div className="size-20 shrink-0 animate-pulse rounded-full bg-violet-100" />
-                        <div className="flex-1 space-y-3">
-                          <div className="h-5 w-48 animate-pulse rounded bg-violet-100" />
-                          <div className="h-4 w-full max-w-md animate-pulse rounded bg-violet-50" />
-                          <div className="h-4 w-3/4 animate-pulse rounded bg-violet-50" />
-                        </div>
-                      </div>
+                  <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                    {[...Array(6)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-52 animate-pulse rounded-2xl border border-violet-100 bg-violet-50/50"
+                      />
                     ))}
                   </div>
                 ) : error ? (
@@ -461,11 +393,10 @@ export function Mentors() {
                   </div>
                 ) : (
                   <>
-                    <div className="min-w-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-2 sm:px-5">
+                    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                       {paginatedMentors.map((mentor) => (
-                        <MentorListCard
+                        <article
                           key={mentor.id}
-<<<<<<< Updated upstream
                           role="button"
                           tabIndex={0}
                           onClick={() => navigate(`/mentors/${mentor.id}`)}
@@ -546,12 +477,6 @@ export function Mentors() {
                             </div>
                           </div>
                         </article>
-=======
-                          mentor={mentor}
-                          onOpenProfile={() => navigate(`/mentors/${mentor.id}`)}
-                          onBook={() => navigate(bookingPath(mentor.id))}
-                        />
->>>>>>> Stashed changes
                       ))}
                     </div>
                     <ListPagination

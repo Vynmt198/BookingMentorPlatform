@@ -91,19 +91,11 @@ export const router = createHashRouter([
       { path: "courses", Component: Courses },
       { path: "courses/:id", Component: CourseDetail },
       { path: "pricing", Component: Pricing },
-<<<<<<< Updated upstream
       { path: "about", Component: About },
       { path: "achievements", Component: PublicAchievements },
       { path: "blog", Component: Blog },
       { path: "terms", Component: Terms },
       { path: "privacy", Component: Privacy },
-=======
-      { path: "about", loader: () => redirect("/") },
-      { path: "achievements", loader: () => redirect("/") },
-      { path: "blog", loader: () => redirect("/") },
-      { path: "terms", loader: () => redirect("/") },
-      { path: "privacy", loader: () => redirect("/") },
->>>>>>> Stashed changes
       { path: "cv-analysis", Component: CVAnalysisHub },
       { path: "cv-analysis/jd/history", Component: AnalysisHistory },
       { path: "cv-analysis/jd/result/:analysisId", Component: CVAnalysisResult },
@@ -209,12 +201,8 @@ export const router = createHashRouter([
       { path: "settings", Component: AdminSystemSettings },
       { path: "reviews", Component: AdminReviews },
       { path: "support", Component: AdminSupport },
-<<<<<<< Updated upstream
       { path: "achievements", Component: AdminAchievements },
-=======
-      { path: "achievements", loader: () => redirect("/admin") },
       { path: "interview-metrics", loader: () => redirect("/admin/content/questions") },
->>>>>>> Stashed changes
     ],
   },
   { path: "*", loader: () => redirect("/") },
