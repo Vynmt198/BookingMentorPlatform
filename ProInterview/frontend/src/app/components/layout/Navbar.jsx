@@ -243,7 +243,6 @@ function CustomerNavbar() {
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
 
-<<<<<<< Updated upstream
           <button
             type="button"
             className="relative inline-flex size-9 items-center justify-center rounded-xl transition-all focus:outline-none hover:bg-[#8037f4]/10"
@@ -265,8 +264,6 @@ function CustomerNavbar() {
             )}
           </button>
 
-=======
->>>>>>> Stashed changes
           {loggedIn ? (
             <>
               <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>

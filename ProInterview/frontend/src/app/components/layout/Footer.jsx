@@ -44,27 +44,15 @@ function InstagramIcon({ className, style }) {
 /* ── Data ── */
 const NAV_LINKS = {
   "Giải pháp": [
-<<<<<<< Updated upstream
     { label: "Tối ưu CV theo vị trí ứng tuyển", path: "/cv-analysis" },
     { label: "Kết nối Mentor 1:1", path: "/mentors" },
     { label: "Khóa học từ Mentor", path: "/courses" },
     { label: "Bảng giá", path: "/pricing" },
-=======
-    { label: "Luyện phỏng vấn với AI", path: "/interview" },
-    { label: "Tối ưu CV theo vị trí ứng tuyển", path: "/cv-analysis" },
-    { label: "Kết nối Mentor 1:1", path: "/mentors" },
-    { label: "Khóa học từ Mentor", path: "/courses" },
->>>>>>> Stashed changes
   ],
   "Về ProInterview": [
     { label: "Giới thiệu", path: "/about" },
     { label: "Thành tựu", path: "/achievements" },
-<<<<<<< Updated upstream
     { label: "Blog", path: "/blog" },
-=======
-    { label: "Trung tâm trợ giúp", path: "#" },
-    { label: "Hướng dẫn sử dụng", path: "#" },
->>>>>>> Stashed changes
     { label: "Điều khoản dịch vụ", path: "/terms" },
     { label: "Chính sách bảo mật", path: "/privacy" },
   ],
@@ -131,11 +119,7 @@ function FooterDark() {
     >
       {/* Ánh violet rất nhẹ, không làm sáng cả khối */}
       <div
-<<<<<<< Updated upstream
         className="pointer-events-none absolute z-0 h-[min(72vw,520px)] w-[min(72vw,520px)] rounded-full bg-[#8037f4]/14 blur-[100px] sm:h-[520px] sm:w-[520px] sm:blur-[110px]"
-=======
-        className="pointer-events-none absolute z-0 h-[min(72vw,520px)] w-[min(72vw,520px)] rounded-full bg-[#630ed4]/14 blur-[100px] sm:h-[520px] sm:w-[520px] sm:blur-[110px]"
->>>>>>> Stashed changes
         style={{ left: "-14%", top: "38%" }}
         aria-hidden
       />
@@ -276,11 +260,7 @@ function FooterLight() {
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.15em] text-slate-500">Liên hệ</p>
               <a
                 href={`mailto:${CONTACT_EMAIL}`}
-<<<<<<< Updated upstream
                 className="inline-flex max-w-[min(100%,320px)] items-start gap-2 break-all text-sm font-semibold text-[#8037f4] underline-offset-2 transition-colors hover:text-[#8037f4] hover:underline"
-=======
-                className="inline-flex max-w-[min(100%,320px)] items-start gap-2 break-all text-sm font-semibold text-[#8037f4] underline-offset-2 transition-colors hover:text-[#630ed4] hover:underline"
->>>>>>> Stashed changes
               >
                 <Mail className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                 {CONTACT_EMAIL}

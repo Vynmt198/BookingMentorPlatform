@@ -177,11 +177,7 @@ export function MentorCourseManagement() {
                   </h1>
                </div>
                <div className="flex gap-4">
-<<<<<<< Updated upstream
-                  <button onClick={() => navigate("/mentor/courses/new/edit")} className="px-10 py-5 rounded-3xl bg-primary-fixed text-[#000000] text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-[0_15px_40px_rgba(196, 255, 71,0.3)] flex items-center gap-3">
-=======
                   <button onClick={() => navigate("/mentor/courses/new/edit")} className="flex items-center gap-3 rounded-3xl bg-primary-fixed px-10 py-5 text-sm font-semibold text-black shadow-[0_15px_40px_rgba(196,255,71,0.3)] transition-all hover:scale-105">
->>>>>>> Stashed changes
                      <Plus size={20} /> Tạo khóa học mới
                   </button>
 

@@ -30,11 +30,7 @@ export function cvAnalysisPageHeader(mode) {
       badge: "Phân tích theo ngành",
       title: (
         <>
-<<<<<<< Updated upstream
           Phân tích CV <span className="text-[#8037f4]">theo ngành</span>
-=======
-          Phân tích CV <span className="text-[#630ed4]">theo ngành</span>
->>>>>>> Stashed changes
         </>
       ),
       subtitle: FIELD_SUBTITLE,
@@ -45,11 +41,7 @@ export function cvAnalysisPageHeader(mode) {
     badge: "Tối ưu CV theo vị trí ứng tuyển",
     title: (
       <>
-<<<<<<< Updated upstream
         Phân tích CV <span className="text-[#8037f4]">với JD</span>
-=======
-        Tối ưu CV theo vị trí <span className="text-[#630ed4]">ứng tuyển</span>
->>>>>>> Stashed changes
       </>
     ),
     subtitle: JD_SUBTITLE,
@@ -70,11 +62,7 @@ export function CvJdAnalysisPage({
   badge = "Tối ưu CV theo vị trí ứng tuyển",
   title = (
     <>
-<<<<<<< Updated upstream
       Phân tích CV <span className="text-[#8037f4]">với JD</span>
-=======
-      Tối ưu CV theo vị trí <span className="text-[#630ed4]">ứng tuyển</span>
->>>>>>> Stashed changes
     </>
   ),
   subtitle = JD_SUBTITLE,

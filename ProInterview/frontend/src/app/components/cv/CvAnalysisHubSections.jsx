@@ -353,7 +353,6 @@ export function CvAnalysisHubHero({ onJd, onField, navShellAligned = false }) {
     <div className="cv-hub-page relative min-h-0 bg-transparent">
       <style>{HUB_STYLES}</style>
 
-<<<<<<< Updated upstream
       <div
         className={`relative flex min-h-0 flex-col bg-transparent pb-4 pt-12 sm:pb-5 ${CUSTOMER_SHELL_GUTTER}`}
       >
@@ -526,17 +525,6 @@ export function CvAnalysisHubHero({ onJd, onField, navShellAligned = false }) {
               />
             </div>
           </div>
-=======
-      <div className={outerClass}>
-        <div ref={navShellAligned ? shellRef : null} className={shellClass}>
-          {navShellAligned ? (
-            <div className="cv-hub-scale-host lg:-translate-x-2" style={hostStyle}>
-              {unifiedInner}
-            </div>
-          ) : (
-            unifiedInner
-          )}
->>>>>>> Stashed changes
         </div>
       </div>
     </div>

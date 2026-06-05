@@ -73,11 +73,7 @@ export function MentorPageShell({
             aria-hidden
           />
           <div
-<<<<<<< Updated upstream
-            className="pointer-events-none fixed -bottom-[14%] -left-[8%] h-[min(520px,65vw)] w-[min(520px,65vw)] rounded-full bg-[#8037f4]/10 blur-[110px] -z-[1]"
-=======
             className="pointer-events-none fixed -bottom-[14%] -left-[8%] h-[min(520px,65vw)] w-[min(520px,65vw)] rounded-full bg-[#8037f4]/16 blur-[110px] -z-[1]"
->>>>>>> Stashed changes
             aria-hidden
           />
           <div

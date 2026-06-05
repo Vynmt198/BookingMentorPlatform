@@ -112,13 +112,8 @@ function MentorMiniCard({ mentor, mascotSrc, className }) {
           <p className="truncate text-[10px] font-bold text-slate-900">{mentor.name}</p>
           <p className="text-[8px] text-slate-500">{mentor.company}</p>
         </div>
-<<<<<<< Updated upstream
         <span className="flex shrink-0 items-center gap-0.5 text-[9px] font-bold text-[#8037f4]">
           <Star className="h-3 w-3 fill-[#93f72b] text-[#8037f4]" />
-=======
-        <span className="flex shrink-0 items-center gap-0.5 text-[9px] font-bold text-[#630ed4]">
-          <Star className="h-3 w-3 fill-[#a66ff8] text-[#630ed4]" />
->>>>>>> Stashed changes
           {mentor.rating}
         </span>
       </div>
@@ -134,11 +129,7 @@ function FindMentorVisual() {
       <div className="relative mx-auto w-[88%] flex-1 -translate-y-[1.15rem] pb-[5.75rem] sm:pb-[6.5rem] origin-top scale-105">
         <div className="absolute left-0 right-4 top-0 z-[1] rotate-[-2deg] rounded-2xl bg-white p-2 shadow-lg">
           <div className="flex items-center gap-1.5 rounded-lg bg-violet-50 px-2 py-1">
-<<<<<<< Updated upstream
             <Search className="h-3 w-3 text-[#8037f4]" />
-=======
-            <Search className="h-3 w-3 text-[#630ed4]" />
->>>>>>> Stashed changes
             <span className="text-[8px] font-semibold text-slate-600">IT · 4.5+ · dưới 400k</span>
           </div>
         </div>
@@ -150,11 +141,7 @@ function FindMentorVisual() {
           />
         </div>
         <div className="absolute right-0 top-[4.5rem] z-[10] rounded-xl bg-white px-2.5 py-1.5 shadow-md ring-1 ring-violet-100">
-<<<<<<< Updated upstream
           <p className="whitespace-nowrap text-[8px] font-bold leading-none text-[#8037f4]">
-=======
-          <p className="whitespace-nowrap text-[8px] font-bold leading-none text-[#630ed4]">
->>>>>>> Stashed changes
             {FEATURED.reviews} review
           </p>
         </div>
@@ -168,11 +155,7 @@ function FindMentorVisual() {
               />
             </div>
             <div className="absolute right-0 top-[7.75rem] z-[10] rounded-xl bg-white px-2.5 py-1.5 shadow-md ring-1 ring-violet-100">
-<<<<<<< Updated upstream
               <p className="whitespace-nowrap text-[8px] font-bold leading-none text-[#8037f4]">
-=======
-              <p className="whitespace-nowrap text-[8px] font-bold leading-none text-[#630ed4]">
->>>>>>> Stashed changes
                 {FEATURED_ALT.reviews} review
               </p>
             </div>
@@ -209,21 +192,12 @@ function BookingVisual() {
         <div className="relative z-[5] mb-1 w-full rounded-md bg-white p-2.5 shadow-xl sm:p-3 origin-bottom sm:mb-2">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100">
-<<<<<<< Updated upstream
             <CircleCheck className="h-5 w-5 text-[#8037f4]" strokeWidth={2.5} />
           </div>
           <p className="mt-1.5 text-[10px] font-extrabold leading-snug text-[#8037f4]">
             Đặt lịch thành công!
           </p>
           <span className="mt-1 rounded-md bg-violet-50 px-2.5 py-0.5 text-[7px] font-bold text-[#8037f4]">
-=======
-            <CircleCheck className="h-5 w-5 text-[#630ed4]" strokeWidth={2.5} />
-          </div>
-          <p className="mt-1.5 text-[10px] font-extrabold leading-snug text-[#630ed4]">
-            Đặt lịch thành công!
-          </p>
-          <span className="mt-1 rounded bg-violet-50 px-2.5 py-0.5 text-[7px] font-bold text-[#630ed4]">
->>>>>>> Stashed changes
             Mã BK-2847
           </span>
         </div>
@@ -243,11 +217,7 @@ function BookingVisual() {
           </div>
           <div className="flex items-center justify-between gap-2 border-t border-violet-200/80 pt-1">
             <span className="text-[7px] font-semibold text-slate-500">Trạng thái</span>
-<<<<<<< Updated upstream
             <span className="rounded-md bg-[#8037f4] px-2 py-0.5 text-[7px] font-bold text-white">
-=======
-            <span className="rounded bg-[#630ed4] px-2 py-0.5 text-[7px] font-bold text-white">
->>>>>>> Stashed changes
               Đã đặt
             </span>
           </div>
@@ -267,13 +237,8 @@ function FeedbackVisual() {
   return (
     <div className="relative z-[1] flex h-full flex-col px-2 pb-4 pt-6 sm:px-2.5 sm:pb-5 sm:pt-7">
       <div className="relative flex h-full min-h-0 flex-1 translate-x-[0.4rem] flex-col overflow-visible">
-<<<<<<< Updated upstream
         <div className="relative z-[1] ml-auto flex h-full min-h-0 w-[72%] min-w-0 max-w-[12.25rem] flex-1 -translate-x-[0.9rem] flex-col pb-0.5 pr-0.5 sm:w-[70%] sm:max-w-[13rem]">
           <p className="mb-1.5 shrink-0 text-[11px] font-bold leading-snug text-[#8037f4] sm:text-[12px]">
-=======
-        <div className="relative z-[1] ml-auto flex h-full min-h-0 w-[74%] min-w-0 max-w-[12.25rem] flex-1 -translate-x-[0.4rem] flex-col pb-0.5 pr-0.5 sm:w-[70%] sm:max-w-[13.5rem] sm:-translate-x-[0.9rem] origin-right scale-105">
-          <p className="mb-1.5 shrink-0 text-[11px] font-bold leading-snug text-[#630ed4] sm:text-[12px]">
->>>>>>> Stashed changes
             {MENTOR_SHOWCASE_COPY.afterMockLead}
           </p>
           <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-white p-3 shadow-xl sm:p-3.5">
@@ -281,11 +246,7 @@ function FeedbackVisual() {
               {AFTER_MOCK_POINTS.map((item) => (
                 <li key={item.title} className="flex items-start gap-2">
                   <CircleCheck
-<<<<<<< Updated upstream
                     className="mt-0.5 h-4 w-4 shrink-0 text-[#8037f4] sm:h-[1.125rem] sm:w-[1.125rem]"
-=======
-                    className="mt-0.5 h-4 w-4 shrink-0 text-[#630ed4] sm:h-[1.125rem] sm:w-[1.125rem]"
->>>>>>> Stashed changes
                     strokeWidth={2.5}
                   />
                   <div className="min-w-0">
@@ -353,24 +314,8 @@ export function MentorFeatureShowcase({ onCtaClick }) {
     >
       <style>{`
         .mentor-upzi-panel {
-<<<<<<< Updated upstream
           background: #f0ebf8;
           border: 2px solid rgba(128, 55, 244, 0.4);
-=======
-          background: linear-gradient(165deg, #f0ebf8 0%, #ebe4f6 50%, #e6ddf3 100%);
-          border: 2px solid #8037f4;
-          height: 19.0rem;
-        }
-        @media (min-width: 640px) {
-          .mentor-upzi-panel {
-            height: 18.5rem;
-          }
-        }
-        @media (min-width: 1024px) {
-          .mentor-upzi-panel {
-            height: 20.5rem;
-          }
->>>>>>> Stashed changes
         }
         @keyframes mentor-upzi-rise {
           0% {
