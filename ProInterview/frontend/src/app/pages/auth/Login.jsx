@@ -6,9 +6,6 @@ import {
   Check,
   AlertCircle as WarningCircle,
   Info,
-  Brain,
-  Mic as Microphone,
-  Star,
 } from "lucide-react";
 import {
   loginUser,
@@ -21,13 +18,25 @@ import { toastApiError } from "../../utils/apiToast";
 import { GoogleSignInBlock } from "../../components/auth/GoogleSignInBlock";
 import { BrandLogo } from "../../components/brand/BrandLogo";
 import { SparkleGlyph } from "../../components/decor/SparkleGlyph.jsx";
+import { StickerLimeSparkle } from "../../components/decor/StickerLimeSparkle.jsx";
 import { AUTH_COPY } from "../../constants/brandVoice";
+import { AuthPurpleBackdrop } from "../../components/auth/AuthPurpleBackdrop";
+
+const BRAND_LIME = "#93f72b";
+
+/** Nền trang (bên ngoài), trắng ngà, không #fff tinh */
+const AUTH_PAGE_BG = "bg-transparent";
+
+/** Ô form đăng nhập/đăng ký, tím brand */
+const AUTH_CARD_CLS =
+  "rounded-3xl border border-white/15 bg-[#8037f4] p-6 shadow-[0_16px_48px_rgba(15,23,42,0.18)] sm:p-10";
 
 const INPUT_CLS =
-  "w-full px-4 py-3.5 rounded-xl border border-gray-200 text-base outline-none transition-all " +
-  "focus:border-[#8037f4] focus:ring-2 focus:ring-[#8037f4]/15 text-gray-900 placeholder-gray-400 " +
-  "bg-white hover:bg-gray-50/50";
+  "w-full px-3 py-2 sm:px-4 sm:py-3.5 rounded-xl border border-white/25 text-sm sm:text-base outline-none transition-all " +
+  "focus:border-[#93f72b] focus:ring-2 focus:ring-[#93f72b]/25 text-gray-900 placeholder-gray-400 " +
+  "bg-white hover:bg-gray-50";
 
+<<<<<<< Updated upstream
 const TESTIMONIALS = [
   {
     avatar: "PA",
@@ -51,6 +60,15 @@ const TESTIMONIALS = [
   },
 ];
 /** % = tâm sticker; kích thước lệch — nằm trong vùng inset của lớp nền */
+=======
+const AUTH_CTA_STYLE = {
+  background: BRAND_LIME,
+  color: "#0f172a",
+  boxShadow: "0 8px 22px rgba(147, 247, 43, 0.35)",
+};
+
+/** % = tâm sticker; kích thước lệch, nằm trong vùng inset của lớp nền */
+>>>>>>> Stashed changes
 const AUTH_STICKS = [
   { x: 14, y: 22, size: 26 },
   { x: 82, y: 20, size: 36 },
@@ -67,7 +85,6 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const isRegistered = searchParams.get("registered") === "1";
-  const t = TESTIMONIALS[0];
 
   React.useEffect(() => {
     if (!isLoggedIn()) return;
@@ -75,6 +92,11 @@ export function Login() {
     if (!user) return;
     navigate(getPostLoginPath(user, searchParams.get("redirect")), { replace: true });
   }, [navigate, searchParams]);
+
+  React.useEffect(() => {
+    document.documentElement.classList.add("app-route-home");
+    return () => document.documentElement.classList.remove("app-route-home");
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -106,65 +128,67 @@ export function Login() {
 
   return (
     <div
-      className="h-screen overflow-hidden flex relative"
+      className={`relative flex h-screen flex-col overflow-hidden ${AUTH_PAGE_BG}`}
       style={{ fontFamily: "'Lexend', 'Plus Jakarta Sans', system-ui, sans-serif" }}
     >
-      {/* ── LEFT: Form ─────────────────────────────────────── */}
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#fcfaff]">
-        <div className="pointer-events-none absolute inset-4 z-0 hidden md:block md:inset-6" aria-hidden>
-          {AUTH_STICKS.map((s, idx) => (
-            <SparkleGlyph
-              key={`login-stick-${idx}`}
-              className="absolute"
-              style={{
-                left: `${s.x}%`,
-                top: `${s.y}%`,
-                width: `${s.size}px`,
-                height: `${s.size}px`,
-                opacity: 1,
-                filter: "drop-shadow(0 1px 2px rgba(15,23,42,0.12)) drop-shadow(0 0 8px rgba(95,0,240,0.35))",
-                transform: `translate(-50%, -50%) rotate(${
-                  typeof s.tilt === "number" ? s.tilt : idx % 4 === 0 ? 0 : idx % 4 === 1 ? -18 : idx % 4 === 2 ? 24 : -30
-                }deg)`,
-              }}
-            />
-          ))}
-        </div>
-
+      <style>{`
+        html, body {
+          background: radial-gradient(ellipse at 50% 30%, #ffffff 0%, #fdfcff 60%, #f7f3fd 100%) !important;
+          background-attachment: fixed !important;
+        }
+      `}</style>
+      <AuthPurpleBackdrop />
+      <div className="relative z-[1] flex min-h-0 flex-1 flex-col overflow-hidden">
         {/* Top bar */}
         <div
-          className="relative z-10 flex h-20 flex-shrink-0 items-center justify-between border-b px-10"
-          style={{ borderColor: "rgba(128,55,244,0.1)" }}
+          className="relative z-10 flex h-20 flex-shrink-0 items-center justify-between px-10"
         >
           <button onClick={() => navigate(getBrandClickPath())} className="flex items-center gap-2.5 group">
             <BrandLogo size="auth" />
           </button>
-          <p className="text-sm text-gray-500">
-            Chưa có tài khoản?{" "}
-            <Link to="/register" className="font-semibold hover:underline" style={{ color: "#8037f4" }}>
-              Đăng ký
-            </Link>
-          </p>
         </div>
 
-        {/* Form — centered */}
-        <div className="relative z-10 flex flex-1 items-center justify-center overflow-hidden px-10">
-          <div className="w-full max-w-sm">
+        {/* Form + mascot phía trên mép trên thẻ */}
+        <div className="relative z-10 flex flex-1 items-start justify-center overflow-x-visible overflow-y-auto px-6 pb-8 pt-[5.55rem] sm:px-10 sm:pt-[6.05rem]">
+          <div className="relative mx-auto w-full max-w-md shrink-0 overflow-visible -mt-[4rem] sm:-mt-[11.2rem]">
+            <div
+              className="pointer-events-none relative z-[5] mb-[-0.25rem] h-[11.85rem] w-full translate-y-[1rem] sm:h-[17.35rem] sm:translate-y-[3rem]"
+              aria-hidden
+            >
+              <img
+                src="/mascot-auth-login.png?v=3"
+                alt=""
+                className="absolute bottom-0 left-[-2.6rem] h-full w-auto max-w-[min(92vw,11.85rem)] origin-bottom-left rotate-[2deg] object-contain object-bottom sm:left-[-7.15rem] sm:max-w-[17.35rem] md:left-[-7.5rem]"
+              />
+            </div>
 
-            <h1 className="text-gray-900 mb-1"
-              style={{ fontSize: "1.875rem", fontWeight: 750, letterSpacing: "-0.025em" }}>
+            {/* Stickers on top layer */}
+            <div
+              className="pointer-events-none absolute left-0 right-0 top-0 z-20 h-[15.85rem] w-full translate-y-[3rem] sm:h-[17.35rem]"
+              aria-hidden
+            >
+              <StickerLimeSparkle
+                className="absolute bottom-[1.3rem] left-[21.4rem] h-[4.5rem] w-[4.5rem] -rotate-[17deg] max-md:bottom-[-0.7rem] max-md:left-[23.4rem] sm:bottom-[2.3rem] sm:left-[19.4rem]"
+              />
+              <StickerLimeSparkle
+                className="absolute bottom-[0.4rem] left-[25.0rem] h-11 w-11 rotate-[10deg] max-md:bottom-[-2.6rem] max-md:left-[26.0rem] sm:bottom-[2.4rem] sm:left-[23.0rem]"
+              />
+            </div>
+
+            <div className={`relative z-10 w-full -mt-[3.3rem] sm:-mt-[4.15rem] ${AUTH_CARD_CLS}`}>
+
+            <h1 className="mb-1 text-white text-[1.35rem] sm:text-[1.875rem]" style={{ fontWeight: 750, letterSpacing: "-0.025em" }}>
               Đăng nhập
             </h1>
-            <p className="text-gray-500 text-sm mb-4">{AUTH_COPY.loginSubtitle}</p>
+            <p className="mb-3 sm:mb-4 text-xs sm:text-sm text-white/80">{AUTH_COPY.loginSubtitle}</p>
 
             {/* Success banner */}
             {isRegistered && (
-              <div className="flex items-start gap-3 rounded-2xl px-4 py-3 mb-5 border"
-                style={{ background: "rgba(128,55,244,0.06)", borderColor: "rgba(128,55,244,0.2)" }}>
-                <Check className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#8037f4" }} />
+              <div className="mb-5 flex items-start gap-3 rounded-2xl border border-white/25 bg-white/10 px-4 py-3">
+                <Check className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#93f72b]" />
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: "#8037f4" }}>{AUTH_COPY.loginRegisteredTitle}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{AUTH_COPY.loginRegisteredBody}</p>
+                  <p className="text-sm font-semibold text-[#93f72b]">{AUTH_COPY.loginRegisteredTitle}</p>
+                  <p className="mt-0.5 text-xs text-white/75">{AUTH_COPY.loginRegisteredBody}</p>
                 </div>
               </div>
             )}
@@ -200,10 +224,10 @@ export function Login() {
               </div>
             )}
 
-            <form onSubmit={handleLogin} className="space-y-3">
+            <form onSubmit={handleLogin} className="space-y-2 sm:space-y-3">
               {/* Email */}
               <div>
-                <label htmlFor="login-email" className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
+                <label htmlFor="login-email" className="mb-1.5 block text-sm font-semibold text-white">Email</label>
                 <input
                   id="login-email" type="email" autoComplete="email"
                   placeholder="email@example.com"
@@ -215,8 +239,8 @@ export function Login() {
               {/* Password */}
               <div>
                 <div className="flex justify-between items-center mb-1.5">
-                  <label htmlFor="login-password" className="text-sm font-semibold text-gray-700">Mật khẩu</label>
-                  <Link to="/forgot-password" className="text-sm font-semibold hover:underline" style={{ color: "#8037f4" }}>
+                  <label htmlFor="login-password" className="text-sm font-semibold text-white">Mật khẩu</label>
+                  <Link to="/forgot-password" className="text-sm font-semibold text-[#93f72b] hover:underline">
                     Quên mật khẩu?
                   </Link>
                 </div>
@@ -237,14 +261,11 @@ export function Login() {
 
               {/* Submit */}
               <button type="submit" disabled={loading}
-                className="w-full py-3.5 rounded-full font-bold text-base text-white transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60"
-                style={{
-                  background: "#8037f4",
-                  boxShadow: "0 4px 20px rgba(128,55,244,0.3)",
-                }}>
+                className="w-full rounded-full py-2.5 sm:py-3.5 text-sm sm:text-base font-bold transition-all hover:brightness-105 active:scale-[0.98] disabled:opacity-60"
+                style={AUTH_CTA_STYLE}>
                 {loading
                   ? <span className="flex items-center justify-center gap-2">
-                    <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-900/30 border-t-slate-900" />
                     Đang đăng nhập...
                   </span>
                   : "Đăng nhập"}
@@ -252,20 +273,21 @@ export function Login() {
             </form>
 
             {/* Divider */}
-            <div className="flex items-center gap-3 my-5">
-              <div className="flex-1 h-px bg-gray-100" />
-              <span className="text-xs text-gray-400 font-medium">hoặc</span>
-              <div className="flex-1 h-px bg-gray-100" />
+            <div className="my-3 sm:my-5 flex items-center gap-3">
+              <div className="h-px flex-1 bg-white/25" />
+              <span className="text-xs font-medium text-white/60">hoặc</span>
+              <div className="h-px flex-1 bg-white/25" />
             </div>
 
             <GoogleSignInBlock onError={setError} />
 
-            <p className="mt-5 text-center text-xs text-gray-400 leading-relaxed">
-              Bằng cách đăng nhập, bạn đồng ý với{" "}
-              <a href="#" className="font-semibold text-[#8037f4] hover:underline">Điều khoản dịch vụ</a>
-              {" "}và{" "}
-              <a href="#" className="font-semibold text-[#8037f4] hover:underline">Chính sách bảo mật</a>.
+            <p className="mt-3 sm:mt-5 text-center text-xs sm:text-sm text-white/80">
+              Chưa có tài khoản?{" "}
+              <Link to="/register" className="font-bold text-[#93f72b] hover:underline">
+                Đăng ký ngay
+              </Link>
             </p>
+<<<<<<< Updated upstream
           </div>
         </div>
       </div>
@@ -343,10 +365,11 @@ export function Login() {
           </div>
           </div>
           </div>
+=======
+            </div>
+          </div>
+>>>>>>> Stashed changes
         </div>
-
-        {/* Bottom */}
-        <div className="flex-shrink-0 px-10 pb-6 relative z-10 text-center" />
       </div>
     </div>
   );

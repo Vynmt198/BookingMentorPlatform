@@ -14,7 +14,7 @@ function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Bỏ ký tự đơn (vd. "r" từ skills_db) — tránh highlight mọi chữ r trong PDF */
+/** Bỏ ký tự đơn (vd. "r" từ skills_db), tránh highlight mọi chữ r trong PDF */
 function filterHighlightKeywords(list) {
   if (!list) return [];
   const arr = Array.isArray(list) ? list : [];
@@ -31,7 +31,7 @@ function makeTextRenderer(matchedKws, missingKws, side) {
     if (!str.trim()) return str;
 
     // CV panel: only green (matched keywords appear in CV text)
-    // JD panel: green (matched) + red (missing — required by JD but not in CV)
+    // JD panel: green (matched) + red (missing, required by JD but not in CV)
     const targets =
       side === "jd"
         ? [

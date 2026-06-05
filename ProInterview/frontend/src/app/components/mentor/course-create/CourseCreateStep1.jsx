@@ -8,6 +8,7 @@ import {
   mentorSectionCardClass,
   mentorValidationShakeClass,
 } from "./mentorCourseCreateTheme";
+import { AppSelect } from "../../ui/AppSelect";
 
 const CATEGORY_OPTIONS = [
   { value: "", label: "Chọn danh mục" },
@@ -143,35 +144,31 @@ export function CourseCreateStep1({
             <label htmlFor="course-category" className={mentorLabelClass}>
               Danh mục <span className="text-red-500">*</span>
             </label>
-            <select
+            <AppSelect
               id="course-category"
-              value={form.category}
-              onChange={(e) => updateField("category", e.target.value)}
-              className={mentorInputClass}
-            >
-              {CATEGORY_OPTIONS.map((o) => (
-                <option key={o.value || "empty"} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              size="md"
+              value={form.category || undefined}
+              onValueChange={(v) => updateField("category", v)}
+              placeholder="Chọn danh mục"
+              triggerClassName={mentorInputClass}
+              options={CATEGORY_OPTIONS.filter((o) => o.value).map((o) => ({
+                value: o.value,
+                label: o.label,
+              }))}
+            />
           </div>
           <div>
             <label htmlFor="course-level" className={mentorLabelClass}>
               Cấp độ
             </label>
-            <select
+            <AppSelect
               id="course-level"
+              size="md"
               value={form.level}
-              onChange={(e) => updateField("level", e.target.value)}
-              className={mentorInputClass}
-            >
-              {LEVEL_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+              onValueChange={(v) => updateField("level", v)}
+              triggerClassName={mentorInputClass}
+              options={LEVEL_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+            />
           </div>
         </div>
         <div className="mt-4">
@@ -268,23 +265,17 @@ export function CourseCreateStep1({
 
 export function CourseCreateFooter({
   onCancel,
-  onBack,
   onPrimary,
   primaryLabel = "Tiếp theo",
   extra,
 }) {
   return (
-    <div className="sticky bottom-0 z-20 -mx-1 mt-2 border-t border-slate-200/80 bg-white/95 px-1 py-4 backdrop-blur-md sm:-mx-2 sm:px-2">
+    <div className="mt-6 border-t border-slate-200/80 pt-4 sm:-mx-2 sm:px-2">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex gap-2">
           {onCancel ? (
             <button type="button" onClick={onCancel} className={mentorGhostBtnClass}>
               Hủy
-            </button>
-          ) : null}
-          {onBack ? (
-            <button type="button" onClick={onBack} className={mentorGhostBtnClass}>
-              Quay lại
             </button>
           ) : null}
         </div>

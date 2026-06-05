@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Monitor, Key, ShieldAlert, Fingerprint } from "lucide-react";
+import { Smartphone, Laptop, ChevronRight, ShieldAlert, Key } from "lucide-react";
 import { toastApiError, toastApiSuccess, tryApi } from "../../utils/apiToast";
 import {
   fetchAuthSessions,
@@ -8,10 +8,29 @@ import {
   getCurrentAuthSessionId,
 } from "../../utils/auth";
 
-function formatSessionWhen(iso) {
+const ITEM_DESC_CLS = "text-sm text-slate-500 leading-relaxed tracking-normal";
+
+function formatRelativeWhen(iso) {
   if (!iso) return "";
   try {
-    return new Date(iso).toLocaleString("vi-VN", {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const now = new Date();
+    const time = d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+    const sameDay =
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday =
+      d.getDate() === yesterday.getDate() &&
+      d.getMonth() === yesterday.getMonth() &&
+      d.getFullYear() === yesterday.getFullYear();
+
+    if (sameDay) return `Hôm nay lúc ${time}`;
+    if (isYesterday) return `Hôm qua lúc ${time}`;
+    return d.toLocaleString("vi-VN", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -21,6 +40,85 @@ function formatSessionWhen(iso) {
   } catch {
     return "";
   }
+}
+
+function deviceDisplayName(sess) {
+  const ua = String(sess.userAgent || "");
+  if (/iPhone|iPad/i.test(ua)) return "Apple";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "Máy Mac";
+  if (/Android/i.test(ua) && /Mobile/i.test(ua)) return "Android";
+  if (/Android/i.test(ua)) return "Android";
+  if (/Windows/i.test(ua)) return "Windows";
+  return sess.deviceLabel || "Thiết bị không xác định";
+}
+
+function isMobileDevice(sess) {
+  const ua = String(sess.userAgent || "");
+  return /iPhone|iPad|Android.*Mobile|Mobile/i.test(ua);
+}
+
+function sessionMetaLine(sess) {
+  const when = formatRelativeWhen(sess.lastUsedAt || sess.createdAt);
+  return when ? `Việt Nam · ${when}` : "Việt Nam";
+}
+
+function SessionRow({ sess, isCurrent, suspicious, onRevoke, revoking, showChevron = true }) {
+  const DeviceIcon = isMobileDevice(sess) ? Smartphone : Laptop;
+
+  return (
+    <div
+      className={`flex items-center gap-4 border-b border-slate-100 py-4 last:border-b-0 ${
+        suspicious ? "bg-amber-50/50 -mx-2 px-2 rounded-xl" : ""
+      }`}
+    >
+      <div
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
+          suspicious ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"
+        }`}
+      >
+        <DeviceIcon size={20} strokeWidth={1.75} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-bold text-slate-900">{deviceDisplayName(sess)}</p>
+          {isCurrent && (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+              Đang dùng
+            </span>
+          )}
+          {suspicious && (
+            <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-semibold text-amber-950">
+              Đăng nhập lạ
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 text-sm text-slate-500">{sessionMetaLine(sess)}</p>
+        {isCurrent && (
+          <button
+            type="button"
+            disabled={revoking}
+            onClick={onRevoke}
+            className="mt-2 text-sm font-semibold text-[#8037f4] hover:underline disabled:opacity-50"
+          >
+            {revoking ? "Đang đăng xuất…" : "Đăng xuất phiên này"}
+          </button>
+        )}
+      </div>
+      {/* Phiên đang dùng: chỉ link chữ, không mũi tên (tránh trùng hành động + confirm browser) */}
+      {showChevron && !isCurrent && (
+        <button
+          type="button"
+          disabled={revoking}
+          onClick={onRevoke}
+          className="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Thu hồi phiên đăng nhập"
+          title="Thu hồi phiên"
+        >
+          <ChevronRight size={20} strokeWidth={2} />
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function LoginSessionsSection({ SectionCard }) {
@@ -60,13 +158,13 @@ export function LoginSessionsSection({ SectionCard }) {
     if (!sessionId) return;
     const isCurrent = sessionId === currentId;
     const msg = isCurrent
-      ? "Thu hồi phiên này sẽ đăng xuất bạn khỏi thiết bị hiện tại (access token bị vô hiệu ngay). Tiếp tục?"
+      ? "Đăng xuất khỏi thiết bị này? Bạn sẽ cần đăng nhập lại."
       : "Thu hồi phiên đăng nhập trên thiết bị đó?";
     if (!window.confirm(msg)) return;
     setRevokingId(sessionId);
     const res = await tryApi(() => revokeAuthSession(sessionId), {
       fallback: "Không thu hồi được phiên.",
-      successMessage: isCurrent ? "Đã đăng xuất phiên hiện tại." : "Đã thu hồi phiên.",
+      successMessage: isCurrent ? "Đã đăng xuất." : "Đã thu hồi phiên.",
     });
     setRevokingId("");
     if (!res.success) return;
@@ -78,25 +176,24 @@ export function LoginSessionsSection({ SectionCard }) {
     await load();
   };
 
-  const suspiciousSessions = sessions.filter((s) => s.isSuspicious);
+  const currentSession = sessions.find((s) => s.id === currentId || s.isCurrent);
+  const otherSessions = sessions.filter((s) => s.id !== currentId && !s.isCurrent);
+  const suspiciousOthers = otherSessions.filter((s) => s.isSuspicious);
 
   return (
     <SectionCard title="Phiên đăng nhập & thiết bị" icon={Key}>
-      <p className="mb-4 text-sm text-slate-600">
-        Mỗi lần đăng nhập tạo một phiên refresh riêng. Dấu vân tay thiết bị (UA + IP) giúp phát hiện đăng nhập lạ.
+      <p className={`mb-6 ${ITEM_DESC_CLS}`}>
+        Theo dõi các thiết bị đang đăng nhập vào tài khoản ProInterview của bạn.
       </p>
 
       {security?.hasSuspiciousLogin && (
-        <div className="mb-4 flex gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+        <div className="mb-6 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
           <div>
             <p className="text-sm font-bold text-amber-950">Cảnh báo đăng nhập lạ</p>
-            <p className="mt-1 text-sm text-amber-900/90">
-              Có {security.suspiciousSessionCount} phiên khác thiết bị so với phiên bạn đang dùng
-              {security.currentFingerprintShort
-                ? ` (hiện tại: ${security.currentFingerprintShort})`
-                : ""}
-              . Nếu không phải bạn, hãy thu hồi phiên đó và đổi mật khẩu.
+            <p className={`mt-1 ${ITEM_DESC_CLS} text-amber-900/90`}>
+              Có {security.suspiciousSessionCount} phiên từ thiết bị khác so với phiên bạn đang
+              dùng. Nếu không phải bạn, hãy thu hồi phiên đó và đổi mật khẩu.
             </p>
           </div>
         </div>
@@ -105,97 +202,49 @@ export function LoginSessionsSection({ SectionCard }) {
       {loading && (
         <p className="text-sm font-medium text-slate-500">Đang tải phiên đăng nhập…</p>
       )}
-      {error && !loading && (
-        <p className="text-sm font-medium text-red-600">{error}</p>
-      )}
+      {error && !loading && <p className="text-sm font-medium text-red-600">{error}</p>}
       {!loading && !error && sessions.length === 0 && (
         <p className="text-sm font-medium text-slate-500">Không có phiên đăng nhập nào.</p>
       )}
 
-      <div className="space-y-3">
-        {sessions.map((sess) => {
-          const isCurrent = sess.id === currentId || sess.isCurrent;
-          const suspicious = Boolean(sess.isSuspicious);
-          return (
-            <div
-              key={sess.id}
-              className={`flex flex-col gap-4 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between ${
-                suspicious
-                  ? "border-amber-300 bg-amber-50/60"
-                  : isCurrent
-                    ? "border-emerald-300 bg-emerald-50/40"
-                    : "border-slate-200 bg-white"
-              }`}
-            >
-              <div className="flex min-w-0 items-start gap-4">
-                <div
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
-                    suspicious ? "bg-amber-100 text-amber-800" : "bg-[#93f72b]/12 text-[#4d6600]"
-                  }`}
-                >
-                  {suspicious ? <ShieldAlert size={20} strokeWidth={2} /> : <Monitor size={20} strokeWidth={2} />}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-bold text-slate-900">
-                      {sess.deviceLabel || "Thiết bị không xác định"}
-                    </p>
-                    {isCurrent && (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-800">
-                        Đang dùng
-                      </span>
-                    )}
-                    {suspicious && (
-                      <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-950">
-                        Đăng nhập lạ
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 flex flex-wrap items-center gap-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                    {sess.ip ? <span>IP: {sess.ip}</span> : null}
-                    {sess.ip ? <span>·</span> : null}
-                    <span>{formatSessionWhen(sess.lastUsedAt || sess.createdAt)}</span>
-                  </p>
-                  {sess.fingerprintShort ? (
-                    <p className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                      <Fingerprint size={14} className="shrink-0 text-violet-600" />
-                      <span title={sess.fingerprint || ""}>
-                        Dấu vân tay: <span className="font-mono text-slate-800">{sess.fingerprintShort}</span>
-                      </span>
-                    </p>
-                  ) : null}
-                  {sess.expiresAt ? (
-                    <p className="mt-1 text-[10px] text-slate-500">
-                      Hết hạn refresh: {formatSessionWhen(sess.expiresAt)}
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-              <button
-                type="button"
-                disabled={revokingId === sess.id}
-                onClick={() => handleRevoke(sess.id)}
-                className={`self-start rounded-xl border px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-colors disabled:opacity-50 sm:self-center ${
-                  isCurrent
-                    ? "border-slate-300 text-slate-600 hover:border-red-300 hover:text-red-600"
-                    : suspicious
-                      ? "border-amber-400 bg-amber-100 text-amber-950 hover:bg-amber-200"
-                      : "border-slate-300 text-slate-600 hover:border-red-300 hover:text-red-600"
+      {!loading && !error && sessions.length > 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 sm:px-5">
+          {currentSession && (
+            <SessionRow
+              sess={currentSession}
+              isCurrent
+              suspicious={Boolean(currentSession.isSuspicious)}
+              revoking={revokingId === currentSession.id}
+              onRevoke={() => handleRevoke(currentSession.id)}
+            />
+          )}
+
+          {otherSessions.length > 0 && (
+            <>
+              <p
+                className={`text-xs font-bold uppercase tracking-wide text-slate-600 ${
+                  currentSession ? "border-t border-slate-100 pt-4" : "pt-4"
                 }`}
               >
-                {revokingId === sess.id
-                  ? "Đang thu hồi…"
-                  : isCurrent
-                    ? "Đăng xuất phiên này"
-                    : "Thu hồi"}
-              </button>
-            </div>
-          );
-        })}
-      </div>
+                Lần đăng nhập trên thiết bị khác
+              </p>
+              {otherSessions.map((sess) => (
+                <SessionRow
+                  key={sess.id}
+                  sess={sess}
+                  isCurrent={false}
+                  suspicious={Boolean(sess.isSuspicious)}
+                  revoking={revokingId === sess.id}
+                  onRevoke={() => handleRevoke(sess.id)}
+                />
+              ))}
+            </>
+          )}
+        </div>
+      )}
 
-      {!loading && suspiciousSessions.length > 0 && (
-        <p className="mt-4 text-xs text-slate-500">
+      {!loading && suspiciousOthers.length > 0 && (
+        <p className={`mt-4 ${ITEM_DESC_CLS}`}>
           Gợi ý: thu hồi các phiên “Đăng nhập lạ” nếu bạn không nhận ra thiết bị đó.
         </p>
       )}

@@ -13,7 +13,7 @@ const PI = {
   lime: "#93f72b",
   limeDark: "#7fe015",
   limeSoft: "rgba(196,255,71,0.16)",
-  /** Khối form — light glass trên nền trắng */
+  /** Khối form, light glass trên nền trắng */
   glass: {
     background: "rgba(255,255,255,0.85)",
     border: "1px solid rgba(128,55,244,0.12)",
@@ -24,7 +24,7 @@ const PI = {
   },
 };
 
-/** Ô input dark — cùng vibe form trên Home */
+/** Ô input dark, cùng vibe form trên Home */
 export const AUTH_INPUT_CLASS =
   "w-full px-5 py-3.5 rounded-2xl font-medium text-gray-800 placeholder:text-gray-400 outline-none transition-all border border-gray-200 bg-white hover:bg-gray-50 focus:border-[#8037f4]/50 focus:ring-2 focus:ring-[#8037f4]/15";
 
@@ -51,7 +51,7 @@ export function AuthShell({ children, aside, footerNote }) {
           100% { opacity: 0.4; transform: translate(0,0) scale(1); }
         }
       `}</style>
-      {/* Blob + shimmer — cùng stack như Dashboard / Home */}
+      {/* Blob + shimmer, cùng stack như Dashboard / Home */}
       <div
         className="fixed inset-0 pointer-events-none -z-10"
         style={{ animation: "auth-shimmer-bg 14s ease-in-out infinite" }}
@@ -67,7 +67,7 @@ export function AuthShell({ children, aside, footerNote }) {
         <div className="absolute top-[20%] right-[5%] h-[35vh] w-[35vh] rounded-full blur-[60px]" style={{ background: "radial-gradient(circle, rgba(139,77,255,0.45) 0%, transparent 65%)" }} />
       </div>
 
-      {/* Lưới ô vuông nhẹ — on light bg */}
+      {/* Lưới ô vuông nhẹ, on light bg */}
       <div
         className="pointer-events-none fixed inset-0 z-[1] opacity-[0.035]"
         style={{

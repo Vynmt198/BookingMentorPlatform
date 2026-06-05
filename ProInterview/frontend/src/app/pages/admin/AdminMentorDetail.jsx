@@ -75,9 +75,6 @@ export function AdminMentorDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [commissionBusy, setCommissionBusy] = useState(false);
-  const [bookingFeePct, setBookingFeePct] = useState("");
-  const [courseFeePct, setCourseFeePct] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -94,10 +91,6 @@ export function AdminMentorDetail() {
         setMentor(null);
       } else {
         setMentor(res.mentor || null);
-        const b = Number(res.mentor?.pricing?.platformFeeRate);
-        const c = Number(res.mentor?.pricing?.coursePlatformFeeRate);
-        setBookingFeePct(Number.isFinite(b) && b > 0 ? String(Math.round(b * 1000) / 10) : "");
-        setCourseFeePct(Number.isFinite(c) && c > 0 ? String(Math.round(c * 1000) / 10) : "");
         if (!res.mentor) setError("Không tìm thấy cố vấn.");
       }
       setLoading(false);
@@ -126,53 +119,6 @@ export function AdminMentorDetail() {
     setBusy(false);
     if (res.success) {
       setMentor({ ...mentor, isActive: next, isVerified: next ? true : mentor.isVerified });
-    }
-  };
-
-  const saveCommissionOverride = async () => {
-    if (!mentor) return;
-    const b = bookingFeePct.trim() === "" ? null : Number(bookingFeePct) / 100;
-    const c = courseFeePct.trim() === "" ? null : Number(courseFeePct) / 100;
-    if ((b != null && (!Number.isFinite(b) || b <= 0 || b > 1)) || (c != null && (!Number.isFinite(c) || c <= 0 || c > 1))) {
-      return;
-    }
-    setCommissionBusy(true);
-    const res = await tryApi(
-      () =>
-        adminApi.updateMentorCommission(mentor._id, {
-          bookingPlatformFeeRate: b,
-          coursePlatformFeeRate: c,
-        }),
-      {
-        fallback: "Không cập nhật được mức phí riêng.",
-        successMessage: "Đã lưu mức phí theo hợp đồng.",
-      },
-    );
-    setCommissionBusy(false);
-    if (res.success && res.mentor) {
-      setMentor(res.mentor);
-    }
-  };
-
-  const clearCommissionOverride = async () => {
-    if (!mentor) return;
-    setCommissionBusy(true);
-    const res = await tryApi(
-      () =>
-        adminApi.updateMentorCommission(mentor._id, {
-          bookingPlatformFeeRate: null,
-          coursePlatformFeeRate: null,
-        }),
-      {
-        fallback: "Không bỏ được override phí.",
-        successMessage: "Đã bỏ override phí riêng.",
-      },
-    );
-    setCommissionBusy(false);
-    if (res.success && res.mentor) {
-      setMentor(res.mentor);
-      setBookingFeePct("");
-      setCourseFeePct("");
     }
   };
 
@@ -319,57 +265,6 @@ export function AdminMentorDetail() {
               )}
             </motion.div>
           </div>
-
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`${adminGlassTable} p-5`}>
-            <h4 className="mb-3 text-sm font-black uppercase tracking-wider text-slate-800">Phí mentor</h4>
-            <p className="mb-4 text-xs text-slate-500">Nhập % theo hợp đồng. Để trống = phí tiêu chuẩn.</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="text-xs font-semibold text-slate-600">
-                Booking (%)
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={bookingFeePct}
-                  onChange={(e) => setBookingFeePct(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
-                  placeholder="30"
-                />
-              </label>
-              <label className="text-xs font-semibold text-slate-600">
-                Khóa học (%)
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                  value={courseFeePct}
-                  onChange={(e) => setCourseFeePct(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
-                  placeholder="35"
-                />
-              </label>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={commissionBusy}
-                onClick={() => void saveCommissionOverride()}
-                className="rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-violet-900 disabled:opacity-50"
-              >
-                Lưu
-              </button>
-              <button
-                type="button"
-                disabled={commissionBusy}
-                onClick={() => void clearCommissionOverride()}
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[11px] font-black uppercase tracking-wider text-slate-700 disabled:opacity-50"
-              >
-                Xóa
-              </button>
-            </div>
-          </motion.div>
 
           <motion.div
             initial={{ opacity: 0, y: 10 }}

@@ -428,7 +428,7 @@ export function AdminMentorsPending() {
                   setPreviewMentor(null);
                   await handleApprove(id);
                 }}
-                className="rounded-xl border border-[#93f72b]/50 bg-[#93f72b] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#000000] shadow-[0_8px_20px_rgba(147,247,43,0.35)] transition hover:brightness-95"
+                className="rounded-xl border border-[#7fe015]/50 bg-[#93f72b] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#2D1B69] shadow-[0_8px_20px_rgba(180,245,0,0.35)] transition hover:brightness-95"
               >
                 Phê duyệt
               </button>

@@ -16,6 +16,16 @@ import {
   confirmSubscriptionTransferByAdmin,
 } from "./paymentsService.js";
 import { confirmBankTransferPaymentByAdmin } from "./bookingsService.js";
+import {
+  isTransferPaymentExpired,
+  transferPaymentExpiryMeta,
+  TRANSFER_PAYMENT_TIMEOUT_MINUTES,
+} from "../utils/transferPaymentExpiry.js";
+import {
+  expireBookingTransferIfNeeded,
+  expireEnrollmentTransferIfNeeded,
+  expireSubscriptionTransferIfNeeded,
+} from "./transferPaymentExpiryService.js";
 
 const MONGO_ERR = "MongoDB chưa kết nối. Kiểm tra MONGO_URI trong .env.";
 
@@ -58,9 +68,10 @@ async function findPendingTargets(orderRef) {
     paymentMethod: "transfer",
     paymentStatus: "pending",
   })
-    .select("_id userId paymentRef totalAmount price")
+    .select("_id userId paymentRef totalAmount price paymentExpiresAt createdAt")
     .lean();
   for (const b of bookings) {
+    if (isTransferPaymentExpired(b)) continue;
     if (orderRefsMatch(b.paymentRef, norm)) {
       targets.push({
         entityType: "booking",
@@ -76,7 +87,7 @@ async function findPendingTargets(orderRef) {
     paymentMethod: "transfer",
     paymentStatus: "pending",
   })
-    .select("_id userId paymentRef pricePaid transferSubmittedAt courseId")
+    .select("_id userId paymentRef pricePaid transferSubmittedAt courseId paymentExpiresAt createdAt")
     .lean();
   const courseIds = enrollments.map((e) => e.courseId).filter(Boolean);
   const courseRows =
@@ -89,6 +100,7 @@ async function findPendingTargets(orderRef) {
     courseRows.map((c) => [String(c._id), Math.round(Number(c.price ?? 0))]),
   );
   for (const e of enrollments) {
+    if (isTransferPaymentExpired(e)) continue;
     if (orderRefsMatch(e.paymentRef, norm)) {
       const fromCourse = priceByCourseId.get(String(e.courseId)) ?? 0;
       const expectedAmount =
@@ -109,9 +121,10 @@ async function findPendingTargets(orderRef) {
     provider: "transfer",
     status: "pending",
   })
-    .select("_id userId amount providerRef providerResponse")
+    .select("_id userId amount providerRef providerResponse paymentExpiresAt createdAt")
     .lean();
   for (const p of payments) {
+    if (isTransferPaymentExpired(p)) continue;
     const ref = p.providerRef || p.providerResponse?.paymentRef || "";
     if (orderRefsMatch(ref, norm)) {
       targets.push({
@@ -209,16 +222,7 @@ export async function handleSepayWebhook(body, authHeader) {
   }
 
   const targets = await findPendingTargets(orderRef);
-  let matched = targets.filter((t) => amountsMatch(t.expectedAmount, amount));
-  let isBundle = false;
-
-  if (matched.length === 0 && targets.length > 1) {
-    const sum = targets.reduce((acc, t) => acc + t.expectedAmount, 0);
-    if (amountsMatch(sum, amount)) {
-      matched = targets;
-      isBundle = true;
-    }
-  }
+  const matched = targets.filter((t) => amountsMatch(t.expectedAmount, amount));
 
   if (matched.length === 0) {
     await upsertSepayLog(sepayId, {
@@ -231,48 +235,13 @@ export async function handleSepayWebhook(body, authHeader) {
     return { ok: true, unmatched: true, reason: "no_match", orderRef };
   }
 
-  if (matched.length > 1 && !isBundle) {
+  if (matched.length > 1) {
     await upsertSepayLog(sepayId, {
       status: "unmatched",
       orderRef,
       resultMessage: `ambiguous: ${matched.length} pending orders`,
     });
     return { ok: true, unmatched: true, reason: "ambiguous", orderRef };
-  }
-
-  if (isBundle) {
-    let allOk = true;
-    let errors = [];
-    for (const target of matched) {
-      const confirm = await autoConfirmTarget(target, { sepayId, amount }); // amount is used for logging
-      if (!confirm.ok) {
-        allOk = false;
-        errors.push(`[${target.entityType} ${target.entityId}]: ${confirm.error}`);
-      }
-    }
-    
-    if (!allOk) {
-      await upsertSepayLog(sepayId, {
-        status: "failed",
-        orderRef,
-        resultMessage: `bundle confirm partial failure: ${errors.join(", ")}`,
-      });
-      return { ok: true, confirmed: false, error: errors.join(", "), orderRef };
-    }
-
-    await upsertSepayLog(sepayId, {
-      status: "processed",
-      orderRef,
-      resultMessage: `bundle auto confirmed ${matched.length} orders`,
-    });
-
-    return {
-      ok: true,
-      confirmed: true,
-      orderRef,
-      entityType: "bundle",
-      entityId: "multiple",
-    };
   }
 
   const target = matched[0];
@@ -308,6 +277,9 @@ export async function handleSepayWebhook(body, authHeader) {
 function mapEntityStatus(entityType, doc) {
   if (entityType === "booking") {
     if (doc.paymentStatus === "paid") return "paid";
+    if (String(doc.status || "").toLowerCase() === "cancelled" && doc.paymentStatus === "failed") {
+      return "expired";
+    }
     if (doc.transferSubmittedAt) return "submitted";
     return "pending";
   }
@@ -318,10 +290,28 @@ function mapEntityStatus(entityType, doc) {
   }
   if (entityType === "subscription") {
     if (doc.status === "success") return "paid";
+    if (doc.status === "cancelled") return "expired";
     if (doc.providerResponse?.submittedAt) return "submitted";
     return "pending";
   }
   return "pending";
+}
+
+function statusPayload(doc, entityType, entityId, orderRef, extra = {}) {
+  const expiry = transferPaymentExpiryMeta(doc);
+  const status = expiry.expired ? "expired" : mapEntityStatus(entityType, doc);
+  return {
+    ok: true,
+    orderRef,
+    status,
+    entityType,
+    entityId,
+    paymentExpiresAt: expiry.paymentExpiresAt,
+    expiresInMs: expiry.expiresInMs,
+    timeoutMinutes: TRANSFER_PAYMENT_TIMEOUT_MINUTES,
+    redirectTo: status === "paid" ? buildRedirect(entityType, doc) : null,
+    ...extra,
+  };
 }
 
 function buildRedirect(entityType, doc) {
@@ -352,44 +342,60 @@ export async function getTransferStatusForUser(userId, orderRefRaw) {
     userId: uid,
     paymentMethod: "transfer",
   })
-    .select("_id paymentRef paymentStatus transferSubmittedAt courseId totalAmount price")
+    .select("_id paymentRef paymentStatus transferSubmittedAt courseId totalAmount price paymentExpiresAt createdAt status")
     .sort({ createdAt: -1 })
     .limit(20)
     .lean();
 
   for (const b of bookings) {
     if (orderRefsMatch(b.paymentRef, orderRef)) {
-      const status = mapEntityStatus("booking", b);
-      return {
-        ok: true,
-        orderRef,
-        status,
-        entityType: "booking",
-        entityId: String(b._id),
-        redirectTo: buildRedirect("booking", b),
-        sepayAuto: Boolean(b.transferForceConfirm && b.paymentStatus === "paid"),
-      };
+      const live = await Booking.findById(b._id);
+      if (live) {
+        const expired = await expireBookingTransferIfNeeded(live);
+        if (expired.expired) {
+          return statusPayload(live, "booking", String(live._id), orderRef, {
+            redirectTo: null,
+            sepayAuto: false,
+          });
+        }
+        const status = mapEntityStatus("booking", live);
+        return statusPayload(live, "booking", String(live._id), orderRef, {
+          sepayAuto: Boolean(live.transferForceConfirm && status === "paid"),
+        });
+      }
     }
   }
 
   const enrollments = await Enrollment.find({ userId: uid, paymentMethod: "transfer" })
-    .select("_id paymentRef paymentStatus transferSubmittedAt courseId transferForceConfirm")
+    .select("_id paymentRef paymentStatus transferSubmittedAt courseId transferForceConfirm paymentExpiresAt createdAt")
     .sort({ createdAt: -1 })
     .limit(20)
     .lean();
 
   for (const e of enrollments) {
     if (orderRefsMatch(e.paymentRef, orderRef)) {
-      const status = mapEntityStatus("course", e);
-      return {
-        ok: true,
-        orderRef,
-        status,
-        entityType: "course",
-        entityId: String(e._id),
-        redirectTo: buildRedirect("course", e),
-        sepayAuto: Boolean(e.transferForceConfirm && status === "paid"),
-      };
+      const live = await Enrollment.findById(e._id);
+      if (live) {
+        const expired = await expireEnrollmentTransferIfNeeded(live);
+        if (expired.expired) {
+          return {
+            ok: true,
+            orderRef,
+            status: "expired",
+            entityType: "course",
+            entityId: String(e._id),
+            redirectTo: null,
+            sepayAuto: false,
+            paymentExpiresAt: transferPaymentExpiryMeta(e).paymentExpiresAt,
+            expiresInMs: 0,
+            timeoutMinutes: TRANSFER_PAYMENT_TIMEOUT_MINUTES,
+          };
+        }
+        const status = mapEntityStatus("course", live);
+        return statusPayload(live, "course", String(live._id), orderRef, {
+          sepayAuto: Boolean(live.transferForceConfirm && status === "paid"),
+        });
+      }
     }
   }
 
@@ -398,7 +404,7 @@ export async function getTransferStatusForUser(userId, orderRefRaw) {
     type: "subscription",
     provider: "transfer",
   })
-    .select("_id providerRef status providerResponse")
+    .select("_id providerRef status providerResponse paymentExpiresAt createdAt")
     .sort({ createdAt: -1 })
     .limit(10)
     .lean();
@@ -406,16 +412,20 @@ export async function getTransferStatusForUser(userId, orderRefRaw) {
   for (const p of payments) {
     const ref = extractOrderPart(p.providerRef || p.providerResponse?.paymentRef || "");
     if (orderRefsMatch(ref, orderRef)) {
-      const status = mapEntityStatus("subscription", p);
-      return {
-        ok: true,
-        orderRef,
-        status,
-        entityType: "subscription",
-        entityId: String(p._id),
-        redirectTo: buildRedirect("subscription", p),
-        sepayAuto: status === "paid",
-      };
+      const live = await Payment.findById(p._id);
+      if (live) {
+        const expired = await expireSubscriptionTransferIfNeeded(live);
+        if (expired.expired) {
+          return statusPayload(live, "subscription", String(live._id), orderRef, {
+            redirectTo: null,
+            sepayAuto: false,
+          });
+        }
+        const status = mapEntityStatus("subscription", live);
+        return statusPayload(live, "subscription", String(live._id), orderRef, {
+          sepayAuto: status === "paid",
+        });
+      }
     }
   }
 
@@ -426,5 +436,8 @@ export async function getTransferStatusForUser(userId, orderRefRaw) {
     entityType: null,
     entityId: null,
     redirectTo: null,
+    paymentExpiresAt: null,
+    expiresInMs: 0,
+    timeoutMinutes: TRANSFER_PAYMENT_TIMEOUT_MINUTES,
   };
 }

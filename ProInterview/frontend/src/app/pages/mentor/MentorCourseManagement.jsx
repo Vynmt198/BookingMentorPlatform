@@ -6,7 +6,6 @@ import {
    Users,
    Star,
    BookOpen,
-   CircleDollarSign,
    PlusCircle,
    Edit3,
    Trash2,
@@ -20,14 +19,7 @@ import { ArchiveCourseDialog } from "../../components/courses/ArchiveCourseDialo
 import { archiveCourse, fetchMyMentorCourses } from "../../utils/courseApi";
 import { mapCourseAdminModerationNote } from "../../utils/courseAdminReview";
 import { mediaSrc, DEFAULT_COURSE_THUMB } from "../../utils/mediaUrl";
-
-function formatCompactNumber(value) {
-   const n = Number(value) || 0;
-   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-   return String(n);
-}
+import { normalizeCourseStats } from "../../utils/courseStats.js";
 
 const STATUS_LABELS = {
    published: "Đã đăng",
@@ -37,23 +29,47 @@ const STATUS_LABELS = {
    archived: "Đã lưu trữ",
 };
 
+const LEVEL_LABELS = {
+   basic: "Cơ bản",
+   intermediate: "Trung cấp",
+   advanced: "Nâng cao",
+};
+
+function formatCourseLevel(level) {
+   const key = String(level || "").toLowerCase();
+   return LEVEL_LABELS[key] || "Chưa rõ";
+}
+
 function mapCourseRow(c) {
+   const { rating, reviewsCount } = normalizeCourseStats(c?.stats);
    return {
       id: c._id,
       title: c.title,
       status: c.status || "draft",
       adminModerationNote: mapCourseAdminModerationNote(c),
       students: c.stats?.enrollmentCount || 0,
-      rating: c.stats?.rating || 0,
-      earnings: c.stats?.totalRevenue || 0,
+      rating: rating ?? 0,
+      reviewsCount,
       cover: mediaSrc(c.thumbnail, DEFAULT_COURSE_THUMB),
-      level:
-         c.level === "basic"
-            ? "Basic"
-            : c.level === "intermediate"
-              ? "Intermediate"
-              : "Advanced",
+      level: formatCourseLevel(c.level),
    };
+}
+
+/** Khi API chưa trả summary.avgRating — tính từ stats từng khóa (cùng logic backend). */
+function weightedAvgRatingFromCourses(courses) {
+   const active = (courses || []).filter((c) => c.status !== "archived");
+   let weighted = 0;
+   let totalReviews = 0;
+   for (const c of active) {
+      const n = Number(c.reviewsCount) || 0;
+      const r = c.rating;
+      if (n > 0 && r != null && Number.isFinite(Number(r)) && Number(r) > 0) {
+         weighted += Number(r) * n;
+         totalReviews += n;
+      }
+   }
+   if (!totalReviews) return null;
+   return Number((weighted / totalReviews).toFixed(1));
 }
 
 export function MentorCourseManagement() {
@@ -62,6 +78,7 @@ export function MentorCourseManagement() {
    const [activeTab, setActiveTab] = useState("all");
    const [search, setSearch] = useState("");
   const [myCourses, setMyCourses] = useState([]);
+  const [courseSummary, setCourseSummary] = useState(null);
    const [archiveTarget, setArchiveTarget] = useState(null);
    const [archiving, setArchiving] = useState(false);
 
@@ -69,10 +86,12 @@ export function MentorCourseManagement() {
       fetchMyMentorCourses().then((res) => {
          if (!res.success || !Array.isArray(res.courses)) {
             setMyCourses([]);
+            setCourseSummary(null);
             if (!res.success) toastApiError(res.error, "Không tải được khóa học của bạn.");
             return;
          }
          setMyCourses(res.courses.map(mapCourseRow));
+         setCourseSummary(res.summary || null);
       });
    }, []);
 
@@ -115,13 +134,34 @@ export function MentorCourseManagement() {
       const matchesSearch = c.title.toLowerCase().includes(search.toLowerCase());
       return matchesTab && matchesSearch;
    });
-   const totalCourses = activeCourses.length;
-   const totalStudents = activeCourses.reduce((sum, c) => sum + (Number(c.students) || 0), 0);
-   const totalRevenue = activeCourses.reduce((sum, c) => sum + (Number(c.earnings) || 0), 0);
-   const ratedCourses = activeCourses.filter((c) => Number(c.rating) > 0);
-   const avgRating = ratedCourses.length
-      ? (ratedCourses.reduce((sum, c) => sum + Number(c.rating), 0) / ratedCourses.length).toFixed(1)
-      : "0.0";
+   const totalCourses = courseSummary?.totalCourses ?? activeCourses.length;
+   const totalStudents = courseSummary?.totalStudents ?? activeCourses.reduce(
+      (sum, c) => sum + (Number(c.students) || 0),
+      0,
+   );
+   const avgRatingValue =
+      courseSummary?.avgRating != null && Number.isFinite(Number(courseSummary.avgRating))
+         ? Number(courseSummary.avgRating)
+         : weightedAvgRatingFromCourses(myCourses);
+   const hasAvgRating = avgRatingValue != null && Number.isFinite(avgRatingValue);
+   const avgRatingDisplay = hasAvgRating ? avgRatingValue.toFixed(1) : null;
+
+   const statCards = [
+      { label: "Tổng khóa học", value: totalCourses, icon: BookOpen, color: "#8037f4" },
+      {
+         label: "Tổng học viên",
+         value: Number(totalStudents || 0).toLocaleString("vi-VN"),
+         icon: Users,
+         color: "#93f72b",
+      },
+      {
+         label: "Đánh giá trung bình",
+         value: avgRatingDisplay,
+         emptyLabel: "Chưa có đánh giá",
+         icon: Star,
+         color: "#f59e0b",
+      },
+   ];
 
    return (
       <MentorPageShell bottomPad="pb-32">
@@ -129,16 +169,19 @@ export function MentorCourseManagement() {
             {/* Header Unit */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
                <div>
-                  <div className="flex items-center gap-3 text-[10px] font-black text-violet-700 uppercase tracking-[0.3em] mb-4">
-                     <Shapes size={14} /> Hệ thống Đào tạo
+                  <div className="mb-4 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.2em] text-violet-700">
+                     <Shapes size={14} /> Hệ thống đào tạo
                   </div>
-                  <h1 className="mb-3 font-headline text-2xl font-black uppercase leading-none tracking-tight text-slate-900 sm:text-3xl">
+                  <h1 className="font-headline overflow-visible pb-0.5 text-2xl font-black uppercase leading-[1.2] tracking-tight text-slate-900 sm:text-3xl">
                      Khóa học <span className="text-violet-700">của tôi</span>
                   </h1>
-                  <p className="text-slate-600 text-sm font-medium">Xây dựng nội dung, theo dõi doanh thu và học viên của bạn</p>
                </div>
                <div className="flex gap-4">
+<<<<<<< Updated upstream
                   <button onClick={() => navigate("/mentor/courses/new/edit")} className="px-10 py-5 rounded-3xl bg-primary-fixed text-[#000000] text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-[0_15px_40px_rgba(196, 255, 71,0.3)] flex items-center gap-3">
+=======
+                  <button onClick={() => navigate("/mentor/courses/new/edit")} className="flex items-center gap-3 rounded-3xl bg-primary-fixed px-10 py-5 text-sm font-semibold text-black shadow-[0_15px_40px_rgba(196,255,71,0.3)] transition-all hover:scale-105">
+>>>>>>> Stashed changes
                      <Plus size={20} /> Tạo khóa học mới
                   </button>
 
@@ -146,20 +189,21 @@ export function MentorCourseManagement() {
             </div>
 
             {/* Course Analytics Bar */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-14">
-               {[
-                  { label: "Tổng khóa học", value: totalCourses, icon: BookOpen, color: "#8037f4" },
-                  { label: "Tổng học viên", value: formatCompactNumber(totalStudents), icon: Users, color: "#93f72b" },
-                  { label: "Rating trung bình", value: avgRating, icon: Star, color: "#f59e0b" },
-                  { label: "Doanh thu tạm tính", value: formatCompactNumber(totalRevenue), icon: CircleDollarSign, color: "#d946ef" }
-               ].map((stat, i) => (
-                  <div key={i} className="glass-card p-7 group overflow-hidden">
+            <div className="mb-14 grid grid-cols-1 gap-6 md:grid-cols-3">
+               {statCards.map((stat, i) => (
+                  <div key={i} className="glass-card group overflow-hidden p-7">
                      <div className="relative z-10">
                         <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                            <stat.icon size={22} style={{ color: stat.color }} />
                         </div>
-                        <h3 className="mb-2 text-2xl font-black leading-none tracking-tight text-slate-900 sm:text-3xl">{stat.value}</h3>
-                        <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em]">{stat.label}</p>
+                        {stat.value != null ? (
+                          <h3 className="mb-2 text-2xl font-black leading-none tracking-tight text-slate-900 sm:text-3xl">
+                            {stat.value}
+                          </h3>
+                        ) : (
+                          <p className="mb-2 text-sm font-semibold text-slate-500">{stat.emptyLabel}</p>
+                        )}
+                        <p className="text-sm font-medium text-zinc-600">{stat.label}</p>
                      </div>
                      <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-gradient-to-br from-white/[0.03] to-transparent rounded-full" />
                   </div>
@@ -174,7 +218,7 @@ export function MentorCourseManagement() {
                         <button
                            key={t}
                            onClick={() => setActiveTab(t)}
-                           className={`rounded-[18px] px-6 py-3 text-[10px] font-black uppercase tracking-widest transition-all sm:px-8 ${activeTab === t ? "bg-violet-600 text-white shadow-md" : "text-slate-600 hover:bg-white hover:text-slate-900"
+                           className={`rounded-[18px] px-6 py-3 text-sm font-semibold transition-all sm:px-8 ${activeTab === t ? "bg-violet-600 text-white shadow-md" : "text-slate-600 hover:bg-white hover:text-slate-900"
                               }`}
                         >
                            {t === "all" ? "Tất cả" : STATUS_LABELS[t] || t}
@@ -205,7 +249,7 @@ export function MentorCourseManagement() {
 
                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                            <div className="absolute top-6 left-6 flex gap-2">
-                              <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${
+                              <span className={`rounded-xl border px-4 py-1.5 text-xs font-semibold ${
                                  course.status === "published"
                                     ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/20"
                                     : course.status === "pending_review"
@@ -218,7 +262,7 @@ export function MentorCourseManagement() {
                                  }`}>
                                  {STATUS_LABELS[course.status] || "Bản nháp"}
                               </span>
-                              <span className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-600 backdrop-blur-md">
+                              <span className="rounded-xl border border-slate-200 bg-slate-100 px-4 py-1.5 text-xs font-semibold text-slate-600 backdrop-blur-md">
                                  {course.level}
                               </span>
                            </div>
@@ -236,7 +280,7 @@ export function MentorCourseManagement() {
                                  }`}
                               >
                                  <p
-                                    className={`text-[9px] font-black uppercase tracking-widest ${
+                                    className={`text-sm font-semibold ${
                                        course.adminModerationNote.tone === "amber" ? "text-amber-900" : "text-red-800"
                                     }`}
                                  >
@@ -249,15 +293,15 @@ export function MentorCourseManagement() {
                               <div className="flex items-center gap-3">
                                  <Users size={16} className="text-zinc-600" />
                                  <div>
-                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1">Học viên</p>
+                                    <p className="mb-1 text-xs font-medium text-zinc-500 leading-none">Học viên</p>
                                     <p className="text-sm font-black text-slate-900">{course.students.toLocaleString()}</p>
                                  </div>
                               </div>
                               <div className="flex items-center gap-3">
                                  <Star size={16} className="text-[#FFD600]" />
                                  <div>
-                                    <p className="text-[9px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1">Đánh giá</p>
-                                    <p className="text-sm font-black text-slate-900">{course.rating > 0 ? course.rating : 'N/A'}</p>
+                                    <p className="mb-1 text-xs font-medium text-zinc-500 leading-none">Đánh giá</p>
+                                    <p className="text-sm font-bold text-slate-900">{course.rating > 0 ? course.rating : "—"}</p>
                                  </div>
                               </div>
                            </div>
@@ -266,7 +310,7 @@ export function MentorCourseManagement() {
                                  type="button"
                                  onClick={() => navigate(`/mentor/courses/${course.id}/edit`)}
                                  disabled={course.status === "archived"}
-                                 className="flex-1 py-4 rounded-2xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest hover:text-slate-900 hover:bg-slate-100 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                                 className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 py-4 text-sm font-semibold transition-all hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40">
                                  <Edit3 size={14} /> Chỉnh sửa
                               </button>
                               {course.status !== "archived" ? (
@@ -290,7 +334,7 @@ export function MentorCourseManagement() {
                      <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
                         <PlusCircle size={32} className="opacity-40 group-hover:opacity-100" />
                      </div>
-                     <p className="text-xs font-black uppercase tracking-[0.3em]">Thiết kế khóa học mới</p>
+                     <p className="text-sm font-semibold text-zinc-600">Thiết kế khóa học mới</p>
                   </div>
                </div>
                {!activeCourses.length && activeTab !== "archived" && (

@@ -109,6 +109,7 @@ export function mapAnalysisDocToHistoryItem(doc) {
     jdFileName: doc.jdFileName || null,
     matchScore: match.score ?? r.matchScore ?? r._ui?.matchScore ?? 0,
     matchedKeywords: match.matchedKeywords || r._ui?.matchedKeywords || [],
+    missingKeywords: match.missingKeywords || r._ui?.missingKeywords || [],
     createdAt: doc.createdAt || new Date().toISOString(),
     hasCvFile: !!(doc.cvFileName || doc.cvFileUrl),
     hasJdFile: !!(doc.jdFileName || doc.jdText),

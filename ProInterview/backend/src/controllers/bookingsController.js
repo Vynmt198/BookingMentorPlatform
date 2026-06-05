@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import * as bookingsService from "../services/bookingsService.js";
 import * as reviewsService from "../services/reviewsService.js";
 import { Booking } from "../models/Booking.js";
+import { MentorKnowledge } from "../models/MentorKnowledge.js";
+import { Mentor } from "../models/Mentor.js";
 
 export class BookingsController {
   static async list(req, res, next) {
@@ -280,6 +282,62 @@ export class BookingsController {
         return res.status(result.status).json({ success: false, error: result.error });
       }
       res.json({ success: true, booking: result.booking });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * POST /api/bookings/:id/mentor-knowledge [MENTOR]
+   * Mentor chia sẻ insights sau buổi coaching — lưu vào MentorKnowledge collection
+   * để AI question generation dùng làm few-shot corpus (Layer 3 — Mentor Loop).
+   *
+   * Body: { menteeRole?, field?, questionsAsked?, commonMistakes?, keyInsights?, fullAdvice? }
+   * Idempotent: upsert theo bookingId (một booking → một bản ghi).
+   */
+  static async saveMentorKnowledge(req, res, next) {
+    try {
+      const bookingId = String(req.params.id ?? "").trim();
+      if (!mongoose.isValidObjectId(bookingId)) {
+        return res.status(400).json({ success: false, error: "booking id không hợp lệ." });
+      }
+
+      // Xác minh booking thuộc mentor đang đăng nhập
+      const mentor = await Mentor.findOne({ userId: req.userId }).select("_id").lean();
+      if (!mentor) return res.status(403).json({ success: false, error: "Không tìm thấy hồ sơ mentor." });
+
+      const booking = await Booking.findOne({ _id: bookingId, mentorId: mentor._id })
+        .select("status notes sessionType")
+        .lean();
+      if (!booking) return res.status(404).json({ success: false, error: "Không tìm thấy booking." });
+      if (booking.status !== "completed") {
+        return res.status(400).json({ success: false, error: "Chỉ lưu insights sau khi buổi học hoàn thành." });
+      }
+
+      const { menteeRole = "", field = "", questionsAsked = [], commonMistakes = [], keyInsights = [], fullAdvice = "" } = req.body;
+
+      // Sanitize: lọc bỏ chuỗi rỗng trong mảng
+      const clean = (arr) => (Array.isArray(arr) ? arr.map(s => String(s).trim()).filter(Boolean) : []);
+
+      const doc = await MentorKnowledge.findOneAndUpdate(
+        { bookingId },
+        {
+          $set: {
+            bookingId,
+            mentorId:     mentor._id,
+            mentorUserId: req.userId,
+            menteeRole:   String(menteeRole).trim(),
+            field:        String(field).trim(),
+            questionsAsked:  clean(questionsAsked),
+            commonMistakes:  clean(commonMistakes),
+            keyInsights:     clean(keyInsights),
+            fullAdvice:   String(fullAdvice).trim(),
+          },
+        },
+        { upsert: true, new: true }
+      );
+
+      res.status(201).json({ success: true, knowledge: doc });
     } catch (err) {
       next(err);
     }

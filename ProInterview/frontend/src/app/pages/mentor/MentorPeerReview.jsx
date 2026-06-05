@@ -3,7 +3,6 @@ import { useNavigate } from "react-router";
 import {
    Users,
    Star,
-   ArrowLeft,
    Search,
    CheckCircle2,
    Clock,
@@ -14,6 +13,7 @@ import {
    TrendingUp,
    Layout,
    BookOpen,
+   PlayCircle,
    Zap,
    StarHalf
 } from "lucide-react";
@@ -23,6 +23,47 @@ import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 import { fetchMentorPeerReviews, submitMentorPeerReview } from "../../utils/mentorApi";
 import { toastApiError, tryApi } from "../../utils/apiToast";
 import { toast } from "sonner";
+import { mediaSrc, DEFAULT_COURSE_THUMB } from "../../utils/mediaUrl";
+
+const CATEGORY_LABELS = {
+   all: "Tất cả lĩnh vực",
+   technical: "Kỹ thuật",
+   behavioral: "Hành vi",
+   negotiation: "Đàm phán",
+   other: "Khác",
+};
+
+function formatCategory(cat) {
+   if (!cat || cat === "all") return CATEGORY_LABELS.all;
+   const key = String(cat).toLowerCase();
+   return CATEGORY_LABELS[key] || String(cat);
+}
+
+function PeerReviewStarRating({ value, onChange, label }) {
+   return (
+      <div className="flex items-center gap-0.5" role="group" aria-label={`${label}: ${value} sao`}>
+         {[1, 2, 3, 4, 5].map((n) => (
+            <button
+               key={n}
+               type="button"
+               onClick={() => onChange(n)}
+               className="rounded-md p-1 transition hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+               aria-label={`${n} sao`}
+               aria-pressed={n <= value}
+            >
+               <Star
+                  size={22}
+                  className={
+                     n <= value
+                        ? "fill-amber-400 text-amber-400"
+                        : "text-slate-300"
+                  }
+               />
+            </button>
+         ))}
+      </div>
+   );
+}
 
 export function MentorPeerReview() {
    const navigate = useNavigate();
@@ -47,7 +88,7 @@ export function MentorPeerReview() {
       }
       void (async () => {
          const res = await tryApi(() => fetchMentorPeerReviews(), {
-            fallback: "Không tải được danh sách peer review.",
+            fallback: "Không tải được danh sách đánh giá chéo.",
          });
          if (!res.success || !Array.isArray(res.items)) {
             setCoursesForReview([]);
@@ -56,9 +97,7 @@ export function MentorPeerReview() {
          setCoursesForReview(
             res.items.map((item) => ({
                ...item,
-               cover:
-                  item.cover ||
-                  "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&q=80&w=400",
+               cover: item.cover || "",
             })),
          );
       })();
@@ -113,18 +152,13 @@ export function MentorPeerReview() {
       <MentorPageShell bottomPad="pb-32">
          <div className="relative z-10 mx-auto max-w-7xl px-8 pb-8">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-               <div className="max-w-3xl">
-                  <h1 className="mb-4 font-headline text-2xl font-black uppercase tracking-tight text-slate-900 sm:text-3xl">
-                     Đánh giá <span className="text-secondary tracking-tighter">Chéo Khóa học</span>
-                  </h1>
-                  <p className="text-slate-600 text-sm font-medium leading-relaxed">
-                     Với tư cách mentor trong hệ thống ProInterview, bạn có hành quyền đánh giá chuyên môn các khóa học của đồng nghiệp để đảm bảo chất lượng nội dung toàn hệ thống.
-                  </p>
-               </div>
-               <button onClick={() => navigate("/mentor/dashboard")} className="px-8 py-4 rounded-3xl bg-slate-50 border border-slate-200 text-xs font-black uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center gap-2">
-                  <ArrowLeft size={14} /> Về dashboard
-               </button>
+            <div className="mb-12 max-w-3xl">
+               <h1 className="mb-4 font-headline overflow-visible pb-0.5 text-2xl font-black uppercase leading-[1.2] tracking-tight text-slate-900 sm:text-3xl">
+                  Đánh giá <span className="text-secondary">chéo khóa học</span>
+               </h1>
+               <p className="text-slate-600 text-sm font-medium leading-relaxed">
+                  Với tư cách mentor trong hệ thống ProInterview, bạn có hành quyền đánh giá chuyên môn các khóa học của đồng nghiệp để đảm bảo chất lượng nội dung toàn hệ thống.
+               </p>
             </div>
 
             {/* Global Stats Bar */}
@@ -132,8 +166,8 @@ export function MentorPeerReview() {
                {[
                   { label: "Cần đánh giá", value: pendingCount, icon: Clock, color: "#8037f4" },
                   { label: "Đã hoàn thành", value: reviewedCount, icon: CheckCircle2, color: "#93f72b" },
-                  { label: "Review điểm cao", value: highScoreCount, icon: TrendingUp, color: "#secondary" },
-                  { label: "Rating trung bình", value: avgRating, icon: Star, color: "#f59e0b" }
+                  { label: "Đánh giá điểm cao", value: highScoreCount, icon: TrendingUp, color: "#8037f4" },
+                  { label: "Điểm trung bình", value: avgRating, icon: Star, color: "#f59e0b" }
                ].map((stat, i) => (
                   <div key={i} className="glass-card p-7 group">
                      <div className="flex items-center justify-between mb-5">
@@ -142,8 +176,8 @@ export function MentorPeerReview() {
                         </div>
                         <div className="h-2 w-2 rounded-full bg-slate-200 transition-colors group-hover:bg-lime-400" />
                      </div>
-                     <h3 className="mb-1 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{stat.value}</h3>
-                     <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest leading-none">{stat.label}</p>
+                     <h3 className="mb-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">{stat.value}</h3>
+                     <p className="text-sm font-medium text-zinc-500 leading-none">{stat.label}</p>
                   </div>
                ))}
             </div>
@@ -158,9 +192,9 @@ export function MentorPeerReview() {
                      <Zap size={28} />
                   </div>
                   <div>
-                     <h4 className="text-xl font-black text-slate-900 tracking-tight mb-3">Quy tắc Đánh giá chuyên môn</h4>
-                     <p className="text-sm font-medium text-zinc-500 max-w-2xl leading-relaxed italic">
-                        "Hãy đánh giá khách quan và chuyên nghiệp dựa trên kiến thức của bạn. Đánh giá của bạn giúp học viên tin tưởng hơn vào nội dung và nhận point thưởng từ nền tảng."
+                     <h4 className="mb-3 text-xl font-bold text-slate-900">Quy tắc đánh giá chuyên môn</h4>
+                     <p className="max-w-2xl text-sm font-medium leading-relaxed text-zinc-600">
+                        Hãy đánh giá khách quan và chuyên nghiệp dựa trên kiến thức của bạn. Đánh giá của bạn giúp học viên tin tưởng hơn vào nội dung và nhận điểm thưởng từ nền tảng.
                      </p>
                   </div>
                </div>
@@ -184,7 +218,7 @@ export function MentorPeerReview() {
                         <button
                            key={v}
                            onClick={() => setFilter(v)}
-                           className={`rounded-[18px] px-8 py-3 text-[10px] font-black uppercase tracking-widest transition-all ${filter === v ? "bg-violet-600 text-white shadow-md" : "text-slate-600 hover:bg-white hover:text-slate-900"
+                           className={`rounded-[18px] px-8 py-3 text-sm font-semibold transition-all ${filter === v ? "bg-violet-600 text-white shadow-md" : "text-slate-600 hover:bg-white hover:text-slate-900"
                               }`}
                         >
                            {v === "all" ? "Tất cả" : v === "pending" ? "Chưa đánh giá" : "Đã đánh giá"}
@@ -198,10 +232,10 @@ export function MentorPeerReview() {
                      <button
                         key={cat}
                         onClick={() => setCategory(cat)}
-                        className={`rounded-xl px-6 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${category === cat ? "bg-violet-600 text-white shadow-sm" : "border border-slate-200 bg-slate-50 text-slate-600 hover:text-slate-900"
+                        className={`rounded-xl px-6 py-2.5 text-sm font-semibold transition-all ${category === cat ? "bg-violet-600 text-white shadow-sm" : "border border-slate-200 bg-slate-50 text-slate-600 hover:text-slate-900"
                            }`}
                      >
-                        {cat === "all" ? "Tất cả lĩnh vực" : cat}
+                        {formatCategory(cat)}
                      </button>
                   ))}
                </div>
@@ -211,22 +245,26 @@ export function MentorPeerReview() {
                   {filtered.map((course) => (
                      <div key={course.id} className="glass-card overflow-hidden group">
                         <div className="relative h-48 overflow-hidden">
-                           <img src={course.cover} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
+                           <img
+                             src={mediaSrc(course.cover, DEFAULT_COURSE_THUMB)}
+                             alt=""
+                             className="h-full w-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                           />
                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                            <div className="absolute top-6 left-6 flex gap-2">
-                              <span className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-violet-800 backdrop-blur-md">
-                                 {course.category}
+                              <span className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-800 backdrop-blur-md">
+                                 {formatCategory(course.category)}
                               </span>
-                              <span className={`px-3 py-1 backdrop-blur-md rounded-lg text-[9px] font-black uppercase tracking-widest border ${course.status === 'reviewed' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/20' : 'bg-orange-500/20 text-orange-400 border-orange-500/20'}`}>
-                                 {course.status === 'reviewed' ? 'Đã Review' : 'Đang chờ'}
+                              <span className={`rounded-lg border px-3 py-1 text-xs font-semibold backdrop-blur-md ${course.status === 'reviewed' ? 'bg-emerald-500/20 text-emerald-600 border-emerald-500/20' : 'bg-orange-500/20 text-orange-600 border-orange-500/20'}`}>
+                                 {course.status === 'reviewed' ? 'Đã đánh giá' : 'Chưa đánh giá'}
                               </span>
                            </div>
                         </div>
                         <div className="p-6">
-                           <h4 className="text-xl font-black text-slate-900 tracking-tighter mb-2 group-hover:text-violet-700 transition-colors">
+                           <h4 className="mb-2 text-xl font-bold text-slate-900 transition-colors group-hover:text-violet-700">
                               {course.title}
                            </h4>
-                           <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest mb-6">Tác giả: <span className="text-slate-900">{course.mentor}</span></p>
+                           <p className="mb-6 text-sm text-zinc-600">Tác giả: <span className="font-medium text-slate-900">{course.mentor}</span></p>
 
                            <div className="flex items-center justify-between">
                               <div className="flex items-center gap-6">
@@ -243,7 +281,7 @@ export function MentorPeerReview() {
                               </div>
                               <button
                                  onClick={() => startReview(course)}
-                                 className="flex items-center gap-2 text-[10px] font-black text-slate-900 uppercase tracking-widest hover:text-violet-700 transition-all group/btn"
+                                 className="flex items-center gap-2 text-sm font-semibold text-slate-900 transition-all hover:text-violet-700 group/btn"
                               >
                                  {course.status === "reviewed" ? "Đã đánh giá" : "Bắt đầu đánh giá"} <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" />
                               </button>
@@ -254,7 +292,7 @@ export function MentorPeerReview() {
                </div>
                {!coursesForReview.length && (
                   <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center">
-                     <p className="text-sm font-semibold text-zinc-300">Hiện chưa có khóa học nào khả dụng để đánh giá chéo.</p>
+                     <p className="text-sm font-semibold text-zinc-500">Hiện chưa có khóa học nào khả dụng để đánh giá chéo.</p>
                   </div>
                )}
             </div>
@@ -265,7 +303,7 @@ export function MentorPeerReview() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-sm bg-slate-900/35"
+                  className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-sm bg-slate-900/50"
                   onClick={() => setSelectedCourse(null)}
                >
                   <motion.div
@@ -275,23 +313,36 @@ export function MentorPeerReview() {
                      className="glass-card w-full max-w-xl p-8"
                      onClick={(e) => e.stopPropagation()}
                   >
-                     <h3 className="text-2xl font-black text-slate-900 tracking-tight mb-2">Đánh giá chéo khóa học</h3>
-                     <p className="text-sm text-zinc-400 mb-6">{selectedCourse.title}</p>
-                     <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-                        <p className="text-xs text-zinc-300 line-clamp-3">
+                     <h3 className="mb-2 text-2xl font-bold text-slate-900">Đánh giá chéo khóa học</h3>
+                     <p className="mb-6 text-sm text-zinc-600">{selectedCourse.title}</p>
+                     <div className="mb-6 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <p className="line-clamp-3 text-sm text-zinc-600">
                            {selectedCourse.description || "Chưa có mô tả chi tiết cho khóa học này."}
                         </p>
-                        <div className="flex flex-wrap items-center gap-3 text-[10px] uppercase tracking-widest font-black text-zinc-500">
-                           <span className="px-2 py-1 rounded-lg border border-slate-200 bg-white/5">{selectedCourse.level || "N/A"}</span>
+                        <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-zinc-600">
+                           <span className="rounded-lg border border-slate-200 bg-white px-2 py-1">{selectedCourse.level || "Chưa rõ"}</span>
                            <span>{selectedCourse.isFree ? "Miễn phí" : `${Number(selectedCourse.price || 0).toLocaleString("vi-VN")} ₫`}</span>
                            <span>{Number(selectedCourse.lessonCount || 0)} bài học</span>
                         </div>
-                        <button
-                           onClick={() => navigate(`/courses/${selectedCourse.id}`)}
-                           className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-violet-700 hover:opacity-80"
-                        >
-                           <BookOpen size={14} /> Xem chi tiết khóa học
-                        </button>
+                        <p className="text-xs text-zinc-500">
+                           Xem mô tả và toàn bộ bài học (video/tài liệu mentor khác đã upload) trước khi chấm điểm.
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                           <button
+                              type="button"
+                              onClick={() => navigate(`/courses/${selectedCourse.id}?peerReview=1`)}
+                              className="inline-flex items-center gap-2 text-sm font-semibold text-violet-700 hover:opacity-80"
+                           >
+                              <BookOpen size={14} /> Mô tả &amp; chương trình
+                           </button>
+                           <button
+                              type="button"
+                              onClick={() => navigate(`/courses/${selectedCourse.id}/learn?peerReview=1`)}
+                              className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:opacity-80"
+                           >
+                              <PlayCircle size={14} /> Xem bài học
+                           </button>
+                        </div>
                      </div>
                      <div className="space-y-4">
                         {[
@@ -301,17 +352,13 @@ export function MentorPeerReview() {
                         ].map(([field, label]) => (
                            <div key={field} className="flex items-center justify-between gap-4">
                               <span className="text-sm font-semibold text-slate-700">{label}</span>
-                              <select
+                              <PeerReviewStarRating
+                                 label={label}
                                  value={reviewForm[field]}
-                                 onChange={(e) => setReviewForm((prev) => ({ ...prev, [field]: Number(e.target.value) }))}
-                                 className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-900"
-                              >
-                                 {[1, 2, 3, 4, 5].map((n) => (
-                                    <option key={n} value={n} className="bg-white text-slate-900">
-                                       {n} / 5
-                                    </option>
-                                 ))}
-                              </select>
+                                 onChange={(n) =>
+                                    setReviewForm((prev) => ({ ...prev, [field]: n }))
+                                 }
+                              />
                            </div>
                         ))}
                         <textarea
@@ -324,14 +371,18 @@ export function MentorPeerReview() {
                      <div className="mt-7 grid grid-cols-2 gap-3">
                         <button
                            onClick={() => setSelectedCourse(null)}
-                           className="py-3 rounded-xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-900"
+                           className="rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-900"
                         >
                            Hủy
                         </button>
                         <button
                            onClick={submitReview}
                            disabled={submitting}
+<<<<<<< Updated upstream
                            className="py-3 rounded-xl bg-primary-fixed text-[#000000] text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+=======
+                           className="rounded-xl bg-primary-fixed py-3 text-sm font-semibold text-slate-900 disabled:opacity-50"
+>>>>>>> Stashed changes
                         >
                            {submitting ? "Đang gửi..." : "Gửi đánh giá"}
                         </button>

@@ -7,7 +7,13 @@ import { User } from "../models/User.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { runInTransaction } from "../helpers/dbHelper.js";
 import { planKeyFromSubscriptionMeta } from "../utils/planKeys.js";
+import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
+import {
+  expireSubscriptionTransferIfNeeded,
+} from "./transferPaymentExpiryService.js";
 import { incrementCourseEnrollmentCount } from "./courseStatsService.js";
+import { Mentor } from "../models/Mentor.js";
+import { deliverNotification } from "./notificationDeliveryService.js";
 
 const MONGO_ERR = "MongoDB chưa kết nối. Kiểm tra MONGO_URI trong .env.";
 
@@ -296,6 +302,7 @@ export async function recordTransferPending({
   providerRef: providerRefInput,
   planKey,
   billing,
+  paymentExpiresAt,
 }) {
   if (!isMongoReady()) return { ok: false, error: MONGO_ERR };
   if (!mongoose.isValidObjectId(userId) || !mongoose.isValidObjectId(referenceId)) {
@@ -344,14 +351,18 @@ export async function recordTransferPending({
       if (billing && t === "subscription") {
         $set["providerResponse.billing"] = billing === "yearly" ? "yearly" : "monthly";
       }
+      if (paymentExpiresAt && !existing.paymentExpiresAt) {
+        $set.paymentExpiresAt = paymentExpiresAt;
+      }
       await Payment.updateOne({ _id: existing._id }, { $set });
-      const refreshed = await Payment.findById(existing._id).select("providerRef status").lean();
+      const refreshed = await Payment.findById(existing._id).select("providerRef status paymentExpiresAt createdAt").lean();
       return {
         ok: true,
         idempotent: true,
         status: refreshed?.status || existing.status,
         paymentId: String(existing._id),
         providerRef: refreshed?.providerRef || existing.providerRef,
+        paymentExpiresAt: refreshed?.paymentExpiresAt || paymentExpiresAt || null,
       };
     }
     return {
@@ -366,6 +377,7 @@ export async function recordTransferPending({
   const providerRef =
     (typeof providerRefInput === "string" && providerRefInput.trim()) ||
     `trf-${t}-${String(rid)}`;
+  const expiresAt = paymentExpiresAt || newPaymentExpiresAt();
   const planMeta =
     planKey && t === "subscription"
       ? {
@@ -385,6 +397,7 @@ export async function recordTransferPending({
       provider: "transfer",
       providerRef: String(providerRef).trim().slice(0, 100),
       status: "pending",
+      paymentExpiresAt: expiresAt,
       providerResponse: { channel: "bank_transfer", ...planMeta },
     });
     await created.save({ session });
@@ -416,6 +429,7 @@ export async function recordTransferPending({
     created: true,
     paymentId: String(created._id),
     providerRef: created.providerRef,
+    paymentExpiresAt: created.paymentExpiresAt,
   };
 }
 
@@ -430,14 +444,32 @@ export async function createSubscriptionTransferPending(userId, { amount, planKe
   const ref = String(orderNum || "").trim().slice(0, 100);
   if (!ref) return { ok: false, status: 400, error: "orderNum (mã đơn) bắt buộc." };
   const plan = normalizeSubscriptionPlanKey(planKey);
+  const expiresAt = newPaymentExpiresAt();
+
   const pendingRow = await Payment.findOne({
     userId,
     type: "subscription",
     provider: "transfer",
     status: "pending",
-  })
-    .select("referenceId")
-    .lean();
+  }).select("_id referenceId providerRef paymentExpiresAt createdAt");
+
+  if (pendingRow) {
+    const expired = await expireSubscriptionTransferIfNeeded(pendingRow);
+    if (!expired.expired) {
+      if (pendingRow.providerRef !== ref) {
+        pendingRow.providerRef = ref;
+        await pendingRow.save();
+      }
+      return {
+        ok: true,
+        paymentId: String(pendingRow._id),
+        providerRef: pendingRow.providerRef || ref,
+        idempotent: true,
+        paymentExpiresAt: pendingRow.paymentExpiresAt,
+      };
+    }
+  }
+
   const referenceId = pendingRow
     ? String(pendingRow.referenceId)
     : String(new mongoose.Types.ObjectId());
@@ -450,6 +482,7 @@ export async function createSubscriptionTransferPending(userId, { amount, planKe
     providerRef: ref,
     planKey: plan,
     billing,
+    paymentExpiresAt: expiresAt,
   });
   if (!ledger.ok) return { ok: false, status: 500, error: ledger.error || "Không tạo được giao dịch chờ CK." };
   return {
@@ -457,6 +490,7 @@ export async function createSubscriptionTransferPending(userId, { amount, planKe
     paymentId: ledger.paymentId,
     providerRef: ledger.providerRef || ref,
     idempotent: Boolean(ledger.idempotent),
+    paymentExpiresAt: ledger.paymentExpiresAt || expiresAt,
   };
 }
 
@@ -763,9 +797,29 @@ async function finalizePaymentSuccess(paymentId) {
   }
 
   if (pay.type === "booking" && pay.referenceModel === "Booking") {
-    await Booking.findByIdAndUpdate(pay.referenceId, {
-      $set: { paymentStatus: "paid", status: "confirmed", paidAt: new Date() },
-    });
+    const booking = await Booking.findByIdAndUpdate(
+      pay.referenceId,
+      { $set: { paymentStatus: "paid", status: "confirmed", paidAt: new Date() } },
+      { new: true },
+    )
+      .select("_id userId mentorId date timeSlot")
+      .lean();
+    if (booking && !alreadySuccess) {
+      const mentor = await Mentor.findById(booking.mentorId).select("userId").lean();
+      const student = await User.findById(booking.userId).select("name").lean();
+      if (mentor?.userId) {
+        await deliverNotification(mentor.userId, {
+          mentorPrefKey: "booking_request",
+          type: "booking_confirmed",
+          title: "Buổi mentor đã được thanh toán",
+          body: `${student?.name || "Học viên"} — ${booking.date} ${booking.timeSlot} đã thanh toán thành công.`,
+          metadata: {
+            bookingId: booking._id,
+            actionUrl: `/mentor/meeting-detail/${booking._id}`,
+          },
+        });
+      }
+    }
   }
   if (pay.type === "course" && pay.referenceModel === "Enrollment") {
     await Enrollment.findByIdAndUpdate(pay.referenceId, {

@@ -96,7 +96,13 @@ const mentorSchema = new Schema(
     },
     pricing: {
       mentorActivatedAt: { type: Date, default: null },
+<<<<<<< Updated upstream
       platformFeeRate: { type: Number, default: null },
+=======
+      /** Override phí booking theo hợp đồng riêng của mentor (0..1) */
+      platformFeeRate: { type: Number, default: null },
+      /** Override phí khóa học theo hợp đồng riêng của mentor (0..1) */
+>>>>>>> Stashed changes
       coursePlatformFeeRate: { type: Number, default: null },
       isEarlyMentor: { type: Boolean, default: false },
       earlyMentorRank: { type: Number, default: null },
@@ -127,6 +133,7 @@ export function toPublicMentor(doc) {
     title: m.title,
     company: m.company,
     field: firstField,
+    fields: Array.isArray(m.fields) ? m.fields.filter(Boolean) : [],
     experience: m.experienceYears ?? 0,
     rating: stats.rating ?? 0,
     reviews: stats.reviewCount ?? 0,
@@ -139,5 +146,28 @@ export function toPublicMentor(doc) {
     companies: m.companies ?? [],
     sessionsDone: stats.sessionCount ?? 0,
     responseTime: m.responseTime ?? "",
+    isVerified: m.isVerified === true,
+    timezone: m.timezone ?? "Asia/Ho_Chi_Minh",
+    sessionTypes: Array.isArray(m.sessionTypes)
+      ? m.sessionTypes.map((st) => ({
+          type: st.type,
+          durationMinutes: st.durationMinutes ?? 60,
+          price: st.price ?? m.pricePerHour ?? 0,
+        }))
+      : [],
+  };
+}
+
+/** Chi tiết hồ sơ công khai — GET /api/mentors/:id */
+export function toPublicMentorDetail(doc) {
+  const base = toPublicMentor(doc);
+  if (!base) return null;
+  const m = doc.toObject ? doc.toObject() : { ...doc };
+  return {
+    ...base,
+    profileWorkExperience: m.profileWorkExperience ?? "",
+    profileEducation: m.profileEducation ?? "",
+    profileAwards: m.profileAwards ?? "",
+    recurringSchedule: Array.isArray(m.recurringSchedule) ? m.recurringSchedule : [],
   };
 }

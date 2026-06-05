@@ -59,7 +59,7 @@ export function serializeWorkHistory(entries) {
 
 function formatMonthLabel(ym) {
   const s = String(ym ?? "").trim();
-  if (!/^\d{4}-\d{2}$/.test(s)) return s || "—";
+  if (!/^\d{4}-\d{2}$/.test(s)) return s || "-";
   const [y, m] = s.split("-");
   return `${m}/${y}`;
 }
@@ -78,10 +78,10 @@ export function inferStartMonthFromExperienceYears(years) {
 export function formatWorkEntryPeriod(entry) {
   if (!entry) return "";
   if (entry.isCurrent && entry.startMonth) {
-    return `${formatMonthLabel(entry.startMonth)} — Hiện tại`;
+    return `${formatMonthLabel(entry.startMonth)} - Hiện tại`;
   }
   if (entry.startMonth && entry.endMonth) {
-    return `${formatMonthLabel(entry.startMonth)} — ${formatMonthLabel(entry.endMonth)}`;
+    return `${formatMonthLabel(entry.startMonth)} - ${formatMonthLabel(entry.endMonth)}`;
   }
   if (entry.startMonth) {
     return `Từ ${formatMonthLabel(entry.startMonth)}`;
@@ -95,13 +95,13 @@ export function formatWorkHistoryLines(entries) {
   const list = Array.isArray(entries) ? entries : [];
   const lines = [];
   for (const e of list) {
-    const role = e.role || "—";
-    const company = e.company || "—";
-    let period = "—";
+    const role = e.role || "-";
+    const company = e.company || "-";
+    let period = "-";
     if (e.isCurrent && e.startMonth) {
-      period = `${formatMonthLabel(e.startMonth)} — Hiện tại`;
+      period = `${formatMonthLabel(e.startMonth)} - Hiện tại`;
     } else if (e.startMonth && e.endMonth) {
-      period = `${formatMonthLabel(e.startMonth)} — ${formatMonthLabel(e.endMonth)}`;
+      period = `${formatMonthLabel(e.startMonth)} - ${formatMonthLabel(e.endMonth)}`;
     } else if (e.startMonth) {
       period = `Từ ${formatMonthLabel(e.startMonth)}`;
     } else if (e.isCurrent) {
@@ -119,7 +119,7 @@ export function hasWorkHistoryContent(entries) {
   return list.some((e) => filled(e.role) || filled(e.company) || filled(e.note));
 }
 
-/** Lấy mốc “hiện tại” hoặc mốc đầu — đồng bộ mentor.title / company. */
+/** Lấy mốc “hiện tại” hoặc mốc đầu - đồng bộ mentor.title / company. */
 export function pickCurrentWorkEntry(entries) {
   const list = Array.isArray(entries) ? entries : [];
   return list.find((e) => e.isCurrent) || list.find((e) => filled(e.role) || filled(e.company)) || null;

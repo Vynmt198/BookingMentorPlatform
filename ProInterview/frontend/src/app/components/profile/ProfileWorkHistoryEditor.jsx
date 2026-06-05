@@ -18,7 +18,12 @@ function PeriodSummary({ entry }) {
   );
 }
 
-export function ProfileWorkHistoryEditor({ entries, onChange, disabled = false }) {
+export function ProfileWorkHistoryEditor({
+  entries,
+  onChange,
+  disabled = false,
+  showMentorRequiredHint = false,
+}) {
   const list = Array.isArray(entries) && entries.length ? entries : [emptyWorkEntry()];
 
   const updateEntry = (index, patch) => {
@@ -54,11 +59,15 @@ export function ProfileWorkHistoryEditor({ entries, onChange, disabled = false }
 
   return (
     <div className="space-y-4">
-      <p className="text-sm leading-relaxed text-slate-600">
-        Thêm từng công việc (quá khứ hoặc hiện tại). Điền <strong>chức danh</strong> và{" "}
-        <strong>công ty</strong>, chọn tháng bắt đầu / kết thúc. Nếu vẫn đang làm, tick &quot;Đang làm việc
-        tại đây&quot;.
-      </p>
+      {/* Removed description text as requested */}
+      {showMentorRequiredHint ? (
+        <p className="text-sm font-medium leading-relaxed text-violet-900">
+          <span className="font-extrabold text-red-500" aria-hidden>
+            *
+          </span>{" "}
+          Điền ít nhất <strong>chức danh</strong> hoặc <strong>công ty</strong> ở một mục bên dưới.
+        </p>
+      ) : null}
 
       {list.map((entry, index) => (
         <div

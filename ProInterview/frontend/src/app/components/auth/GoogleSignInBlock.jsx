@@ -65,6 +65,8 @@ export function GoogleSignInBlock({ onError }) {
     if (!CLIENT_ID || initialized.current) return;
     let cancelled = false;
 
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+
     (async () => {
       try {
         await loadGoogleScript();
@@ -79,10 +81,12 @@ export function GoogleSignInBlock({ onError }) {
           window.google.accounts.id.renderButton(buttonWrapRef.current, {
             type: "standard",
             theme: "outline",
-            size: "large",
+            size: isMobile ? "medium" : "large",
             text: "signin_with",
             shape: "pill",
-            width: 360,
+            width: isMobile
+              ? Math.min(buttonWrapRef.current.offsetWidth || 280, 280)
+              : 360,
             locale: "vi-VN",
           });
         }
@@ -103,13 +107,13 @@ export function GoogleSignInBlock({ onError }) {
           onClick={() =>
             onError?.("Đăng nhập Google chưa được bật (thiếu VITE_GOOGLE_CLIENT_ID). Vui lòng dùng email và mật khẩu.")
           }
-          className="w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-full border text-base font-semibold text-gray-700 transition-all"
+          className="w-full flex items-center justify-center gap-3 py-2.5 sm:py-3.5 px-4 rounded-full border text-sm sm:text-base font-semibold text-gray-700 transition-all"
           style={{ background: "#fff", borderColor: "#E5E7EB" }}
         >
-          Đăng nhập với Google
+          Sign in with Google
         </button>
       ) : (
-        <div ref={buttonWrapRef} className="w-full min-h-[44px] flex items-center justify-center" />
+        <div ref={buttonWrapRef} className="w-full min-h-[36px] sm:min-h-[44px] flex items-center justify-center" />
       )}
     </div>
   );

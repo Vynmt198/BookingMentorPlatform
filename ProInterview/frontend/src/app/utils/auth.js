@@ -47,7 +47,9 @@ function mapAuthHttpError(status, context = "auth") {
   if (status === 409) return "Email này đã được đăng ký hoặc liên kết tài khoản khác.";
   if (status === 429) return "Quá nhiều lần thử. Bạn đợi vài phút rồi thử lại nhé.";
   if (status === 503) return "Dịch vụ tạm chưa sẵn sàng. Kiểm tra backend đang chạy và biến môi trường.";
-  if (status >= 500) return "Lỗi máy chủ. Thử lại sau hoặc đăng nhập bằng email.";
+  if (status >= 500) {
+    return "Backend chưa chạy hoặc đang lỗi. Trong thư mục backend chạy `npm install` rồi `npm run dev` (cổng 5001), sau đó thử lại.";
+  }
   return "";
 }
 
@@ -96,7 +98,9 @@ export async function tryRefreshAccessToken() {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok || !body.success || !body.token) {
-      clearAuthStorage();
+      if (res.status === 401 || res.status === 403) {
+        clearAuthStorage();
+      }
       return false;
     }
     persistLoginPayload(body);
@@ -104,6 +108,11 @@ export async function tryRefreshAccessToken() {
   } catch {
     return false;
   }
+}
+
+/** Lỗi tạm thời (backend restart, rate limit) — giữ phiên local, không đăng xuất. */
+function isTransientAuthStatus(status) {
+  return status === 429 || status === 503 || status >= 500;
 }
 
 /**
@@ -163,6 +172,12 @@ function isCustomerHubRedirect(path) {
   return r === "/" || r === "/dashboard" || r.startsWith("/dashboard/");
 }
 
+/** Mentor sau login chỉ giữ redirect thuộc khu mentor hoặc phòng họp. */
+function isMentorPostLoginRedirect(path) {
+  const r = typeof path === "string" ? path.trim() : "";
+  return r.startsWith("/mentor") || r.startsWith("/meeting/");
+}
+
 /** Đường dẫn sau đăng nhập: admin → /admin, mentor → /mentor/dashboard, customer → ?redirect hoặc /. */
 export function getPostLoginPath(user, redirectParam) {
   const r = typeof redirectParam === "string" ? redirectParam.trim() : "";
@@ -173,7 +188,7 @@ export function getPostLoginPath(user, redirectParam) {
     return "/admin";
   }
   if (role === "mentor") {
-    if (r && isSafeAppRedirect(r, user) && !isCustomerHubRedirect(r)) return r;
+    if (r && isSafeAppRedirect(r, user) && isMentorPostLoginRedirect(r)) return r;
     return "/mentor/dashboard";
   }
 
@@ -366,36 +381,57 @@ export async function restoreSession() {
   const hasRefresh = !!getRefreshToken();
   if (!hasAccess && !hasRefresh) return false;
 
+  const cachedUser = getUser();
+
+  const finishMe = async (res) => {
+    if (res.ok) {
+      const body = await res.json();
+      if (body.success && body.user) {
+        setLoggedIn(body.user);
+        return true;
+      }
+    }
+    if (isTransientAuthStatus(res.status) && cachedUser) {
+      setLoggedIn(cachedUser);
+      return true;
+    }
+    if (res.status === 401 || res.status === 403) return false;
+    return null;
+  };
+
   if (hasAccess) {
     try {
-      const res = await fetch(apiUrl("/api/auth/me"), {
-        headers: bearerHeaders(),
-      });
-      if (res.ok) {
-        const body = await res.json();
-        if (body.success && body.user) {
-          setLoggedIn(body.user);
-          return true;
-        }
+      const res = await fetch(apiUrl("/api/auth/me"), { headers: bearerHeaders() });
+      const ok = await finishMe(res);
+      if (ok === true) return true;
+      if (ok === false) {
+        clearAuthStorage();
+        return false;
       }
     } catch {
-      /* fall through — thử refresh */
+      if (cachedUser) {
+        setLoggedIn(cachedUser);
+        return true;
+      }
     }
   }
 
   if (await tryRefreshAccessToken()) {
     try {
       const res = await fetch(apiUrl("/api/auth/me"), { headers: bearerHeaders() });
-      if (res.ok) {
-        const body = await res.json();
-        if (body.success && body.user) {
-          setLoggedIn(body.user);
-          return true;
-        }
-      }
+      const ok = await finishMe(res);
+      if (ok === true) return true;
     } catch {
-      /* */
+      if (cachedUser) {
+        setLoggedIn(cachedUser);
+        return true;
+      }
     }
+  }
+
+  if (cachedUser && (hasAccess || hasRefresh)) {
+    setLoggedIn(cachedUser);
+    return true;
   }
 
   clearAuthStorage();
@@ -451,6 +487,7 @@ export function isProtectedAppPath(pathname) {
     "/my-bookings",
     "/my-courses",
     "/cv-analysis",
+    "/interview",
     "/booking",
   ];
   if (roots.some((root) => p === root || p.startsWith(`${root}/`))) return true;

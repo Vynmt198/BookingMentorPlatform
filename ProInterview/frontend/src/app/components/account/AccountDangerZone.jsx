@@ -4,7 +4,7 @@ import { Trash2 as Trash } from "lucide-react";
 import { toastApiError, toastApiSuccess, tryApi } from "../../utils/apiToast";
 import { deleteAccount, getUser } from "../../utils/auth";
 
-export function AccountDangerZone({ SectionCard, onLogout }) {
+export function AccountDangerZone({ SectionCard }) {
   const navigate = useNavigate();
   const user = getUser();
   const [confirmText, setConfirmText] = useState("");
@@ -30,22 +30,7 @@ export function AccountDangerZone({ SectionCard, onLogout }) {
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <SectionCard title="Tài khoản" icon={Trash}>
-        <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-6">
-          <p className="mb-4 text-sm font-semibold text-slate-600">
-            Đăng xuất khỏi thiết bị hiện tại nhưng giữ tài khoản.
-          </p>
-          <button
-            type="button"
-            onClick={onLogout}
-            className="rounded-2xl border border-slate-300 px-8 py-3 text-[10px] font-black uppercase tracking-widest text-slate-700 transition-colors hover:bg-slate-100"
-          >
-            Đăng xuất
-          </button>
-        </div>
-      </SectionCard>
-
+    <div className="animate-in fade-in duration-500">
       <SectionCard title="Xóa tài khoản" icon={Trash}>
         <div className="flex flex-col gap-6 rounded-2xl border border-red-300/40 bg-red-50/60 p-8 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-md">

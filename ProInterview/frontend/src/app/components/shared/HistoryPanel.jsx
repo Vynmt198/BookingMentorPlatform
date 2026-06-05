@@ -220,10 +220,10 @@ function InterviewDetailModal({
             </h4>
             <div className="space-y-3.5">
               {[
-                { label: "Clarity — Rõ ràng & mạch lạc", score: item.scores.clarity },
-                { label: "Structure — Cấu trúc STAR", score: item.scores.structure },
-                { label: "Relevance — Liên quan vị trí", score: item.scores.relevance },
-                { label: "Credibility — Thuyết phục", score: item.scores.credibility },
+                { label: "Clarity, Rõ ràng & mạch lạc", score: item.scores.clarity },
+                { label: "Structure, Cấu trúc STAR", score: item.scores.structure },
+                { label: "Relevance, Liên quan vị trí", score: item.scores.relevance },
+                { label: "Credibility, Thuyết phục", score: item.scores.credibility },
               ].map((s) => (
                 <ScoreBar key={s.label} label={s.label} score={s.score} max={5} color="" />
               ))}
@@ -303,6 +303,14 @@ function InterviewDetailModal({
           style={{ flexShrink: 0 }}
         >
           <button
+            onClick={() => { onClose(); navigate("/interview"); }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+            style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)", boxShadow: "0 4px 14px rgba(79,70,229,0.3)" }}
+          >
+            <Microphone className="w-4 h-4" />
+            Luyện tập lại
+          </button>
+          <button
             onClick={() => { onClose(); navigate("/mentors"); }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-700 hover:border-[#8037f4]/40 transition-all"
           >
@@ -333,10 +341,10 @@ function CVAnalysisDetailModal({
     item.matchScore >= 80 ? "#10b981" : item.matchScore >= 65 ? "#3b82f6" : "#f59e0b";
 
   const SCORE_LABELS = {
-    clarity: "Clarity — Rõ ràng",
-    structure: "Structure — STAR format",
-    relevance: "Relevance — Liên quan JD",
-    credibility: "Credibility — Thuyết phục",
+    clarity: "Clarity, Rõ ràng",
+    structure: "Structure, STAR format",
+    relevance: "Relevance, Liên quan JD",
+    credibility: "Credibility, Thuyết phục",
   };
 
   const typeStyle = (type) =>
@@ -375,7 +383,7 @@ function CVAnalysisDetailModal({
                 className="text-xs font-semibold px-2.5 py-1 rounded-lg"
                 style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}
               >
-                {item.mode === "jd" ? "📄 Có JD — CV vs JD" : `🗂 Không có JD — ${item.field}`}
+                {item.mode === "jd" ? "📄 Có JD, CV vs JD" : `🗂 Không có JD, ${item.field}`}
               </span>
             </div>
             <h2 className="text-white font-bold" style={{ fontSize: "1.1rem" }}>
@@ -644,6 +652,14 @@ function CVAnalysisDetailModal({
           className="px-6 py-4 flex gap-3 flex-wrap border-t border-gray-100"
           style={{ flexShrink: 0 }}
         >
+          <button
+            onClick={() => { onClose(); navigate("/interview"); }}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all"
+            style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)", boxShadow: "0 4px 14px rgba(79,70,229,0.3)" }}
+          >
+            <Microphone className="w-4 h-4" />
+            Phỏng vấn với AI
+          </button>
           <button
             onClick={() => { onClose(); navigate("/cv-analysis"); }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-gray-700 hover:border-[#8037f4]/40 transition-all"

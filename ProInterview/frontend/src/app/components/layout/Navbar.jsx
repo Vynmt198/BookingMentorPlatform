@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
-import { Bell, BookOpen, Calendar, LogIn, LogOut, Menu, Settings, Shield, User, UserPlus, X, ShoppingCart } from "lucide-react";
+import { Bell, BookOpen, Calendar, LogIn, LogOut, Menu, Settings, Shield, User, UserPlus, X } from "lucide-react";
 import { TopNavShell } from "./TopNavShell";
 import {
   fetchNotifications,
@@ -26,16 +26,18 @@ import { CUSTOMER_NAV_ITEMS, isCustomerNavActive } from "./customerNav";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "./customerShellLayout";
 import { BrandLogo } from "../brand/BrandLogo";
 import { buildLoginPath, buildRegisterPath } from "../../utils/authGate";
-import { useCart } from "../../hooks/useCart";
-import { CartDrawer } from "../shared/CartDrawer";
 
 const PAGE_TITLES = {
-  "/my-bookings": { label: "Lịch hẹn của tôi", sub: "Tất cả buổi mentor đã đặt" },
+  "/my-bookings": {
+    label: "Lịch hẹn của bạn",
+    sub: "Buổi Mentor đã đặt, lịch sắp tới và trạng thái",
+  },
   "/cv-analysis": { label: "Phân tích CV", sub: "Phân tích CV với JD hoặc chuẩn ngành, biết chỗ cần chỉnh" },
   "/cv-analysis/jd/history": { label: "Lịch sử CV + JD", sub: "Các lần phân tích CV với Job Description" },
   "/cv-analysis/field/history": { label: "Lịch sử theo ngành", sub: "Các lần phân tích CV theo ngành nghề" },
   "/cv-analysis/jd": { label: "Phân tích CV + JD", sub: "Phân tích CV với Job Description" },
   "/cv-analysis/field": { label: "Phân tích theo ngành", sub: "Đánh giá CV theo chuẩn ngành nghề" },
+  "/interview": { label: "Phỏng vấn AI", sub: "Thiết lập buổi luyện, Pio hỏi, bạn trả lời" },
   "/mentors": { label: "Tìm Mentor", sub: "Đặt lịch 1:1 với anh/chị mentor" },
   "/profile": { label: "Hồ sơ cá nhân", sub: "Thông tin và thành tích của bạn" },
   "/settings": { label: "Cài đặt", sub: "Tuỳ chỉnh tài khoản" },
@@ -44,12 +46,13 @@ const PAGE_TITLES = {
   "/courses": { label: "Khóa học", sub: "Video ngắn từ mentor, ôn kỹ năng trước phỏng vấn" },
   "/my-courses": { label: "Khóa học của tôi", sub: "Tiến độ và khóa bạn đã đăng ký" },
   "/mentor/dashboard": { label: "Mentor", sub: "Bảng điều khiển mentor" },
-  "/mentor/schedule": { label: "Lịch họp", sub: "Quản lý slot & buổi họp" },
-  "/mentor/courses": { label: "Khóa học", sub: "Quản lý nội dung khóa" },
+  "/mentor/schedule": { label: "Lịch họp", sub: "Lịch rảnh và các buổi hẹn" },
+  "/mentor/courses": { label: "Khóa học", sub: "Quản lý nội dung khóa học" },
   "/mentor/finance": { label: "Tài chính", sub: "Thu nhập & giao dịch" },
   "/mentor/analytics": { label: "Phân tích", sub: "Số liệu & hiệu suất" },
   "/mentor/reviews": { label: "Đánh giá", sub: "Phản hồi từ học viên" },
-  "/mentor/peer-review": { label: "Đánh giá chéo", sub: "Peer review mentor" },
+  "/mentor/peer-review": { label: "Đánh giá chéo", sub: "Đánh giá chéo khóa học của đồng nghiệp" },
+  "/checkout": { label: "Thanh toán", sub: "Chuyển khoản & xác nhận đơn" },
   "/session": { label: "Chi tiết buổi", sub: "Lịch hẹn & trạng thái" },
   "/mentor/meeting-detail": { label: "Chi tiết buổi mentor", sub: "Thông tin phiên họp" },
   "/mentor/meeting": { label: "Phòng họp", sub: "Buổi mentor trực tuyến" },
@@ -115,7 +118,7 @@ function CustomerNavbar() {
   const initials = getInitials(displayName);
   const loginHref = buildLoginPath(`${location.pathname}${location.search}`);
   const registerHref = buildRegisterPath(`${location.pathname}${location.search}`);
-  const { cartItemsCount, setIsCartOpen } = useCart();
+  const isHome = location.pathname === "/" || location.pathname === "";
 
   React.useEffect(() => {
     setMobileOpen(false);
@@ -201,7 +204,7 @@ function CustomerNavbar() {
 
   return (
     <>
-      <TopNavShell variant="light">
+      <TopNavShell variant="light" alignTop={isHome}>
         <Link
           to="/"
           className="flex shrink-0 items-center leading-none"
@@ -224,7 +227,9 @@ function CustomerNavbar() {
           items={CUSTOMER_NAV_ITEMS}
           pathname={location.pathname}
           isActive={(p, item) => isCustomerNavActive(p, item.url)}
-          className="hidden min-w-0 flex-1 items-center justify-center gap-3 px-1 md:flex md:gap-4 lg:gap-5"
+          className={`hidden items-center justify-center gap-3 px-1 md:flex md:gap-4 lg:gap-5 ${
+            isHome ? "shrink-0" : "min-w-0 flex-1"
+          }`}
         />
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
@@ -238,6 +243,7 @@ function CustomerNavbar() {
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
 
+<<<<<<< Updated upstream
           <button
             type="button"
             className="relative inline-flex size-9 items-center justify-center rounded-xl transition-all focus:outline-none hover:bg-[#8037f4]/10"
@@ -259,20 +265,22 @@ function CustomerNavbar() {
             )}
           </button>
 
+=======
+>>>>>>> Stashed changes
           {loggedIn ? (
             <>
               <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
                   <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="relative inline-flex size-9 items-center justify-center rounded-xl transition-all focus:outline-none"
+                      className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-xl transition-all focus:outline-none md:size-9"
                       style={{
                         background: notifOpen ? "rgba(128,55,244,0.1)" : "transparent",
                         border: notifOpen ? "1px solid rgba(128,55,244,0.25)" : "1px solid transparent",
                       }}
                       aria-label="Thông báo"
                     >
-                      <Bell className="h-5 w-5 text-[#8037f4]/75" />
+                      <Bell className="size-4 text-[#8037f4]/75 md:size-5" />
                       {unreadCount > 0 && (
                         <span
                           className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#000000]"
@@ -342,15 +350,15 @@ function CustomerNavbar() {
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="flex items-center gap-2 rounded-full border border-violet-200/80 bg-white py-1 pl-1 pr-2.5 shadow-sm transition-colors hover:border-violet-300"
+                    className="flex shrink-0 items-center justify-center rounded-full border border-violet-200/80 bg-white p-0 shadow-sm transition-colors hover:border-violet-300 size-7 md:gap-2 md:py-1 md:pl-1 md:pr-2.5 md:size-auto"
                   >
                     <span
-                      className="flex size-8 items-center justify-center rounded-full text-xs font-bold text-white"
+                      className="flex size-full items-center justify-center rounded-full text-[10px] font-bold leading-none text-white md:size-8 md:text-xs"
                       style={{ background: "#8037f4" }}
                     >
                       {initials}
                     </span>
-                    <span className="hidden max-w-[7rem] truncate text-sm font-semibold text-slate-700 sm:inline">
+                    <span className="hidden max-w-[7rem] truncate text-sm font-semibold text-slate-700 md:inline">
                       {displayName}
                     </span>
                   </button>
@@ -400,7 +408,7 @@ function CustomerNavbar() {
               </Link>
               <Link
                 to={registerHref}
-                className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-all hover:scale-105 active:scale-95 sm:px-5"
+                className="hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-all hover:scale-105 active:scale-95 sm:px-5"
                 style={{
                   background: "#fff",
                   color: "#8037f4",
@@ -417,10 +425,10 @@ function CustomerNavbar() {
 
       {mobileOpen ? (
         <div
-          className={`fixed left-0 right-0 top-[3.65rem] z-[99] sm:top-[4.2rem] md:hidden ${CUSTOMER_SHELL_GUTTER}`}
+          className="top-nav-shell-outer fixed right-3 top-[3.8rem] z-[99] w-[14rem] sm:right-6 sm:top-[4.2rem] sm:w-[16rem] md:hidden"
         >
           <div
-            className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-lg ${CUSTOMER_SHELL_MAX}`}
+            className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl"
           >
           <ShellNavLinks
             items={CUSTOMER_NAV_ITEMS}
@@ -458,8 +466,6 @@ function CustomerNavbar() {
           </div>
         </div>
       ) : null}
-
-      <CartDrawer />
     </>
   );
 }

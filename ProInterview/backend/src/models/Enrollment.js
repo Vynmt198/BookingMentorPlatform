@@ -30,6 +30,8 @@ const enrollmentSchema = new Schema(
     platformFeeRate: { type: Number, default: null },
     platformFee: { type: Number, default: 0 },
     paymentRef: { type: String, default: "" },
+    /** Hết hạn cửa sổ CK SePay (mặc định 15 phút từ lúc tạo ghi danh). */
+    paymentExpiresAt: { type: Date },
     /** pending = chờ CK; paid = đã học được (hoặc khóa miễn phí). Bản ghi cũ không có field → coi như paid. */
     paymentStatus: { type: String, enum: ["pending", "paid"], required: false },
     paymentMethod: { type: String, default: "" },

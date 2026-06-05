@@ -5,6 +5,8 @@ import { enrollmentAccessGranted } from "../helpers/enrollmentAccess.js";
 import { recordTransferPending, recordTransferSubmitted } from "../services/paymentsService.js";
 import { incrementCourseEnrollmentCount } from "../services/courseStatsService.js";
 import { serializeCourseForApi } from "../utils/resolveStoredUploadUrl.js";
+import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
+import { expireEnrollmentTransferIfNeeded } from "../services/transferPaymentExpiryService.js";
 
 function genOrderRef() {
   return `PI${Math.floor(Math.random() * 900000 + 100000)}`;
@@ -40,30 +42,37 @@ export const EnrollmentController = {
         }
         const bodyPm = String(req.body?.paymentMethod || "").trim();
         if (price > 0 && bodyPm === "transfer") {
-          const coursePrice = Math.round(price);
-          const clientOrder = extractOrderPart(req.body?.orderNum);
-          let dirty = false;
-          if (Math.round(Number(existing.pricePaid ?? 0)) !== coursePrice) {
-            existing.pricePaid = coursePrice;
-            dirty = true;
+          const expired = await expireEnrollmentTransferIfNeeded(existing);
+          if (expired.expired) {
+            // Ghi danh cũ đã hết hạn — tạo mới bên dưới.
+          } else {
+            const coursePrice = Math.round(price);
+            const clientOrder = extractOrderPart(req.body?.orderNum);
+            let dirty = false;
+            if (Math.round(Number(existing.pricePaid ?? 0)) !== coursePrice) {
+              existing.pricePaid = coursePrice;
+              dirty = true;
+            }
+            if (clientOrder && extractOrderPart(existing.paymentRef) !== clientOrder) {
+              existing.paymentRef = clientOrder;
+              dirty = true;
+            }
+            if (dirty) await existing.save();
+            const orderPart = extractOrderPart(existing.paymentRef) || String(existing._id).slice(-8);
+            return res.json({
+              success: true,
+              enrollment: existing,
+              orderNum: orderPart,
+              awaitingPayment: true,
+              paymentExpiresAt: existing.paymentExpiresAt,
+            });
           }
-          if (clientOrder && extractOrderPart(existing.paymentRef) !== clientOrder) {
-            existing.paymentRef = clientOrder;
-            dirty = true;
-          }
-          if (dirty) await existing.save();
-          const orderPart = extractOrderPart(existing.paymentRef) || String(existing._id).slice(-8);
-          return res.json({
-            success: true,
-            enrollment: existing,
-            orderNum: orderPart,
-            awaitingPayment: true,
+        } else {
+          return res.status(400).json({
+            success: false,
+            error: "Ghi danh đang chờ thanh toán. Mở lại trang thanh toán để hoàn tất chuyển khoản.",
           });
         }
-        return res.status(400).json({
-          success: false,
-          error: "Ghi danh đang chờ thanh toán. Mở lại trang thanh toán để hoàn tất chuyển khoản.",
-        });
       }
 
       if (price <= 0) {
@@ -91,6 +100,7 @@ export const EnrollmentController = {
 
       const clientOrder = extractOrderPart(req.body?.orderNum);
       const orderRef = clientOrder || genOrderRef();
+      const paymentExpiresAt = newPaymentExpiresAt();
 
       const enrollment = await Enrollment.create({
         userId,
@@ -99,6 +109,7 @@ export const EnrollmentController = {
         paymentStatus: "pending",
         paymentMethod: "transfer",
         paymentRef: orderRef,
+        paymentExpiresAt,
         lastAccessedAt: new Date(),
       });
 
@@ -111,13 +122,19 @@ export const EnrollmentController = {
           referenceModel: "Enrollment",
           referenceId: enrollment._id,
           amount: ledgerAmt,
+          paymentExpiresAt,
         });
         if (!ledger.ok && !ledger.idempotent) {
           console.error("[enroll] ledger:", ledger.error);
         }
       }
 
-      return res.status(201).json({ success: true, enrollment, orderNum: enrollment.paymentRef });
+      return res.status(201).json({
+        success: true,
+        enrollment,
+        orderNum: enrollment.paymentRef,
+        paymentExpiresAt: enrollment.paymentExpiresAt,
+      });
     } catch (error) {
       next(error);
     }

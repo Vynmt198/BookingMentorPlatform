@@ -1,11 +1,13 @@
 import mongoose from "mongoose";
 import { Review } from "../models/Review.js";
 import { Mentor } from "../models/Mentor.js";
+import { MentorPeerReview } from "../models/MentorPeerReview.js";
 import { Booking } from "../models/Booking.js";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
-import { Notification } from "../models/Notification.js";
+import { deliverNotification } from "./notificationDeliveryService.js";
 import { enrollmentAccessGranted } from "../helpers/enrollmentAccess.js";
+import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
 
 const MONGO_ERR = "MongoDB chưa kết nối. Kiểm tra MONGO_URI trong .env.";
 function isMongoReady() {
@@ -15,14 +17,38 @@ function isMongoReady() {
 export async function recalcCourseReviewStats(courseId) {
   if (!mongoose.isValidObjectId(String(courseId))) return;
   const oid = new mongoose.Types.ObjectId(String(courseId));
-  const agg = await Review.aggregate([
+
+  const studentAgg = await Review.aggregate([
     { $match: { targetType: "course", targetId: oid, isVisible: { $ne: false } } },
     { $group: { _id: null, avgRating: { $avg: "$rating" }, n: { $sum: 1 } } },
   ]);
-  const row = agg[0];
-  const avg = row?.avgRating != null ? Math.round(row.avgRating * 10) / 10 : 0;
-  const n = row?.n ?? 0;
-  await Course.updateOne({ _id: courseId }, { $set: { "stats.rating": avg, "stats.reviewCount": n } });
+  const studentRow = studentAgg[0];
+  const studentN = studentRow?.n ?? 0;
+  const studentAvg = studentRow?.avgRating ?? 0;
+
+  const peerRows = await MentorPeerReview.find({
+    courseId: oid,
+    isVisibleToOwner: { $ne: false },
+  })
+    .select("contentRating qualityRating priceValueRating")
+    .lean();
+  const peerRatings = peerRows.map(
+    (r) =>
+      (Number(r.contentRating || 0) + Number(r.qualityRating || 0) + Number(r.priceValueRating || 0)) /
+      3,
+  );
+  const peerN = peerRatings.length;
+  const peerAvg = peerN ? peerRatings.reduce((sum, n) => sum + n, 0) / peerN : 0;
+
+  const totalN = studentN + peerN;
+  const combinedAvg =
+    totalN > 0 ? (studentAvg * studentN + peerAvg * peerN) / totalN : 0;
+  const avg = combinedAvg != null ? Math.round(combinedAvg * 10) / 10 : 0;
+
+  await Course.updateOne(
+    { _id: courseId },
+    { $set: { "stats.rating": avg, "stats.reviewCount": totalN } },
+  );
 }
 
 async function notifyNewReview(review, targetType, targetIdRaw) {
@@ -30,8 +56,8 @@ async function notifyNewReview(review, targetType, targetIdRaw) {
     if (targetType === "mentor") {
       const mentor = await Mentor.findById(targetIdRaw).select("userId").lean();
       if (!mentor?.userId) return;
-      await Notification.create({
-        userId: mentor.userId,
+      await deliverNotification(mentor.userId, {
+        mentorPrefKey: "mentee_review",
         type: "new_review",
         title: "Có đánh giá mới",
         body: `Học viên đã để lại đánh giá ${review.rating} sao cho buổi mentor.`,
@@ -45,8 +71,8 @@ async function notifyNewReview(review, targetType, targetIdRaw) {
       .lean();
     const mentorUserId = course?.mentorId?.userId;
     if (!mentorUserId) return;
-    await Notification.create({
-      userId: mentorUserId,
+    await deliverNotification(mentorUserId, {
+      mentorPrefKey: "mentee_review",
       type: "new_review",
       title: "Đánh giá khóa học mới",
       body: `Khóa "${course.title || "của bạn"}" nhận đánh giá ${review.rating} sao.`,
@@ -115,6 +141,62 @@ export async function listReviews(query) {
     .populate({ path: "userId", select: "name avatar desiredPosition currentCompany" })
     .lean();
   return { ok: true, reviews: rows.map(toPublicReview) };
+}
+
+/** Đánh giá chéo mentor — hiển thị công khai trên trang khóa học. */
+export async function listCoursePeerReviewsPublic(courseId) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  const idRaw = String(courseId ?? "").trim();
+  if (!mongoose.isValidObjectId(idRaw)) {
+    return { ok: false, status: 400, error: "courseId không hợp lệ." };
+  }
+
+  const course = await Course.findById(idRaw).select("_id status").lean();
+  if (!course?._id) return { ok: false, status: 404, error: "Không tìm thấy khóa học." };
+  if (course.status !== "published") {
+    return { ok: true, reviews: [] };
+  }
+
+  const rows = await MentorPeerReview.find({
+    courseId: course._id,
+    isVisibleToOwner: { $ne: false },
+  })
+    .sort({ createdAt: -1 })
+    .populate({
+      path: "reviewerId",
+      select: "name userId",
+      populate: { path: "userId", select: "name avatar desiredPosition" },
+    })
+    .lean();
+
+  const reviews = rows.map((r) => {
+    const mentor = r.reviewerId && typeof r.reviewerId === "object" ? r.reviewerId : null;
+    const user = mentor?.userId && typeof mentor.userId === "object" ? mentor.userId : null;
+    const rating =
+      Math.round(
+        ((Number(r.contentRating || 0) +
+          Number(r.qualityRating || 0) +
+          Number(r.priceValueRating || 0)) /
+          3) *
+          10,
+      ) / 10;
+    return {
+      id: String(r._id),
+      targetType: "course_peer",
+      rating,
+      comment: String(r.feedback || "").trim(),
+      tags: [],
+      reply: null,
+      createdAt: r.createdAt,
+      isVerified: true,
+      isPeerReview: true,
+      userName: user?.name || mentor?.name || "Mentor",
+      userAvatar: resolveStoredUploadUrl(user?.avatar || ""),
+      userTitle: user?.desiredPosition || "Mentor ProInterview",
+    };
+  });
+
+  return { ok: true, reviews };
 }
 
 /** Đánh giá của user hiện tại cho một mentor/khóa (nếu có). */

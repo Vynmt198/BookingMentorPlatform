@@ -70,6 +70,11 @@ coursesRouter.get(
 
 );
 
+coursesRouter.get(
+  "/:id/peer-reviews",
+  asyncHandler(CoursesController.peerReviewsPublic),
+);
+
 coursesRouter.get("/:id", asyncHandler(CoursesController.getById));
 
 coursesRouter.get("/:id/lessons/:lessonId", authJwt, asyncHandler(CoursesController.getLessonContent));

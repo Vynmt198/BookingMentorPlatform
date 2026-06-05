@@ -5,7 +5,7 @@ const LOGO_MARK_SRC = "/logo-mark-circle.png?v=4";
 
 /**
  * Logo sidebar (mở rộng: wordmark gọn trong ô; thu gọn: mark tròn).
- * Không dùng scale/translate — tránh chồng menu bên dưới.
+ * Không dùng scale/translate, tránh chồng menu bên dưới.
  */
 export function SidebarBrandButton({
   tooltip = "ProInterview",

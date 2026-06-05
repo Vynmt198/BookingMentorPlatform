@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router";
 import {
-  ArrowLeft,
   Star,
   Check,
   Sparkles,
@@ -227,14 +226,6 @@ export function MentorReview() {
 
   return (
     <div className="mx-auto max-w-2xl p-6 py-10 antialiased">
-      <button
-        onClick={() => navigate(-1)}
-        className="group flex items-center gap-2 text-slate-400 hover:text-slate-900 text-[11px] font-black uppercase tracking-widest mb-10 transition-all"
-      >
-        <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
-        Quay lại
-      </button>
-
       {/* Header Card */}
       <div className="relative overflow-hidden bg-white rounded-[2.5rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-100 mb-8">
         <div className="absolute top-0 right-0 w-64 h-64 bg-violet-50/50 blur-3xl -z-10" />

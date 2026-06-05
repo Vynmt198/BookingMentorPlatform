@@ -1,17 +1,31 @@
 import { ChevronDown } from "lucide-react";
 
-/** Tiêu đề mục — gạch chân ngắn dưới chữ (scoped `.profile-page`). */
-export function ProfileSectionHeading({ children }) {
-  return <span className="profile-cv-section-heading">{children}</span>;
+/** Tiêu đề mục, gạch chân ngắn dưới chữ (scoped `.profile-page`). */
+export function ProfileSectionHeading({ children, requiredMark = false }) {
+  return (
+    <span className="profile-cv-section-heading">
+      {children}
+      {requiredMark ? (
+        <span className="ml-0.5 font-extrabold text-red-500" aria-hidden>
+          *
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
-/** Mục luôn mở — không có mũi tên (vd. Liên hệ tài khoản). */
-export function ProfileCvStaticSection({ title, showDividerBelow = false, children }) {
+/** Mục luôn mở, không có mũi tên (vd. Liên hệ tài khoản). */
+export function ProfileCvStaticSection({
+  title,
+  requiredMark = false,
+  showDividerBelow = false,
+  children,
+}) {
   return (
     <section
       className={`profile-cv-static-section${showDividerBelow ? " profile-cv-accordion-item--split" : ""}`}
     >
-      <ProfileSectionHeading>{title}</ProfileSectionHeading>
+      <ProfileSectionHeading requiredMark={requiredMark}>{title}</ProfileSectionHeading>
       <div className="profile-cv-static-body">{children}</div>
     </section>
   );
@@ -20,6 +34,8 @@ export function ProfileCvStaticSection({ title, showDividerBelow = false, childr
 /** Hàng mục CV: tiêu đề + mũi tên; bấm để mở/đóng ô nhập. */
 export function ProfileCvAccordionSection({
   title,
+  requiredMark = false,
+  description,
   isOpen,
   onToggle,
   showDividerBelow = false,
@@ -35,7 +51,7 @@ export function ProfileCvAccordionSection({
         aria-expanded={isOpen}
         className="profile-cv-accordion-trigger"
       >
-        <ProfileSectionHeading>{title}</ProfileSectionHeading>
+        <ProfileSectionHeading requiredMark={requiredMark}>{title}</ProfileSectionHeading>
         <ChevronDown
           size={18}
           strokeWidth={2.5}
@@ -43,7 +59,14 @@ export function ProfileCvAccordionSection({
           aria-hidden
         />
       </button>
-      {isOpen ? <div className="profile-cv-accordion-panel">{children}</div> : null}
+      {isOpen ? (
+        <div className="profile-cv-accordion-panel">
+          {description ? (
+            <p className="profile-muted mb-4 text-sm leading-relaxed">{description}</p>
+          ) : null}
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -67,18 +90,13 @@ export function ProfileCvTextarea({
   );
 }
 
-const hintEmphasis = "font-bold text-[#2D1B69]";
-
-/** Gợi ý điều kiện đăng ký mentor — các mục bắt buộc in đậm. */
-export function ProfileCvMentorHint() {
+/** Dòng mô tả dưới tiêu đề «Hồ sơ cá nhân», không in đậm. */
+export function ProfileCvMentorHint({ isMentor = false }) {
   return (
-    <p className="profile-muted mt-2 text-sm leading-relaxed">
-      Hoàn thành đầy đủ ở các mục{" "}
-      <strong className={hintEmphasis}>Giới thiệu bản thân</strong>,{" "}
-      <strong className={hintEmphasis}>Quá trình học tập</strong>,{" "}
-      <strong className={hintEmphasis}>Thông tin đăng ký làm mentor</strong> và 1 trong 2 mục{" "}
-      <strong className={hintEmphasis}>Kinh nghiệm làm việc</strong> hoặc{" "}
-      <strong className={hintEmphasis}>Hoạt động ngoại khóa</strong>.
+    <p className="profile-muted mt-2 text-sm font-normal leading-relaxed">
+      {isMentor
+        ? "Hoàn thiện hồ sơ để học viên hiểu rõ hơn về kinh nghiệm, chuyên môn và cách Mentor có thể đồng hành trong quá trình luyện tập."
+        : "Hoàn thiện thông tin của bạn để ProInterview hiểu rõ hơn về học vấn, kinh nghiệm và mục tiêu nghề nghiệp, từ đó hỗ trợ luyện phỏng vấn phù hợp hơn."}
     </p>
   );
 }

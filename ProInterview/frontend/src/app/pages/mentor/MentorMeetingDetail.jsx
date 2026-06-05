@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { 
-  ArrowLeft, 
   Video, 
   Calendar, 
   Clock, 
@@ -18,20 +17,42 @@ import {
   ShieldCheck,
   ChevronRight,
   TrendingUp,
-  Layout
+  Layout,
+  X,
+  ChevronDown,
+  ExternalLink,
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { getUser } from "../../utils/auth";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
+import { AppSelect } from "../../components/ui/AppSelect";
 import {
   fetchMentorBookingById,
   listMentorBookings,
   mentorRescheduleBooking,
   mentorCancelBooking,
-  fetchBookedSlots,
 } from "../../utils/bookingsApi";
-import { fetchMentorAvailability } from "../../utils/mentorApi";
+import { loadMentorRescheduleSlotOptions } from "../../utils/bookingRescheduleSlots";
+import { isBookingSlotInFuture } from "../../utils/bookingSchedule";
+import { avatarSrc } from "../../utils/mediaUrl";
+import { sessionTypeLabel as sharedSessionTypeLabel } from "../../utils/sessionTypeLabels";
+import { getBookingAttachments } from "../../utils/bookingAttachments";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
+
+function normalizeSessionType(type) {
+  return String(type || "").trim().replace(/-/g, "_");
+}
+
+function sessionTypeLabel(type) {
+  return sharedSessionTypeLabel(normalizeSessionType(type));
+}
 
 const MENTOR_MEETING_DETAIL_EXTRA_CSS = `
         .neon-border { position: relative; }
@@ -46,14 +67,35 @@ const MENTOR_MEETING_DETAIL_EXTRA_CSS = `
            mask-composite: exclude;
            pointer-events: none;
         }
+        .reschedule-modal-card {
+           background: #ffffff;
+           border-radius: 16px;
+           border: 1px solid rgba(128, 55, 244, 0.14);
+           box-shadow:
+             0 24px 64px rgba(128, 55, 244, 0.1),
+             0 8px 24px rgba(15, 23, 42, 0.06);
+        }
+        .reschedule-modal-header {
+           border-radius: 16px 16px 0 0;
+        }
+        .cancel-modal-header {
+           border-radius: 16px 16px 0 0;
+        }
 `;
+
+const rescheduleFieldLabel =
+  "mb-1.5 block text-xs font-semibold text-slate-600";
+const rescheduleFieldInput =
+  "w-full rounded-lg border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-[#8037f4] focus:bg-[#faf8ff] focus:ring-2 focus:ring-[#8037f4]/12 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500";
 
 export function MentorMeetingDetail() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
   const user = getUser();
+  const isMentorUser = user?.role === "mentor";
   const [meeting, setMeeting] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [menteeSessionCount, setMenteeSessionCount] = useState(0);
   const [busyAction, setBusyAction] = useState("");
   const [actionModal, setActionModal] = useState("");
@@ -89,18 +131,27 @@ export function MentorMeetingDetail() {
   }
 
   useEffect(() => {
-    if (!user || user.role !== "mentor") {
+    if (!isMentorUser) {
       navigate("/");
       return;
     }
+    if (!sessionId) {
+      setLoading(false);
+      setLoadError("Thiếu mã buổi hẹn.");
+      return;
+    }
     let active = true;
+    setLoading(true);
+    setLoadError("");
     (async () => {
+      try {
       const res = await fetchMentorBookingById(sessionId);
       if (!active) return;
       if (!res.success || !res.booking) {
+        const msg = res.error || "Không tải được chi tiết buổi hẹn.";
         setMeeting(null);
-        toastApiError(res.error, "Không tải được chi tiết buổi hẹn.");
-        setLoading(false);
+        setLoadError(msg);
+        toastApiError(msg);
         return;
       }
       const b = res.booking;
@@ -112,33 +163,44 @@ export function MentorMeetingDetail() {
         scheduledTime: b.timeSlot || "--:--",
         scheduledDate: b.date || "",
         duration: Number(b.durationMinutes || 60),
-        meetingType: b.sessionType || "mock-interview",
+        meetingType: b.sessionType || "custom",
         rescheduleCount: Array.isArray(b.rescheduleHistory) ? b.rescheduleHistory.length : 0,
         notes: b.notes || "",
+        cvFileName: b.cvFileName || "",
+        jdFileName: b.jdFileName || "",
+        cvFileUrl: b.cvFileUrl || "",
+        jdFileUrl: b.jdFileUrl || "",
         feedback: b.mentorNotes || "",
-        position:
-          b.sessionType === "mock_interview"
-            ? "Phỏng vấn thử"
-            : b.sessionType === "cv_review"
-              ? "CV Review"
-              : b.sessionType === "career_consulting"
-                ? "Tư vấn nghề nghiệp"
-                : "Mentoring session",
-        company: b.customerEmail || "ProInterview",
-        overallScore: 0,
-        starScores: { situation: 0, task: 0, action: 0, result: 0 },
+        position: sessionTypeLabel(b.sessionType),
+        company: b.customerEmail || "",
+        overallScore: Number(b.menteeRating || 0),
+        starScores: (() => {
+          const s = Number(b.menteeRating || 0);
+          return s > 0
+            ? { situation: s, task: s, action: s, result: s }
+            : { situation: 0, task: 0, action: 0, result: 0 };
+        })(),
         mentee: {
           name: b.customerName || "Học viên",
-          avatar: b.customerAvatar || "https://i.pravatar.cc/120?img=22",
+          avatar: avatarSrc(b.customerAvatar),
           level: "Mentee",
         },
       });
-      setLoading(false);
+      setLoadError("");
+      } catch {
+        if (!active) return;
+        const msg = "Lỗi kết nối khi tải buổi hẹn. Backend có thể đang khởi động lại — thử lại sau vài giây.";
+        setMeeting(null);
+        setLoadError(msg);
+        toastApiError(msg);
+      } finally {
+        if (active) setLoading(false);
+      }
     })();
     return () => {
       active = false;
     };
-  }, [sessionId, user, navigate]);
+  }, [sessionId, isMentorUser, navigate]);
 
   useEffect(() => {
     let active = true;
@@ -155,20 +217,52 @@ export function MentorMeetingDetail() {
     };
   }, [meeting?.userId]);
 
-  if (!user || user.role !== "mentor") return null;
-  if (loading) return <MentorPageShell bottomPad="pb-32"><div className="p-10 text-sm font-medium text-slate-500">Đang tải chi tiết buổi hẹn…</div></MentorPageShell>;
-  if (!meeting) return <MentorPageShell bottomPad="pb-32"><div className="p-10 text-sm font-medium text-slate-600">Không tìm thấy buổi hẹn này.</div></MentorPageShell>;
+  if (!isMentorUser) return null;
+  if (loading) {
+    return (
+      <MentorPageShell bottomPad="pb-32">
+        <div className="p-10 text-sm font-medium text-slate-500">Đang tải chi tiết buổi hẹn…</div>
+      </MentorPageShell>
+    );
+  }
+  if (!meeting) {
+    return (
+      <MentorPageShell bottomPad="pb-32">
+        <div className="mx-auto max-w-lg p-10">
+          <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+            <AlertCircle className="mx-auto mb-4 text-amber-500" size={40} />
+            <h2 className="text-lg font-bold text-slate-900">
+              {loadError ? "Không tải được buổi hẹn" : "Không tìm thấy buổi hẹn"}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">
+              {loadError ||
+                "Buổi hẹn không tồn tại hoặc không thuộc tài khoản mentor của bạn."}
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="rounded-lg bg-primary-fixed px-5 py-2.5 text-sm font-bold text-slate-900"
+              >
+                Thử lại
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/mentor/schedule")}
+                className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Về lịch họp
+              </button>
+            </div>
+          </div>
+        </div>
+      </MentorPageShell>
+    );
+  }
 
   const isCompleted = meeting.status === "completed" || meeting.overallScore > 0;
   const canReschedule = Number(meeting.rescheduleCount || 0) < 1;
-  const meetingTypeLabel =
-    meeting.meetingType === "mock_interview"
-      ? "Phỏng vấn thử"
-      : meeting.meetingType === "cv_review"
-        ? "CV Review"
-        : meeting.meetingType === "career_consulting"
-          ? "Tư vấn nghề nghiệp"
-          : "Tư vấn chuyên sâu";
+  const meetingTypeLabel = sessionTypeLabel(meeting.meetingType);
 
   const handleMentorReschedule = async () => {
     if (!canReschedule) {
@@ -182,6 +276,12 @@ export function MentorMeetingDetail() {
     const reason = String(rescheduleForm.reason || "").trim();
     if (!newDate || !newTimeSlot) {
       setActionError("Vui lòng nhập đủ ngày và giờ mới.");
+      return;
+    }
+    if (!isBookingSlotInFuture(newDate, newTimeSlot)) {
+      const msg = "Không thể chọn khung giờ đã qua. Vui lòng chọn thời gian trong tương lai.";
+      setActionError(msg);
+      toastApiError(msg);
       return;
     }
     setBusyAction("reschedule");
@@ -221,36 +321,24 @@ export function MentorMeetingDetail() {
     setLoadingSlots(true);
     setActionError("");
     try {
-    const [availability, booked] = await Promise.all([
-      fetchMentorAvailability(meeting.mentorId),
-      fetchBookedSlots(meeting.mentorId),
-    ]);
-    if (!availability || !availability.availableSlots) {
-      setActionError("Không tải được lịch rảnh của mentor.");
-      toastApiError("Không tải được lịch rảnh của mentor.");
-      return;
-    }
-    const bookedMap = booked.success ? booked.booked || {} : {};
-    const all = [];
-    for (const [date, slots] of Object.entries(availability.availableSlots || {})) {
-      const bookingDate = toBookingDateFormat(date);
-      for (const slot of Array.isArray(slots) ? slots : []) {
-        const taken = Array.isArray(bookedMap[date]) ? bookedMap[date].includes(slot) : false;
-        const isCurrent = bookingDate === meeting.scheduledDate && slot === meeting.scheduledTime;
-        if (!taken || isCurrent) {
-          all.push({ date: bookingDate, time: slot, label: `${bookingDate} • ${slot}` });
-        }
+      const all = await loadMentorRescheduleSlotOptions(meeting.mentorId, {
+        allowCurrentSlot: {
+          date: meeting.scheduledDate,
+          time: meeting.scheduledTime,
+        },
+      });
+      if (all.length === 0) {
+        setActionError("Không có khung giờ trống trong tương lai.");
+        toastApiError("Không có khung giờ trống trong tương lai.");
       }
-    }
-    all.sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
-    setSlotOptions(all);
-    if (all.length > 0) {
-      setRescheduleForm((prev) => ({
-        ...prev,
-        newDate: all[0].date,
-        newTimeSlot: all[0].time,
-      }));
-    }
+      setSlotOptions(all);
+      if (all.length > 0) {
+        setRescheduleForm((prev) => ({
+          ...prev,
+          newDate: all[0].date,
+          newTimeSlot: all[0].slot,
+        }));
+      }
     } catch {
       setActionError("Lỗi kết nối khi tải lịch rảnh.");
       toastApiError("Lỗi kết nối khi tải lịch rảnh.");
@@ -293,19 +381,89 @@ export function MentorMeetingDetail() {
     }
   };
 
+  const openRescheduleModal = () => {
+    if (!canReschedule) {
+      const msg = "Bạn đã hết lượt dời lịch cho buổi hẹn này.";
+      setActionError(msg);
+      toastApiError(msg);
+      return;
+    }
+    setRescheduleForm({
+      newDate: meeting.scheduledDate || "",
+      newTimeSlot: meeting.scheduledTime || "09:00",
+      reason: "",
+    });
+    setActionError("");
+    setActionModal("reschedule");
+    loadAvailableSlots();
+  };
+
+  const openCancelModal = () => {
+    setCancelReason("");
+    setActionError("");
+    setActionModal("cancel");
+  };
+
   return (
     <MentorPageShell bottomPad="pb-32" extraStyles={MENTOR_MEETING_DETAIL_EXTRA_CSS}>
       <div className="relative z-10 mx-auto max-w-7xl px-10 pb-10">
         {/* Header Navigation */}
-        <div className="flex items-center justify-between mb-16">
-           <button type="button" onClick={() => navigate(-1)} className="group flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 transition-all hover:text-slate-900">
-              <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" /> Quay lại
-           </button>
-           <div className="flex gap-4">
-              <button className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-zinc-500 hover:text-slate-900 transition-all">
-                 <MoreVertical size={20} />
-              </button>
-           </div>
+        <div className="mb-16 flex items-center justify-end">
+           <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Thao tác buổi hẹn"
+                  className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-zinc-500 transition-all hover:bg-slate-100 hover:text-slate-900"
+                >
+                  <MoreVertical size={20} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[220px]">
+                {!isCompleted ? (
+                  <>
+                    <DropdownMenuItem
+                      disabled={busyAction !== ""}
+                      onSelect={() => navigate(`/meeting/${meeting.id}`)}
+                    >
+                      <Video className="size-4" />
+                      Vào phòng họp ngay
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={busyAction !== ""}
+                      onSelect={openRescheduleModal}
+                    >
+                      <Calendar className="size-4" />
+                      Dời lịch hẹn
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      disabled={busyAction !== ""}
+                      onSelect={openCancelModal}
+                    >
+                      <AlertCircle className="size-4" />
+                      Hủy buổi mentor
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <DropdownMenuItem
+                      onSelect={() => navigate(`/mentor/session-feedback/${meeting.id}`)}
+                    >
+                      <TrendingUp className="size-4" />
+                      Gửi feedback bổ sung
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => toastApiError("Bản ghi video chưa sẵn sàng cho buổi này.")}
+                    >
+                      <Layout className="size-4" />
+                      Xem bản ghi video
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+           </DropdownMenu>
         </div>
 
         <div className="grid lg:grid-cols-12 gap-10">
@@ -318,10 +476,10 @@ export function MentorMeetingDetail() {
                  </div>
                  <div className="relative z-10">
                     <div className="flex items-center gap-4 mb-8">
-                       <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${isCompleted ? 'bg-primary-fixed/20 text-violet-700 border border-primary-fixed/20' : 'bg-orange-500/20 text-orange-400 border border-orange-500/20'}`}>
-                          {isCompleted ? 'Đã hoàn thành' : 'Sắp diễn ra'}
+                       <span className={`rounded-full px-4 py-1.5 text-xs font-semibold ${isCompleted ? "border border-primary-fixed/20 bg-primary-fixed/20 text-violet-700" : "border border-orange-500/20 bg-orange-500/20 text-orange-600"}`}>
+                          {isCompleted ? "Đã hoàn thành" : "Sắp diễn ra"}
                        </span>
-                       <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
+                       <span className="flex items-center gap-2 text-xs font-medium text-zinc-500">
                          <Layout size={14} /> {meetingTypeLabel}
                        </span>
                     </div>
@@ -331,21 +489,21 @@ export function MentorMeetingDetail() {
                     
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-10">
                        <div className="space-y-2">
-                          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Thời gian bắt đầu</p>
+                          <p className="text-xs font-medium text-zinc-500">Thời gian bắt đầu</p>
                           <p className="text-xl font-black text-slate-900 flex items-center gap-3">
                              <Clock size={20} className="text-violet-700" /> {meeting.scheduledTime}
                           </p>
                        </div>
                        <div className="space-y-2">
-                          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Ngày diễn ra</p>
+                          <p className="text-xs font-medium text-zinc-500">Ngày diễn ra</p>
                           <p className="text-xl font-black text-slate-900 flex items-center gap-3">
                             <Calendar size={20} className="text-violet-700" /> {formatMeetingDate(meeting.scheduledDate, meeting.scheduledTime)}
                           </p>
                        </div>
                        <div className="space-y-2">
-                          <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Thời lượng</p>
+                          <p className="text-xs font-medium text-zinc-500">Thời lượng</p>
                           <p className="text-xl font-black text-slate-900 flex items-center gap-3">
-                             <ShieldCheck size={20} className="text-violet-700" /> {meeting.duration} Phút
+                             <ShieldCheck size={20} className="text-violet-700" /> {meeting.duration} phút
                           </p>
                        </div>
                     </div>
@@ -409,7 +567,7 @@ export function MentorMeetingDetail() {
                   <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50/50 to-violet-50/30 blur-3xl -z-10" />
                   
                   <div className="mb-12">
-                    <h5 className="text-[11px] font-black text-indigo-500 uppercase tracking-[0.3em] mb-3">BÁO CÁO PHÂN TÍCH</h5>
+                    <h5 className="mb-3 text-xs font-semibold text-indigo-500">Báo cáo phân tích</h5>
                     <h2 className="text-xl font-black sm:text-2xl text-slate-900 tracking-tight">Đánh giá từ chuyên gia</h2>
                   </div>
                   
@@ -451,55 +609,95 @@ export function MentorMeetingDetail() {
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-[2.5rem] p-12 shadow-2xl shadow-indigo-900/20 text-white relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-12 opacity-10">
-                    <div className="w-32 h-32 rounded-full border-8 border-white/20" />
-                  </div>
-                  <h5 className="text-[11px] font-black text-indigo-300 uppercase tracking-[0.3em] mb-8">GHI CHÚ VẬN HÀNH</h5>
-                  <div className="backdrop-blur-md bg-white/5 rounded-3xl p-8 border border-white/10">
-                    <p className="text-base font-medium text-indigo-50/80 leading-relaxed whitespace-pre-wrap">
-                       {meeting.notes || "Hệ thống chưa ghi nhận ghi chú bổ sung cho buổi này."}
-                    </p>
-                  </div>
-                </div>
+                {(() => {
+                  const att = getBookingAttachments(meeting);
+                  const DocRow = ({ label, name, url }) => (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+                        <p className="truncate text-sm font-medium text-slate-800" title={name}>
+                          {name || "—"}
+                        </p>
+                      </div>
+                      {url ? (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-violet-700"
+                        >
+                          Mở file <ExternalLink size={14} />
+                        </a>
+                      ) : name ? (
+                        <span className="text-xs text-amber-700">Chưa có file trên hệ thống</span>
+                      ) : null}
+                    </div>
+                  );
+                  return (
+                    <div className="glass-card p-8 sm:p-10">
+                      <h5 className="mb-6 text-xs font-semibold text-slate-500">Tài liệu & ghi chú học viên</h5>
+                      <div className="space-y-3">
+                        {att.position ? (
+                          <p className="text-sm text-slate-700">
+                            <span className="font-semibold text-slate-900">Vị trí ứng tuyển:</span> {att.position}
+                          </p>
+                        ) : null}
+                        {att.note ? (
+                          <p className="text-sm leading-relaxed text-slate-600">
+                            <span className="font-semibold text-slate-800">Ghi chú:</span> {att.note}
+                          </p>
+                        ) : null}
+                        <DocRow label="CV học viên" name={att.cvFileName} url={att.cvFileUrl} />
+                        {att.jdFileName ? (
+                          <DocRow label="JD" name={att.jdFileName} url={att.jdFileUrl} />
+                        ) : (
+                          <p className="text-xs text-slate-500">Không có JD kèm theo.</p>
+                        )}
+                        {!att.cvFileName && !att.jdFileName && !att.position && !att.note ? (
+                          <p className="text-sm text-slate-500">Học viên chưa gửi tài liệu hoặc ghi chú cho buổi này.</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
            </div>
 
            {/* Mentee Profile Sidebar */}
            <div className="lg:col-span-4 space-y-10">
               <div className="glass-card p-10">
-                 <p className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-10">Hồ sơ Mentee</p>
+                 <p className="mb-10 text-xs font-semibold text-zinc-500">Hồ sơ mentee</p>
                  <div className="flex flex-col items-center text-center mb-10">
                     <img src={meeting.mentee.avatar} className="w-32 h-32 rounded-[40px] object-cover ring-8 ring-white/5 shadow-2xl mb-6" />
                     <h3 className="text-xl font-black sm:text-2xl text-slate-900 tracking-tighter">{meeting.mentee.name}</h3>
-                    <p className="text-sm font-black text-violet-700 uppercase tracking-widest mt-2">{meeting.mentee.level}</p>
+                    <p className="mt-2 text-sm font-medium text-violet-700">{meeting.mentee.level}</p>
                  </div>
                  
                  <div className="space-y-6 border-t border-slate-200">
                     <div className="flex items-center gap-4">
                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-zinc-500"><Briefcase size={18} /></div>
                        <div>
-                          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Vị trí hiện tại</p>
+                          <p className="text-xs font-medium text-zinc-600">Vị trí hiện tại</p>
                           <p className="text-xs font-bold text-slate-900">{meeting.position} @ {meeting.company}</p>
                        </div>
                     </div>
                     <div className="flex items-center gap-4">
                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-zinc-500"><Star size={18} /></div>
                        <div>
-                          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Các buổi đã tham gia</p>
+                          <p className="text-xs font-medium text-zinc-600">Các buổi đã tham gia</p>
                           <p className="text-xs font-bold text-slate-900">{menteeSessionCount || 1} buổi học tập</p>
                        </div>
                     </div>
                  </div>
 
-                 <button onClick={() => navigate("/mentor/analytics")} className="w-full mt-10 py-4 rounded-3xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest hover:text-slate-900 hover:bg-slate-100 transition-all flex items-center justify-center gap-3">
+                 <button onClick={() => navigate("/mentor/analytics")} className="mt-10 flex w-full items-center justify-center gap-3 rounded-3xl border border-slate-200 bg-slate-50 py-4 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100 hover:text-slate-900">
                     Xem toàn bộ tiến trình <ChevronRight size={14} />
                  </button>
               </div>
 
               {/* Action Toolbar */}
               <div className="glass-card p-10">
-                 <h4 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] mb-8">Thao tác hệ thống</h4>
+                 <h4 className="mb-8 text-xs font-semibold text-zinc-500">Thao tác</h4>
                  <div className="space-y-4">
                     {!isCompleted ? (
                        <>
@@ -511,33 +709,14 @@ export function MentorMeetingDetail() {
                              Vào phòng họp ngay
                           </button>
                          <button
-                            onClick={() => {
-                              if (!canReschedule) {
-                                const msg = "Bạn đã hết lượt dời lịch cho buổi hẹn này.";
-                                setActionError(msg);
-                                toastApiError(msg);
-                                return;
-                              }
-                              setRescheduleForm({
-                                newDate: meeting.scheduledDate || "",
-                                newTimeSlot: meeting.scheduledTime || "09:00",
-                                reason: "",
-                              });
-                              setActionError("");
-                              setActionModal("reschedule");
-                              loadAvailableSlots();
-                            }}
+                            onClick={openRescheduleModal}
                             disabled={busyAction !== ""}
                             className="w-full py-5 rounded-3xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all"
                          >
                             {busyAction === "reschedule" ? "Đang dời lịch..." : "Dời lịch hẹn"}
                           </button>
                          <button
-                            onClick={() => {
-                              setCancelReason("");
-                              setActionError("");
-                              setActionModal("cancel");
-                            }}
+                            onClick={openCancelModal}
                             disabled={busyAction !== ""}
                             className="w-full py-5 rounded-3xl bg-red-600/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all"
                          >
@@ -552,7 +731,11 @@ export function MentorMeetingDetail() {
                           >
                              <TrendingUp size={16} /> Gửi feedback bổ sung
                           </button>
-                          <button className="w-full py-5 rounded-3xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest hover:bg-slate-100 transition-all flex items-center justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toastApiError("Bản ghi video chưa sẵn sàng cho buổi này.")}
+                            className="flex w-full items-center justify-center gap-2 rounded-3xl border border-slate-200 bg-slate-50 py-5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-100"
+                          >
                              <Layout size={16} /> Xem bản ghi video
                           </button>
                        </>
@@ -568,55 +751,163 @@ export function MentorMeetingDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-sm bg-slate-900/35"
+            className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:p-6"
             onClick={() => setActionModal("")}
           >
             <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              className="glass-card w-full max-w-xl p-8"
+              initial={{ scale: 0.98, y: 12, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.98, y: 12, opacity: 0 }}
+              className="reschedule-modal-card my-6 w-full max-w-[28rem] shrink-0"
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-labelledby="reschedule-modal-title"
             >
-              <h4 className="text-xl font-black text-slate-900 mb-6">Dời lịch hẹn</h4>
-              <div className="space-y-4">
-                <input
-                  value={canReschedule ? `${rescheduleForm.newDate} ${rescheduleForm.newTimeSlot}`.trim() : "Đã dời lịch 1 lần"}
-                  readOnly
-                  className="input-glass w-full"
-                />
-                <select
-                  value={`${rescheduleForm.newDate}|${rescheduleForm.newTimeSlot}`}
-                  onChange={(e) => {
-                    const [date, time] = String(e.target.value).split("|");
-                    setRescheduleForm((p) => ({ ...p, newDate: date || "", newTimeSlot: time || "" }));
-                  }}
-                  disabled={!canReschedule || loadingSlots || slotOptions.length === 0}
-                  className="input-glass w-full"
-                >
-                  {loadingSlots && <option>Đang tải slot trống...</option>}
-                  {!loadingSlots && slotOptions.length === 0 && <option>Không có slot trống phù hợp</option>}
-                  {!loadingSlots &&
-                    slotOptions.map((opt) => (
-                      <option key={`${opt.date}|${opt.time}`} value={`${opt.date}|${opt.time}`}>
-                        {opt.label}
-                      </option>
-                    ))}
-                </select>
-                <textarea
-                  value={rescheduleForm.reason}
-                  onChange={(e) => setRescheduleForm((p) => ({ ...p, reason: e.target.value }))}
-                  placeholder="Lý do dời lịch (không bắt buộc)"
-                  className="input-glass w-full min-h-24"
-                />
+              <div className="reschedule-modal-header bg-gradient-to-r from-[#630ed4] to-[#8037f4] px-5 py-5 text-white sm:px-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/15">
+                      <Calendar size={20} strokeWidth={2.25} />
+                    </span>
+                    <h2
+                      id="reschedule-modal-title"
+                      className="text-lg font-bold leading-snug text-white"
+                    >
+                      Dời lịch hẹn
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActionModal("")}
+                    className="shrink-0 rounded-lg p-1.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+                    aria-label="Đóng"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-5 p-5 sm:p-6">
+                <section className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                  <p className="mb-3 text-xs font-semibold text-slate-500">Lịch hiện tại</p>
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={meeting.mentee.avatar}
+                      alt=""
+                      className="h-11 w-11 shrink-0 rounded-xl object-cover ring-2 ring-white"
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = avatarSrc("");
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {meeting.mentee.name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-violet-700">{meetingTypeLabel}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm font-medium text-slate-700">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Calendar size={14} className="text-violet-600" />
+                          {formatMeetingDate(meeting.scheduledDate, meeting.scheduledTime)}
+                        </span>
+                        <span className="text-slate-300">•</span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock size={14} className="text-violet-600" />
+                          {meeting.scheduledTime}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
                 {!canReschedule && (
-                  <p className="text-xs text-amber-300 font-bold">Lịch hẹn này đã dời 1 lần. Không thể dời thêm.</p>
+                  <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+                    Buổi hẹn này đã dời 1 lần — không thể dời thêm.
+                  </p>
                 )}
+<<<<<<< Updated upstream
                 {actionError && <p className="text-xs text-red-400 font-bold">{actionError}</p>}
                 <div className="flex justify-end gap-3">
                   <button onClick={() => setActionModal("")} className="px-5 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-black text-zinc-300">Đóng</button>
                   <button onClick={handleMentorReschedule} disabled={busyAction !== "" || !canReschedule || loadingSlots || slotOptions.length === 0} className="px-5 py-3 rounded-xl bg-primary-fixed text-[#000000] text-xs font-black disabled:opacity-60">
                     {busyAction === "reschedule" ? "Đang dời lịch..." : "Xác nhận dời lịch"}
+=======
+
+                <div>
+                  <label htmlFor="reschedule-new-slot" className={rescheduleFieldLabel}>
+                    Chọn thời gian mới <span className="text-red-500">*</span>
+                  </label>
+                  <AppSelect
+                    id="reschedule-new-slot"
+                    size="md"
+                    value={`${rescheduleForm.newDate}|${rescheduleForm.newTimeSlot}`}
+                    onValueChange={(v) => {
+                      const [date, time] = String(v).split("|");
+                      setRescheduleForm((p) => ({
+                        ...p,
+                        newDate: date || "",
+                        newTimeSlot: time || "",
+                      }));
+                    }}
+                    disabled={!canReschedule || loadingSlots || slotOptions.length === 0}
+                    triggerClassName={rescheduleFieldInput}
+                    options={
+                      loadingSlots
+                        ? [{ value: "|", label: "Đang tải khung giờ trống…" }]
+                        : slotOptions.length === 0
+                          ? [{ value: "|", label: "Không có khung giờ trống phù hợp" }]
+                          : slotOptions.map((opt) => ({
+                              value: `${opt.date}|${opt.time}`,
+                              label: opt.label,
+                            }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="reschedule-reason" className={rescheduleFieldLabel}>
+                    Lý do dời lịch
+                  </label>
+                  <textarea
+                    id="reschedule-reason"
+                    value={rescheduleForm.reason}
+                    onChange={(e) =>
+                      setRescheduleForm((p) => ({ ...p, reason: e.target.value }))
+                    }
+                    placeholder="Nhập lý do (tùy chọn)"
+                    rows={3}
+                    disabled={!canReschedule}
+                    className={`${rescheduleFieldInput} resize-none`}
+                  />
+                </div>
+
+                {actionError && (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                    {actionError}
+                  </p>
+                )}
+
+                <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setActionModal("")}
+                    className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleMentorReschedule}
+                    disabled={
+                      busyAction !== "" ||
+                      !canReschedule ||
+                      loadingSlots ||
+                      slotOptions.length === 0
+                    }
+                    className="rounded-lg bg-primary-fixed px-5 py-2.5 text-sm font-bold text-slate-900 shadow-[0_8px_24px_rgba(196,255,71,0.35)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {busyAction === "reschedule" ? "Đang dời lịch…" : "Xác nhận dời lịch"}
+>>>>>>> Stashed changes
                   </button>
                 </div>
               </div>
@@ -628,35 +919,95 @@ export function MentorMeetingDetail() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-sm bg-slate-900/35"
+            className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:p-6"
             onClick={() => setActionModal("")}
           >
             <motion.div
-              initial={{ scale: 0.96, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              className="glass-card w-full max-w-xl p-8"
+              initial={{ scale: 0.98, y: 12, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              exit={{ scale: 0.98, y: 12, opacity: 0 }}
+              className="reschedule-modal-card my-6 w-full max-w-[28rem] shrink-0"
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-labelledby="cancel-modal-title"
             >
-              <h4 className="text-xl font-black text-slate-900 mb-3">Hủy buổi mentor</h4>
-              <p className="text-sm text-zinc-400 mb-2">
-                Trước buổi <strong className="text-zinc-600">≥ 24h</strong>: học viên chọn đổi lịch / đổi mentor / hoàn 100%.
-                <strong className="text-zinc-600"> Dưới 24h</strong>: hệ thống ưu tiên hoàn 100% (học viên điền STK). Sau giờ họp: dùng
-                báo no-show (học viên/admin).
-              </p>
-              <p className="text-sm text-zinc-400 mb-4">Bạn cần nhập lý do trước khi hủy lịch.</p>
-              <textarea
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Nhập lý do hủy lịch..."
-                className="input-glass w-full min-h-24"
-              />
-              {actionError && <p className="text-xs text-red-400 font-bold mt-3">{actionError}</p>}
-              <div className="flex justify-end gap-3 mt-5">
-                <button onClick={() => setActionModal("")} className="px-5 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-black text-zinc-300">Đóng</button>
-                <button onClick={handleMentorCancel} disabled={busyAction !== ""} className="px-5 py-3 rounded-xl bg-red-600/20 border border-red-500/30 text-red-300 text-xs font-black">
-                  {busyAction === "cancel" ? "Đang hủy..." : "Xác nhận hủy"}
-                </button>
+              <div className="cancel-modal-header bg-gradient-to-r from-[#630ed4] to-[#8037f4] px-5 py-5 text-white sm:px-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white/15">
+                      <AlertCircle size={20} strokeWidth={2.25} />
+                    </span>
+                    <h2
+                      id="cancel-modal-title"
+                      className="text-lg font-bold leading-snug text-white"
+                    >
+                      Hủy buổi mentor
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActionModal("")}
+                    className="shrink-0 rounded-lg p-1.5 text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+                    aria-label="Đóng"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-5 p-5 sm:p-6">
+                <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-xs leading-relaxed text-amber-950">
+                  <p className="font-semibold text-amber-900">Chính sách hủy</p>
+                  <ul className="mt-2 list-inside list-disc space-y-1 text-amber-900/90">
+                    <li>
+                      <span className="font-medium">Trước buổi ≥ 24h:</span> học viên chọn đổi lịch, đổi mentor hoặc hoàn 100%.
+                    </li>
+                    <li>
+                      <span className="font-medium">Dưới 24h:</span> ưu tiên hoàn 100% (học viên điền STK).
+                    </li>
+                    <li>
+                      <span className="font-medium">Sau giờ họp:</span> báo no-show (học viên/admin).
+                    </li>
+                  </ul>
+                </div>
+
+                <div>
+                  <label htmlFor="cancel-reason" className={rescheduleFieldLabel}>
+                    Lý do hủy <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    id="cancel-reason"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Nhập lý do hủy buổi…"
+                    rows={4}
+                    className={`${rescheduleFieldInput} resize-none`}
+                  />
+                </div>
+
+                {actionError && (
+                  <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                    {actionError}
+                  </p>
+                )}
+
+                <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setActionModal("")}
+                    className="rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleMentorCancel}
+                    disabled={busyAction !== ""}
+                    className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-[0_8px_24px_rgba(220,38,38,0.25)] transition-all hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {busyAction === "cancel" ? "Đang hủy…" : "Xác nhận hủy"}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </motion.div>

@@ -74,18 +74,57 @@ export async function fetchReviewsForCourse(courseId) {
   }
 }
 
+/** Đánh giá chéo mentor — GET /api/courses/:id/peer-reviews */
+export async function fetchPeerReviewsForCourse(courseId) {
+  try {
+    const res = await fetch(apiUrl(`/api/courses/${courseId}/peer-reviews`), {
+      method: "GET",
+      headers: jsonHeaders,
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { success: false, reviews: [], error: body.error };
+    return { success: true, reviews: body.reviews || [] };
+  } catch {
+    return { success: false, reviews: [] };
+  }
+}
+
+/** Gộp đánh giá học viên + đánh giá chéo mentor, sắp xếp mới nhất trước. */
+export async function fetchAllReviewsForCourse(courseId) {
+  const [studentRes, peerRes] = await Promise.all([
+    fetchReviewsForCourse(courseId),
+    fetchPeerReviewsForCourse(courseId),
+  ]);
+  const reviews = [...(studentRes.reviews || []), ...(peerRes.reviews || [])].sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0),
+  );
+  return {
+    success: studentRes.success || peerRes.success,
+    reviews,
+    error: studentRes.error || peerRes.error,
+  };
+}
+
 export async function fetchMyMentorCourses() {
-  if (!hasAuthCredentials()) return { success: false, error: "Chưa đăng nhập.", courses: [] };
+  if (!hasAuthCredentials()) {
+    return { success: false, error: "Chưa đăng nhập.", courses: [], summary: null };
+  }
   try {
     const res = await authFetch("/api/courses/me", {
       method: "GET",
       headers: { ...jsonHeaders },
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) return { success: false, error: body.error || `Lỗi ${res.status}`, courses: [] };
-    return { success: true, courses: body.courses || [] };
+    if (!res.ok) {
+      return { success: false, error: body.error || `Lỗi ${res.status}`, courses: [], summary: null };
+    }
+    return {
+      success: true,
+      courses: body.courses || [],
+      summary: body.summary ?? null,
+    };
   } catch {
-    return { success: false, error: "Không kết nối được backend.", courses: [] };
+    return { success: false, error: "Không kết nối được backend.", courses: [], summary: null };
   }
 }
 

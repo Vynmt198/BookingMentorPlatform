@@ -52,6 +52,11 @@ export const adminApi = {
       method: "PATCH",
       body: JSON.stringify({ reason }),
     }),
+  updateMentorCommission: (id, payload = {}) =>
+    authedFetch(`/api/admin/mentors/${id}/commission`, {
+      method: "PATCH",
+      body: JSON.stringify(payload ?? {}),
+    }),
   getUsers: () => authedFetch("/api/admin/users"),
   getUserById: (id) => authedFetch(`/api/admin/users/${encodeURIComponent(id)}`),
   updateUserStatus: (id, isActive) =>

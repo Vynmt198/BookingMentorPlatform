@@ -16,7 +16,6 @@ import {
   BadgeCheck,
   Pencil,
   MessageCircle,
-  Plus,
 } from "lucide-react";
 import { ImageWithFallback } from "../figma/ImageWithFallback";
 import {
@@ -30,7 +29,7 @@ import { submitReview } from "../../utils/courseApi";
 import { fetchMyReviewForTarget } from "../../utils/reviewsApi";
 import { ReviewReplyBlock } from "../reviews/ReviewReplyBlock";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
-import { avatarSrc } from "../../utils/mediaUrl";
+import { avatarSrc, mediaSrc } from "../../utils/mediaUrl";
 
 export const formatCoursePrice = (price) => {
   if (price === 0) return "Miễn phí";
@@ -43,18 +42,21 @@ export const formatCourseDuration = (minutes) => {
   return h > 0 ? `${h}h ${m > 0 ? `${m}m` : ""}`.trim() : `${m}m`;
 };
 
-export function StarRating({ rating, size = "sm" }) {
-  const s = size === "lg" ? "size-5" : "size-4";
+export function StarRating({ rating, size = "sm", variant = "default" }) {
+  const s = size === "lg" ? "size-5" : size === "sm" ? "size-3.5" : "size-4";
   const n = rating == null ? NaN : Number(rating);
   const filled = Number.isFinite(n) ? Math.min(5, Math.max(0, Math.round(n))) : 0;
+  const emptyColor = variant === "onDark" ? "rgba(255,255,255,0.35)" : "#e2e8f0";
+  const fillColor = "#FFD600";
+
   return (
-    <div className="flex gap-0.5">
+    <div className="flex gap-0.5" aria-hidden>
       {[1, 2, 3, 4, 5].map((i) => (
         <Star
           key={i}
-          fill={i <= filled ? "#FFD600" : "none"}
+          fill={i <= filled ? fillColor : "none"}
           className={s}
-          style={{ color: "#FFD600" }}
+          style={{ color: i <= filled ? fillColor : emptyColor }}
         />
       ))}
     </div>
@@ -86,6 +88,11 @@ function youtubeEmbedUrl(url) {
   return m ? `https://www.youtube.com/embed/${m[1]}` : null;
 }
 
+function isDirectVideoUrl(url) {
+  const raw = String(url || "").trim();
+  return /\.(mp4|webm|ogg)(\?|$)/i.test(raw) || raw.includes("cloudinary.com/video/");
+}
+
 export function CoursePurchaseCard({
   course,
   hasPaidEnrollment,
@@ -95,19 +102,23 @@ export function CoursePurchaseCard({
   onEnroll,
   onContinueLearn,
   onContinuePayment,
-  onAddToCart,
 }) {
   const price = Number(course.price) || 0;
   const discountPrice = Number(course.discountPrice) || 0;
   const hasDiscount = discountPrice > 0 && discountPrice < price;
   const displayPrice = hasDiscount ? discountPrice : price;
   const discountPct = hasDiscount ? Math.round((1 - discountPrice / price) * 100) : 0;
-  const embed = youtubeEmbedUrl(course.previewVideoUrl);
+  const previewUrl = course.previewVideoUrl || "";
+  const embed = youtubeEmbedUrl(previewUrl);
+  const directPreview = !embed && isDirectVideoUrl(previewUrl) ? mediaSrc(previewUrl) : null;
   const includes = buildCourseIncludes(course);
 
+  const ctaClassName =
+    "flex w-full items-center justify-center gap-2 rounded-xl bg-[#8037f4] py-3.5 text-sm font-bold text-white shadow-md shadow-violet-500/25 transition-all hover:bg-[#630ed4] active:scale-[0.99] lg:rounded-sm lg:py-3 lg:shadow-none";
+
   return (
-    <div className="w-full max-w-[calc(300px+1rem)] overflow-hidden rounded-md border border-slate-200 bg-white shadow-[0_12px_40px_rgba(15,23,42,0.08)] lg:max-w-none">
-      <div className="relative h-48 w-full overflow-hidden bg-slate-900 lg:h-52">
+    <div className="w-full overflow-hidden rounded-2xl border border-violet-200/60 bg-white shadow-[0_16px_48px_rgba(128,55,244,0.12)] lg:max-w-none lg:rounded-md lg:border-slate-200 lg:shadow-[0_12px_40px_rgba(15,23,42,0.08)]">
+      <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-900 sm:aspect-video lg:h-52 lg:aspect-auto">
         {embed ? (
           <iframe
             title="Xem trước khóa học"
@@ -116,30 +127,41 @@ export function CoursePurchaseCard({
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
+        ) : directPreview ? (
+          <video
+            key={directPreview}
+            controls
+            playsInline
+            preload="metadata"
+            poster={course.thumbnail}
+            className="h-full w-full object-cover"
+            src={directPreview}
+          />
         ) : (
           <ImageWithFallback src={course.thumbnail} alt="" className="h-full w-full object-cover" />
         )}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-900/50 via-transparent to-transparent lg:hidden" />
       </div>
 
-      <div className="space-y-3 p-4">
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="text-2xl font-bold text-slate-900">{formatCoursePrice(displayPrice)}</span>
-          {hasDiscount ? (
-            <>
-              <span className="text-sm text-slate-400 line-through">{formatCoursePrice(price)}</span>
-              <span className="rounded-sm bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700">
-                Giảm {discountPct}%
-              </span>
-            </>
-          ) : null}
+      <div className="space-y-4 p-4 sm:p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4 lg:border-0 lg:pb-0">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <span className="text-2xl font-black text-[#8037f4] sm:text-3xl lg:font-bold lg:text-slate-900">
+              {formatCoursePrice(displayPrice)}
+            </span>
+            {hasDiscount ? (
+              <>
+                <span className="text-sm text-slate-400 line-through">{formatCoursePrice(price)}</span>
+                <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700">
+                  Giảm {discountPct}%
+                </span>
+              </>
+            ) : null}
+          </div>
         </div>
 
         {hasPaidEnrollment && !isReadOnlyMentorView ? (
-          <button
-            type="button"
-            onClick={onContinueLearn}
-            className="flex w-full items-center justify-center gap-2 rounded-sm bg-[#8037f4] py-3 text-sm font-bold text-white transition-all hover:bg-[#5b2bc4]"
-          >
+          <button type="button" onClick={onContinueLearn} className={ctaClassName}>
             <PlayCircle className="size-4" />
             Tiếp tục học
           </button>
@@ -147,69 +169,46 @@ export function CoursePurchaseCard({
           <button
             type="button"
             disabled
-            className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-sm bg-[#8037f4]/50 py-3 text-sm font-bold text-white"
+            className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-[#8037f4]/50 py-3.5 text-sm font-bold text-white lg:rounded-sm lg:py-3"
           >
             <Lock className="size-4" />
             Mentor chỉ xem
           </button>
         ) : hasPendingPayment && canTakeStudentActions ? (
-          <div className="flex flex-col gap-2 w-full">
-            <button
-              type="button"
-              onClick={onContinuePayment}
-              className="flex w-full items-center justify-center gap-2 rounded-sm bg-[#8037f4] py-3 text-sm font-bold text-white transition-all hover:bg-[#5b2bc4]"
-            >
-              <ShoppingCart className="size-4" />
-              Tiếp tục thanh toán
-            </button>
-            {price > 0 ? (
-              <button
-                type="button"
-                onClick={onAddToCart}
-                className="flex w-full items-center justify-center gap-2 rounded-sm border-2 border-[#8037f4] bg-white py-2.5 text-sm font-bold text-[#8037f4] transition-all hover:bg-violet-50"
-              >
-                <Plus className="size-4" />
-                Thêm vào giỏ hàng
-              </button>
-            ) : null}
-          </div>
+          <button type="button" onClick={onContinuePayment} className={ctaClassName}>
+            <ShoppingCart className="size-4" />
+            Tiếp tục thanh toán
+          </button>
         ) : (
-          <div className="flex flex-col gap-2 w-full">
-            <button
-              type="button"
-              onClick={canTakeStudentActions ? onEnroll : undefined}
-              disabled={!canTakeStudentActions}
-              className="flex w-full items-center justify-center gap-2 rounded-sm bg-[#8037f4] py-3 text-sm font-bold text-white transition-all hover:bg-[#5b2bc4] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <ShoppingCart className="size-4" />
-              {canTakeStudentActions
-                ? price === 0
-                  ? "Đăng ký miễn phí"
-                  : "Mua ngay"
-                : "Mentor chỉ xem"}
-            </button>
-            {canTakeStudentActions && price > 0 ? (
-              <button
-                type="button"
-                onClick={onAddToCart}
-                className="flex w-full items-center justify-center gap-2 rounded-sm border-2 border-[#8037f4] bg-white py-2.5 text-sm font-bold text-[#8037f4] transition-all hover:bg-violet-50"
-              >
-                <Plus className="size-4" />
-                Thêm vào giỏ hàng
-              </button>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            onClick={canTakeStudentActions ? onEnroll : undefined}
+            disabled={!canTakeStudentActions}
+            className={`${ctaClassName} disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            <ShoppingCart className="size-4" />
+            {canTakeStudentActions
+              ? price === 0
+                ? "Đăng ký miễn phí"
+                : "Ghi danh khóa học"
+              : "Mentor chỉ xem"}
+          </button>
         )}
 
-        <div>
-          <p className="mb-2 text-sm font-bold text-slate-900">Khóa học này bao gồm</p>
-          <ul className="space-y-2">
+        <div className="rounded-xl bg-violet-50/60 p-3.5 lg:rounded-none lg:bg-transparent lg:p-0">
+          <p className="mb-2.5 text-sm font-bold text-slate-900">Khóa học này bao gồm</p>
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 lg:gap-2">
             {includes.map((item) => {
               const Icon = item.icon;
               return (
-                <li key={item.text} className="flex items-start gap-2.5 text-sm text-slate-600">
-                  <Icon className="mt-0.5 size-4 shrink-0 text-slate-500" />
-                  <span>{item.text}</span>
+                <li
+                  key={item.text}
+                  className="flex items-center gap-2.5 rounded-lg bg-white/80 px-2.5 py-2 text-sm text-slate-600 lg:rounded-none lg:bg-transparent lg:px-0 lg:py-0"
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-[#8037f4] lg:size-auto lg:rounded-none lg:bg-transparent">
+                    <Icon className="size-4 shrink-0 lg:text-slate-500" />
+                  </span>
+                  <span className="min-w-0 leading-snug">{item.text}</span>
                 </li>
               );
             })}
@@ -217,8 +216,8 @@ export function CoursePurchaseCard({
         </div>
 
         {!hasPaidEnrollment ? (
-          <p className="border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-500">
-            Bạn đang xem preview của khóa học này. Để truy cập đầy đủ nội dung, vui lòng đăng ký khóa học.
+          <p className="border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-500 lg:block">
+            Bạn đang xem preview. Đăng ký để truy cập đầy đủ nội dung khóa học.
           </p>
         ) : null}
       </div>
@@ -250,7 +249,7 @@ export function CourseCurriculumAccordion({ modules, certificateEnabled, enrolle
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm lg:rounded-md lg:shadow-none">
       {modules.map((mod, modIndex) => (
         <div key={mod.id} className="border-b border-slate-200 last:border-b-0">
           <button
@@ -302,14 +301,14 @@ export function CourseCurriculumAccordion({ modules, certificateEnabled, enrolle
 
 export function CourseInstructorBlock({ course, onViewMentor, canNavigate }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 sm:p-5">
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5 lg:rounded-md lg:shadow-none">
       <button
         type="button"
         onClick={canNavigate ? onViewMentor : undefined}
         className={`mb-3 text-left ${canNavigate ? "hover:opacity-90" : ""}`}
         disabled={!canNavigate}
       >
-        <h2 className="text-lg font-bold text-[#2563eb]">{course.mentorName}</h2>
+        <h2 className="text-lg font-bold text-[#8037f4]">{course.mentorName}</h2>
         <p className="text-sm text-slate-500">{course.mentorTitle}</p>
       </button>
       <div className="flex items-start gap-4 rounded-sm border border-slate-100 bg-slate-50/80 p-4">
@@ -376,7 +375,7 @@ export function CourseReviewsBlock({ course, enrolled, reviews, onReviewSubmitte
   };
 
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 sm:p-5">
+    <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5 lg:rounded-md lg:shadow-none">
       <h2 className="mb-3 text-lg font-bold text-slate-900">Đánh giá khóa học</h2>
 
       {!enrolled ? (
@@ -423,7 +422,14 @@ export function CourseReviewsBlock({ course, enrolled, reviews, onReviewSubmitte
               />
               <div>
                 <p className="text-sm font-bold text-slate-900">{r.userName || "Học viên"}</p>
-                <StarRating rating={r.rating} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <StarRating rating={r.rating} />
+                  {r.isPeerReview ? (
+                    <span className="rounded-sm bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-800">
+                      Đánh giá chéo mentor
+                    </span>
+                  ) : null}
+                </div>
               </div>
             </div>
             <p className="text-sm leading-relaxed text-slate-700">{r.comment}</p>
@@ -444,7 +450,7 @@ export function CourseReviewsBlock({ course, enrolled, reviews, onReviewSubmitte
       </div>
 
       {reviews.length === 0 ? (
-        <p className="text-sm text-slate-500">Chưa có đánh giá từ học viên.</p>
+        <p className="text-sm text-slate-500">Chưa có đánh giá cho khóa học này.</p>
       ) : null}
 
       {reviews.length > 3 ? (

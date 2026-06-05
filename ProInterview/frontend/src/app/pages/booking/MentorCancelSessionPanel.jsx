@@ -2,7 +2,7 @@ import { motion } from "motion/react";
 import { AlertCircle as WarningCircle } from "lucide-react";
 
 /**
- * Giao diện xử lý sau khi mentor hủy / no-show — học viên chọn phương án hoặc điền STK.
+ * Giao diện xử lý sau khi mentor hủy / no-show, học viên chọn phương án hoặc điền STK.
  */
 export function MentorCancelSessionPanel({
   sessionData,
@@ -77,11 +77,11 @@ export function MentorCancelSessionPanel({
                   .
                 </>
               ) : mode === "late_refund" ? (
-                <>Mentor hủy khi còn dưới 24 giờ. Hoàn ưu tiên 100% — điền STK nhận hoàn bên dưới.</>
+                <>Mentor hủy khi còn dưới 24 giờ. Hoàn ưu tiên 100%, điền STK nhận hoàn bên dưới.</>
               ) : mode === "no_show" ? (
-                <>Buổi ghi nhận no-show. Hoàn ưu tiên 100% — điền STK nếu chưa có.</>
+                <>Buổi ghi nhận no-show. Hoàn ưu tiên 100%, điền STK nếu chưa có.</>
               ) : mode === "change_mentor_done" ? (
-                <>Đã kích hoạt credit — chọn mentor khác để đặt lịch mới.</>
+                <>Đã kích hoạt credit, chọn mentor khác để đặt lịch mới.</>
               ) : (
                 <>
                   Buổi <strong>{sessionData.date}</strong> lúc <strong>{sessionData.time}</strong> không còn hiệu
@@ -102,7 +102,7 @@ export function MentorCancelSessionPanel({
                   className="rounded-2xl border-2 border-violet-200 bg-white px-4 py-4 text-left transition hover:border-violet-500 hover:shadow-md"
                 >
                   <p className="text-xs font-black uppercase tracking-wider text-violet-900">Đổi lịch</p>
-                  <p className="mt-2 text-[11px] leading-relaxed text-slate-600">Giữ mentor — chọn ngày/giờ mới</p>
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-600">Giữ mentor, chọn ngày/giờ mới</p>
                 </button>
                 <button
                   type="button"
@@ -111,7 +111,7 @@ export function MentorCancelSessionPanel({
                   className="rounded-2xl border-2 border-violet-200 bg-white px-4 py-4 text-left transition hover:border-violet-500 hover:shadow-md disabled:opacity-50"
                 >
                   <p className="text-xs font-black uppercase tracking-wider text-violet-900">Đổi mentor</p>
-                  <p className="mt-2 text-[11px] leading-relaxed text-slate-600">Dùng credit đã trả — mentor khác</p>
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-600">Dùng credit đã trả, mentor khác</p>
                 </button>
                 <button
                   type="button"
@@ -130,7 +130,7 @@ export function MentorCancelSessionPanel({
                 {loadingRescheduleSlots ? (
                   <p className="text-xs text-gray-500">Đang tải lịch trống…</p>
                 ) : rescheduleSlotOptions.length === 0 ? (
-                  <p className="text-xs text-amber-700">Không có slot trống — chọn hoàn tiền hoặc liên hệ support.</p>
+                  <p className="text-xs text-amber-700">Không có slot trống, chọn hoàn tiền hoặc liên hệ support.</p>
                 ) : (
                   <select
                     value={`${rescheduleDate}|${rescheduleSlot}`}
@@ -149,13 +149,6 @@ export function MentorCancelSessionPanel({
                   </select>
                 )}
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setMentorResolutionStep("")}
-                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-gray-600"
-                  >
-                    Quay lại
-                  </button>
                   <button
                     type="button"
                     disabled={resolutionBusy || rescheduleSlotOptions.length === 0}
@@ -178,7 +171,6 @@ export function MentorCancelSessionPanel({
                 refundAccountHolder={refundAccountHolder}
                 setRefundAccountHolder={setRefundAccountHolder}
                 busy={resolutionBusy}
-                onBack={() => setMentorResolutionStep("")}
                 onSubmit={() => onResolve("refund")}
                 submitLabel="Xác nhận hoàn 100%"
               />
@@ -243,7 +235,6 @@ function RefundForm({
   refundAccountHolder,
   setRefundAccountHolder,
   busy,
-  onBack,
   onSubmit,
   submitLabel,
   tone = "violet",
@@ -282,15 +273,6 @@ function RefundForm({
         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400"
       />
       <div className="flex flex-wrap gap-2 pt-1">
-        {onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-gray-600"
-          >
-            Quay lại
-          </button>
-        ) : null}
         <button
           type="button"
           disabled={busy}

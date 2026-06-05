@@ -1,27 +1,19 @@
-import { ChevronDown, RotateCcw } from "lucide-react";
-
-const SELECT_CLASS =
-  "w-full min-w-[11rem] appearance-none rounded-2xl border border-slate-200 bg-white py-2.5 pl-3 pr-9 text-sm font-semibold text-slate-900 outline-none transition focus:border-violet-400 sm:min-w-[12.5rem]";
+import { RotateCcw } from "lucide-react";
+import { AppSelect } from "../ui/AppSelect";
 
 export function AdminFilterSelect({ id, label, value, options, onChange }) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex min-w-[11rem] flex-col gap-1 sm:min-w-[12.5rem]">
       <label htmlFor={id} className="text-[10px] font-black uppercase tracking-widest text-slate-500">
         {label}
       </label>
-      <div className="relative">
-        <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={SELECT_CLASS}>
-          {options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-          aria-hidden
-        />
-      </div>
+      <AppSelect
+        id={id}
+        size="filter"
+        value={value}
+        onValueChange={onChange}
+        options={options.map((o) => ({ value: o.id, label: o.label }))}
+      />
     </div>
   );
 }

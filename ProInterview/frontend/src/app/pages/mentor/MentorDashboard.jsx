@@ -20,8 +20,9 @@ import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 import { listMentorBookings } from "../../utils/bookingsApi";
 import { fetchMentorDashboard } from "../../utils/mentorApi";
 import { toastApiError } from "../../utils/apiToast";
-
-const DEFAULT_AVATAR = "https://i.pravatar.cc/120?img=12";
+import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl";
+import { parseBookingNotes } from "../../utils/bookingMappers";
+import { parseMentorNotesSections, sessionTypeLabel } from "../../utils/sessionTypeLabels";
 
 function parseBookingDateTime(dateStr, timeStr = "00:00") {
   const raw = String(dateStr || "").trim();
@@ -44,26 +45,37 @@ function formatMeetingDate(dateStr, timeStr) {
   return dt.toLocaleDateString("vi-VN");
 }
 
-function toMentorMeeting(booking) {
+function toMentorMeeting(booking, ratingByBookingId = {}) {
+  const id = booking.id || booking._id || "";
+  const menteeRating = Number(
+    booking.menteeRating ?? ratingByBookingId[id] ?? 0,
+  );
+  const score = menteeRating > 0 ? menteeRating : 0;
+  const notesParsed = parseMentorNotesSections(booking.mentorNotes);
+  const { position: appliedRole } = parseBookingNotes(booking.notes);
+  const typeLabel = sessionTypeLabel(booking.sessionType);
   return {
-    id: booking.id || booking._id || "",
+    id,
     status: booking.status || "",
     mentee: {
       name: booking.customerName || booking.customerEmail || "Thành viên",
-      avatar: booking.customerAvatar || DEFAULT_AVATAR,
+      avatar: avatarSrc(booking.customerAvatar) || DEFAULT_AVATAR,
       level: "Mentee",
     },
-    position: booking.sessionType || "Mentoring session",
-    company: booking.customerEmail || "ProInterview",
+    position: appliedRole || typeLabel,
+    company: booking.customerEmail || "",
     scheduledTime: booking.timeSlot || "--:--",
     scheduledDate: booking.date || "",
-    meetingType: booking.sessionType || "mock-interview",
+    meetingType: booking.sessionType || "custom",
+    sessionTypeLabel: typeLabel,
     price: Number(booking.price || 0),
-    starScores: { situation: 0, task: 0, action: 0, result: 0 },
-    overallScore: 0,
-    feedback: "",
-    strengths: [],
-    improvements: [],
+    starScores: score
+      ? { situation: score, task: score, action: score, result: score }
+      : { situation: 0, task: 0, action: 0, result: 0 },
+    overallScore: score,
+    feedback: String(booking.reviewComment || notesParsed.feedback || "").trim(),
+    strengths: notesParsed.strengths,
+    improvements: notesParsed.weaknesses,
   };
 }
 
@@ -96,12 +108,7 @@ function MenteeProgressModal({
       ]
     : [];
 
-  const meetingTypeLabel =
-    meeting.meetingType === "mock-interview"
-      ? "Phỏng vấn thử"
-      : meeting.meetingType === "cv-review"
-      ? "Xem xét CV"
-      : "Tư vấn nghề nghiệp";
+  const meetingTypeLabel = meeting.sessionTypeLabel || sessionTypeLabel(meeting.meetingType);
 
   return (
     <motion.div
@@ -138,7 +145,10 @@ function MenteeProgressModal({
                      <span className="rounded-lg bg-violet-100 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-violet-800">{meeting.mentee.level}</span>
                   </div>
                   <h2 className="mb-1 text-xl font-black tracking-tighter text-slate-900 sm:text-2xl">{meeting.mentee.name}</h2>
-                  <p className="text-sm font-medium text-slate-600">{meeting.position} @ {meeting.company}</p>
+                  <p className="text-sm font-medium text-slate-600">
+                    {meeting.position}
+                    {meeting.company ? ` · ${meeting.company}` : ""}
+                  </p>
                </div>
             </div>
             <button type="button" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-all hover:border-slate-300 hover:text-slate-900">
@@ -182,7 +192,11 @@ function MenteeProgressModal({
                       />
                     ))}
                  </div>
-                 <p className="max-w-sm text-sm italic text-slate-600">"{meeting.feedback?.substring(0, 100)}..."</p>
+                 {meeting.feedback ? (
+                   <p className="max-w-sm text-sm italic text-slate-600">&ldquo;{meeting.feedback}&rdquo;</p>
+                 ) : (
+                   <p className="max-w-sm text-sm text-slate-500">Chưa có nhận xét từ học viên.</p>
+                 )}
               </div>
            </div>
 
@@ -222,7 +236,7 @@ function MenteeProgressModal({
                     <Lightning size={12} /> Điểm mạnh
                  </h6>
                  <ul className="space-y-3">
-                    {meeting.strengths?.map((s, i) => (
+                    {(meeting.strengths?.length ? meeting.strengths : ["Chưa có dữ liệu"]).map((s, i) => (
                       <li key={i} className="flex items-start gap-2 text-xs font-medium text-slate-700">
                          <span className="w-1.5 h-1.5 rounded-full bg-primary-fixed mt-1.5 shrink-0" />
                          {s}
@@ -235,7 +249,7 @@ function MenteeProgressModal({
                     <Target size={12} /> Cần cải thiện
                  </h6>
                  <ul className="space-y-3">
-                    {meeting.improvements?.map((s, i) => (
+                    {(meeting.improvements?.length ? meeting.improvements : ["Chưa có dữ liệu"]).map((s, i) => (
                       <li key={i} className="flex items-start gap-2 text-xs font-medium text-slate-700">
                          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
                          {s}
@@ -290,14 +304,17 @@ export function MentorDashboard() {
         fetchMentorDashboard(),
       ]);
       if (!active) return;
+      const dash = dashboardRes.success ? dashboardRes.dashboard || null : null;
+      const ratingMap = dash?.ratingByBookingId || {};
+
       if (bookingsRes.success) {
         const rows = Array.isArray(bookingsRes.bookings) ? bookingsRes.bookings : [];
-        setMentorBookings(rows.map(toMentorMeeting));
+        setMentorBookings(rows.map((b) => toMentorMeeting(b, ratingMap)));
       } else if (bookingsRes.error) {
         toastApiError(bookingsRes.error, "Không tải được lịch hẹn.");
       }
       if (dashboardRes.success) {
-        setDashboard(dashboardRes.dashboard || null);
+        setDashboard(dash);
       } else if (dashboardRes.error) {
         toastApiError(dashboardRes.error, "Không tải được thống kê dashboard.");
       }
@@ -310,34 +327,33 @@ export function MentorDashboard() {
   if (!user || user.role !== "mentor") return null;
 
   const now = Date.now();
-  const month = new Date().getMonth();
-  const year = new Date().getFullYear();
+  const sevenDaysLater = now + 7 * 24 * 60 * 60 * 1000;
+  const ratingMap = dashboard?.ratingByBookingId || {};
   const apiUpcoming = mentorBookings.filter((m) => {
     const statusOk = ["pending", "confirmed", "in_progress"].includes(String(m.status || "").toLowerCase());
     if (!statusOk) return false;
     const dt = parseBookingDateTime(m.scheduledDate, m.scheduledTime);
-    return dt && dt.getTime() > now;
+    return dt && dt.getTime() > now && dt.getTime() <= sevenDaysLater;
   });
   const dashboardUpcoming = Array.isArray(dashboard?.upcomingBookings)
-    ? dashboard.upcomingBookings.map(toMentorMeeting)
+    ? dashboard.upcomingBookings.map((b) => toMentorMeeting(b, ratingMap))
     : [];
   const upcomingMeetings = (dashboardUpcoming.length ? dashboardUpcoming : apiUpcoming).slice(0, 3);
   const recentCompleted = mentorBookings
     .filter((m) => String(m.status || "").toLowerCase() === "completed")
     .slice(0, 5);
-  const thisMonthSessions = mentorBookings.filter((m) => {
-    const dt = parseBookingDateTime(m.scheduledDate, m.scheduledTime);
-    return dt && dt.getMonth() === month && dt.getFullYear() === year;
-  }).length;
-  const totalEarnings = mentorBookings
-    .filter((m) => String(m.status || "").toLowerCase() === "completed")
-    .reduce((sum, m) => sum + Number(m.price || 0), 0);
+  const finance = dashboard?.finance || {};
+  const totalEarned = Number(finance.totalEarned || 0);
+  const availableBalance = Number(finance.availableBalance || 0);
   const stats = {
-    totalSessions: Number(dashboard?.totalSessions || mentorBookings.length),
-    thisMonthSessions,
-    upcomingMeetings: Number(dashboard?.upcomingBookings?.length || apiUpcoming.length),
-    totalEarnings,
+    totalSessions: Number(dashboard?.totalSessions ?? mentorBookings.length),
+    thisMonthSessions: Number(dashboard?.sessionsThisMonth ?? 0),
+    upcomingMeetings: Number(dashboard?.upcomingWithin7Days ?? dashboardUpcoming.length ?? apiUpcoming.length),
+    totalEarned,
+    availableBalance,
   };
+
+  const formatVnd = (amount) => `${Number(amount || 0).toLocaleString("vi-VN")} Đ`;
 
   return (
     <MentorPageShell bottomPad="pb-20">
@@ -349,16 +365,17 @@ export function MentorDashboard() {
       <div className="relative z-10 mx-auto max-w-7xl px-6 pb-10 sm:px-8">
         <div className="mb-8 flex flex-col justify-between gap-4 md:mb-10 md:flex-row md:items-end md:gap-6">
           <div>
-            <h1 className="mb-2 font-headline text-2xl font-black tracking-tight text-slate-900 sm:text-3xl break-words">
+            <h1 className="font-headline text-2xl font-black tracking-tight text-slate-900 sm:text-3xl break-words">
                Xin chào,{" "}
                <span className="text-violet-700">{getDisplayName(user, "Mentor")}!</span>
             </h1>
-            <p className="max-w-xl text-sm font-medium leading-relaxed text-slate-600">
-              Bảng điều khiển tối ưu dành cho Mentor của ProInterview
-            </p>
           </div>
           <div className="flex gap-4">
+<<<<<<< Updated upstream
               <button type="button" onClick={() => navigate("/mentor/schedule")} className="flex items-center gap-2 rounded-xl bg-[#93f72b] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-[#0a0814] shadow-[0_8px_24px_rgba(196,255,71,0.22)] transition-all hover:brightness-110">
+=======
+              <button type="button" onClick={() => navigate("/mentor/schedule")} className="flex items-center gap-2 rounded-xl bg-[#93f72b] px-5 py-2.5 text-xs font-bold text-[#120B2E] shadow-[0_8px_24px_rgba(147,247,43,0.28)] transition-all hover:brightness-105">
+>>>>>>> Stashed changes
                  <Plus size={16} /> Tạo lịch mới
               </button>
           </div>
@@ -367,9 +384,18 @@ export function MentorDashboard() {
         {/* Vital Stats Grid */}
         <div className="mb-8 grid grid-cols-1 gap-4 md:mb-10 md:grid-cols-3 md:gap-5">
            {[
-             { label: "Tổng buổi mentor", value: stats.totalSessions, sub: `+${stats.thisMonthSessions} tháng này`, icon: Users, color: "#8037f4" },
+             {
+               label: "Tổng buổi mentor",
+               value: stats.totalSessions,
+               sub:
+                 stats.thisMonthSessions > 0
+                   ? `+${stats.thisMonthSessions} buổi tháng này`
+                   : "Chưa có buổi mới tháng này",
+               icon: Users,
+               color: "#8037f4",
+             },
              { label: "Lịch hẹn sắp tới", value: stats.upcomingMeetings, sub: "Trong 7 ngày tới", icon: CalendarBlank, color: "#f59e0b" },
-             { label: "Doanh thu tạm tính", value: `${(stats.totalEarnings / 1000000).toFixed(1)}M`, sub: "Sẵn sàng rút tiền", icon: CurrencyCircleDollar, color: "#93f72b" }
+             { label: "Tổng thu nhập", value: formatVnd(stats.totalEarned), sub: `Khả dụng ${formatVnd(stats.availableBalance)}`, icon: CurrencyCircleDollar, color: "#93f72b" }
            ].map((stat, i) => (
              <div key={i} className="glass-card group relative overflow-hidden bg-white p-5 sm:p-6">
                 <div className="absolute right-0 top-0 h-24 w-24 translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-violet-100/80 to-transparent" />
@@ -429,7 +455,9 @@ export function MentorDashboard() {
                             <img src={meeting.mentee.avatar} alt="" className="h-12 w-12 rounded-2xl object-cover ring-2 ring-slate-200 sm:h-14 sm:w-14" />
                             <div>
                                <h5 className="text-base font-black text-slate-900 transition-colors group-hover:text-violet-800 sm:text-lg">{meeting.mentee.name}</h5>
-                               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{meeting.position} @ {meeting.company}</p>
+                               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                                 {meeting.sessionTypeLabel || meeting.position}
+                               </p>
                             </div>
                          </div>
                          <div className="flex items-center gap-6 sm:gap-10">
@@ -475,7 +503,9 @@ export function MentorDashboard() {
                          </div>
                          <div className="flex shrink-0 items-center gap-1.5 text-violet-700">
                             <Star size={12} className="fill-current" />
-                            <span className="text-xs font-black">{meeting.overallScore?.toFixed(1)}</span>
+                            <span className="text-xs font-black">
+                              {meeting.overallScore > 0 ? meeting.overallScore.toFixed(1) : "—"}
+                            </span>
                          </div>
                       </div>
                     ))}
@@ -490,12 +520,12 @@ export function MentorDashboard() {
                  <div className="pointer-events-none absolute right-0 top-0 p-4 opacity-[0.12] transition-all duration-700 group-hover:rotate-0" style={{ transform: "rotate(12deg)" }}>
                     <SealCheck size={80} className="text-violet-500" />
                  </div>
-                 <p className="relative mb-2 text-[10px] font-black uppercase tracking-[0.25em] text-violet-700">Peer Review</p>
+                 <p className="relative mb-2 text-[10px] font-black uppercase tracking-[0.25em] text-violet-700">Đánh giá chéo</p>
                  <h4 className="relative mb-2 text-base font-black tracking-tight text-slate-900 sm:text-lg">
                    Tham gia Đánh giá Khóa học
                  </h4>
                  <p className="relative mb-4 text-xs font-medium leading-relaxed text-slate-600">
-                   Góp ý nội dung cho đồng nghiệp và nhận point thưởng từ ProInterview.
+                   Góp ý nội dung cho đồng nghiệp và nhận điểm thưởng từ ProInterview.
                  </p>
                  <button type="button" onClick={() => navigate("/mentor/peer-review")} className="relative flex items-center gap-2 text-[11px] font-black text-violet-800 transition-all hover:gap-3">
                     Bắt đầu ngay <ArrowRight size={16} className="text-violet-700" />

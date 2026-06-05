@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
+import { Review } from "../models/Review.js";
 
 /** Tăng số ghi danh đã thanh toán trên khóa (gọi khi enrollment chuyển sang paid). */
 export async function incrementCourseEnrollmentCount(courseId, session) {
@@ -43,3 +44,63 @@ export function applyPaidEnrollmentCountsToCourses(courses, countMap) {
 }
 
 export const applyPaidEnrollmentCountsToAdminCourses = applyPaidEnrollmentCountsToCourses;
+
+/** Tổng hợp số liệu chỉ trên khóa học của mentor đang đăng nhập (không gộp mentor khác). */
+export async function buildMentorCourseListSummary(courses) {
+  const active = (courses || []).filter((c) => c.status !== "archived");
+  const courseIds = active.map((c) => c._id).filter((id) => mongoose.isValidObjectId(String(id)));
+
+  let totalStudents = 0;
+  if (courseIds.length) {
+    const oids = courseIds.map((id) => new mongoose.Types.ObjectId(String(id)));
+    const uniqueRows = await Enrollment.aggregate([
+      { $match: { courseId: { $in: oids }, paymentStatus: "paid" } },
+      { $group: { _id: "$userId" } },
+      { $count: "total" },
+    ]);
+    totalStudents = Number(uniqueRows[0]?.total) || 0;
+  }
+
+  let avgRating = null;
+  let reviewCount = 0;
+  if (courseIds.length) {
+    const oids = courseIds.map((id) => new mongoose.Types.ObjectId(String(id)));
+    const reviews = await Review.find({
+      targetType: "course",
+      targetId: { $in: oids },
+      isVisible: { $ne: false },
+    })
+      .select("rating")
+      .lean();
+    reviewCount = reviews.length;
+    if (reviewCount > 0) {
+      avgRating = Number(
+        (reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviewCount).toFixed(1),
+      );
+    } else {
+      const ratedCourses = active.filter(
+        (c) => Number(c.stats?.reviewCount) > 0 && Number(c.stats?.rating) > 0,
+      );
+      const totalWeightedReviews = ratedCourses.reduce(
+        (sum, c) => sum + Number(c.stats.reviewCount),
+        0,
+      );
+      if (totalWeightedReviews > 0) {
+        const weightedSum = ratedCourses.reduce(
+          (sum, c) => sum + Number(c.stats.rating) * Number(c.stats.reviewCount),
+          0,
+        );
+        avgRating = Number((weightedSum / totalWeightedReviews).toFixed(1));
+        reviewCount = totalWeightedReviews;
+      }
+    }
+  }
+
+  return {
+    scope: "mentor",
+    totalCourses: active.length,
+    totalStudents,
+    avgRating,
+    reviewCount,
+  };
+}

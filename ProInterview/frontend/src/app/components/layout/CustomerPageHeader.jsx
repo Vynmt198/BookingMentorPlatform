@@ -1,5 +1,20 @@
 import React from "react";
 
+/** Phần đầu tiêu đề H1: tím brand */
+export const CUSTOMER_TITLE_ACCENT = "font-extrabold text-[#6d2fd6]";
+/** Phần sau tiêu đề H1: đen */
+export const CUSTOMER_TITLE_REST = "font-extrabold text-[#1a1b23]";
+
+/** Tiêu đề 2 tông: tím → đen (đồng bộ Mentors, Courses, Pricing, …) */
+export function CustomerPageSplitTitle({ accent, rest }) {
+  return (
+    <>
+      <span className={CUSTOMER_TITLE_ACCENT}>{accent}</span>{" "}
+      <span className={CUSTOMER_TITLE_REST}>{rest}</span>
+    </>
+  );
+}
+
 /** Pill badge + tiêu đề — đồng bộ CV hub / Pricing / các trang customer */
 export function CustomerPageBadge({ children, pulse = true, className = "" }) {
   return (
@@ -33,6 +48,7 @@ export function CustomerPageHeader({
 }) {
   return (
     <header className={`${className} ${centered ? "text-center" : ""}`}>
+<<<<<<< Updated upstream
       <div
         className={`mb-2 flex flex-wrap items-center gap-3 ${centered ? "justify-center" : "justify-between"}`}
       >
@@ -46,6 +62,21 @@ export function CustomerPageHeader({
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </div>
       <h1 className="font-headline text-[clamp(1.75rem,3.5vw,2.5rem)] font-extrabold leading-[1.12] tracking-tight text-[#000000]">
+=======
+      {(badge || actions) && (
+        <div
+          className={`mb-2 flex flex-wrap items-center gap-3 ${centered ? "justify-center" : "justify-between"}`}
+        >
+          {badge ? (
+            <CustomerPageBadge pulse={badgePulse} className={centered ? "" : ""}>
+              {badge}
+            </CustomerPageBadge>
+          ) : null}
+          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
+        </div>
+      )}
+      <h1 className="font-headline text-[clamp(1.75rem,3.5vw,2.5rem)] font-extrabold leading-[1.12] tracking-tight text-[#1a1b23]">
+>>>>>>> Stashed changes
         {title}
       </h1>
       {subtitle ? (
