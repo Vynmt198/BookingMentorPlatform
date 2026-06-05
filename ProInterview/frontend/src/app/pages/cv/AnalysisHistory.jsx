@@ -70,7 +70,7 @@ function mapRow(item) {
 
 function scoreTone(score) {
   if (score >= 75) return { text: "text-lime-900", bg: "bg-lime-100 ring-lime-200/80" };
-  if (score >= 55) return { text: "text-[#6d2fd6]", bg: "bg-violet-100 ring-violet-200/80" };
+  if (score >= 55) return { text: "text-[#8037f4]", bg: "bg-violet-100 ring-violet-200/80" };
   return { text: "text-amber-800", bg: "bg-amber-100 ring-amber-200/80" };
 }
 
@@ -197,7 +197,7 @@ export function AnalysisHistory() {
           { icon: FileText, value: bestScore, label: "Điểm cao nhất" },
         ].map(({ icon: Icon, value, label }) => (
           <div key={label} className="flex flex-col items-center gap-1.5 px-4 py-6 sm:px-8 sm:py-7">
-            <Icon className="h-4 w-4 text-[#6d2fd6]" strokeWidth={2} />
+            <Icon className="h-4 w-4 text-[#8037f4]" strokeWidth={2} />
             <p className="text-xl font-extrabold text-violet-950 sm:text-2xl">{value}</p>
             <p className="text-center text-[10px] font-semibold text-violet-600 sm:text-[11px]">{label}</p>
           </div>
@@ -213,7 +213,7 @@ export function AnalysisHistory() {
             placeholder={searchPlaceholder}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-xl border border-violet-200 bg-violet-50/40 py-2.5 pl-10 pr-3 text-sm text-violet-950 placeholder:text-violet-400 focus:border-[#6d2fd6] focus:outline-none focus:ring-2 focus:ring-violet-200/80"
+            className="w-full rounded-xl border border-violet-200 bg-violet-50/40 py-2.5 pl-10 pr-3 text-sm text-violet-950 placeholder:text-violet-400 focus:border-[#8037f4] focus:outline-none focus:ring-2 focus:ring-violet-200/80"
           />
         </div>
         <div className="inline-flex shrink-0 rounded-xl bg-violet-100/70 p-1">
@@ -230,7 +230,7 @@ export function AnalysisHistory() {
                 onClick={() => setSortBy(opt.value)}
                 className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all sm:text-sm ${
                   active
-                    ? "bg-white text-[#6d2fd6] shadow-sm ring-1 ring-violet-200/80"
+                    ? "bg-white text-[#8037f4] shadow-sm ring-1 ring-violet-200/80"
                     : "text-violet-600 hover:text-violet-900"
                 }`}
               >
@@ -248,7 +248,7 @@ export function AnalysisHistory() {
           <button
             type="button"
             onClick={loadRows}
-            className="shrink-0 font-bold text-[#6d2fd6] hover:underline"
+            className="shrink-0 font-bold text-[#8037f4] hover:underline"
           >
             Thử lại
           </button>
@@ -277,7 +277,7 @@ export function AnalysisHistory() {
               onClick={() =>
                 navigate(isFieldContext ? FIELD_ANALYSIS_PATH : JD_ANALYSIS_PATH)
               }
-              className="mt-3 inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-[#93f72b] via-[#93f72b] to-[#93f72b] px-5 py-2.5 text-sm font-extrabold text-violet-950 shadow-[0_6px_20px_rgba(196,255,71,0.3)] transition hover:brightness-105 sm:px-6 sm:py-3"
+              className="mt-3 inline-flex items-center justify-center rounded-2xl bg-[#93f72b] px-5 py-2.5 text-sm font-extrabold text-[#000000] shadow-[0_6px_20px_rgba(196,255,71,0.3)] transition hover:brightness-105 sm:px-6 sm:py-3"
             >
               {isFieldContext ? "Phân tích theo ngành" : "Phân tích CV + JD"}
             </button>
@@ -305,7 +305,7 @@ export function AnalysisHistory() {
                   key={item.id}
                   className={`overflow-hidden rounded-2xl border transition-all ${
                     expanded
-                      ? "border-[#6d2fd6] shadow-md shadow-violet-500/10"
+                      ? "border-[#8037f4] shadow-md shadow-violet-500/10"
                       : "border-violet-200/80 hover:border-violet-300"
                   }`}
                 >
@@ -315,7 +315,7 @@ export function AnalysisHistory() {
                     className="flex w-full items-start gap-3 px-4 py-4 text-left sm:gap-4 sm:px-5"
                   >
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-violet-100 ring-1 ring-violet-200/70">
-                      <FileText className="h-5 w-5 text-[#6d2fd6]" />
+                      <FileText className="h-5 w-5 text-[#8037f4]" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -323,7 +323,7 @@ export function AnalysisHistory() {
                           className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                             item.mode === "field"
                               ? "bg-amber-100 text-amber-900"
-                              : "bg-violet-100 text-[#6d2fd6]"
+                              : "bg-violet-100 text-[#8037f4]"
                           }`}
                         >
                           {item.mode === "field" ? item.field || "Theo ngành" : "CV + JD"}
@@ -456,7 +456,7 @@ export function AnalysisHistory() {
                                 onClick={() =>
                                   navigate(cvAnalysisResultPath(item.mode, item.id))
                                 }
-                                className="inline-flex items-center gap-2 rounded-xl bg-[#6d2fd6] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#5209b8]"
+                                className="inline-flex items-center gap-2 rounded-xl bg-[#8037f4] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#8037f4]"
                               >
                                 <Eye className="h-3.5 w-3.5" />
                                 Xem đầy đủ
@@ -471,7 +471,7 @@ export function AnalysisHistory() {
                                       : undefined
                                   )
                                 }
-                                className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2 text-xs font-bold text-[#6d2fd6] transition hover:bg-violet-50"
+                                className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-white px-4 py-2 text-xs font-bold text-[#8037f4] transition hover:bg-violet-50"
                               >
                                 <ArrowsClockwise className="h-3.5 w-3.5" />
                                 Phân tích lại

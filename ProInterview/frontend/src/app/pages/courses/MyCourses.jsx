@@ -37,7 +37,7 @@ function CourseCard({ item, onDetails }) {
           <button
             type="button"
             onClick={onDetails}
-            className="text-xs font-semibold text-[#8037f4] transition-colors hover:text-[#6d2fd6] hover:underline sm:text-sm"
+            className="text-xs font-semibold text-[#8037f4] transition-colors hover:text-[#8037f4] hover:underline sm:text-sm"
           >
             Chi tiết
           </button>
@@ -142,14 +142,14 @@ export function MyCourses() {
             badge="Khóa học của tôi"
             title={
               <>
-                Danh sách khóa <span className="text-[#6d2fd6]">bạn đã mua</span>
+                Danh sách khóa <span className="text-[#8037f4]">bạn đã mua</span>
               </>
             }
             subtitle="Mở khóa để xem nội dung, tiếp tục học hoặc ôn lại bài đã hoàn thành."
             className="mb-6"
           />
 
-          <div className="rounded-3xl border border-violet-200/80 bg-gradient-to-b from-violet-50/50 via-white to-white p-4 shadow-sm sm:p-6">
+          <div className="rounded-3xl border border-violet-200/80 bg-white p-4 shadow-sm sm:p-6">
             {loading ? (
               <div className="flex min-h-[280px] items-center justify-center">
                 <div className="size-10 animate-spin rounded-full border-4 border-[#8037f4] border-t-transparent" />

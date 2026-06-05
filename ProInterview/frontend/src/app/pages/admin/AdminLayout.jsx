@@ -4,7 +4,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "../../components/
 import { AdminSidebar } from "../../components/layout/AdminSidebar";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 
-/** Tiêu đề header — thứ tự từ cụ thể → tổng quan (regex). */
+/** Tiêu đề header, thứ tự từ cụ thể → tổng quan (regex). */
 const ADMIN_HEADER_RULES = [
   [/^\/admin\/users\/[^/]+$/, "Chi tiết người dùng"],
   [/^\/admin\/users$/, "Người dùng"],
@@ -18,8 +18,8 @@ const ADMIN_HEADER_RULES = [
   [/^\/admin\/transactions$/, "Giao dịch"],
   [/^\/admin\/payouts$/, "Rút tiền cố vấn"],
   [/^\/admin\/finance$/, "Tài chính"],
-  [/^\/admin\/content\/questions$/, "Phỏng vấn AI"],
   [/^\/admin\/content\/courses$/, "Khóa học"],
+  [/^\/admin\/achievements$/, "Quản lý Thành tựu"],
   [/^\/admin\/analytics$/, "Phân tích"],
   [/^\/admin\/reviews$/, "Đánh giá"],
   [/^\/admin\/support$/, "Hỗ trợ"],
@@ -56,8 +56,7 @@ function AdminTopBar() {
       </div>
       <div className="flex-1" />
       <span
-        className="shrink-0 rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#2D1B69] sm:text-[10px]"
-        style={{ background: "linear-gradient(135deg, #B4F500, #93D600)" }}
+        className="shrink-0 rounded-md border border-[#8037f4]/25 bg-[#8037f4]/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#8037f4] sm:text-[10px]"
       >
         Admin
       </span>
@@ -83,7 +82,7 @@ export function AdminLayout() {
         <SidebarInset className="relative z-[1] flex min-h-0 min-w-0 flex-1 flex-col bg-transparent shadow-none md:peer-data-[variant=inset]:shadow-none md:peer-data-[variant=inset]:m-0 md:peer-data-[variant=inset]:rounded-none">
           <AdminTopBar />
           <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-            <MentorPageShell fillHeight bottomPad="pb-8">
+            <MentorPageShell fillHeight bottomPad="pb-8" showAmbient={false}>
               <div className="relative z-10 mx-auto w-full min-w-0 max-w-7xl px-4 pb-10 pt-6 sm:px-6 lg:px-8">
                 <Outlet />
               </div>

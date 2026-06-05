@@ -265,7 +265,7 @@ export function Mentors() {
             badge="Mentor 1:1"
             title={
               <>
-                Tìm Mentor <span className="text-[#6d2fd6]">phù hợp</span>
+                Tìm Mentor <span className="text-[#8037f4]">phù hợp</span>
               </>
             }
             subtitle="Sau buổi mock 1-1, bạn nhận feedback cụ thể — biết cần sửa gì và tự tin hơn khi vào vòng phỏng vấn thật."
@@ -309,7 +309,7 @@ export function Mentors() {
                   ) : null}
                 </div>
 
-                <div className="mb-4 rounded-xl bg-gradient-to-r from-violet-100/80 via-violet-50/50 to-slate-50 px-4 py-3">
+                <div className="mb-4 rounded-xl bg-violet-50 px-4 py-3">
                   <p className="text-sm font-semibold text-violet-950">
                     {loading ? (
                       <span className="inline-flex items-center gap-2">
@@ -408,7 +408,7 @@ export function Mentors() {
                           }}
                           className="group cursor-pointer overflow-hidden rounded-2xl border border-violet-200/70 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md"
                         >
-                          <div className="h-1 w-full bg-gradient-to-r from-[#8037f4] to-[#a66ff8]" />
+                          <div className="h-1 w-full bg-[#8037f4]" />
                           <div className="p-5">
                             <div className="mb-4 flex items-start gap-3">
                               <div className="relative shrink-0">

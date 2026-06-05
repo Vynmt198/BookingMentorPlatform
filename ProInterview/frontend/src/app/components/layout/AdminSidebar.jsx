@@ -9,7 +9,6 @@ import {
   ArrowLeftRight,
   Banknote,
   Calendar,
-  FileQuestion,
   BookOpen,
   Crown,
   LineChart,
@@ -81,7 +80,7 @@ const MAIN_GROUPS = [
     title: "Nội dung",
     items: [
       { to: "/admin/content/courses", label: "Khóa học", icon: BookOpen },
-      { to: "/admin/content/questions", label: "Phỏng vấn AI", icon: FileQuestion },
+      { to: "/admin/achievements", label: "Thành tựu", icon: Star },
     ],
   },
   {
@@ -93,7 +92,7 @@ const MAIN_GROUPS = [
   },
 ];
 
-/** Ẩn tạm — cài đặt HT read-only; bật lại khi có PATCH /api/admin/settings */
+/** Ẩn tạm, cài đặt HT read-only; bật lại khi có PATCH /api/admin/settings */
 const SECONDARY_ITEMS = [];
 
 function pathActive(pathname, to, end) {
@@ -135,10 +134,10 @@ export function AdminSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarBrandButton
-              tooltip="ProInterview — Quản trị"
+              tooltip="ProInterview, Quản trị"
               onClick={() => navigate("/admin")}
               badge={
-                <span className="shrink-0 rounded-md bg-[#93f72b] px-1.5 py-0.5 text-[7px] font-bold tracking-wide text-[#2D1B69]">
+                <span className="shrink-0 rounded-md border border-[#8037f4]/25 bg-[#8037f4]/12 px-1.5 py-0.5 text-[7px] font-bold tracking-wide text-[#8037f4]">
                   ADMIN
                 </span>
               }
@@ -207,7 +206,7 @@ export function AdminSidebar() {
                               {active && (
                                 <span
                                   className="ml-auto size-1.5 shrink-0 rounded-full group-data-[collapsible=icon]:hidden"
-                                  style={{ background: "#93f72b" }}
+                                  style={{ background: "#8037f4" }}
                                 />
                               )}
                             </SidebarMenuButton>

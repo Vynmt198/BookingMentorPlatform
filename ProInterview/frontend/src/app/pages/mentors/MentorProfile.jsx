@@ -194,7 +194,7 @@ export function MentorProfile() {
                       className="h-28 w-28 rounded-2xl object-cover ring-4 ring-violet-100 shadow-md"
                     />
                   ) : (
-                    <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-violet-400 text-2xl font-bold text-white shadow-md ring-4 ring-violet-100">
+                    <div className="flex h-28 w-28 items-center justify-center rounded-2xl bg-[#8037f4] text-2xl font-bold text-white shadow-md ring-4 ring-violet-100">
                       {initials}
                     </div>
                   )}
@@ -319,7 +319,7 @@ export function MentorProfile() {
                     >
                       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-violet-400 text-xs font-bold text-white">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#8037f4] text-xs font-bold text-white">
                             {(review.userName || "H").charAt(0)}
                           </div>
                           <div>

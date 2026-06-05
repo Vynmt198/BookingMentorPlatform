@@ -138,7 +138,7 @@ export function MentorCourseManagement() {
                   <p className="text-slate-600 text-sm font-medium">Xây dựng nội dung, theo dõi doanh thu và học viên của bạn</p>
                </div>
                <div className="flex gap-4">
-                  <button onClick={() => navigate("/mentor/courses/new/edit")} className="px-10 py-5 rounded-3xl bg-primary-fixed text-black text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-[0_15px_40px_rgba(196, 255, 71,0.3)] flex items-center gap-3">
+                  <button onClick={() => navigate("/mentor/courses/new/edit")} className="px-10 py-5 rounded-3xl bg-primary-fixed text-[#000000] text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-[0_15px_40px_rgba(196, 255, 71,0.3)] flex items-center gap-3">
                      <Plus size={20} /> Tạo khóa học mới
                   </button>
 

@@ -42,6 +42,11 @@ export const adminApi = {
       method: "PATCH",
       body: JSON.stringify({ isActive }),
     }),
+  updateMentorCommission: (id, payload = {}) =>
+    authedFetch(`/api/admin/mentors/${id}/commission`, {
+      method: "PATCH",
+      body: JSON.stringify(payload ?? {}),
+    }),
   rejectMentorApplication: (id, reason) =>
     authedFetch(`/api/admin/mentors/${id}/reject`, {
       method: "PATCH",
@@ -82,6 +87,12 @@ export const adminApi = {
   getPendingEnrollmentTransfers: () => authedFetch("/api/admin/enrollments/pending-transfer"),
   getCoursePaymentEnrollments: () => authedFetch("/api/admin/enrollments/course-payments"),
   getCourseFinanceSummary: () => authedFetch("/api/admin/finance/courses"),
+  getPlatformFinanceSummary: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.month) q.set("month", params.month);
+    const qs = q.toString();
+    return authedFetch(`/api/admin/finance/platform-summary${qs ? `?${qs}` : ""}`);
+  },
   confirmEnrollmentTransferPayment: (id, body = {}) =>
     authedFetch(`/api/admin/enrollments/${id}/confirm-transfer-payment`, {
       method: "PATCH",

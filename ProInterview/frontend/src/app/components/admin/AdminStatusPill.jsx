@@ -13,7 +13,7 @@ function StatusRow({ caption, children }) {
   );
 }
 
-/** Một badge trạng thái — dùng xếp dọc, không gom chung một khối. */
+/** Một badge trạng thái, dùng xếp dọc, không gom chung một khối. */
 export function StatusPill({ icon: Icon, label, toneClass }) {
   return (
     <span className={`${PILL} ${toneClass}`}>

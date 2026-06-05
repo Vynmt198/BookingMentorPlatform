@@ -125,7 +125,7 @@ export function MentorReview() {
         <button
           onClick={() => navigate(`/session/${session.backendId || session.sessionId}`)}
           className="px-8 py-3 rounded-2xl text-sm font-black text-white shadow-xl shadow-violet-900/20"
-          style={{ background: "linear-gradient(135deg, #6E35E8, #8B4DFF)" }}
+          style={{ background: "#8037f4" }}
         >
           Về chi tiết buổi hẹn
         </button>
@@ -189,7 +189,7 @@ export function MentorReview() {
     return (
       <div className="mx-auto max-w-2xl p-6 py-20 antialiased">
         <div className="relative overflow-hidden rounded-[3rem] p-12 text-center shadow-2xl shadow-violet-900/10 border border-slate-100 bg-white">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50 to-violet-50 blur-3xl -z-10" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-violet-50 blur-3xl -z-10" />
           
           <div className="w-24 h-24 rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-xl shadow-indigo-900/10 bg-white border border-indigo-50">
             <Trophy className="w-10 h-10 text-indigo-500" />
@@ -237,7 +237,7 @@ export function MentorReview() {
 
       {/* Header Card */}
       <div className="relative overflow-hidden bg-white rounded-[2.5rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-100 mb-8">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50/50 to-violet-50/30 blur-3xl -z-10" />
+        <div className="absolute top-0 right-0 w-64 h-64 bg-violet-50/50 blur-3xl -z-10" />
         
         <div className="flex items-center gap-6">
           <img

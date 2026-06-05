@@ -9,9 +9,9 @@ export const HOME_COPY = {
   badge: "Bạn đồng hành luyện phỏng vấn",
   titleLine1: "Chuẩn bị",
   titleHighlight: "hồ sơ & kỹ năng",
-  titleLine2Suffix: "cùng",
-  titleExtraLines: ["mentor", "thật", ""],
+  titleLine2: "cùng mentor thật",
   cta: "Phân tích CV ngay",
+  ctaMentor: "Tìm mentor ngay",
   stats: [
     { value: "10,000+", label: "Lượt luyện trên ProInterview" },
     { value: "500+", label: "Mentor HR/Manager thật" },
@@ -38,7 +38,7 @@ export const HOME_SECTION_COPY = {
       desc: "Gặp HR/Manager thật. Góp ý cụ thể, biết bước tiếp theo nên luyện gì.",
     },
     {
-      step: "04",
+      step: "03",
       title: "Khóa học",
       desc: "Video và bài tập mentor duyệt. Học xong biết áp dụng vào CV và buổi phỏng vấn.",
     },
@@ -88,6 +88,17 @@ export const HOME_SECTION_COPY = {
   },
 };
 
+/** Copy ngắn — chi tiết bảng: `constants/bookingPolicy.js` + `BookingPolicySummary`. */
+export const BOOKING_POLICY_COPY = {
+  refundTitle: "Chính sách khi bạn hủy",
+  refundDetail:
+    "Từ 24 giờ trước buổi: hoàn 100%. 12–24 giờ: hoàn 50%. Dưới 12 giờ hoặc không tham gia: không hoàn.",
+  mentorCancelTitle: "Chính sách khi Mentor hủy / no-show",
+  mentorCancelRefund:
+    "Mentor hủy từ 24 giờ trở lên: đổi lịch, đổi Mentor hoặc hoàn 100% · Dưới 24 giờ: hoàn 100% ưu tiên · No-show: hoàn 100% + vi phạm Mentor.",
+  userChangeSlotNote: "Đổi giờ: hủy buổi rồi đặt lại.",
+};
+
 export const CV_SHOWCASE_COPY = {
   badge: "Phân tích CV",
   titleLine1: "Làm sao để CV ấn tượng",
@@ -98,7 +109,7 @@ export const CV_SHOWCASE_COPY = {
 
 export const MENTOR_SHOWCASE_COPY = {
   badge: "Mentor 1:1 thật",
-  titleLine1: "Đã luyện với AI",
+  titleLine1: "Đã phân tích CV,",
   titleLine2: "hẹn mentor, biết ôn gì tiếp",
   steps: [
     {

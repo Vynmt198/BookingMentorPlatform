@@ -1047,7 +1047,7 @@ export function CVAnalysis() {
               {cvRemaining === 0 && !plans.student && !plans.professional && !plans.premium && (
                 <div className="mx-4 mb-0 mt-3 flex items-center justify-between gap-2 rounded-xl border border-amber-200/90 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 sm:mx-5">
                   <span>Đã hết lượt miễn phí — nâng cấp để tiếp tục</span>
-                  <button type="button" onClick={() => navigate("/pricing")} className="font-bold text-[#6d2fd6] hover:underline">
+                  <button type="button" onClick={() => navigate("/pricing")} className="font-bold text-[#8037f4] hover:underline">
                     Xem gói
                   </button>
                 </div>
@@ -1129,7 +1129,7 @@ export function CVAnalysis() {
                                   ? isSelected
                                     ? "bg-violet-50/90 hover:bg-violet-50"
                                     : "hover:bg-violet-50/60"
-                                  : "cursor-not-allowed bg-gradient-to-r from-slate-50 via-white to-violet-50/40 opacity-95"
+                                  : "cursor-not-allowed bg-violet-50/40 opacity-95"
                               }`}
                             >
                               <span
@@ -1144,7 +1144,7 @@ export function CVAnalysis() {
                                 {opt.label}
                               </span>
                               {!opt.available && (
-                                <span className="inline-flex shrink-0 items-center rounded-sm border border-violet-200/70 bg-gradient-to-r from-violet-50 to-indigo-50 px-2 py-1 text-[10px] font-bold tracking-wide text-violet-700 shadow-sm">
+                                <span className="inline-flex shrink-0 items-center rounded-sm border border-violet-200/70 bg-violet-50 px-2 py-1 text-[10px] font-bold tracking-wide text-violet-700 shadow-sm">
                                   Sắp ra mắt
                                 </span>
                               )}
@@ -1157,14 +1157,14 @@ export function CVAnalysis() {
                 </div>
               )}
 
-              <div className="border-t border-violet-100 bg-gradient-to-b from-violet-50/40 to-violet-50/70 px-6 py-6 sm:px-8 sm:py-8">
+              <div className="border-t border-violet-100 bg-violet-50 px-6 py-6 sm:px-8 sm:py-8">
                 <button
                   type="button"
                   onClick={handleAnalyze}
                   disabled={!canAnalyze || !readyToAnalyze}
                   className={`flex w-full max-w-2xl mx-auto items-center justify-center gap-2 rounded-2xl py-4 text-base font-extrabold transition-all sm:py-4 sm:text-lg ${
                     canAnalyze && readyToAnalyze
-                      ? "bg-gradient-to-r from-[#93f72b] via-[#93f72b] to-[#93f72b] text-violet-950 shadow-[0_8px_28px_rgba(196,255,71,0.35)] hover:brightness-105 active:scale-[0.99]"
+                      ? "bg-[#93f72b] text-[#000000] shadow-[0_8px_28px_rgba(196,255,71,0.35)] hover:brightness-105 active:scale-[0.99]"
                       : "cursor-not-allowed bg-violet-200/60 text-violet-500"
                   }`}
                 >

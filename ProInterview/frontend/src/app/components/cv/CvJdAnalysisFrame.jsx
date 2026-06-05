@@ -30,7 +30,7 @@ export function cvAnalysisPageHeader(mode) {
       badge: "Phân tích theo ngành",
       title: (
         <>
-          Phân tích CV <span className="text-[#6d2fd6]">theo ngành</span>
+          Phân tích CV <span className="text-[#8037f4]">theo ngành</span>
         </>
       ),
       subtitle: FIELD_SUBTITLE,
@@ -41,7 +41,7 @@ export function cvAnalysisPageHeader(mode) {
     badge: "Phân tích CV + JD",
     title: (
       <>
-        Phân tích CV <span className="text-[#6d2fd6]">với JD</span>
+        Phân tích CV <span className="text-[#8037f4]">với JD</span>
       </>
     ),
     subtitle: JD_SUBTITLE,
@@ -62,7 +62,7 @@ export function CvJdAnalysisPage({
   badge = "Phân tích CV + JD",
   title = (
     <>
-      Phân tích CV <span className="text-[#6d2fd6]">với JD</span>
+      Phân tích CV <span className="text-[#8037f4]">với JD</span>
     </>
   ),
   subtitle = JD_SUBTITLE,

@@ -27,6 +27,8 @@ const enrollmentSchema = new Schema(
     certificateIssuedAt: { type: Date },
 
     pricePaid: { type: Number, default: 0 },
+    platformFeeRate: { type: Number, default: null },
+    platformFee: { type: Number, default: 0 },
     paymentRef: { type: String, default: "" },
     /** pending = chờ CK; paid = đã học được (hoặc khóa miễn phí). Bản ghi cũ không có field → coi như paid. */
     paymentStatus: { type: String, enum: ["pending", "paid"], required: false },

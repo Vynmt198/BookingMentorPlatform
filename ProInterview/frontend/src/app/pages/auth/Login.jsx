@@ -32,8 +32,8 @@ const TESTIMONIALS = [
   {
     avatar: "PA",
     gradFrom: "#8037f4",
-    gradTo: "#a66ff8",
-    quote: "Sau 3 buổi mock interview với AI, mình tự tin hơn hẳn và nhận được offer từ Shopee chỉ sau 2 tuần luyện tập.",
+    gradTo: "#93f72b",
+    quote: "Sau vài buổi mock với mentor thật, mình tự tin hơn hẳn và nhận được offer từ Shopee chỉ sau 2 tuần luyện tập.",
     name: "Phạm Anh Tuấn",
     role: "Software Engineer @ Shopee",
     tag: "Đã nhận offer ✨",
@@ -273,13 +273,13 @@ export function Login() {
       {/* ── RIGHT: Visual panel ─────────────────────────────── */}
         <div
           className="hidden lg:flex flex-col flex-1 h-full relative overflow-hidden"
-        style={{ background: "linear-gradient(165deg, #FAF8FF 0%, #F0E8FF 42%, #E6E0FF 100%)" }}
+        style={{ background: "#FAF8FF" }}
       >
         {/* Blobs — chỉ tím, không vàng/cam */}
         <div className="absolute -top-20 -right-20 w-96 h-96 rounded-full opacity-25 blur-3xl pointer-events-none"
           style={{ background: "radial-gradient(circle, #8037f4 0%, transparent 70%)" }} />
-        <div className="absolute -bottom-24 -left-16 w-[22rem] h-[22rem] rounded-full opacity-20 blur-3xl pointer-events-none"
-          style={{ background: "radial-gradient(circle, #a66ff8 0%, transparent 72%)" }} />
+        <div className="absolute -bottom-24 -left-16 w-[22rem] h-[22rem] rounded-full opacity-18 blur-3xl pointer-events-none"
+          style={{ background: "radial-gradient(circle, #8037f4 0%, transparent 72%)" }} />
 
         {/* Rating badge */}
         <div className="absolute top-8 right-8">
@@ -298,11 +298,11 @@ export function Login() {
           {/* Testimonial card */}
           <div className="w-full rounded-3xl bg-white p-8 shadow-2xl"
             style={{ border: "1px solid rgba(128,55,244,0.08)" }}>
-            <div className="text-4xl leading-none mb-3" style={{ color: "#a66ff8", fontFamily: "Georgia, serif" }}>"</div>
+            <div className="text-4xl leading-none mb-3" style={{ color: "#93f72b", fontFamily: "Georgia, serif" }}>"</div>
             <p className="text-gray-700 text-sm leading-relaxed font-medium mb-5">{t.quote}</p>
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-black shrink-0"
-                style={{ background: `linear-gradient(135deg, ${t.gradFrom}, ${t.gradTo})` }}>
+                style={{ background: t.gradFrom }}>
                 {t.avatar}
               </div>
               <div>
@@ -314,7 +314,7 @@ export function Login() {
 
           <div className="flex justify-end pr-1">
             <div className="rounded-2xl px-4 py-2 text-sm font-bold text-white shadow-lg"
-              style={{ background: `linear-gradient(135deg, ${t.tagColor}, ${t.tagColor}cc)` }}>
+              style={{ background: t.tagColor }}>
               {t.tag}
             </div>
           </div>
@@ -327,7 +327,7 @@ export function Login() {
           </p>
           <div className="flex gap-8">
             {[
-              { Icon: Brain, value: "24/7", label: "Phỏng vấn AI thử" },
+              { Icon: Brain, value: "24/7", label: "Phân tích CV" },
               { Icon: Microphone, value: "500+", label: "Mentor thực tế" },
               { Icon: Check, value: "85%", label: "Tỷ lệ nhận việc" },
             ].map(({ Icon, value, label }) => (

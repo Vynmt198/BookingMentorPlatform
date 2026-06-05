@@ -5,7 +5,7 @@ import React, { useId } from "react";
  */
 export function SparkleGlyph({ className = "", style, tone = "brand" }) {
   const uid = useId().replace(/:/g, "");
-  const mainStart = "#6d2fd6";
+  const mainStart = "#8037f4";
   const mainEnd = "#4B18CC";
   const coreStart = "#99FF00";
   const coreEnd = "#63D800";

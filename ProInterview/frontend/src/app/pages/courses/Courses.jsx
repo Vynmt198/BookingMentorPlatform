@@ -484,7 +484,7 @@ export function Courses() {
             badge="Khóa học từ Mentor"
             title={
               <>
-                Học kỹ năng, <span className="text-[#6d2fd6]">ứng tuyển chắc hơn</span>
+                Học kỹ năng, <span className="text-[#8037f4]">ứng tuyển chắc hơn</span>
               </>
             }
             subtitle="Video ngắn, dễ áp dụng — ôn trước phỏng vấn; cần góp ý sâu thì book mentor 1-1."
@@ -505,7 +505,7 @@ export function Courses() {
                   />
 
                   <div className="min-w-0 flex-1">
-                    <div className="mb-4 flex flex-col gap-3 rounded-xl bg-gradient-to-r from-violet-100/80 via-violet-50/50 to-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mb-4 flex flex-col gap-3 rounded-xl bg-violet-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-sm font-semibold text-violet-950">
                         <span className="text-lg font-black">{filteredCourses.length}</span> kết quả
                         {selectedCategory ? (

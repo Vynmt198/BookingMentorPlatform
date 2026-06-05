@@ -27,6 +27,7 @@ import { createSubscriptionTransferPending, fetchTransferStatus } from "../../ut
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
 import { useCart } from "../../hooks/useCart";
 import { cartApi } from "../../utils/cartApi";
+import { isBookingSlotInFuture } from "../../utils/bookingSchedule";
 
 /* ─── Plan meta ─────────────────────────────────────────── */
 
@@ -234,7 +235,7 @@ function CheckoutPayPanel({ mode, fmt, rebookCreditVnd, bookingTotalEstimate, bo
           <button
             type="button"
             onClick={() => navigate(`/mentors?rebookFrom=${encodeURIComponent(rebookFrom)}`)}
-            className="rounded-lg bg-[#8037f4] px-3 py-2 text-[10px] font-bold uppercase text-white hover:bg-[#6d2fd6]"
+            className="rounded-lg bg-[#8037f4] px-3 py-2 text-[10px] font-bold uppercase text-white hover:bg-[#8037f4]"
           >
             Mentor khác
           </button>
@@ -855,6 +856,13 @@ export function Checkout() {
       return { ok: false };
     }
 
+    if (!isBookingSlotInFuture(bookingDate, bookingTime)) {
+      const msg = "Không thể đặt lịch trong quá khứ. Vui lòng chọn ngày và giờ trong tương lai.";
+      setCardError(msg);
+      toastApiError(msg);
+      return { ok: false };
+    }
+
     if (rebookCreditTooLow) {
       const msg = `Buổi mới ${fmt(bookingTotalEstimate)} cao hơn credit ${fmt(rebookCreditVnd)}. Chọn mentor rẻ hơn hoặc hoàn tiền ở buổi cũ.`;
       setCardError(msg);
@@ -1083,7 +1091,7 @@ export function Checkout() {
             onClick={() => navigate("/")}
             className="flex items-center gap-2.5"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-[#8037f4] to-[#a66ff8] shadow-md">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#8037f4] shadow-md">
               <Sparkle className="h-4 w-4 text-white" />
             </div>
             <span className="text-base font-bold text-slate-900">ProInterview</span>

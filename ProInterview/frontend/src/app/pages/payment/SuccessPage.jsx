@@ -22,7 +22,7 @@ export function SuccessPage() {
            </div>
         </div>
 
-        <h1 className="text-3xl md:text-4xl font-black tracking-tighter mb-4 bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent uppercase">
+        <h1 className="text-3xl md:text-4xl font-black tracking-tighter mb-4 text-emerald-500 uppercase">
            Giao dịch thành công!
         </h1>
         <p className="text-white/40 mb-10 text-[11px] font-bold uppercase tracking-widest leading-relaxed">Gói dịch vụ ProInterview của bạn đã được kích hoạt thành công.</p>
@@ -53,7 +53,7 @@ export function SuccessPage() {
         )}
 
         <div className="flex flex-col gap-4">
-           <Link to="/" className="h-16 bg-[#93f72b] text-black rounded-2xl flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_12px_45px_rgba(196,255,71,0.25)]">
+           <Link to="/" className="h-16 bg-[#93f72b] text-[#000000] rounded-2xl flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_12px_45px_rgba(196,255,71,0.25)]">
               Về trang chủ <ArrowRight size={18} />
            </Link>
            <Link to="/pricing" className="h-16 bg-white/5 text-white/30 rounded-2xl flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] hover:text-white hover:bg-white/10 transition-all">

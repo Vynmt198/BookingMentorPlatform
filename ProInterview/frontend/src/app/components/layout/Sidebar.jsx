@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from "react-router";
 import {
   LayoutGrid,
   FileText,
-  Mic,
   Users,
   User,
   Settings,
@@ -307,7 +306,7 @@ export function AppSidebar() {
           <div className="mt-auto pt-3 group-data-[collapsible=icon]:hidden">
             <div className="rounded-2xl border border-violet-200/60 bg-violet-50/80 p-3.5 text-center">
               <p className="text-xs font-bold text-slate-900">Chưa đăng nhập</p>
-              <p className="mt-1 text-[10px] text-slate-500">Đăng nhập để dùng CV, phỏng vấn AI và mentor</p>
+              <p className="mt-1 text-[10px] text-slate-500">Đăng nhập để dùng CV, khóa học và mentor</p>
               <button
                 type="button"
                 onClick={() => navigate("/login")}
@@ -327,7 +326,7 @@ export function AppSidebar() {
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <div
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[rgba(180,245,0,0.2)]"
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[rgba(128,55,244,0.12)]"
                 >
                   <Zap className="h-3.5 w-3.5 text-[#5a9e00]" />
                 </div>
@@ -338,7 +337,7 @@ export function AppSidebar() {
               </div>
               <button
                 onClick={() => navigate("/pricing")}
-                className="w-full rounded-xl py-1.5 text-xs font-bold text-[#0f172a] transition-all hover:scale-[1.02] active:scale-[0.97]"
+                className="w-full rounded-xl py-1.5 text-xs font-bold text-[#000000] transition-all hover:scale-[1.02] active:scale-[0.97]"
                 style={{
                   background: "#93f72b",
                   boxShadow: "0 8px 20px rgba(15,23,42,0.1)",
@@ -356,7 +355,7 @@ export function AppSidebar() {
             <button
               onClick={() => navigate("/pricing")}
               title={upgradeTitle}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[rgba(128,55,244,0.22)] bg-[rgba(180,245,0,0.15)] transition-all hover:bg-[rgba(180,245,0,0.28)]"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[rgba(128,55,244,0.22)] bg-[rgba(128,55,244,0.08)] transition-all hover:bg-[rgba(128,55,244,0.14)]"
             >
               <Zap className="h-4 w-4 text-[#5a9e00]" />
             </button>
