@@ -1,14 +1,14 @@
-import { getAuthToken } from "./auth.js";
-import { getApiUrl } from "./api.js";
+import { getAccessToken } from "./auth.js";
+import { apiUrl } from "./api.js";
 
 export const cartApi = {
   checkout: async ({ paymentMethod, orderNum }) => {
     try {
-      const res = await fetch(`${getApiUrl()}/cart/checkout`, {
+      const res = await fetch(apiUrl("/api/cart/checkout"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${getAuthToken()}`,
+          Authorization: `Bearer ${getAccessToken()}`,
         },
         body: JSON.stringify({ paymentMethod, orderNum }),
       });
