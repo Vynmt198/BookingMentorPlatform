@@ -120,27 +120,85 @@ body:has(.app-user-shell) {
   background-size: auto;
 }
 
-/* Home — nền ngoài loang rõ: tím nhạt hai bên, giữa sáng hơn (canvas rộng hơn cột nội dung) */
+/* Tiêu đề section Home (trừ hero) — một cỡ trên mọi breakpoint */
+.home-section-title {
+  font-size: clamp(2.25rem, 3.5vw, 3.25rem);
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+/* Home — một lớp loang dọc, vùng giữa phẳng */
 .app-shell-ambient--home {
-  background-color: #dcd2eb;
-  background-image:
-    radial-gradient(ellipse 100% 92% at -10% 45%, rgba(128, 55, 244, 0.28), transparent 62%),
-    radial-gradient(ellipse 100% 92% at 110% 55%, rgba(128, 55, 244, 0.24), transparent 62%),
-    radial-gradient(ellipse 260% 120% at 50% -18%, rgba(139, 92, 246, 0.14), transparent 72%),
-    radial-gradient(ellipse 240% 110% at 50% 112%, rgba(99, 14, 212, 0.12), transparent 70%),
-    radial-gradient(ellipse 58% 54% at 50% 48%, rgba(255, 255, 255, 0.88), transparent 64%),
-    linear-gradient(
-      90deg,
-      #d4c8e8 0%,
-      #ddd2ef 10%,
-      #ebe4f6 22%,
-      #f6f4fc 42%,
-      #faf9fe 50%,
-      #f6f4fc 58%,
-      #ebe4f6 78%,
-      #ddd2ef 90%,
-      #d4c8e8 100%
-    );
+  background-color: #f5f0fc;
+  background-image: linear-gradient(
+    180deg,
+    #e8ddf5 0%,
+    #efe6fa 14%,
+    #f5f0fc 28%,
+    #f5f0fc 62%,
+    #f2edf9 82%,
+    #efe6fa 100%
+  );
+}
+
+@media (min-width: 1024px) {
+  .app-user-shell--home {
+    overflow-x: clip;
+  }
+
+  .home-layout-fixed {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .home-hero-section {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+
+  .home-features-panel {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .home-courses-panel,
+  .home-mentor-panel,
+  .home-testimonials-panel {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .home-hero-section .home-hero-title {
+    font-size: clamp(3.25rem, 6.5vw, 6rem) !important;
+    line-height: 1.06 !important;
+  }
+
+  .home-hero-section .hero-title-line {
+    white-space: normal;
+    line-height: 1.05;
+  }
+
+  .home-hero-section .hero-title-stack {
+    gap: 0.45rem;
+  }
+
+  .home-hero-section .hero-intro-badge {
+    margin-top: 0;
+  }
+
+  .home-hero-section .hero-title-highlight {
+    animation: none;
+  }
 }
 
 .dark {

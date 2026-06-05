@@ -2,15 +2,19 @@
  * Cỡ chữ thống nhất — các section Home (showcase, how-it-works, testimonials).
  * Palette: #8037f4 · #000000 · #28552a · #93f72b
  */
-export const HOME_HERO_TITLE_CLAMP = "clamp(2.2rem, 6.1vw, 4.45rem)";
+export const HOME_HERO_TITLE_CLAMP = "clamp(3rem, 7.5vw, 6rem)";
+/** Tiêu đề section Home (trừ hero) — dùng chung một cỡ. */
 export const HOME_SECTION_TITLE_CLAMP = "clamp(2.25rem, 3.5vw, 3.25rem)";
-export const HOME_CV_SHOWCASE_TITLE_CLAMP =
-  "clamp(2.35rem, calc(3.5vw + 0.1rem), 3.35rem)";
+export const homeSectionTitleStyle = { fontSize: HOME_SECTION_TITLE_CLAMP };
 
 export const homeSectionClasses = {
   badge:
     "inline-flex items-center gap-2 rounded-full border border-[#8037f4]/30 bg-[#8037f4]/10 px-3.5 py-1 text-sm font-semibold text-[#8037f4] sm:text-base",
+  /** H2 showcase / lộ trình / testimonials — đồng bộ với HOME_SECTION_TITLE_CLAMP */
+  sectionTitle:
+    "home-section-title font-headline font-extrabold leading-[1.08] tracking-tight text-[#000000]",
   title: "max-w-2xl font-headline font-extrabold leading-[1.08] tracking-tight text-[#000000]",
+  titleLineSecond: "block leading-[1.08]",
   titleLineDark: "block text-[#000000]",
   titleLineAccent: "block font-headline text-[#8037f4]",
   body: "max-w-2xl text-pretty text-lg font-medium leading-relaxed text-slate-600 sm:text-xl",
@@ -27,7 +31,7 @@ export const homeSectionClasses = {
     "font-headline text-lg font-extrabold leading-snug text-[#000000] sm:text-xl",
   stepCardBody: "text-pretty text-base font-medium leading-relaxed text-slate-600 sm:text-lg",
   howItWorksTitle:
-    "cute-heading font-headline font-black leading-[1.06] tracking-tighter text-[#000000]",
+    "font-headline font-extrabold leading-[1.08] tracking-tight text-[#000000]",
   howItWorksStepTitle:
     "mb-2 font-headline text-lg font-extrabold tracking-tight text-[#000000] sm:text-xl",
   howItWorksStepBody:

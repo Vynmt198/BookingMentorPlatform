@@ -6,11 +6,12 @@ import {
   BookOpen,
   CircleCheck,
   Video,
+  Users,
 } from "lucide-react";
 import { HOME_DEMO_COURSES } from "../../data/homeLandingDemo";
 import { COURSES_SHOWCASE_COPY } from "../../constants/brandVoice";
 import {
-  HOME_SECTION_TITLE_CLAMP,
+  homeSectionTitleStyle,
   homeSectionClasses as ty,
 } from "../../constants/homeTypography";
 import { SparkleGlyph } from "../decor/SparkleGlyph";
@@ -18,9 +19,6 @@ import { SparkleGlyph } from "../decor/SparkleGlyph";
 /** Một khóa mẫu cố định (STAR), tab lọc chỉ minh họa UI. */
 const DEMO_COURSE = HOME_DEMO_COURSES[0];
 const DEMO_FILTER_LABELS = ["Phỏng vấn", "Viết CV", "Technical", "Soft skills"];
-
-const COURSE_CARD_MENTOR_AVATAR = "/mascot-course-card-avatar.png?v=2";
-const COURSE_CARD_AVATAR_FALLBACK = "/mascot-courses-ready.png?v=8";
 
 const DEMO_PROGRESS = (() => {
   const a = HOME_DEMO_COURSES[0];
@@ -60,13 +58,13 @@ function LessonRow({ title, active, locked }) {
   return (
     <li
       className={`flex items-center gap-2 rounded-xl px-2 py-1.5 sm:px-2.5 sm:py-2 ${
-        active ? "bg-[#630ed4] text-white" : ""
+        active ? "bg-[#8037f4] text-white" : ""
       }`}
     >
       <span
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full sm:h-[1.375rem] sm:w-[1.375rem] ${
           active
-            ? "bg-[#8037f4] text-white"
+            ? "bg-white/20 text-white"
             : locked
               ? "bg-slate-100 text-slate-400"
               : "bg-violet-50 text-violet-400"
@@ -81,7 +79,7 @@ function LessonRow({ title, active, locked }) {
       <span className="min-w-0 flex-1">
         <span
           className={`block text-[11px] font-semibold leading-snug sm:text-xs ${
-            active ? "text-[#8037f4]" : locked ? "text-slate-400" : "text-slate-700"
+            active ? "text-white" : locked ? "text-slate-400" : "text-slate-700"
           }`}
         >
           {title}
@@ -98,27 +96,7 @@ function CoursesLearningMockup() {
   const moreLessons = Math.max(0, (DEMO_COURSE.lessonsCount ?? 0) - displayLessons.length);
 
   return (
-    <div className="courses-mock-panel relative mx-auto w-full max-w-[42rem] overflow-visible rounded-[1.75rem] px-4 pb-5 pt-[5rem] sm:rounded-[2rem] sm:px-5 sm:pb-6 sm:pt-[5.5rem] lg:max-w-none">
-      <div
-        className="pointer-events-none absolute left-1/2 top-0 z-[2] w-[11rem] -translate-x-1/2 translate-y-[calc(-38%+0.5rem)] sm:w-[12rem] lg:w-[12.2rem]"
-        aria-hidden
-      >
-        <div className="courses-mascot-sticker relative mx-auto w-fit">
-          <img
-            src="/mascot-courses-ready.png?v=7"
-            alt=""
-            className="courses-mascot-img block h-auto w-[9.7rem] object-contain sm:w-[11.2rem]"
-          />
-          <div className="absolute -right-[3.84rem] top-[0.55rem] z-[1] sm:-right-[4.59rem] sm:top-[0.8rem]">
-            <div className="courses-speech-bubble px-2.5 py-1.5 sm:px-3 sm:py-2">
-              <p className="whitespace-nowrap font-headline text-[10px] font-bold leading-none text-[#8037f4] sm:text-[11px]">
-                Sẵn sàng học chưa?
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
+    <div className="courses-mock-panel relative mx-auto w-full max-w-[42rem] overflow-hidden rounded-[1.75rem] px-4 pb-5 pt-4 sm:rounded-[2rem] sm:px-5 sm:pb-6 sm:pt-5 lg:max-w-none">
       <div
         className="relative z-[1] flex flex-wrap justify-center gap-1.5 rounded-2xl border border-white/80 bg-white/90 p-1.5 shadow-sm sm:gap-2 sm:p-2"
         aria-hidden
@@ -140,17 +118,11 @@ function CoursesLearningMockup() {
       <div className="relative z-[1] mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1.05fr_0.95fr] sm:items-stretch sm:gap-3.5">
         <div className="flex flex-col rounded-2xl border border-violet-100/80 bg-white p-3.5 shadow-[0_10px_28px_rgba(99,14,212,0.08)] sm:p-4">
           <div className="mb-2.5 flex items-start gap-2.5 border-b border-slate-100 pb-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-violet-100 bg-violet-50/90 sm:h-10 sm:w-10">
-              <img
-                src={COURSE_CARD_MENTOR_AVATAR}
-                alt=""
-                className="h-[90%] w-[90%] object-contain object-bottom"
-                onError={(e) => {
-                  if (e.currentTarget.src !== COURSE_CARD_AVATAR_FALLBACK) {
-                    e.currentTarget.src = COURSE_CARD_AVATAR_FALLBACK;
-                  }
-                }}
-              />
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-100 bg-violet-50/90 text-[#8037f4] sm:h-10 sm:w-10"
+              aria-hidden
+            >
+              <Users className="h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem]" />
             </span>
             <div className="min-w-0 flex-1">
               <p className="line-clamp-1 text-xs font-bold leading-snug text-[#000000] sm:text-sm">
@@ -230,12 +202,12 @@ export function CoursesFeatureShowcase({ onCtaClick }) {
   return (
     <section
       id="courses"
-      className="relative z-10 flex h-screen max-h-screen flex-col justify-center overflow-hidden px-0 py-4 sm:py-6 max-lg:h-auto max-lg:max-h-none max-lg:min-h-0 max-lg:py-5 lg:overflow-visible"
+      className="home-courses-panel relative z-10 flex min-h-svh scroll-mt-24 flex-col justify-center overflow-x-clip overflow-y-visible px-0 py-10 sm:py-12 lg:py-14"
     >
       <style>{`
         .courses-mock-panel {
           background: #f0ebf8;
-          border: 2px solid rgba(128, 55, 244, 0.4);
+          border: 2px solid #8037f4;
           box-shadow: 0 12px 32px rgba(99, 14, 212, 0.1);
         }
       `}</style>
@@ -259,8 +231,8 @@ export function CoursesFeatureShowcase({ onCtaClick }) {
               {COURSES_SHOWCASE_COPY.badge}
             </span>
             <h2
-              className={`${ty.title} max-w-full pr-10 sm:pr-12 lg:max-w-none`}
-              style={{ fontSize: HOME_SECTION_TITLE_CLAMP }}
+              className={`${ty.sectionTitle} max-w-full pr-10 sm:pr-12 lg:max-w-none`}
+              style={homeSectionTitleStyle}
             >
               <span
                 className={`${ty.titleLineSecond} ${ty.titleLineDark} block lg:whitespace-nowrap`}

@@ -34,6 +34,21 @@ export const HOME_DEMO_MENTORS = [
     tags: ["Leadership", "System Design"],
     available: true,
   },
+  {
+    id: "3",
+    name: "Lê Hoàng Nam",
+    title: "Tech Lead",
+    company: "VNG Corporation",
+    field: "IT",
+    experience: 8,
+    rating: 4.7,
+    reviews: 96,
+    price: 360000,
+    avatar:
+      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80",
+    tags: ["Frontend", "React", "Team Lead"],
+    available: true,
+  },
 ];
 
 const STAR_LESSONS = [
