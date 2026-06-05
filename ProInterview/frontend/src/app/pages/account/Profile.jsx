@@ -359,33 +359,43 @@ export function Profile() {
   ];
 
   const planInfo = (() => {
-    if (plans.elitePro) return {
-      name: "Thượng hạng (Elite)",
+    if (plans.premium) return {
+      name: "Cao Cấp",
       nameIcon: Medal,
       badge: { bg: "bg-primary-fixed/20", border: "border-primary-fixed/30", icon: "text-primary-fixed", text: "text-primary-fixed" },
       cardGrad: "linear-gradient(145deg, #0E0922 0%, #1a0d35 100%)",
-      desc: "Không giới hạn · Phân tích hành vi · Mentor 1:1",
+      desc: "Mentor chuyên trách · Huấn luyện hàng tuần · Luyện phỏng vấn thực chiến",
       progress: null,
       isPaid: true,
       accent: "#93f72b"
     };
-    if (plans.starterPro) return {
-      name: "Chuyên nghiệp (Pro)",
+    if (plans.professional) return {
+      name: "Chuyên Nghiệp",
+      nameIcon: Medal,
+      badge: { bg: "bg-[#6d2fd6]/20", border: "border-[#6d2fd6]/40", icon: "text-[#6d2fd6]", text: "text-[#6d2fd6]" },
+      cardGrad: "linear-gradient(145deg, #1a0d35 0%, #2D1B69 100%)",
+      desc: "Phân tích CV/JD · Tối ưu ATS · 4 buổi mentor/tháng",
+      progress: null,
+      isPaid: true,
+      accent: "#6d2fd6"
+    };
+    if (plans.student) return {
+      name: "Sinh Viên",
       nameIcon: Lightning,
       badge: { bg: "bg-[#93f72b]/20", border: "border-[#93f72b]/40", icon: "text-[#7fe015]", text: "text-[#8037f4]" },
       cardGrad: "#8037f4",
-      desc: "Phỏng vấn AI · Nhận diện giọng nói · 10 buổi/tháng",
-      progress: { used: 0, max: 10 },
+      desc: "CV/JD không giới hạn · 1 buổi mentor/tháng",
+      progress: { used: 0, max: 20 },
       isPaid: true,
       accent: "#8037f4"
     };
     return {
-      name: "Cơ bản (Free)",
+      name: "Miễn Phí",
       nameIcon: Plant,
       badge: { bg: "bg-[#8037f4]/15", border: "border-[#8037f4]/30", icon: "text-[#8037f4]", text: "text-[#8037f4]" },
       cardGrad: "linear-gradient(145deg, #2D1B69 0%, #3B2A82 100%)",
-      desc: "2 buổi AI miễn phí · 3 lần phân tích CV",
-      progress: { used: 2, max: 2 },
+      desc: "2 lần phân tích CV · Xem trước khóa học",
+      progress: { used: 0, max: 2 },
       isPaid: false,
       accent: "#93f72b"
     };

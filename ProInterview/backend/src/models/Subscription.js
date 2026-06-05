@@ -18,7 +18,7 @@ const subscriptionSchema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
 
-    plan: { type: String, enum: ["free", "starter_pro", "elite_pro"], default: "free" },
+    plan: { type: String, enum: ["free", "student", "professional", "premium"], default: "free" },
     billingCycle: { type: String, enum: ["monthly", "yearly", ""], default: "" },
 
     startedAt: { type: Date },

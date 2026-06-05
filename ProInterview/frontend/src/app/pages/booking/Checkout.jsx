@@ -31,24 +31,36 @@ import { cartApi } from "../../utils/cartApi";
 /* ─── Plan meta ─────────────────────────────────────────── */
 
 const PLANS = {
-  starterPro: {
-    name: "Pro",
-    tagline: "Luyện tập nghiêm túc",
-    monthlyPrice: 79000,
-    yearlyPrice: 63000,
+  student: {
+    name: "Sinh Viên",
+    tagline: "Dành cho sinh viên",
+    monthlyPrice: 150000,
+    yearlyPrice: 120000,
     badge: "PHỔ BIẾN",
     accentColor: "#8037f4",
-    features: ["10 buổi AI phỏng vấn/tháng", "AI nhận dạng giọng nói", "20 lần phân tích CV/JD/tháng", "Phản hồi chi tiết từng câu", "Xuất kết quả PDF"],
+    features: ["Phân tích CV/JD không giới hạn", "Truy cập toàn bộ khóa học (1 chuyên ngành)", "1 buổi với mentor/tháng (15–30 phút)", "Phản hồi CV chi tiết"],
   },
-  elitePro: {
-    name: "Elite",
-    tagline: "Chinh phục mọi vòng phỏng vấn",
-    monthlyPrice: 99000,
-    yearlyPrice: 79000,
+  professional: {
+    name: "Chuyên Nghiệp",
+    tagline: "Dành cho người đi làm",
+    monthlyPrice: 500000,
+    yearlyPrice: 400000,
     badge: "TỐT NHẤT",
-    accentColor: "#93f72b",
-    features: ["AI phỏng vấn không giới hạn", "AI nhận dạng giọng nói — Turbo 2×", "CV/JD phân tích không giới hạn", "Phân tích hành vi: Giao tiếp mắt, Tư thế", "Phân tích giọng nói: Tốc độ, Từ đệm", "Mentor 1:1 ưu tiên"],
+    accentColor: "#6d2fd6",
+    features: ["Phân tích CV/JD + Tối ưu ATS không giới hạn", "Truy cập toàn bộ khóa học", "2–4 buổi với mentor/tháng (45–60 phút)", "Đặt lịch mentor ưu tiên", "Phân tích mức lương & lộ trình sự nghiệp"],
   },
+  premium: {
+    name: "Cao Cấp",
+    tagline: "Huấn luyện 1-1 cá nhân hóa",
+    monthlyPrice: 2000000,
+    yearlyPrice: 1600000,
+    badge: "CAO CẤP",
+    accentColor: "#93f72b",
+    features: ["Mentor chuyên trách riêng", "Buổi huấn luyện 1-1 hàng tuần", "Luyện phỏng vấn thực chiến cùng mentor", "Lộ trình sự nghiệp cá nhân hóa", "Phân tích CV/JD không giới hạn", "Hỗ trợ ưu tiên 24/7"],
+  },
+  // backward-compat aliases
+  starterPro: null,
+  elitePro: null,
 };
 
 function fmt(n) {
@@ -604,9 +616,9 @@ export function Checkout() {
   const bookingTime = searchParams.get("time") ?? "";
 
   /* ── Plan mode ────────────────────────────────────────── */
-  const planKey = searchParams.get("plan") ?? "starterPro";
+  const planKey = searchParams.get("plan") ?? "student";
   const billing = (searchParams.get("billing") ?? "yearly");
-  const plan = PLANS[planKey] ?? PLANS.starterPro;
+  const plan = PLANS[planKey] ?? PLANS.student;
   // Read the exact price shown on the Pricing page (passed via URL); fall back to PLANS data
   const urlPlanPrice = Number(searchParams.get("planPrice") ?? "0");
   const price = urlPlanPrice > 0
@@ -730,7 +742,7 @@ export function Checkout() {
 
     if (isPlanCheckout) {
       setCardError("");
-      const apiPlanKey = planKey === "elitePro" ? "elite_pro" : "starter_pro";
+      const apiPlanKey = planKey; // student | professional | premium (đã chuẩn hóa từ URL)
       try {
         const apiRes = await createSubscriptionTransferPending({
           amount: payAmount,

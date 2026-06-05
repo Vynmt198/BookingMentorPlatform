@@ -152,7 +152,7 @@ function InterviewDetailModal({
                 className="text-xs font-semibold px-2.5 py-1 rounded-lg"
                 style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}
               >
-                {item.type === "ai" ? "🤖 AI Interview" : "👤 Mock với Mentor"}
+{"👤 Mock với Mentor"}
               </span>
             </div>
             <h2 className="text-white font-bold" style={{ fontSize: "1.1rem" }}>

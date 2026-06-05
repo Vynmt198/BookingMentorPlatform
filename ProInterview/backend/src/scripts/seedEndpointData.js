@@ -66,13 +66,10 @@ function uniq(values) {
   return [...new Set((values || []).map((v) => String(v).trim()).filter(Boolean))];
 }
 
-function quota({ cvUsed = 0, cvLimit = 3, interviewUsed = 0, interviewLimit = 1, questions = 3, resetAt = new Date() } = {}) {
+function quota({ cvUsed = 0, cvLimit = 2, resetAt = new Date() } = {}) {
   return {
     cvAnalysisUsed: cvUsed,
     cvAnalysisLimit: cvLimit,
-    interviewUsed,
-    interviewLimit,
-    interviewQuestionsAllowed: questions,
     resetAt,
   };
 }
@@ -255,7 +252,7 @@ async function main() {
       name: "Khach hang Dev",
       role: "customer",
       plan: "free",
-      quota: quota({ cvUsed: 2, interviewUsed: 1, resetAt: addDays(today, -3) }),
+      quota: quota({ cvUsed: 2, resetAt: addDays(today, -3) }),
       desiredPosition: "Backend Developer",
       currentCompany: "Freelance",
       skills: ["Node.js", "SQL", "REST API"],
@@ -290,9 +287,9 @@ async function main() {
       email: "starter.customer@dev.local",
       name: "Starter Customer",
       role: "customer",
-      plan: "starter_pro",
+      plan: "student",
       planExpiresAt: addMonths(today, 2),
-      quota: quota({ cvUsed: 4, cvLimit: 20, interviewUsed: 2, interviewLimit: 10, questions: 5, resetAt: addDays(today, -1) }),
+      quota: quota({ cvUsed: 4, cvLimit: 999, resetAt: addDays(today, -1) }),
       desiredPosition: "Business Analyst",
       currentCompany: "Techcombank",
       skills: ["Business Analysis", "SQL", "Stakeholder Management"],
@@ -896,7 +893,7 @@ async function main() {
       currency: "VND",
       provider: "momo",
       providerRef: `seed-payment-${SEED_VERSION}-subscription-starter`,
-      providerResponse: { plan: "starter_pro" },
+      providerResponse: { plan: "student" },
       status: "success",
       paidAt: addDays(today, -10),
       invoiceEmail: users.customerStarter.email,
@@ -929,13 +926,13 @@ async function main() {
     { userId: users.customerStarter._id },
     {
       userId: users.customerStarter._id,
-      plan: "starter_pro",
+      plan: "student",
       billingCycle: "monthly",
       startedAt: addDays(today, -10),
       expiresAt: addMonths(today, 2),
       history: [
         {
-          plan: "starter_pro",
+          plan: "student",
           billingCycle: "monthly",
           startedAt: addDays(today, -10),
           expiresAt: addMonths(today, 2),
@@ -1131,7 +1128,7 @@ async function main() {
       ],
       starAnswers: [],
     },
-    planAtTime: "starter_pro",
+    planAtTime: "student",
     processingMs: 1760,
   });
 

@@ -116,11 +116,12 @@ export function AppSidebar() {
   const displayName = getDisplayName(user);
   const initials = getInitials(displayName);
   const isMentor = loggedIn && user?.role === "mentor";
-  const isElite = !!plans?.elitePro;
-  const isPro = !!plans?.starterPro && !isElite;
-  const upgradeTitle = isPro ? "Nâng cấp lên Elite" : "Nâng cấp lên Pro";
-  const upgradeButton = isPro ? "Xem gói Elite →" : "Xem gói Pro →";
-  const upgradeHint = isPro ? "Mở khóa toàn bộ tính năng" : "AI không giới hạn";
+  const isPremium = !!plans?.premium;
+  const isProfessional = !!plans?.professional && !isPremium;
+  const isStudent = !!plans?.student && !isProfessional && !isPremium;
+  const upgradeTitle = isPremium ? null : isProfessional ? "Nâng cấp lên Cao cấp" : isStudent ? "Nâng cấp lên Chuyên nghiệp" : "Nâng cấp gói";
+  const upgradeButton = isPremium ? null : isProfessional ? "Xem gói Cao cấp →" : isStudent ? "Xem gói Chuyên nghiệp →" : "Xem các gói →";
+  const upgradeHint = isProfessional ? "Huấn luyện 1-1 cá nhân hóa" : isStudent ? "Nhiều buổi mentor & đặt lịch ưu tiên" : "Phân tích CV không giới hạn";
   const mainNavItems = !loggedIn
     ? guestMainItems
     : isMentor
@@ -319,7 +320,7 @@ export function AppSidebar() {
         )}
 
         {/* ── Upgrade CTA (expanded only) ─────── */}
-        {loggedIn && !isMentor && !isElite && (
+        {loggedIn && !isMentor && !isPremium && (
           <div className="mt-auto pt-3 group-data-[collapsible=icon]:hidden">
             <div
               className="rounded-2xl border border-[rgba(128,55,244,0.2)] bg-white/75 p-3.5 shadow-sm backdrop-blur-sm"
@@ -350,7 +351,7 @@ export function AppSidebar() {
         )}
 
         {/* ── Upgrade icon (collapsed only) ──── */}
-        {loggedIn && !isMentor && !isElite && (
+        {loggedIn && !isMentor && !isPremium && (
           <div className="hidden mt-auto pt-2 group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
             <button
               onClick={() => navigate("/pricing")}
@@ -467,7 +468,7 @@ export function AppSidebar() {
                         Cài đặt
                       </Link>
                     </DropdownMenuItem>
-                    {!isElite && (
+                    {!isPremium && (
                       <DropdownMenuItem
                         onClick={() => navigate("/pricing")}
                         className="flex items-center gap-2.5 cursor-pointer"

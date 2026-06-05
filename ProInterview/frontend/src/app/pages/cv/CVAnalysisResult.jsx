@@ -35,7 +35,7 @@ export function CVAnalysisResult() {
   const [cvFile, setCvFile] = useState(null);
   const [jdFile, setJdFile] = useState(null);
 
-  const isFreeTier = !plans.starterPro && !plans.elitePro;
+  const isFreeTier = !plans.student && !plans.professional && !plans.premium;
   const lockResultForFreePlan = isFreeTier && !isReplayFromHistory;
 
   useEffect(() => {

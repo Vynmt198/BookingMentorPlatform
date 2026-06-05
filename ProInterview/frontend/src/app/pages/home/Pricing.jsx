@@ -17,8 +17,8 @@ import { PRICING_SUBTITLE } from "../../constants/brandVoice";
 
 const FAQ_DATA = [
   {
-    q: "Gói Pro và Elite khác nhau như thế nào?",
-    a: "Gói Pro gồm 10 buổi phỏng vấn AI mỗi tháng và 20 lượt phân tích CV/JD. Gói Elite mở không giới hạn phỏng vấn AI, quota phân tích cao hơn và ưu tiên hỗ trợ.",
+    q: "Các gói khác nhau như thế nào?",
+    a: "Gói Sinh viên mở phân tích CV/JD không giới hạn và 1 buổi mentor/tháng. Gói Chuyên nghiệp thêm 2–4 buổi mentor, đặt lịch ưu tiên và tối ưu ATS. Gói Cao cấp là mentor chuyên trách riêng, huấn luyện hàng tuần và lộ trình sự nghiệp cá nhân hóa.",
   },
   {
     q: "Tôi có thể hủy gói đăng ký bất cứ lúc nào không?",
@@ -37,16 +37,16 @@ const FAQ_DATA = [
 const PLANS = [
   {
     id: "free",
-    title: "Basic",
+    title: "Miễn Phí",
     subtitle: "Miễn phí mãi mãi",
     monthlyDisplay: 0,
     yearlyDisplay: 0,
     yearlyTotal: null,
     yearlySave: null,
     features: [
-      "3/5 câu hỏi phỏng vấn cùng AI",
-      "1 lần phân tích CV/JD",
-      "Bộ câu hỏi phỏng vấn theo ngành nghề",
+      "2 lần phân tích CV/JD mỗi tháng",
+      "Xem trước khóa học",
+      "Tìm kiếm và xem hồ sơ mentor",
     ],
     cta: "Bắt đầu ngay",
     checkoutMonthly: "/",
@@ -55,44 +55,67 @@ const PLANS = [
     variant: "outline",
   },
   {
-    id: "starter_pro",
-    title: "Pro",
-    subtitle: "Dành cho ứng viên chủ động",
-    monthlyDisplay: 79000,
-    yearlyDisplay: 63000,
-    yearlyTotal: 756000,
-    yearlySave: 192000,
+    id: "student",
+    title: "Sinh Viên",
+    subtitle: "Dành cho sinh viên",
+    monthlyDisplay: 150000,
+    yearlyDisplay: 120000,
+    yearlyTotal: 1440000,
+    yearlySave: 360000,
     features: [
-      "10 buổi AI Interview/tháng",
-      "Nhận diện giọng nói AI",
-      "20 lần phân tích CV/JD",
-      "Phản hồi chi tiết từng câu",
+      "Phân tích CV/JD KHÔNG GIỚI HẠN",
+      "Truy cập toàn bộ khóa học (1 chuyên ngành)",
+      "1 buổi với mentor/tháng (15–30 phút)",
+      "Phản hồi CV chi tiết",
     ],
-    cta: "Nâng cấp Pro",
-    checkoutMonthly: "/checkout?plan=starterPro&billing=monthly&planPrice=79000",
-    checkoutYearly: "/checkout?plan=starterPro&billing=yearly&planPrice=756000",
+    cta: "Đăng ký Sinh viên",
+    checkoutMonthly: "/checkout?plan=student&billing=monthly&planPrice=150000",
+    checkoutYearly: "/checkout?plan=student&billing=yearly&planPrice=1440000",
     popular: false,
     variant: "lime",
   },
   {
-    id: "elite_pro",
-    title: "Elite",
-    subtitle: "Chinh phục tập đoàn lớn",
-    monthlyDisplay: 99000,
-    yearlyDisplay: 79000,
-    yearlyTotal: 948000,
-    yearlySave: 240000,
+    id: "professional",
+    title: "Chuyên Nghiệp",
+    subtitle: "Dành cho người đi làm",
+    monthlyDisplay: 500000,
+    yearlyDisplay: 400000,
+    yearlyTotal: 4800000,
+    yearlySave: 1200000,
     features: [
-      "AI Interview KHÔNG GIỚI HẠN",
-      "CV/JD phân tích KHÔNG GIỚI HẠN",
-      "Nhận diện giọng nói Turbo",
-      "Hỗ trợ ưu tiên 24/7",
+      "Phân tích CV/JD + Tối ưu ATS KHÔNG GIỚI HẠN",
+      "Truy cập toàn bộ khóa học",
+      "2–4 buổi với mentor/tháng (45–60 phút)",
+      "Đặt lịch mentor ưu tiên",
+      "Phân tích mức lương & lộ trình sự nghiệp",
     ],
-    cta: "Nâng cấp Elite",
-    checkoutMonthly: "/checkout?plan=elitePro&billing=monthly&planPrice=99000",
-    checkoutYearly: "/checkout?plan=elitePro&billing=yearly&planPrice=948000",
+    cta: "Nâng cấp Chuyên nghiệp",
+    checkoutMonthly: "/checkout?plan=professional&billing=monthly&planPrice=500000",
+    checkoutYearly: "/checkout?plan=professional&billing=yearly&planPrice=4800000",
     popular: true,
     variant: "elite",
+  },
+  {
+    id: "premium",
+    title: "Cao Cấp",
+    subtitle: "Huấn luyện 1-1 cá nhân hóa",
+    monthlyDisplay: 2000000,
+    yearlyDisplay: 1600000,
+    yearlyTotal: 19200000,
+    yearlySave: 4800000,
+    features: [
+      "Mentor chuyên trách riêng",
+      "Buổi huấn luyện 1-1 hàng tuần",
+      "Luyện phỏng vấn thực chiến cùng mentor",
+      "Lộ trình sự nghiệp cá nhân hóa",
+      "Phân tích CV/JD KHÔNG GIỚI HẠN",
+      "Hỗ trợ ưu tiên 24/7",
+    ],
+    cta: "Đăng ký Cao cấp",
+    checkoutMonthly: "/checkout?plan=premium&billing=monthly&planPrice=2000000",
+    checkoutYearly: "/checkout?plan=premium&billing=yearly&planPrice=19200000",
+    popular: false,
+    variant: "premium",
   },
 ];
 
@@ -105,7 +128,7 @@ function yearlySavePercent(monthlyPerMonth, yearlyPerMonth) {
 const YEARLY_SAVE_PCT = yearlySavePercent(
   PLANS[1].monthlyDisplay,
   PLANS[1].yearlyDisplay,
-);
+); // 20% cho mọi tier trả năm
 
 function fmtVnd(amount) {
   return new Intl.NumberFormat("vi-VN").format(amount) + "đ";
@@ -133,9 +156,13 @@ function FeatureLabel({ text }) {
 }
 
 function normalizePlanKey(plan) {
-  const k = String(plan ?? "").trim();
-  if (k === "starterPro" || k === "starter_pro") return "starter_pro";
-  if (k === "elitePro" || k === "elite_pro") return "elite_pro";
+  const k = String(plan ?? "").trim().toLowerCase();
+  if (k === "premium") return "premium";
+  if (k === "professional") return "professional";
+  if (k === "student") return "student";
+  // backward-compat
+  if (k === "elitepro" || k === "elite_pro") return "professional";
+  if (k === "starterpro" || k === "starter_pro") return "student";
   return "free";
 }
 
@@ -226,7 +253,7 @@ export function Pricing() {
 
           <BillingToggle billing={billing} onChange={setBilling} savePercent={YEARLY_SAVE_PCT} />
 
-          <div className="mt-10 grid w-full grid-cols-1 items-stretch justify-items-stretch gap-6 md:grid-cols-3 lg:gap-8 [&>article]:min-w-0 [&>article]:w-full">
+          <div className="mt-10 grid w-full grid-cols-1 items-stretch justify-items-stretch gap-6 md:grid-cols-2 xl:grid-cols-4 lg:gap-8 [&>article]:min-w-0 [&>article]:w-full">
             {PLANS.map((plan) => {
               const isCurrent = currentPlan === plan.id;
               const isPopular = plan.popular;
@@ -301,7 +328,7 @@ export function Pricing() {
                     <p className="text-xs font-semibold text-slate-500">{plan.subtitle}</p>
                     <h3
                       className={`mt-1 font-headline text-xl font-bold ${
-                        variant === "elite" ? "text-[#6d2fd6]" : "text-slate-900"
+                        variant === "elite" || variant === "premium" ? "text-[#6d2fd6]" : "text-slate-900"
                       }`}
                     >
                       {plan.title}
@@ -350,7 +377,7 @@ export function Pricing() {
                   <ul className="flex flex-1 flex-col gap-2">
                     {plan.features.map((f, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-slate-700">
-                        {variant === "elite" ? (
+                        {variant === "elite" || variant === "premium" ? (
                           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#6d2fd6]" />
                         ) : (
                           <CheckCircle2

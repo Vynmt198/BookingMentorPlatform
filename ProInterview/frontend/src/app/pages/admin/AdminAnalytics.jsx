@@ -84,7 +84,7 @@ export function AdminAnalytics() {
     void loadAll();
   }, [loadAll]);
 
-  const plans = stats?.plans || { free: 0, starter_pro: 0, elite_pro: 0 };
+  const plans = stats?.plans || { free: 0, student: 0, professional: 0, premium: 0 };
   const bookingBreakdown = useMemo(() => {
     const raw = stats?.bookingsByStatus || {};
     return Object.entries(raw)
@@ -125,10 +125,11 @@ export function AdminAnalytics() {
             <StatCard label="Ghi danh" value={stats?.enrollmentsPaid ?? 0} accent="amber" />
           </motion.div>
 
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={adminStatGrid3}>
-            <StatCard label="Gói Pro" value={plans.starter_pro ?? 0} accent="violet" />
-            <StatCard label="Gói Elite" value={plans.elite_pro ?? 0} accent="emerald" />
-            <StatCard label="Free" value={plans.free ?? 0} accent="sky" />
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={adminStatGrid4}>
+            <StatCard label="Sinh viên" value={plans.student ?? 0} accent="violet" />
+            <StatCard label="Chuyên nghiệp" value={plans.professional ?? 0} accent="emerald" />
+            <StatCard label="Cao cấp" value={plans.premium ?? 0} accent="amber" />
+            <StatCard label="Miễn phí" value={plans.free ?? 0} accent="sky" />
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={adminStatGrid4}>

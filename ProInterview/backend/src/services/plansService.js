@@ -27,7 +27,7 @@ export async function activatePlan(userId, body) {
   if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
   const plan = normalizePlanKey(body?.plan ?? body?.planKey);
   if (!plan || plan === "free") {
-    return { ok: false, status: 400, error: "plan phải là starter_pro hoặc elite_pro (hoặc starterPro / elitePro)." };
+    return { ok: false, status: 400, error: "plan phải là student, professional hoặc premium." };
   }
 
   const months = Math.min(36, Math.max(1, Number(body?.months) || 1));
@@ -35,14 +35,15 @@ export async function activatePlan(userId, body) {
   expires.setMonth(expires.getMonth() + months);
 
   const updates = { plan, planExpiresAt: expires };
-  if (plan === "starter_pro") {
-    updates["quota.cvAnalysisLimit"]          = 20;
-    updates["quota.interviewLimit"]           = 10;
-    updates["quota.interviewQuestionsAllowed"] = 5;
-  } else if (plan === "elite_pro") {
-    updates["quota.cvAnalysisLimit"]          = 999;
-    updates["quota.interviewLimit"]           = 999;
-    updates["quota.interviewQuestionsAllowed"] = 5;
+  if (plan === "student") {
+    updates["quota.cvAnalysisLimit"]    = 999;
+    updates["quota.mentorSessionLimit"] = 1;
+  } else if (plan === "professional") {
+    updates["quota.cvAnalysisLimit"]    = 999;
+    updates["quota.mentorSessionLimit"] = 4;
+  } else if (plan === "premium") {
+    updates["quota.cvAnalysisLimit"]    = 999;
+    updates["quota.mentorSessionLimit"] = 999;
   }
 
   const u = await User.findByIdAndUpdate(userId, { $set: updates }, { new: true }).select("plan planExpiresAt quota").lean();
@@ -59,8 +60,8 @@ export async function cancelPlan(userId) {
       $set: {
         plan: "free",
         planExpiresAt: null,
-        "quota.cvAnalysisLimit": 3,
-        "quota.interviewLimit": 1,
+        "quota.cvAnalysisLimit": 2,
+        "quota.mentorSessionLimit": 0,
       },
     },
     { new: true }
