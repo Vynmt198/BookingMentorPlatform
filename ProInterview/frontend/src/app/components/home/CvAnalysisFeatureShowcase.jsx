@@ -9,7 +9,7 @@ import {
 } from "../cv/CvAnalysisScoreBreakdown";
 import { CV_HUB_HERO_COPY, CV_SHOWCASE_COPY } from "../../constants/brandVoice";
 import {
-  HOME_SECTION_TITLE_CLAMP,
+  homeSectionTitleStyle,
   homeSectionClasses as ty,
 } from "../../constants/homeTypography";
 
@@ -58,7 +58,7 @@ export function CvAnalysisFeatureShowcase({ onCtaClick }) {
   return (
     <section
       id="cv-analysis"
-      className="home-mobile-tight relative z-10 flex h-screen max-h-screen flex-col justify-center overflow-x-hidden overflow-y-visible px-0 py-4 sm:py-6 max-lg:h-auto max-lg:max-h-none max-lg:min-h-0 max-lg:pt-10 max-lg:pb-[4.5rem]"
+      className="home-mobile-tight relative z-10 flex flex-col justify-center overflow-x-clip overflow-y-visible px-0 py-10 sm:py-14"
     >
       <style>{`
         .cv-analysis-glass-card {
@@ -93,8 +93,8 @@ export function CvAnalysisFeatureShowcase({ onCtaClick }) {
               {CV_SHOWCASE_COPY.badge}
             </span>
             <h2
-              className={`max-w-full ${ty.title} sm:max-w-none`}
-              style={{ fontSize: HOME_SECTION_TITLE_CLAMP }}
+              className={`max-w-full ${ty.sectionTitle} sm:max-w-none`}
+              style={homeSectionTitleStyle}
             >
               <span className={`${ty.titleLineSecond} ${ty.titleLineAccent} block`}>
                 Làm sao để CV ấn tượng

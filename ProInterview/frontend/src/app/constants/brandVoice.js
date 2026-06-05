@@ -9,9 +9,10 @@ export const HOME_COPY = {
   badge: "Bạn đồng hành luyện phỏng vấn",
   titleLine1: "Chuẩn bị",
   titleHighlight: "hồ sơ & kỹ năng",
-  titleLine2: "cùng mentor thật",
+  titleLine2Suffix: "cùng",
+  titleExtraLines: ["Mentor thật"],
   cta: "Phân tích CV ngay",
-  ctaMentor: "Tìm mentor ngay",
+  ctaMentor: "Tìm Mentor ngay",
   stats: [
     { value: "10,000+", label: "Lượt luyện trên ProInterview" },
     { value: "500+", label: "Mentor HR/Manager thật" },
@@ -34,16 +35,11 @@ export const HOME_SECTION_COPY = {
     },
     {
       step: "02",
-      title: "Luyện phỏng vấn với AI",
-      desc: "Phỏng vấn với AI theo vị trí ứng tuyển, nhận góp ý sau từng câu trả lời.",
-    },
-    {
-      step: "03",
       title: "Kết nối Mentor 1:1",
       desc: "Kết nối với Mentor để được góp ý cụ thể và có chiến lược chuẩn bị phù hợp.",
     },
     {
-      step: "04",
+      step: "03",
       title: "Khóa học",
       desc: "Video và bài tập mentor duyệt. Học xong biết áp dụng vào CV và buổi phỏng vấn.",
     },

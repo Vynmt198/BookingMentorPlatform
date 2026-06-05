@@ -1,23 +1,19 @@
-import React, { useEffect } from "react";
-import { useNavigate, Link } from "react-router";
+import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router";
 import {
   FileText,
   Users,
   TrendingUp as TrendUp,
   Star,
   ChevronRight as CaretRight,
-  Brain,
   Target as Crosshair,
   Award as Medal,
   ArrowRight,
   Zap as Lightning,
-  CircleCheck,
   Upload as UploadSimple,
-  Video as VideoCamera,
   BadgeCheck as SealCheck,
   GraduationCap
 } from "lucide-react";
-import { Footer } from "../../components/layout/Footer";
 import { RecommendedJourney } from "../../components/home/RecommendedJourney";
 import { CvAnalysisFeatureShowcase } from "../../components/home/CvAnalysisFeatureShowcase";
 import {
@@ -39,7 +35,7 @@ import {
 import { HOME_COPY, HOME_SECTION_COPY } from "../../constants/brandVoice";
 import {
   HOME_HERO_TITLE_CLAMP,
-  HOME_SECTION_TITLE_CLAMP,
+  homeSectionTitleStyle,
   homeSectionClasses as homeTy,
 } from "../../constants/homeTypography";
 /* ─── Data ──────────────────────────────────────────────── */
@@ -82,8 +78,8 @@ const FEATURES = [
   },
 ];
 
-const STEP_ICONS = [FileText, VideoCamera, Users, GraduationCap];
-const STEP_COLORS = ["#7000ff", "#7000ff", "#7000ff", "#7000ff"];
+const STEP_ICONS = [FileText, Users, GraduationCap];
+const STEP_COLORS = ["#7000ff", "#7000ff", "#7000ff"];
 
 const STEPS = HOME_SECTION_COPY.steps.map((s, i) => ({
   ...s,
@@ -103,114 +99,55 @@ const TESTIMONIALS = HOME_SECTION_COPY.testimonials.items.map((t, i) => ({
   stars: 5,
 }));
 
-/** Clip demo phỏng vấn AI — hero (cột phải). */
-const HOME_AI_DEMO_VIDEO =
-  "https://res.cloudinary.com/dee4bvivu/video/upload/v1774336640/Female_delxmy.mp4";
+const HERO_DECOR_STICKS = [
+  { x: 7, y: 16, size: 34, tilt: -14 },
+  { x: 93, y: 12, size: 42, tilt: 20 },
+  { x: 5, y: 48, size: 28, tilt: 12 },
+  { x: 95, y: 52, size: 36, tilt: -22 },
+  { x: 14, y: 78, size: 30, tilt: 8 },
+  { x: 86, y: 74, size: 38, tilt: -18 },
+];
 
-/** Hero: video + overlay glass HUD (điểm AI, STAR, waveform, metrics). */
-function HeroInterviewVideoCard() {
-  const waveformHeights = [42, 68, 52, 82, 58, 90, 48, 76, 55, 88, 50, 72, 46, 80];
-  const starBars = [78, 92, 65, 88, 72];
-
+function HeroAtmosphere({ paused = false }) {
   return (
-    <div className="relative mx-auto mt-8 w-full max-w-[min(100%,245.4px)] -translate-y-[2rem] translate-x-[4px] overflow-visible sm:max-w-[305.4px] lg:mx-0 lg:mt-0 lg:max-w-[405.4px] lg:-ml-2 lg:justify-self-end xl:max-w-[445.4px]">
-      <div className="hero-video-frame relative rounded-[1.65rem] bg-white p-2 shadow-[0_16px_44px_rgba(99,14,212,0.14)] sm:rounded-[1.85rem] sm:p-2.5">
-        <div
-          className="relative overflow-hidden rounded-[1.2rem] bg-slate-100 sm:rounded-[1.35rem]"
-          style={{ aspectRatio: "4 / 3.51" }}
-        >
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="h-full w-full object-cover object-center"
-          >
-            <source src={HOME_AI_DEMO_VIDEO} type="video/mp4" />
-          </video>
-          <div
-            className="pointer-events-none absolute inset-0 bg-violet-900/5"
-            aria-hidden
-          />
-
-          {/* 92/100 — góc trên trái */}
-          <div className="hero-video-glass absolute left-2 top-2 z-10 flex items-center gap-2 rounded-xl px-2.5 py-2 sm:left-3 sm:top-3 sm:rounded-2xl sm:px-3 sm:py-2.5">
-            <div className="relative h-10 w-10 shrink-0 sm:h-11 sm:w-11">
-              <svg className="h-full w-full -rotate-90" viewBox="0 0 36 36" aria-hidden>
-                <circle cx="18" cy="18" r="15.2" fill="none" stroke="#e8e0f5" strokeWidth="3" />
-                <circle
-                  cx="18"
-                  cy="18"
-                  r="15.2"
-                  fill="none"
-                  stroke="#8037f4"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeDasharray="86 96"
-                />
-              </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-extrabold text-[#8037f4] sm:text-[10px]">
-                92
-              </span>
-            </div>
-            <p className="text-xs font-extrabold leading-tight text-slate-900 sm:text-sm">
-              92<span className="text-[10px] font-bold text-slate-500 sm:text-[11px]">/100</span>
-            </p>
-          </div>
-
-          {/* Waveform — giữa / trên laptop */}
-          <div className="hero-video-glass absolute left-1/2 top-[42%] z-10 flex h-9 w-[min(88%,13rem)] -translate-x-1/2 items-end justify-center gap-[2px] rounded-xl px-2 py-1.5 sm:h-10 sm:gap-[3px] sm:rounded-2xl sm:px-2.5 sm:py-2">
-            {waveformHeights.map((h, i) => (
-              <span
-                key={i}
-                className="hero-video-wave w-[2.5px] rounded-full bg-[#8037f4] sm:w-[3px]"
-                style={{ height: `${h}%` }}
-              />
-            ))}
-          </div>
-
-          {/* Thanh STAR — dưới trái */}
-          <div className="hero-video-glass absolute bottom-3 left-2 z-10 rounded-xl px-2.5 py-2 sm:bottom-4 sm:left-3 sm:rounded-2xl sm:px-3 sm:py-2.5">
-            <div className="mb-1.5 flex items-center gap-0.5">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <Star
-                  key={n}
-                  className="h-3 w-3 fill-amber-400 text-amber-400 sm:h-3.5 sm:w-3.5"
-                  strokeWidth={1.5}
-                />
-              ))}
-            </div>
-            <div className="flex flex-col gap-1">
-              {starBars.map((w, i) => (
-                <div key={i} className="h-1.5 w-16 overflow-hidden rounded-full bg-violet-100 sm:w-[4.5rem]">
-                  <div
-                    className="h-full rounded-full bg-[#8037f4]"
-                    style={{ width: `${w}%` }}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Metrics — phải */}
-          <div className="hero-video-glass absolute bottom-3 right-2 z-10 space-y-1 rounded-xl px-2.5 py-2 text-[9px] font-semibold text-slate-700 sm:bottom-4 sm:right-3 sm:rounded-2xl sm:px-3 sm:py-2.5 sm:text-[10px]">
-            <div className="flex items-center justify-between gap-3">
-              <span>Clarity</span>
-              <span className="tracking-tight text-[#8037f4]">★★★★★</span>
-            </div>
-            <div className="flex items-center justify-between gap-3">
-              <span>Confidence</span>
-              <span className="font-extrabold text-[#8037f4]">95%</span>
-            </div>
-            <div className="flex items-center justify-between gap-2">
-              <span>Structure</span>
-              <span className="inline-flex items-center gap-0.5 font-bold text-emerald-600">
-                Excellent
-                <CircleCheck className="h-3 w-3 shrink-0" strokeWidth={2.5} />
-              </span>
-            </div>
-          </div>
-        </div>
+    <div
+      className={`codex-mesh-bg${paused ? " hero-atmosphere-idle" : ""}`}
+      aria-hidden="true"
+    >
+      <div className="cloud-base-wash" />
+      <div className="cloud-layer">
+        <div className="cb cb-far-1" />
+        <div className="cb cb-far-2" />
+        <div className="cb cb-far-3" />
+      </div>
+      <div className="cloud-layer">
+        <div className="cb cb-deep-1" />
+        <div className="cb cb-deep-2" />
+        <div className="cb cb-deep-3" />
+        <div className="cb cb-deep-4" />
+      </div>
+      <div className="cloud-layer">
+        <div className="cb cb-mid-1" />
+        <div className="cb cb-mid-2" />
+        <div className="cb cb-mid-3" />
+        <div className="cb cb-mid-4" />
+        <div className="cb cb-mid-5" />
+      </div>
+      <div className="cloud-layer">
+        <div className="cb cb-dark-1" />
+        <div className="cb cb-dark-2" />
+        <div className="cb cb-dark-3" />
+      </div>
+      <div className="cloud-layer">
+        <div className="cb cb-near-1" />
+        <div className="cb cb-near-2" />
+        <div className="cb cb-near-3" />
+        <div className="cb cb-near-4" />
+      </div>
+      <div className="cloud-layer">
+        <div className="cb cb-glow-1" />
+        <div className="cb cb-glow-2" />
+        <div className="cb cb-glow-3" />
       </div>
     </div>
   );
@@ -218,12 +155,18 @@ function HeroInterviewVideoCard() {
 
 export function Home() {
   const navigate = useNavigate();
+  const heroRef = useRef(null);
+  const [heroAtmospherePaused, setHeroAtmospherePaused] = useState(false);
 
-  const renderSectionSticks = (sticks) => (
-    <div className="pointer-events-none absolute inset-0 z-[1] hidden md:block" aria-hidden>
+  const renderSectionSticks = (sticks, sparkleTone = "brand", visibleFrom = "md") => (
+    <div
+      className={`pointer-events-none absolute inset-0 z-[1] ${visibleFrom === "sm" ? "hidden sm:block" : "hidden md:block"}`}
+      aria-hidden
+    >
       {sticks.map((s, idx) => (
         <SparkleGlyph
           key={`section-stick-${idx}`}
+          tone={sparkleTone}
           className="absolute"
           style={{
             left: `${s.x}%`,
@@ -255,9 +198,21 @@ export function Home() {
 
   }, []);
 
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setHeroAtmospherePaused(!entry.isIntersecting),
+      { threshold: 0, rootMargin: "80px 0px 0px 0px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div
-      className="min-h-screen selection:bg-violet-100 selection:text-violet-900 font-sans overflow-x-hidden relative bg-transparent text-slate-900"
+      className="relative bg-transparent font-sans text-slate-900 selection:bg-[rgba(147,247,43,0.42)] selection:text-slate-900"
     >
       <style>{`
         .cute-glass {
@@ -375,12 +330,6 @@ export function Home() {
         }
         .hero-title-highlight {
           display: inline-block;
-          transform-origin: 40% 70%;
-          animation: heroWiggle 1.25s ease-in-out infinite;
-          will-change: transform;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .hero-title-highlight { animation: none; }
         }
         .hero-orbit-text {
           display: inline-block;
@@ -450,25 +399,50 @@ export function Home() {
           letter-spacing: -0.045em;
           text-shadow: none;
         }
-        .hero-video-glass {
-          border: 1px solid rgba(255, 255, 255, 0.82);
-          background: rgba(255, 255, 255, 0.8);
-          backdrop-filter: blur(14px);
-          -webkit-backdrop-filter: blur(14px);
-          box-shadow: 0 8px 26px rgba(99, 14, 212, 0.14);
+        .codex-mesh-bg {
+          position: absolute;
+          inset: 0;
+          bottom: -4rem;
+          z-index: 0;
+          overflow: visible;
+          pointer-events: none;
+          background-color: transparent;
+          isolation: isolate;
+          -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 78%, rgba(0,0,0,0.92) 90%, rgba(0,0,0,0.5) 96%, transparent 100%);
+          mask-image: linear-gradient(180deg, #000 0%, #000 78%, rgba(0,0,0,0.92) 90%, rgba(0,0,0,0.5) 96%, transparent 100%);
         }
-        .hero-video-wave {
-          animation: heroVideoWave 1.35s ease-in-out infinite;
-        }
-        .hero-video-wave:nth-child(odd) { animation-delay: 0.12s; }
-        .hero-video-wave:nth-child(4n) { animation-delay: 0.28s; }
-        @keyframes heroVideoWave {
-          0%, 100% { transform: scaleY(0.7); opacity: 0.8; }
-          50% { transform: scaleY(1); opacity: 1; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .hero-video-wave { animation: none !important; }
-        }
+        .cloud-base-wash { position: absolute; inset: 0; z-index: 0; background: transparent; }
+        .cloud-layer { position: absolute; inset: 0; }
+        .cb { position: absolute; border-radius: 50%; }
+        .hero-atmosphere-idle .cb { animation-play-state: paused !important; }
+        .cb-far-1 { width: 80vw; height: 65vh; top: -20%; left: -15%; background: radial-gradient(ellipse at 40% 40%, rgba(128,55,244,0.45) 0%, rgba(128,55,244,0) 70%); filter: blur(55px); animation: fog-a 14s ease-in-out infinite; }
+        .cb-far-2 { width: 65vw; height: 55vh; bottom: -15%; right: -10%; background: radial-gradient(ellipse at 55% 60%, rgba(147,87,245,0.4) 0%, rgba(147,87,245,0) 70%); filter: blur(60px); animation: fog-b 16s ease-in-out infinite; }
+        .cb-far-3 { width: 50vw; height: 45vh; top: 10%; right: 20%; background: radial-gradient(ellipse at center, rgba(183,148,255,0.35) 0%, rgba(183,148,255,0) 65%); filter: blur(50px); animation: fog-c 12s ease-in-out infinite; }
+        .cb-deep-1 { width: 70vw; height: 60vh; top: -5%; left: 10%; background: radial-gradient(ellipse at 50% 40%, rgba(128,55,244,0.5) 0%, rgba(128,55,244,0) 68%); filter: blur(40px); animation: fog-b 13s ease-in-out infinite; }
+        .cb-deep-2 { width: 55vw; height: 50vh; bottom: -8%; right: 5%; background: radial-gradient(ellipse at 60% 55%, rgba(99,14,212,0.45) 0%, rgba(99,14,212,0) 65%); filter: blur(45px); animation: fog-c 15s ease-in-out infinite reverse; }
+        .cb-deep-3 { width: 45vw; height: 40vh; top: 25%; left: -8%; background: radial-gradient(ellipse at center, rgba(163,112,247,0.42) 0%, rgba(163,112,247,0) 60%); filter: blur(35px); animation: fog-d 11s ease-in-out infinite; }
+        .cb-deep-4 { width: 38vw; height: 35vh; bottom: 15%; left: 30%; background: radial-gradient(ellipse at 45% 50%, rgba(128,55,244,0.38) 0%, rgba(128,55,244,0) 58%); filter: blur(30px); animation: fog-a 10s ease-in-out infinite reverse; }
+        .cb-mid-1 { width: 42vw; height: 38vh; top: 8%; left: 25%; background: radial-gradient(ellipse at 40% 45%, rgba(147,87,245,0.44) 0%, rgba(147,87,245,0) 58%); filter: blur(22px); animation: fog-a 9s ease-in-out infinite; }
+        .cb-mid-2 { width: 35vw; height: 30vh; top: 35%; right: 12%; background: radial-gradient(ellipse at center, rgba(183,148,255,0.4) 0%, rgba(183,148,255,0) 55%); filter: blur(20px); animation: fog-b 10s ease-in-out infinite; }
+        .cb-mid-3 { width: 28vw; height: 25vh; bottom: 20%; left: 8%; background: radial-gradient(ellipse at 50% 50%, rgba(128,55,244,0.38) 0%, rgba(128,55,244,0) 52%); filter: blur(18px); animation: fog-c 8s ease-in-out infinite; }
+        .cb-mid-4 { width: 32vw; height: 28vh; top: 55%; right: 28%; background: radial-gradient(ellipse at 55% 40%, rgba(99,14,212,0.36) 0%, rgba(99,14,212,0) 55%); filter: blur(16px); animation: fog-d 12s ease-in-out infinite reverse; }
+        .cb-mid-5 { width: 25vw; height: 22vh; bottom: 30%; left: 10%; background: radial-gradient(ellipse at 40% 55%, rgba(128,55,244,0.42) 0%, rgba(128,55,244,0) 55%); filter: blur(15px); animation: fog-d 11s ease-in-out infinite reverse; }
+        .cb-dark-1 { width: 45vw; height: 40vh; top: -10%; right: -5%; background: radial-gradient(ellipse at 60% 35%, rgba(79,20,180,0.6) 0%, rgba(79,20,180,0) 65%); filter: blur(30px); animation: fog-b 14s ease-in-out infinite; }
+        .cb-dark-2 { width: 30vw; height: 28vh; top: 5%; right: 8%; background: radial-gradient(ellipse at 55% 40%, rgba(99,14,212,0.55) 0%, rgba(99,14,212,0) 60%); filter: blur(22px); animation: fog-c 12s ease-in-out infinite; }
+        .cb-dark-3 { width: 22vw; height: 20vh; top: 18%; right: 18%; background: radial-gradient(ellipse at center, rgba(67,10,160,0.5) 0%, rgba(67,10,160,0) 55%); filter: blur(15px); animation: fog-d 10s ease-in-out infinite reverse; }
+        .cb-near-1 { width: 30vw; height: 25vh; bottom: 10%; left: 0%; background: radial-gradient(ellipse at 35% 55%, rgba(163,112,247,0.48) 0%, rgba(163,112,247,0) 55%); filter: blur(15px); animation: fog-a 7s ease-in-out infinite; }
+        .cb-near-2 { width: 25vw; height: 20vh; top: 40%; left: 50%; background: radial-gradient(ellipse at center, rgba(183,148,255,0.45) 0%, rgba(183,148,255,0) 50%); filter: blur(12px); animation: fog-b 8s ease-in-out infinite; }
+        .cb-near-3 { width: 20vw; height: 18vh; top: 15%; left: 55%; background: radial-gradient(ellipse at 45% 45%, rgba(128,55,244,0.4) 0%, rgba(128,55,244,0) 50%); filter: blur(10px); animation: fog-c 6s ease-in-out infinite reverse; }
+        .cb-near-4 { width: 22vw; height: 20vh; bottom: 25%; right: 5%; background: radial-gradient(ellipse at 50% 50%, rgba(147,87,245,0.42) 0%, rgba(147,87,245,0) 52%); filter: blur(12px); animation: fog-d 8s ease-in-out infinite; }
+        .cb-glow-1 { width: 50vw; height: 45vh; top: 12%; left: 18%; background: radial-gradient(ellipse at 45% 45%, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0) 55%); filter: blur(45px); animation: fog-glow 11s ease-in-out infinite; }
+        .cb-glow-2 { width: 35vw; height: 30vh; top: 30%; left: 35%; background: radial-gradient(ellipse at center, rgba(248,244,253,0.65) 0%, rgba(248,244,253,0) 50%); filter: blur(35px); animation: fog-glow 14s ease-in-out infinite reverse; }
+        .cb-glow-3 { width: 28vw; height: 24vh; bottom: 20%; left: 25%; background: radial-gradient(ellipse at 40% 50%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 55%); filter: blur(30px); animation: fog-glow 10s ease-in-out infinite; }
+        @keyframes fog-a { 0% { opacity: 1; transform: scale(1) translate(0,0); } 33% { transform: scale(1.05) translate(6%,8%); } 66% { opacity: 0.8; transform: scale(1.1) translate(-4%,5%); } 100% { opacity: 1; transform: scale(1) translate(0,0); } }
+        @keyframes fog-b { 0% { opacity: 1; transform: scale(1) translate(0,0); } 33% { transform: scale(1.08) translate(-8%,5%); } 66% { opacity: 0.82; transform: scale(1.15) translate(5%,-6%); } 100% { opacity: 1; transform: scale(1) translate(0,0); } }
+        @keyframes fog-c { 0% { opacity: 1; transform: scale(1) translate(0,0); } 33% { transform: scale(0.95) translate(9%,-8%); } 66% { opacity: 0.75; transform: scale(0.9) translate(-6%,-3%); } 100% { opacity: 1; transform: scale(1) translate(0,0); } }
+        @keyframes fog-d { 0% { opacity: 1; transform: scale(1) translate(0,0); } 33% { transform: scale(1.05) translate(-6%,-9%); } 66% { opacity: 0.85; transform: scale(1.1) translate(8%,5%); } 100% { opacity: 1; transform: scale(1) translate(0,0); } }
+        @keyframes fog-glow { 0% { opacity: 1; transform: scale(1) translate(0,0); } 33% { transform: scale(1.1) translate(5%,5%); } 66% { opacity: 0.7; transform: scale(1.15) translate(-3%,-3%); } 100% { opacity: 1; transform: scale(1) translate(0,0); } }
+        @media (prefers-reduced-motion: reduce) { .cb { animation: none !important; } }
         .glass-card {
           background: #ffffff;
           backdrop-filter: none;
@@ -564,111 +538,101 @@ export function Home() {
         }
       `}</style>
 
-      {/* ═══ HERO ═══════════════════════════════════════════ */}
-      <section className="relative z-10 flex h-screen max-h-screen flex-col justify-start overflow-x-hidden px-10 sm:px-16 lg:px-24 pt-6 sm:pt-8 md:pt-10 lg:justify-center lg:pt-0 lg:pb-10">
-        {renderSectionSticks([
-          { x: 5, y: 11, size: 38, opacity: 0.48 },
-          { x: 93, y: 13, size: 44, opacity: 0.55 },
-          { x: 3, y: 50, size: 32, opacity: 0.4 },
-          { x: 92, y: 80, size: 36, opacity: 0.46 },
-        ])}
+      {/* ═══ HERO — section 1 ═════════════════════════════════ */}
+      <section
+        ref={heroRef}
+        id="home-hero-section"
+        className="home-hero-section relative z-10 flex min-h-svh flex-col justify-center overflow-x-clip overflow-y-visible px-6 pb-8 pt-[5.25rem] sm:px-10 sm:pb-10 sm:pt-[5.75rem] md:pt-[6.25rem] lg:px-16"
+      >
+        <HeroAtmosphere paused={heroAtmospherePaused} />
+        {renderSectionSticks(HERO_DECOR_STICKS, "brand", "sm")}
 
-        <div className={`relative z-10 ${HOME_SHELL_MAX}`}>
-          <div className="mx-auto flex max-w-4xl flex-col items-center text-center lg:py-2">
-            <div className="hero-intro-badge mb-5 -translate-y-[4.5rem] flex justify-center">
-              <div
-                className="inline-flex items-center gap-2 rounded-full border-2 bg-white px-3 py-1.5 text-xs font-bold sm:text-sm"
-                style={{
-                  borderColor: "rgba(128, 55, 244, 0.42)",
-                  color: "#8037f4",
-                }}
-              >
-                <SparkleGlyph className="h-3.5 w-3.5 shrink-0" />
-                {HOME_COPY.badge}
-              </div>
+        <div
+          className={`relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center px-4 text-center sm:max-w-6xl sm:px-6 ${HOME_SHELL_MAX}`}
+        >
+          <div className="hero-intro-badge mb-4 sm:mb-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/75 px-3.5 py-1.5 text-xs font-bold text-[#8037f4] shadow-sm backdrop-blur sm:text-sm">
+              <SparkleGlyph className="h-3.5 w-3.5 shrink-0" tone="violet" />
+              {HOME_COPY.badge}
             </div>
+          </div>
 
-            <div className="hero-intro-copy -translate-y-[2rem] flex w-full flex-col items-center">
-              <h1
-                className="hero-title-stack mb-6 max-w-full font-headline text-center text-slate-900 cute-heading"
+          <div className="hero-intro-copy w-full">
+            <h1
+              className="home-hero-title hero-title-stack cute-heading mx-auto mb-6 text-slate-900"
+              style={{ fontSize: HOME_HERO_TITLE_CLAMP }}
+            >
+              <span className="hero-title-line text-slate-900">
+                {HOME_COPY.titleLine1}{" "}
+                <span className="hero-title-highlight" style={{ color: "#8037f4" }}>
+                  {HOME_COPY.titleHighlight}
+                </span>
+              </span>
+              <span className="hero-title-line text-slate-900">
+                {HOME_COPY.titleLine2Suffix} {HOME_COPY.titleExtraLines?.[0] ?? ""}
+              </span>
+            </h1>
+
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => navigate("/cv-analysis")}
+                className="hero-intro-cta inline-flex items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-black transition-all hover:brightness-105 active:scale-[0.98] sm:px-5 sm:py-2 sm:text-lg"
                 style={{
-                  fontSize: HOME_HERO_TITLE_CLAMP,
+                  background: "#93f72b",
+                  color: "#0f172a",
+                  boxShadow: "0 8px 22px rgba(147, 247, 43, 0.35)",
                 }}
               >
-                <span className="hero-title-line text-slate-900">
-                  {HOME_COPY.titleLine1}{" "}
-                  <span className="hero-title-highlight" style={{ color: "#8037f4" }}>
-                    {HOME_COPY.titleHighlight}
-                  </span>
-                </span>
-                <span className="hero-title-line text-slate-900">
-                  {HOME_COPY.titleLine2}
-                </span>
-              </h1>
-
-              <div className="mb-5 flex translate-y-[2rem] flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
+                <Lightning className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                {HOME_COPY.cta}
+              </button>
+              {HOME_COPY.ctaMentor ? (
                 <button
                   type="button"
                   onClick={() => navigate("/mentors")}
-                  className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-black transition-all hover:brightness-105 active:scale-[0.98] hover:-translate-y-0.5 sm:px-6 sm:text-base"
-                  style={{
-                    background: "#93f72b",
-                    color: "#000000",
-                    boxShadow: "0 8px 22px rgba(147, 247, 43, 0.35)",
-                  }}
+                  className="hero-intro-cta inline-flex items-center justify-center gap-1.5 rounded-full border-2 border-[#8037f4] bg-white/90 px-3.5 py-1.5 text-sm font-black text-[#8037f4] transition-all hover:bg-violet-50 active:scale-[0.98] sm:px-5 sm:py-2 sm:text-lg"
                 >
-                  <Users className="h-3.5 w-3.5" />
+                  <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                   {HOME_COPY.ctaMentor}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/cv-analysis")}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border-2 bg-white px-5 py-2.5 text-sm font-black transition-all hover:scale-[1.02] active:scale-[0.98] sm:px-6 sm:text-base"
-                  style={{
-                    borderColor: "rgba(128, 55, 244, 0.45)",
-                    color: "#8037f4",
-                    boxShadow: "0 6px 18px rgba(128, 55, 244, 0.12)",
-                  }}
-                >
-                  <Lightning className="h-3.5 w-3.5" />
-                  {HOME_COPY.cta}
-                </button>
-              </div>
+              ) : null}
             </div>
           </div>
         </div>
-
       </section>
 
-      {/* ═══ HOW IT WORKS ════════════════════════════════════ */}
+      {/* ═══ LỘ TRÌNH — section 2 (#features) ═════════════════ */}
       <section
         id="features"
-        className="landing-section-flow relative z-10 h-screen max-h-screen flex flex-col justify-center overflow-hidden pt-6 md:pt-8 lg:pt-10"
+        className="home-features-panel landing-section-flow scroll-mt-24 relative z-10 flex min-h-svh flex-col justify-center overflow-x-clip overflow-y-visible px-6 py-10 sm:px-10 sm:py-12 lg:px-16"
       >
         {renderSectionSticks([
           { x: 10, y: 16, size: 34, opacity: 0.45 },
           { x: 88, y: 20, size: 40, opacity: 0.55 },
           { x: 82, y: 78, size: 32, opacity: 0.44 },
         ])}
-        <div className={`${HOME_SECTION_INNER} relative z-10 py-2`}>
-          <LandingReveal className="mb-8 pt-5" y={24}>
-            <div className="mx-auto mb-5 flex max-w-4xl flex-col items-center">
+        <div className={`${HOME_SECTION_INNER} relative z-10`}>
+          <LandingReveal className="mb-8 w-full" y={20}>
+            <div className="mx-auto flex max-w-4xl flex-col items-center">
               <div className="flex items-center justify-center">
                 <img
-                  src="/mascot-features.png?v=7"
+                  src="/mascot-features.png?v=13"
                   alt=""
                   aria-hidden
-                  className="relative z-10 h-auto w-[11rem] shrink-0 -translate-x-[1.9rem] -translate-y-[0.35rem] rotate-[3deg] object-contain sm:w-[12.5rem] sm:-translate-y-[0.55rem] md:w-[14rem] lg:w-[15rem]"
+                  className="relative z-10 h-auto w-[11rem] shrink-0 -translate-x-[2.4rem] -translate-y-[0.85rem] rotate-[3deg] object-contain sm:w-[12.5rem] sm:-translate-y-[1.05rem] md:w-[14rem] lg:w-[15rem]"
                 />
                 <div className="relative z-0 -ml-[3.5rem] -translate-x-[0.1rem] text-left sm:-ml-[4rem] md:-ml-[4.35rem] lg:-ml-[4.75rem]">
                   <span className="mb-3 block h-1.5 w-12 rounded-full bg-[#8037f4]/40" />
                   <h2
-                    className={homeTy.howItWorksTitle}
-                    style={{ fontSize: HOME_SECTION_TITLE_CLAMP }}
+                    className={homeTy.sectionTitle}
+                    style={homeSectionTitleStyle}
                   >
                     {HOME_SECTION_COPY.howItWorks.titleLine1}
                     <br />
-                    <span className="text-[#7c3aed]">{HOME_SECTION_COPY.howItWorks.titleLine2}</span>
+                    <span className="whitespace-nowrap text-[#8037f4]">
+                      {HOME_SECTION_COPY.howItWorks.titleLine2}
+                    </span>
                   </h2>
                 </div>
               </div>
@@ -679,13 +643,12 @@ export function Home() {
             {STEPS.map((s, i) => (
               <LandingItem key={i}>
               <div
-                className={`glass-card group min-h-[12.5rem] p-6 sm:min-h-[13.25rem] sm:p-7 relative overflow-hidden h-full transition-[border-color,box-shadow] duration-300 ${i === 1
-                  ? "home-step-featured-dots"
-                  : i === 2
+                className={`glass-card group min-h-[12.5rem] p-6 sm:min-h-[13.25rem] sm:p-7 relative overflow-hidden h-full transition-[border-color,box-shadow] duration-300 ${
+                  i === 1
                     ? "border-violet-400/35 shadow-[0_0_0_1px_rgba(167,139,250,0.15)_inset]"
                     : "border-black/[0.05]"
-                  }`}
-                style={i === 1 ? undefined : {
+                }`}
+                style={{
                   background: "rgba(255,255,255,0.98)",
                   boxShadow: "0 12px 26px rgba(15,23,42,0.09), 0 2px 10px rgba(95,0,240,0.08)",
                 }}
@@ -693,29 +656,14 @@ export function Home() {
                 <div className="relative z-[1]">
                   {/* Hàng nhãn cố định — tránh absolute đè lên icon */}
                   <div className="mb-3.5 min-h-[32px] flex items-center justify-start">
-                    {(i === 1 || i === 2) && (
-                    <span
-                        className={`inline-flex px-2 py-1 text-[10px] sm:text-[11px] font-bold tracking-wide rounded-md border ${i === 1
-                          ? "border-[#8037f4]/50 bg-white/90 text-[#8037f4]"
-                          : "border-violet-200 bg-violet-100 text-violet-800 shadow-sm"
-                          }`}
-                      >
-                        {i === 1 ? "Nổi bật" : "Học thêm"}
+                    {i === 1 && (
+                      <span className="inline-flex rounded-md border border-violet-200 bg-violet-100 px-2 py-1 text-[10px] font-bold tracking-wide text-violet-800 shadow-sm sm:text-[11px]">
+                        Học thêm
                       </span>
                     )}
                   </div>
-                  <div
-                    className={`pointer-events-none absolute top-0 right-0 p-4 transition-opacity ${
-                      i === 1 ? "" : "opacity-[0.18] group-hover:opacity-[0.26]"
-                    }`}
-                  >
-                    <span
-                      className={`text-8xl font-black italic leading-none ${
-                        i === 1
-                          ? "text-[#d4c8eb] group-hover:text-[#c9b9e6]"
-                          : "text-[#8037f4]/30"
-                      }`}
-                    >
+                  <div className="pointer-events-none absolute top-0 right-0 p-4 opacity-[0.18] transition-opacity group-hover:opacity-[0.26]">
+                    <span className="text-8xl font-black italic leading-none text-[#8037f4]/30">
                       {s.step}
                     </span>
                   </div>
@@ -724,9 +672,7 @@ export function Home() {
                     className={`relative mb-4 flex h-12 w-12 items-center justify-center rounded-xl shadow-lg transition-all duration-500 sm:h-[3.25rem] sm:w-[3.25rem] ${
                       i === 0
                         ? "bg-[#8037f4] text-[#ffffff] shadow-[0_0_24px_rgba(167,139,250,0.12)]"
-                        : i === 1
-                          ? "border-2 border-[#630ed4] bg-white text-[#630ed4]"
-                          : "border-2 border-[#8037f4]/35 bg-white text-[#8037f4] shadow-[0_0_20px_rgba(128,55,244,0.1)]"
+                        : "border-2 border-[#8037f4]/35 bg-white text-[#8037f4] shadow-[0_0_20px_rgba(128,55,244,0.1)]"
                     }`}
                   >
                     <s.icon className="h-[1.4rem] w-[1.4rem] sm:h-6 sm:w-6" />
@@ -742,7 +688,7 @@ export function Home() {
         </div>
       </section>
 
-      {/* ═══ CV ANALYSIS (navbar #features) ═══ */}
+      {/* ═══ CV ANALYSIS ═══ */}
       <div className="landing-section-flow">
         <SectionReveal variant="cv">
           <CvAnalysisFeatureShowcase/>
@@ -766,7 +712,7 @@ export function Home() {
       {/* ═══ TESTIMONIALS ═══════════════════════════════════ */}
       <section
         id="mentors"
-        className="landing-section-flow relative z-10 -mt-[5rem] h-[calc(100vh+3rem)] max-h-[calc(100vh+3rem)] min-h-[calc(100vh+3rem)] overflow-x-hidden"
+        className="home-testimonials-panel landing-section-flow relative z-10 flex min-h-svh scroll-mt-24 flex-col justify-center overflow-x-clip pb-12 pt-10 sm:pb-16 sm:pt-12 lg:pb-20"
       >
         {renderSectionSticks([
           { x: 78, y: 12, size: 34, opacity: 0.46 },
@@ -777,8 +723,8 @@ export function Home() {
           <div className="flex min-w-0 w-full flex-col items-start gap-8 overflow-visible lg:flex-row lg:items-center lg:gap-4">
             <div className="relative z-20 w-full shrink-0 lg:w-fit lg:max-w-[min(100%,40rem)]">
               <h2
-                className="mb-0 flex w-full max-w-none flex-col items-start gap-0 font-headline font-extrabold leading-[1.08] tracking-tight text-slate-900"
-                style={{ fontSize: HOME_SECTION_TITLE_CLAMP }}
+                className={`${homeTy.sectionTitle} mb-0 flex w-full max-w-none flex-col items-start gap-0`}
+                style={homeSectionTitleStyle}
               >
                 <span className="block max-w-full leading-none tracking-tight lg:whitespace-nowrap">
                   {HOME_SECTION_COPY.testimonials.titleLine}
@@ -893,8 +839,6 @@ export function Home() {
         </div>
       </section>
 
-      {/* ═══ FOOTER ══════════════════════════════════════════ */}
-      <Footer variant="light" />
     </div>
   );
 }
