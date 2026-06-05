@@ -49,8 +49,8 @@ export function MentorPageShell({
   extraStyles = "",
   bottomPad = "pb-20",
   fillHeight = false,
-  /** false = chỉ dùng app-shell-ambient, không thêm blob/shimmer (tránh nền chia mảng) */
-  showAmbient = true,
+  /** false = chỉ dùng app-shell-ambient (tím), không thêm blob (tránh loang lime) */
+  showAmbient = false,
 }) {
   const heightBlock = fillHeight
     ? "min-h-0 flex-1 h-full overflow-y-auto overflow-x-clip"
@@ -63,11 +63,11 @@ export function MentorPageShell({
       {showAmbient && (
         <>
           <div
-            className="pointer-events-none fixed -top-[12%] -right-[6%] h-[min(560px,70vw)] w-[min(560px,70vw)] rounded-full bg-[#a66ff8]/28 blur-[120px] -z-[1]"
+            className="pointer-events-none fixed -top-[12%] -right-[6%] h-[min(560px,70vw)] w-[min(560px,70vw)] rounded-full bg-[#8037f4]/18 blur-[120px] -z-[1]"
             aria-hidden
           />
           <div
-            className="pointer-events-none fixed -bottom-[14%] -left-[8%] h-[min(520px,65vw)] w-[min(520px,65vw)] rounded-full bg-[#93f72b]/14 blur-[110px] -z-[1]"
+            className="pointer-events-none fixed -bottom-[14%] -left-[8%] h-[min(520px,65vw)] w-[min(520px,65vw)] rounded-full bg-[#8037f4]/10 blur-[110px] -z-[1]"
             aria-hidden
           />
           <div

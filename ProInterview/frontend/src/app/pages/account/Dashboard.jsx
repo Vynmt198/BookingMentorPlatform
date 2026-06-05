@@ -274,7 +274,7 @@ function MentorIssuesCompactPanel({ alerts, refundAlerts, onOpen }) {
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-[22px] border-2 border-violet-300/80 bg-gradient-to-br from-violet-50 via-white to-violet-50/50 p-4 shadow-sm sm:p-5"
+      className="rounded-[22px] border-2 border-violet-300/80 bg-white p-4 shadow-sm sm:p-5"
     >
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-violet-300 bg-violet-100">
@@ -380,7 +380,7 @@ function PlanUpgradeSuccessBanner({ planInfo, onDismiss }) {
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
-      className="dashboard-glass-soft relative overflow-hidden rounded-2xl border border-emerald-200/80 bg-gradient-to-r from-emerald-50/95 to-white p-4 sm:p-5"
+      className="dashboard-glass-soft relative overflow-hidden rounded-2xl border border-emerald-200/80 bg-emerald-50/95 p-4 sm:p-5"
       role="status"
       aria-live="polite"
     >
@@ -711,7 +711,7 @@ export function Dashboard() {
               />
             ) : null}
             <div
-              className={`glass-card p-5 sm:p-6 bg-gradient-to-br from-white to-slate-50 border-slate-200 flex flex-col overflow-hidden ${
+              className={`glass-card p-5 sm:p-6 bg-white border-slate-200 flex flex-col overflow-hidden ${
                 upcomingSessions.length === 0
                   ? "min-h-0 h-auto"
                   : "h-[220px] lg:h-[240px]"
@@ -788,7 +788,7 @@ export function Dashboard() {
                              {s.status === "confirmed" || s.status === "in_progress" ? (
                                <>
                                  <button
-                                   className="flex-1 h-10 rounded-xl bg-secondary text-black font-black text-[10px] uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_10px_30px_rgba(232,121,249,0.2)] disabled:opacity-50"
+                                   className="flex-1 h-10 rounded-xl bg-secondary text-[#000000] font-black text-[10px] uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_10px_30px_rgba(232,121,249,0.2)] disabled:opacity-50"
                                    disabled={String(s.paymentStatus || "").toLowerCase() !== "paid"}
                                    onClick={() => navigate(`/meeting/${s.sessionId || s.backendId || s.id}`)}
                                  >
@@ -890,7 +890,7 @@ function LushActionTile({ title, desc, onClick, icon, accent, accent2, isLarge, 
         <h4
           className={`font-black flex items-center gap-2 sm:gap-3 leading-tight transition-colors ${isLarge ? "text-xl sm:text-2xl mb-3" : "text-sm mb-2"}`}
         >
-          <span className="bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent group-hover:from-indigo-700 group-hover:to-violet-700 transition-all">
+          <span className="text-slate-900 group-hover:text-[#8037f4] transition-colors">
             {title}
           </span>
         </h4>

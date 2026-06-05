@@ -110,7 +110,7 @@ function SaveBar({
             <button
               onClick={onSave}
               disabled={saving}
-              className="px-8 py-3 rounded-2xl bg-primary-fixed text-black text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-50"
+              className="px-8 py-3 rounded-2xl bg-primary-fixed text-[#000000] text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg disabled:opacity-50"
             >
               {saving ? "..." : "Lưu thay đổi"}
             </button>
@@ -123,9 +123,9 @@ function SaveBar({
 
 /* ─── TAB: Notifications ────────────────────────────────── */
 const DEFAULT_NOTIFS = [
-  { id: "interview_reminder", label: "Nhắc nhở buổi phỏng vấn", description: "Thông báo trước 1 giờ khi có lịch", value: true },
+  { id: "interview_reminder", label: "Nhắc nhở lịch mentor", description: "Thông báo trước 1 giờ khi có buổi hẹn", value: true },
   { id: "mentor_feedback", label: "Phản hồi từ Mentor", description: "Khi mentor gửi đánh giá luyện tập", value: true },
-  { id: "streak_reminder", label: "Nhắc nhở duy trì streak", description: "Giữ ngọn lửa phỏng vấn của bạn", value: true },
+  { id: "streak_reminder", label: "Nhắc nhở duy trì streak", description: "Nhắc bạn luyện tập đều đặn", value: true },
 ];
 
 function NotificationsTab() {
@@ -403,7 +403,7 @@ export function Settings() {
            background: #ffffff;
            border: 1px solid #e2e8f0;
            border-radius: 14px;
-           color: #0f172a;
+           color: #000000;
            padding: 12px 16px;
            font-size: 0.875rem;
            font-weight: 500;
@@ -458,14 +458,14 @@ export function Settings() {
                            type="button"
                            onClick={() => setActiveTab(tab.id)}
                            className={`group relative mb-1 flex w-full items-center justify-between rounded-[20px] px-5 py-4 text-left transition-all last:mb-0 ${
-                              isActive ? "bg-[#f7f1ff] text-[#1d1a26] shadow-lg shadow-violet-200/40" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                              isActive ? "bg-[#f7f1ff] text-[#8037f4] shadow-lg shadow-violet-200/40" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
                            }`}
                         >
                            <div className="flex items-center gap-3">
-                              <tab.icon size={18} strokeWidth={2} className={`shrink-0 transition-transform duration-300 ${isActive ? "scale-105 text-black" : "group-hover:translate-x-0.5"}`} />
+                              <tab.icon size={18} strokeWidth={2} className={`shrink-0 transition-transform duration-300 ${isActive ? "scale-105 text-[#8037f4]" : "group-hover:translate-x-0.5"}`} />
                               <span className="text-[10px] font-bold uppercase tracking-[0.18em]">{tab.label}</span>
                            </div>
-                           {isActive && <ChevronRight size={14} className="shrink-0 text-black/35" strokeWidth={2} />}
+                           {isActive && <ChevronRight size={14} className="shrink-0 text-[#8037f4]/35" strokeWidth={2} />}
                         </button>
                      );
                   })}

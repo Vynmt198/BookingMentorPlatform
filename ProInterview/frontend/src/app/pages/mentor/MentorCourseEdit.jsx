@@ -1076,7 +1076,7 @@ export function MentorCourseEdit() {
             <div className="text-center">
                <BookOpen size={64} className="mx-auto mb-6 text-violet-700 opacity-20" />
                <h2 className="mb-8 text-xl font-black tracking-tight sm:text-2xl">Không tìm thấy khóa học</h2>
-               <button onClick={() => navigate("/mentor/courses")} className="px-10 py-4 rounded-3xl bg-primary-fixed text-black text-xs font-black uppercase tracking-widest shadow-xl">Quay lại quản lý</button>
+               <button onClick={() => navigate("/mentor/courses")} className="px-10 py-4 rounded-3xl bg-primary-fixed text-[#000000] text-xs font-black uppercase tracking-widest shadow-xl">Quay lại quản lý</button>
             </div>
          </div>
       );

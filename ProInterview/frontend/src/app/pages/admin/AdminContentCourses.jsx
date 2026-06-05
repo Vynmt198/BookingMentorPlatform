@@ -133,9 +133,9 @@ function CourseModerationModal({ mode, course, busy, onClose, onConfirm }) {
         <span className="font-semibold text-slate-800">{course.review?.title || "Khóa học"}</span>
         {isReject
           ? course.status === "pending_update"
-            ? " — Bản cập nhật sẽ bị hủy, khóa hiện tại vẫn public."
-            : " — Khóa trả về bản nháp cho cố vấn chỉnh sửa."
-          : " — Khóa sẽ chuyển sang trạng thái lưu trữ và không hiển thị cho học viên."}
+            ? ", Bản cập nhật sẽ bị hủy, khóa hiện tại vẫn public."
+            : ", Khóa trả về bản nháp cho cố vấn chỉnh sửa."
+          : ", Khóa sẽ chuyển sang trạng thái lưu trữ và không hiển thị cho học viên."}
       </p>
       <label className="mt-4 block text-xs font-bold uppercase tracking-wide text-slate-600">
         {isReject ? "Lý do từ chối (bắt buộc)" : "Lý do gỡ (tuỳ chọn)"}
@@ -352,7 +352,7 @@ function CourseReviewCard({ course, busy, onApprove, onReject, onPreview }) {
 
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-4 border-b border-slate-100 bg-gradient-to-r from-violet-50/80 to-white p-5 sm:flex-row">
+      <div className="flex flex-col gap-4 border-b border-slate-100 bg-violet-50/80 p-5 sm:flex-row">
         <div className="relative h-28 w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 sm:h-32 sm:w-44">
           <img src={thumb} alt="" className="h-full w-full object-cover" />
           {!r.thumbnail ? (
@@ -908,7 +908,7 @@ export function AdminContentCourses() {
     setBusyId(course._id);
     const res = await tryApi(() => adminApi.rejectCourse(course._id, reason), {
       fallback: "Không từ chối được khóa học.",
-      successMessage: isUpdate ? "Đã bỏ bản cập nhật." : "Đã từ chối — trả về nháp.",
+      successMessage: isUpdate ? "Đã bỏ bản cập nhật." : "Đã từ chối, trả về nháp.",
     });
     setBusyId("");
     if (res.success) {
@@ -1060,7 +1060,7 @@ export function AdminContentCourses() {
             {filteredPublishedIncomplete.length > 0 ? (
               <div className="space-y-3">
                 <p className="text-[10px] font-black uppercase tracking-widest text-orange-800">
-                  {filteredPendingIncomplete.length > 0 ? "Đã xuất bản — thiếu video" : "Khóa đã public — thiếu video"}
+                  {filteredPendingIncomplete.length > 0 ? "Đã xuất bản, thiếu video" : "Khóa đã public, thiếu video"}
                 </p>
                 <PublishedCoursesTable
                   courses={filteredPublishedIncomplete}

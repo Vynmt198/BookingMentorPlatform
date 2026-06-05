@@ -31,5 +31,6 @@ if (
 ) {
   const user = encodeURIComponent(atlasUser);
   const pass = encodeURIComponent(String(atlasPass));
-  process.env.MONGO_URI = `mongodb+srv://${user}:${pass}@${atlasHost}/prointerview?retryWrites=true&w=majority&appName=Prointerview`;
+  const dbName = process.env.MONGO_DB_NAME?.trim() || "bookingmentor";
+  process.env.MONGO_URI = `mongodb+srv://${user}:${pass}@${atlasHost}/${dbName}?retryWrites=true&w=majority&appName=BookingMentorPlatform`;
 }

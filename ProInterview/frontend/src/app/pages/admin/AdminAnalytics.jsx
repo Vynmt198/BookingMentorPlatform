@@ -97,6 +97,7 @@ export function AdminAnalytics() {
   }, [stats?.bookingsByStatus]);
 
   const recentBookings = stats?.recentBookings || [];
+  const interviewOps = content?.interviewOps || {};
 
   return (
     <div className={adminPageWrap}>
@@ -138,6 +139,17 @@ export function AdminAnalytics() {
             <StatCard label="Báo cáo mở" value={stats?.reportsOpen ?? 0} accent="emerald" />
           </motion.div>
 
+          {interviewOps?.periodDays ? (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={adminStatGrid3}>
+              <StatCard label="Phiên AI" value={content?.interviewSessions ?? 0} accent="violet" />
+              <StatCard label={`AI · ${interviewOps.periodDays} ngày`} value={interviewOps.sessions7d ?? 0} accent="sky" />
+              <StatCard
+                label="Điểm TB"
+                value={interviewOps.avgScore7d != null ? interviewOps.avgScore7d : "—"}
+                accent="amber"
+              />
+            </motion.div>
+          ) : null}
 
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={adminGlassTable}>
             <div className="border-b border-slate-200 bg-slate-50/90 px-5 py-4">

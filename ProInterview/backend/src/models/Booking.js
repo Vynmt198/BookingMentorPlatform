@@ -40,6 +40,7 @@ const bookingSchema = new Schema(
     },
 
     price: { type: Number, required: true },
+    platformFeeRate: { type: Number, default: 0.3 },
     platformFee: { type: Number, required: true },
     vat: { type: Number, required: true },
     totalAmount: { type: Number, required: true },

@@ -56,7 +56,7 @@ export function PageHeader({
       </div>
 
       {/* Divider */}
-      <div className="mt-6 h-px bg-gradient-to-r from-primary/20 via-border to-transparent" />
+      <div className="mt-6 h-px bg-primary/15" />
     </div>
   );
 }

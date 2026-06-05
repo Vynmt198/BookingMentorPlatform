@@ -118,3 +118,111 @@ export function canEnterMeetingRoom(booking) {
   }
   return { ok: true, message: "" };
 }
+
+function escapeIcsText(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+function formatIcsUtc(date) {
+  return date.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+}
+
+function formatGoogleCalendarLocal(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}T${pad(date.getHours())}${pad(date.getMinutes())}00`;
+}
+
+/** Khoảng thời gian buổi hẹn từ date (DD/MM/YYYY) + time + endTime. */
+export function parseSessionDateTimeRange(dateStr, timeStr, endTimeStr, durationMinutes = 60) {
+  const startMs = parseBookingStartMs({ date: dateStr, timeSlot: timeStr });
+  if (!Number.isFinite(startMs)) return null;
+  let endMs = endTimeStr
+    ? parseBookingStartMs({ date: dateStr, timeSlot: endTimeStr })
+    : NaN;
+  if (!Number.isFinite(endMs) || endMs <= startMs) {
+    const dur = Number(durationMinutes) > 0 ? Number(durationMinutes) : 60;
+    endMs = startMs + dur * 60 * 1000;
+  }
+  return { start: new Date(startMs), end: new Date(endMs) };
+}
+
+/** Mở Google Calendar với sự kiện mới (Asia/Ho_Chi_Minh). */
+export function buildGoogleCalendarEventUrl({
+  title,
+  date,
+  time,
+  endTime,
+  details,
+  location,
+  durationMinutes,
+}) {
+  const range = parseSessionDateTimeRange(date, time, endTime, durationMinutes);
+  if (!range) return null;
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title || "Buổi phỏng vấn ProInterview",
+    dates: `${formatGoogleCalendarLocal(range.start)}/${formatGoogleCalendarLocal(range.end)}`,
+    details: details || "",
+    location: location || "",
+    ctz: "Asia/Ho_Chi_Minh",
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+/** Tải .ics — Lịch Apple/Outlook/Android nhận nhắc TRIGGER trước giờ họp. */
+export function downloadSessionCalendarIcs({
+  title,
+  date,
+  time,
+  endTime,
+  description,
+  location,
+  uid,
+  durationMinutes,
+}) {
+  const range = parseSessionDateTimeRange(date, time, endTime, durationMinutes);
+  if (!range) return false;
+  const eventUid = uid || `prointerview-${formatIcsUtc(range.start)}`;
+  const ics = [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//ProInterview//VI",
+    "CALSCALE:GREGORIAN",
+    "METHOD:PUBLISH",
+    "BEGIN:VEVENT",
+    `UID:${eventUid}@prointerview.app`,
+    `DTSTAMP:${formatIcsUtc(new Date())}`,
+    `DTSTART:${formatIcsUtc(range.start)}`,
+    `DTEND:${formatIcsUtc(range.end)}`,
+    `SUMMARY:${escapeIcsText(title || "Buổi phỏng vấn ProInterview")}`,
+    `DESCRIPTION:${escapeIcsText(description || "")}`,
+    `LOCATION:${escapeIcsText(location || "")}`,
+    "BEGIN:VALARM",
+    "TRIGGER:-PT60M",
+    "ACTION:DISPLAY",
+    "DESCRIPTION:Nhac truoc 1 gio",
+    "END:VALARM",
+    "BEGIN:VALARM",
+    "TRIGGER:-PT15M",
+    "ACTION:DISPLAY",
+    "DESCRIPTION:Nhac truoc 15 phut",
+    "END:VALARM",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ].join("\r\n");
+
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "prointerview-buoi-phong-van.ics";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  return true;
+}

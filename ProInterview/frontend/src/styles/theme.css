@@ -3,33 +3,33 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* ─── Background / Foreground ─────────────────────────── */
+  /* ─── Background / Foreground (#000000) ───────────────── */
   --background: oklch(0.9650 0.0030 264.5);
-  --foreground: oklch(0.2094 0 0);
+  --foreground: #000000;
 
   /* ─── Card ────────────────────────────────────────────── */
   --card: oklch(1.0000 0 0);
-  --card-foreground: oklch(0.2094 0 0);
+  --card-foreground: #000000;
 
   /* ─── Popover ─────────────────────────────────────────── */
   --popover: oklch(1.0000 0 0);
-  --popover-foreground: oklch(0.2094 0 0);
+  --popover-foreground: #000000;
 
   /* ─── Primary: #8037f4 ───────────────────────────────── */
-  --primary: oklch(0.52 0.245 285.5);
-  --primary-foreground: oklch(1.0000 0 0);
+  --primary: #8037f4;
+  --primary-foreground: #ffffff;
 
-  /* ─── Secondary: #93f72b Lime CTA ─────────────────────── */
-  --secondary: oklch(0.91 0.22 123);
-  --secondary-foreground: oklch(0.12 0.02 285);
+  /* ─── Secondary: #93f72b · chữ đen ───────────────────── */
+  --secondary: #93f72b;
+  --secondary-foreground: #000000;
 
   /* ─── Muted ───────────────────────────────────────────── */
   --muted: oklch(0.9400 0.0050 264.5);
   --muted-foreground: oklch(0.5200 0.0150 264.5);
 
-  /* ─── Accent: lime (cùng secondary) ───────────────────── */
-  --accent: oklch(0.93 0.21 124);
-  --accent-foreground: oklch(0.22 0.06 285);
+  /* ─── Accent: lime ────────────────────────────────────── */
+  --accent: #93f72b;
+  --accent-foreground: #000000;
 
   /* ─── Destructive: tím đậm (không cam/đỏ) ─────────────── */
   --destructive: oklch(0.38 0.14 285);
@@ -38,7 +38,7 @@
   /* ─── Border / Input / Ring ──────────────────────────── */
   --border: oklch(0.9100 0.0060 264.5);
   --input: oklch(0.9400 0.0050 264.5);
-  --ring: oklch(0.52 0.245 285.5);
+  --ring: #8037f4;
 
   /* ─── Chart Colors ────────────────────────────────────── */
   --chart-1: oklch(0.52 0.245 285.5);
@@ -50,12 +50,12 @@
   /* ─── Sidebar: Dark Purple Navy ──────────────────────── */
   --sidebar: oklch(0.0920 0.0520 287.0);
   --sidebar-foreground: oklch(1.0000 0 0);
-  --sidebar-primary: oklch(0.52 0.245 285.5);
+  --sidebar-primary: #8037f4;
   --sidebar-primary-foreground: oklch(1.0000 0 0);
   --sidebar-accent: oklch(0.1800 0.0400 287.0);
   --sidebar-accent-foreground: oklch(1.0000 0 0);
   --sidebar-border: oklch(0.2000 0.0300 287.0);
-  --sidebar-ring: oklch(0.52 0.245 285.5);
+  --sidebar-ring: #8037f4;
 
   /* ─── Typography ──────────────────────────────────────── */
   --font-sans: 'Lexend', 'Plus Jakarta Sans', system-ui, sans-serif;
@@ -83,12 +83,12 @@
 body:has(.app-user-shell) {
   --sidebar: oklch(0.985 0.008 290);
   --sidebar-foreground: oklch(0.32 0.045 285);
-  --sidebar-primary: oklch(0.52 0.245 285.5);
-  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-primary: #8037f4;
+  --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: oklch(0.955 0.022 290);
-  --sidebar-accent-foreground: oklch(0.34 0.07 285);
+  --sidebar-accent-foreground: #000000;
   --sidebar-border: oklch(0.9 0.02 290);
-  --sidebar-ring: oklch(0.52 0.245 285.5);
+  --sidebar-ring: #8037f4;
 }
 
 /* Nền loang tím (fixed, sau nội dung z-1) */
@@ -266,8 +266,8 @@ body:has(.app-user-shell) {
   --color-slate-500: #7c6fa8;
   --color-slate-600: #5a4d85;
   --color-slate-700: #3d2f66;
-  --color-slate-800: #2a1f4d;
-  --color-slate-900: #1a1035;
+  --color-slate-800: #000000;
+  --color-slate-900: #000000;
   --color-slate-950: #120b2e;
 
   --color-zinc-50: #faf9fd;
@@ -278,8 +278,8 @@ body:has(.app-user-shell) {
   --color-zinc-500: #7c6fa8;
   --color-zinc-600: #5a4d85;
   --color-zinc-700: #3d2f66;
-  --color-zinc-800: #2a1f4d;
-  --color-zinc-900: #1a1035;
+  --color-zinc-800: #000000;
+  --color-zinc-900: #000000;
 
   --color-gray-50: #faf9fd;
   --color-gray-100: #f3f0f9;
@@ -289,8 +289,8 @@ body:has(.app-user-shell) {
   --color-gray-500: #7c6fa8;
   --color-gray-600: #5a4d85;
   --color-gray-700: #3d2f66;
-  --color-gray-800: #2a1f4d;
-  --color-gray-900: #1a1035;
+  --color-gray-800: #000000;
+  --color-gray-900: #000000;
 
   /* Success → lime */
   --color-emerald-50: #f7ffe8;
@@ -307,7 +307,7 @@ body:has(.app-user-shell) {
   --color-green-100: #eefcc8;
   --color-green-500: #93f72b;
   --color-green-600: #7fe015;
-  --color-green-700: #6e9a00;
+  --color-green-700: #28552a;
 
   /* Warning → tím nhạt + lime nhạt (không vàng/cam) */
   --color-amber-50: #f5f0ff;
@@ -317,7 +317,7 @@ body:has(.app-user-shell) {
   --color-amber-400: #a78bfa;
   --color-amber-500: #8b6ee8;
   --color-amber-600: #8037f4;
-  --color-amber-700: #6d2fd6;
+  --color-amber-700: #8037f4;
   --color-amber-800: #4a229f;
   --color-amber-900: #3a1a7a;
   --color-yellow-50: #f7ffe8;
@@ -325,7 +325,7 @@ body:has(.app-user-shell) {
   --color-yellow-500: #93f72b;
   --color-orange-50: #f5f0ff;
   --color-orange-500: #8037f4;
-  --color-orange-600: #6d2fd6;
+  --color-orange-600: #8037f4;
 
   /* Info / link blues → tím */
   --color-sky-50: #f5f0ff;
@@ -336,13 +336,13 @@ body:has(.app-user-shell) {
   --color-blue-50: #f5f0ff;
   --color-blue-100: #ebe4ff;
   --color-blue-500: #8037f4;
-  --color-blue-600: #6d2fd6;
+  --color-blue-600: #8037f4;
   --color-blue-700: #5c2bc9;
   --color-cyan-50: #f5f0ff;
   --color-cyan-500: #a66ff8;
   --color-indigo-50: #f5f0ff;
   --color-indigo-500: #8037f4;
-  --color-indigo-600: #6d2fd6;
+  --color-indigo-600: #8037f4;
 
   /* Error → tím đậm (không đỏ) */
   --color-red-50: #f5f0ff;
@@ -353,18 +353,36 @@ body:has(.app-user-shell) {
   --color-red-700: #3a1a7a;
   --color-rose-50: #f5f0ff;
   --color-rose-500: #8037f4;
-  --color-rose-600: #6d2fd6;
+  --color-rose-600: #8037f4;
 
   /* Pink/fuchsia → tím */
   --color-fuchsia-50: #f5f0ff;
   --color-fuchsia-100: #ebe4ff;
   --color-fuchsia-500: #a66ff8;
   --color-fuchsia-600: #8037f4;
-  --color-fuchsia-700: #6d2fd6;
+  --color-fuchsia-700: #8037f4;
   --color-pink-50: #f5f0ff;
   --color-pink-500: #a66ff8;
 
   /* Teal → lime-violet */
   --color-teal-50: #f7ffe8;
   --color-teal-500: #93f72b;
+
+  /* Violet / purple → #8037f4 */
+  --color-violet-50: #f5f0ff;
+  --color-violet-100: #ebe4ff;
+  --color-violet-200: #ddd6fe;
+  --color-violet-300: #c4b5fd;
+  --color-violet-400: #a78bfa;
+  --color-violet-500: #8037f4;
+  --color-violet-600: #8037f4;
+  --color-violet-700: #8037f4;
+  --color-violet-800: #8037f4;
+  --color-violet-900: #000000;
+  --color-violet-950: #000000;
+  --color-purple-50: #f5f0ff;
+  --color-purple-100: #ebe4ff;
+  --color-purple-500: #8037f4;
+  --color-purple-600: #8037f4;
+  --color-purple-700: #8037f4;
 }

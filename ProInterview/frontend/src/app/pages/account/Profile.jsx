@@ -155,9 +155,9 @@ async function persistCvProfileToUser(cv) {
 
 const ACHIEVEMENTS = [
   { icon: Lightning, label: "5 ngày streak", color: "from-[#93f72b] to-[#7fe015]", earned: true },
-  { icon: Microphone, label: "10 buổi phỏng vấn", color: "from-[#8037f4] to-[#a66ff8]", earned: true },
+  { icon: Microphone, label: "10 buổi phỏng vấn", color: "from-[#8037f4] to-[#93f72b]", earned: true },
   { icon: Star, label: "Điểm STAR 4.0+", color: "from-[#93f72b] to-[#7fe015]", earned: true },
-  { icon: Users, label: "3 buổi với Mentor", color: "from-[#a66ff8] to-[#8037f4]", earned: false },
+  { icon: Users, label: "3 buổi với Mentor", color: "from-[#93f72b] to-[#8037f4]", earned: false },
   { icon: Medal, label: "Top 10% học viên", color: "from-[#8037f4] to-[#8037f4]", earned: false },
   { icon: TrendUp, label: "Cải thiện 50%", color: "from-[#93f72b] to-[#7fe015]", earned: false },
 ];
@@ -363,7 +363,7 @@ export function Profile() {
       name: "Thượng hạng (Elite)",
       nameIcon: Medal,
       badge: { bg: "bg-primary-fixed/20", border: "border-primary-fixed/30", icon: "text-primary-fixed", text: "text-primary-fixed" },
-      cardGrad: "linear-gradient(145deg, #0E0922 0%, #1a0d35 100%)",
+      cardGrad: "#0E0922",
       desc: "Không giới hạn · Phân tích hành vi · Mentor 1:1",
       progress: null,
       isPaid: true,
@@ -374,7 +374,7 @@ export function Profile() {
       nameIcon: Lightning,
       badge: { bg: "bg-[#93f72b]/20", border: "border-[#93f72b]/40", icon: "text-[#7fe015]", text: "text-[#8037f4]" },
       cardGrad: "#8037f4",
-      desc: "Phỏng vấn AI · Nhận diện giọng nói · 10 buổi/tháng",
+      desc: "Phân tích CV/JD · Mentor 1:1 · Lưu lịch sử luyện tập",
       progress: { used: 0, max: 10 },
       isPaid: true,
       accent: "#8037f4"
@@ -383,7 +383,7 @@ export function Profile() {
       name: "Cơ bản (Free)",
       nameIcon: Plant,
       badge: { bg: "bg-[#8037f4]/15", border: "border-[#8037f4]/30", icon: "text-[#8037f4]", text: "text-[#8037f4]" },
-      cardGrad: "linear-gradient(145deg, #2D1B69 0%, #3B2A82 100%)",
+      cardGrad: "#2D1B69",
       desc: "2 buổi AI miễn phí · 3 lần phân tích CV",
       progress: { used: 2, max: 2 },
       isPaid: false,
@@ -446,7 +446,7 @@ export function Profile() {
   return (
     <MentorPageShell
       bottomPad="pb-20"
-      className="text-[#2D1B69] selection:bg-[#93f72b]/35 selection:text-[#2D1B69]"
+      className="text-[#2D1B69] selection:bg-violet-200/80 selection:text-[#2D1B69]"
     >
       <style>{`
         .profile-page {
@@ -565,7 +565,7 @@ export function Profile() {
            position: absolute;
            width: 150%;
            height: 150%;
-           background: radial-gradient(circle, rgba(180,245,0,0.28) 0%, rgba(128,55,244,0.18) 45%, transparent 70%);
+           background: rgba(128, 55, 244, 0.14);
            border-radius: 50%;
            z-index: -1;
            animation: pulse-halo 3.2s ease-in-out infinite;

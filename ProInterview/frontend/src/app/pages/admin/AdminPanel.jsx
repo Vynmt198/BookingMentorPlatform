@@ -1,6 +1,6 @@
 import React from "react";
 
-/** Khung nội dung chung cho các màn admin (stub / MVP) — đồng bộ nền sáng mentor/user. */
+/** Khung nội dung chung cho các màn admin (stub / MVP), đồng bộ nền sáng mentor/user. */
 export function AdminPanel({ title, description, bullets = [], children }) {
   return (
     <div className="space-y-6">
@@ -18,7 +18,7 @@ export function AdminPanel({ title, description, bullets = [], children }) {
       )}
       {children ?? (
         <p className="rounded-2xl border border-dashed border-slate-300 bg-white/80 px-5 py-8 text-center text-sm text-slate-500">
-          Giao diện đang ở dạng khung — API quản trị &amp; bảng dữ liệu sẽ nối trong bước tiếp theo.
+          Giao diện đang ở dạng khung, API quản trị &amp; bảng dữ liệu sẽ nối trong bước tiếp theo.
         </p>
       )}
     </div>

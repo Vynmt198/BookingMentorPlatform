@@ -107,10 +107,10 @@ function ScoreBar({
             width: `${pct}%`,
             background:
               pct >= 75
-                ? "linear-gradient(90deg,#34d399,#10b981)"
+                ? "#10b981"
                 : pct >= 55
-                ? "linear-gradient(90deg,#60a5fa,#3b82f6)"
-                : "linear-gradient(90deg,#fbbf24,#f59e0b)",
+                ? "#3b82f6"
+                : "#f59e0b",
           }}
         />
       </div>
@@ -144,7 +144,7 @@ function InterviewDetailModal({
         {/* Header */}
         <div
           className="px-6 py-5 flex items-start justify-between"
-          style={{ background: "linear-gradient(135deg,#4F46E5,#7C3AED)", flexShrink: 0 }}
+          style={{ background: "#8037f4", flexShrink: 0 }}
         >
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -367,7 +367,7 @@ function CVAnalysisDetailModal({
         {/* Header */}
         <div
           className="px-6 py-5 flex items-start justify-between"
-          style={{ background: "linear-gradient(135deg,#4F46E5,#9333ea)", flexShrink: 0 }}
+          style={{ background: "#8037f4", flexShrink: 0 }}
         >
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -765,7 +765,7 @@ export function HistoryPanel({ interviewHistory, cvHistory }) {
           ) : (
             <div className="flex gap-4 pb-4 border-b border-gray-100">
               <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#a66ff8]" />
+                <span className="w-2 h-2 rounded-full bg-[#93f72b]" />
                 <span className="text-gray-400" style={{ fontSize: "0.75rem" }}>
                   {cvHistory.length} lần phân tích
                 </span>

@@ -69,7 +69,7 @@ export function RescheduleModal({ meeting, onClose }) {
         {/* Header */}
         <div
           className="px-6 py-5 flex items-center justify-between"
-          style={{ background: "linear-gradient(135deg, #FFD600, #FF8C42)" }}
+          style={{ background: "#FFD600" }}
         >
           <div className="flex items-center gap-3">
             <div
@@ -201,7 +201,7 @@ export function RescheduleModal({ meeting, onClose }) {
               type="submit"
               className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all hover:brightness-110 flex items-center justify-center gap-2"
               style={{
-                background: "linear-gradient(135deg, #FFD600, #FF8C42)",
+                background: "#FFD600",
                 color: "#1F1F1F",
                 boxShadow: "0 4px 16px rgba(255,214,0,0.3)",
               }}

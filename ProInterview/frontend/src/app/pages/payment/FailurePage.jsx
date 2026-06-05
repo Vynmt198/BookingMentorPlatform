@@ -30,7 +30,7 @@ export function FailurePage() {
         </p>
 
         <div className="flex flex-col gap-4">
-           <Link to="/pricing" className="h-16 bg-white text-black rounded-2xl flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] active:scale-[0.98] transition-all">
+           <Link to="/pricing" className="h-16 bg-white text-slate-900 rounded-2xl flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] hover:scale-[1.02] active:scale-[0.98] transition-all">
               Thử lại thanh toán <RefreshCcw size={18} />
            </Link>
            <Link to="/" className="h-16 bg-white/5 text-white/30 rounded-2xl flex items-center justify-center gap-3 font-black uppercase tracking-widest text-[10px] hover:text-white hover:bg-white/10 transition-all">

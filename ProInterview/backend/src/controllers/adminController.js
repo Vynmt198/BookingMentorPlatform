@@ -9,6 +9,8 @@ import { PayoutRequest } from "../models/PayoutRequest.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { InterviewSession } from "../models/InterviewSession.js";
 import { Notification } from "../models/index.js";
+import { deliverNotification } from "../services/notificationDeliveryService.js";
+import { activateMentorCommissionPolicy } from "../services/mentorCommissionService.js";
 import { serializeCourseForApi, resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
 import {
   applyPaidEnrollmentCountsToAdminCourses,
@@ -19,6 +21,32 @@ const Mentor = mongoose.model("Mentor");
 const Booking = mongoose.model("Booking");
 const Course = mongoose.model("Course");
 const Report = mongoose.model("Report");
+
+function normalizeRateInput(raw) {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || n > 1) return NaN;
+  return n;
+}
+
+function safeFeeRate(raw, fallback) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0 || n > 1) return fallback;
+  return n;
+}
+
+function parseMonthRange(rawMonth) {
+  const month = String(rawMonth || "").trim();
+  if (!month) return null;
+  const m = month.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const monthIndex = Number(m[2]) - 1;
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || monthIndex < 0 || monthIndex > 11) return null;
+  const start = new Date(year, monthIndex, 1, 0, 0, 0, 0);
+  const end = new Date(year, monthIndex + 1, 1, 0, 0, 0, 0);
+  return { month, start, end };
+}
 
 function planCountsFromAgg(rows = []) {
   const out = { free: 0, starter_pro: 0, elite_pro: 0 };
@@ -171,6 +199,9 @@ export const AdminController = {
             },
           },
         );
+        await activateMentorCommissionPolicy(mentor._id).catch((err) => {
+          console.error("[Admin] activateMentorCommissionPolicy:", err?.message || err);
+        });
         try {
           const { markMentorPendingNotificationsRead } = await import(
             "../services/mentorMeService.js"
@@ -189,6 +220,44 @@ export const AdminController = {
       }
 
       res.json({ success: true, mentor });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Cập nhật mức phí riêng theo hợp đồng cho mentor (override). */
+  updateMentorCommission: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({ success: false, error: "mentorId không hợp lệ." });
+      }
+
+      const hasBookingRate = Object.prototype.hasOwnProperty.call(req.body ?? {}, "bookingPlatformFeeRate");
+      const hasCourseRate = Object.prototype.hasOwnProperty.call(req.body ?? {}, "coursePlatformFeeRate");
+      if (!hasBookingRate && !hasCourseRate) {
+        return res.status(400).json({
+          success: false,
+          error: "Thiếu dữ liệu cập nhật phí mentor.",
+        });
+      }
+
+      const bookingRate = hasBookingRate ? normalizeRateInput(req.body?.bookingPlatformFeeRate) : undefined;
+      const courseRate = hasCourseRate ? normalizeRateInput(req.body?.coursePlatformFeeRate) : undefined;
+      if (Number.isNaN(bookingRate) || Number.isNaN(courseRate)) {
+        return res.status(400).json({
+          success: false,
+          error: "Mức phí phải là số trong khoảng 0–1 (ví dụ 0.3 = 30%), hoặc để trống để bỏ override.",
+        });
+      }
+
+      const update = {};
+      if (hasBookingRate) update["pricing.platformFeeRate"] = bookingRate;
+      if (hasCourseRate) update["pricing.coursePlatformFeeRate"] = courseRate;
+
+      const mentor = await Mentor.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
+      if (!mentor) return res.status(404).json({ success: false, error: "Không tìm thấy mentor." });
+      return res.json({ success: true, mentor });
     } catch (error) {
       next(error);
     }
@@ -507,6 +576,108 @@ export const AdminController = {
           paidCollectedAmount: paidAgg[0]?.total || 0,
           pendingList,
           recentPaidRows,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /** Tổng quan lợi nhuận nền tảng sau chia mentor (booking + khóa học). */
+  getPlatformFinanceSummary: async (req, res, next) => {
+    try {
+      const monthRange = parseMonthRange(req.query?.month);
+      if (String(req.query?.month || "").trim() && !monthRange) {
+        return res.status(400).json({
+          success: false,
+          error: "month phải theo định dạng YYYY-MM (ví dụ 2026-06).",
+        });
+      }
+      if (monthRange) {
+        const currentMonthStart = new Date();
+        currentMonthStart.setDate(1);
+        currentMonthStart.setHours(0, 0, 0, 0);
+        if (monthRange.start.getTime() > currentMonthStart.getTime()) {
+          return res.status(400).json({
+            success: false,
+            error: "Không thể xem doanh thu tương lai.",
+          });
+        }
+      }
+
+      const bookingRows = await Booking.find({
+        paymentStatus: { $in: ["paid", "partial_refund"] },
+      })
+        .select("price platformFee platformFeeRate totalAmount status paidAt createdAt")
+        .lean();
+      const bookingRowsFiltered = monthRange
+        ? bookingRows.filter((row) => {
+            const t = row.paidAt ? new Date(row.paidAt) : new Date(row.createdAt);
+            const ms = t.getTime();
+            return ms >= monthRange.start.getTime() && ms < monthRange.end.getTime();
+          })
+        : bookingRows;
+      const booking = bookingRowsFiltered.reduce(
+        (acc, row) => {
+          const gross = Math.round(Number(row.totalAmount ?? row.price ?? 0));
+          const rate = safeFeeRate(row.platformFeeRate, Number(process.env.BOOKING_PLATFORM_FEE_RATE) || 0.3);
+          const fee = Number.isFinite(Number(row.platformFee))
+            ? Math.round(Number(row.platformFee))
+            : Math.round(gross * rate);
+          acc.grossCollected += gross;
+          acc.platformRevenue += Math.max(0, fee);
+          acc.mentorNet += Math.max(0, gross - fee);
+          acc.count += 1;
+          return acc;
+        },
+        { grossCollected: 0, platformRevenue: 0, mentorNet: 0, count: 0 },
+      );
+
+      const enrollmentRows = await Enrollment.find({ paymentStatus: "paid", pricePaid: { $gt: 0 } })
+        .select("pricePaid platformFee platformFeeRate paidAt updatedAt createdAt")
+        .lean();
+      const enrollmentRowsFiltered = monthRange
+        ? enrollmentRows.filter((row) => {
+            const t = row.paidAt ? new Date(row.paidAt) : new Date(row.updatedAt || row.createdAt);
+            const ms = t.getTime();
+            return ms >= monthRange.start.getTime() && ms < monthRange.end.getTime();
+          })
+        : enrollmentRows;
+      const course = enrollmentRowsFiltered.reduce(
+        (acc, row) => {
+          const gross = Math.round(Number(row.pricePaid || 0));
+          const rate = safeFeeRate(row.platformFeeRate, Number(process.env.COURSE_PLATFORM_FEE_RATE) || 0.35);
+          const fee = Number.isFinite(Number(row.platformFee))
+            ? Math.round(Number(row.platformFee))
+            : Math.round(gross * rate);
+          acc.grossCollected += gross;
+          acc.platformRevenue += Math.max(0, fee);
+          acc.mentorNet += Math.max(0, gross - fee);
+          acc.count += 1;
+          return acc;
+        },
+        { grossCollected: 0, platformRevenue: 0, mentorNet: 0, count: 0 },
+      );
+
+      const totals = {
+        grossCollected: booking.grossCollected + course.grossCollected,
+        platformRevenue: booking.platformRevenue + course.platformRevenue,
+        mentorNet: booking.mentorNet + course.mentorNet,
+      };
+
+      res.json({
+        success: true,
+        platformFinance: {
+          period: monthRange
+            ? {
+                month: monthRange.month,
+                startAt: monthRange.start.toISOString(),
+                endAt: monthRange.end.toISOString(),
+              }
+            : null,
+          totals,
+          booking,
+          course,
         },
       });
     } catch (error) {
@@ -1144,6 +1315,17 @@ export const AdminController = {
       payout.note = String(req.body?.note || "").trim();
       await payout.save();
 
+      const mentorApproved = await Mentor.findById(payout.mentorId).select("userId").lean();
+      if (mentorApproved?.userId) {
+        await deliverNotification(mentorApproved.userId, {
+          mentorPrefKey: "payout_update",
+          type: "payment_success",
+          title: "Yêu cầu rút tiền đã được duyệt",
+          body: `Admin đã duyệt rút ${Math.round(Number(payout.amount || 0)).toLocaleString("vi-VN")}₫ — chờ chuyển khoản.`,
+          metadata: { actionUrl: "/mentor/finance" },
+        });
+      }
+
       res.json({ success: true, payout });
     } catch (error) {
       next(error);
@@ -1177,6 +1359,17 @@ export const AdminController = {
         { _id: payout.mentorId },
         { $inc: { "finance.pendingBalance": -Number(payout.amount || 0) } },
       );
+
+      const mentorPaid = await Mentor.findById(payout.mentorId).select("userId").lean();
+      if (mentorPaid?.userId) {
+        await deliverNotification(mentorPaid.userId, {
+          mentorPrefKey: "payout_update",
+          type: "payment_success",
+          title: "Đã chuyển tiền rút về tài khoản",
+          body: `Số tiền ${Math.round(Number(payout.amount || 0)).toLocaleString("vi-VN")}₫ đã được ghi nhận chi.`,
+          metadata: { actionUrl: "/mentor/finance" },
+        });
+      }
 
       res.json({ success: true, payout });
     } catch (error) {

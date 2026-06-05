@@ -54,7 +54,7 @@ const FILTER_TABS = [
   { id: "refund_pending", label: "Chờ hoàn tiền" },
 ];
 
-/** Giữ ô thao tác cố định 4 nút — bảng không co khi đổi tab lọc. */
+/** Giữ ô thao tác cố định 4 nút, bảng không co khi đổi tab lọc. */
 function ActionSlot({ children, className = "" }) {
   return (
     <div className={`flex size-9 shrink-0 items-center justify-center ${className}`}>
@@ -350,7 +350,7 @@ export function AdminBookings() {
                 <tr>
                   <td colSpan="7" className={`${tdCell} py-20 text-center text-[10px] font-black uppercase italic tracking-widest text-slate-500`}>
                     {bookings.length === 0
-                      ? "Chưa có lịch hẹn — dữ liệu sẽ hiện khi có booking."
+                      ? "Chưa có lịch hẹn, dữ liệu sẽ hiện khi có booking."
                       : "Không có dòng phù hợp bộ lọc / từ khóa."}
                   </td>
                 </tr>

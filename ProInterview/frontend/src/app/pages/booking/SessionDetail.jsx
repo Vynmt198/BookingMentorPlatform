@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  ArrowLeft,
   Calendar,
   Clock,
   Video,
@@ -12,8 +11,6 @@ import {
   MessageSquareText as ChatText,
   FileText,
   Sparkles,
-  Bell,
-  BellRing as BellRinging,
   ShieldCheck,
   ExternalLink,
   Timer,
@@ -23,40 +20,49 @@ import {
   Chrome as GoogleLogo,
   Trophy,
   ThumbsUp,
-  PartyPopper,
   AlertCircle as WarningCircle,
   Zap,
   User,
   X,
   CircleDollarSign,
+  Eye,
+  Target,
 } from "lucide-react";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
 import { isLoggedIn } from "../../utils/auth";
 import {
   cancelBooking,
   fetchBookingById,
-  fetchBookedSlots,
   reportBookingNoShow,
   resolveMentorCancelBooking,
   updateBookingRefundDestination,
 } from "../../utils/bookingsApi";
+import { loadMentorRescheduleSlotOptions } from "../../utils/bookingRescheduleSlots";
+import { isBookingSlotInFuture } from "../../utils/bookingSchedule";
 import { apiBookingToLocal } from "../../utils/bookingMappers";
 import {
+  buildGoogleCalendarEventUrl,
   canEnterMeetingRoom,
+  getMeetingProvider,
   getMinutesUntilBookingStart,
   isBookingInLiveWindow,
+  MEETING_PROVIDER_LABELS,
 } from "../../utils/meetingLinks";
 import { MentorCancelSessionPanel } from "./MentorCancelSessionPanel";
-import { fetchMentorAvailability } from "../../utils/mentorApi";
 import {
   BRAND_LIME,
   BRAND_LIME_BORDER,
   BRAND_LIME_SOFT,
   BRAND_PURPLE,
+  BRAND_PURPLE_BORDER,
   BRAND_PURPLE_HOVER,
   BRAND_PURPLE_SOFT,
   BRAND_PURPLE_SOFT_LIGHT,
 } from "../../constants/brandColors";
+import { getUserCancelPolicyFromHours, userCancelWarningMessage } from "../../constants/bookingPolicy";
+import { UserCancelPolicyBrief } from "../../components/booking/UserCancelPolicyBrief";
+import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
+import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 
 function toBookingDateFormat(input) {
   const s = String(input || "").trim();
@@ -208,12 +214,135 @@ function useCountdown(targetDate, targetTime) {
   return { days, hours, minutes, seconds, totalSec, elapsedSinceStartSec };
 }
 
+const MENTOR_INTERVIEW_TIPS = [
+  {
+    Icon: ChatText,
+    tip: "Trả lời theo cấu trúc STAR: Tình huống → Nhiệm vụ → Hành động → Kết quả",
+  },
+  {
+    Icon: Timer,
+    tip: "Giữ mỗi câu trả lời trong 2–3 phút, đừng quá ngắn hoặc quá dài",
+  },
+  {
+    Icon: Eye,
+    tip: "Nhìn thẳng camera để tạo giao tiếp bằng mắt ảo, không nhìn màn hình",
+  },
+  {
+    Icon: Notepad,
+    tip: "Chuẩn bị sẵn giấy để ghi chú những điểm mentor nhận xét",
+  },
+  {
+    Icon: Target,
+    tip: "Hỏi mentor về những gì thực sự diễn ra trong quy trình tuyển dụng",
+  },
+];
+
+function meetingPlatformLabel(meetLink) {
+  const provider = getMeetingProvider(meetLink);
+  return MEETING_PROVIDER_LABELS[provider] || "Phòng họp trực tuyến";
+}
+
+function sessionCalendarPayload(sessionData) {
+  const platform = meetingPlatformLabel(sessionData.meetLink);
+  const title = `Phỏng vấn với ${sessionData.mentorName || "mentor"}, ProInterview`;
+  const details = [
+    `Mã đặt lịch: ${sessionData.orderNum}`,
+    `Mentor: ${sessionData.mentorName || "—"}`,
+    `Nền tảng: ${platform}`,
+    `Link: ${sessionData.meetLink}`,
+  ].join("\n");
+  return {
+    title,
+    date: sessionData.date,
+    time: sessionData.time,
+    endTime: sessionData.endTime,
+    details,
+    location: sessionData.meetLink,
+    uid: sessionData.backendId || sessionData.sessionId,
+  };
+}
+
+function SessionMeetingLinkCard({ sessionData }) {
+  const platform = meetingPlatformLabel(sessionData.meetLink);
+  const isJitsi = getMeetingProvider(sessionData.meetLink) === "jitsi";
+  const accent = isJitsi ? BRAND_PURPLE : "#4285F4";
+  const openLabel = isJitsi ? "Vào phòng" : `Mở ${platform}`;
+  const googleCalUrl = buildGoogleCalendarEventUrl(sessionCalendarPayload(sessionData));
+
+  return (
+    <div className="card-premium overflow-hidden">
+      <div
+        className="flex items-center gap-2 border-b border-gray-100 px-5 py-4"
+        style={{ background: BRAND_PURPLE_SOFT_LIGHT }}
+      >
+        <Video className="h-4 w-4" style={{ color: BRAND_PURPLE }} />
+        <span className="text-sm font-semibold text-gray-800">Phòng họp & lịch hẹn</span>
+      </div>
+      <div className="p-5">
+        <div
+          className="mb-4 flex items-center gap-4 rounded-2xl p-4"
+          style={{
+            background: isJitsi ? BRAND_PURPLE_SOFT_LIGHT : "rgba(66,133,244,0.05)",
+            border: `1.5px solid ${isJitsi ? BRAND_PURPLE_BORDER : "rgba(66,133,244,0.2)"}`,
+          }}
+        >
+          <div
+            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl"
+            style={{ background: accent }}
+          >
+            {isJitsi ? (
+              <Video className="h-6 w-6 text-white" />
+            ) : (
+              <GoogleLogo className="h-6 w-6 text-white" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-gray-900">{platform}</p>
+            <p className="mt-0.5 truncate font-mono text-xs" style={{ color: accent }}>
+              {sessionData.meetLink}
+            </p>
+          </div>
+          <div className="flex flex-shrink-0 flex-col gap-2">
+            <a
+              href={sessionData.meetLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white transition-all hover:opacity-90"
+              style={{ background: accent }}
+            >
+              {openLabel} <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+            <CopyBtn text={sessionData.meetLink} label="Sao chép liên kết" />
+          </div>
+        </div>
+
+        {googleCalUrl ? (
+          <a
+            href={googleCalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition-colors hover:border-violet-200 hover:bg-violet-50"
+          >
+            <Calendar className="h-4 w-4 shrink-0" style={{ color: BRAND_PURPLE }} />
+            Thêm vào Google Calendar
+          </a>
+        ) : null}
+
+        <p className="flex items-center gap-1.5 text-xs text-gray-500">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0" style={{ color: BRAND_PURPLE }} />
+          Vào phòng đúng giờ hẹn. Email xác nhận đã được gửi.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main Component ───────────────────────────────────── */
 export function SessionDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  /* ── Resolve session data — GET /api/bookings/:id (không dùng mock local) ── */
+  /* ── Resolve session data, GET /api/bookings/:id (không dùng mock local) ── */
   const [apiBooking, setApiBooking] = useState(undefined);
   const [loadError, setLoadError] = useState("");
 
@@ -276,7 +405,7 @@ export function SessionDetail() {
   const sessionLoading = isLoggedIn() && isMongoObjectId(id) && apiBooking === undefined;
 
   /* ── Countdown ── */
-  const { days, hours, minutes, seconds, totalSec, elapsedSinceStartSec } = useCountdown(
+  const { totalSec, elapsedSinceStartSec } = useCountdown(
     sessionData?.date ?? "02/03/2026",
     sessionData?.time ?? "14:00"
   );
@@ -336,18 +465,6 @@ export function SessionDetail() {
     if (sessionData.refundReceiveAccountHolder) setRefundAccountHolder(sessionData.refundReceiveAccountHolder);
   }, [sessionData?.sessionId]);
 
-  /* ── Checklist ── */
-  const [checklist, setChecklist] = useState([
-    { id: "quiet", label: "Tìm nơi yên tĩnh, ít tiếng ồn", done: false },
-    { id: "headset", label: "Chuẩn bị tai nghe và microphone", done: false },
-    { id: "camera", label: "Kiểm tra camera hoạt động", done: false },
-    { id: "cv-review", label: "Đọc lại CV một lần trước buổi hẹn", done: false },
-    { id: "jd-review", label: "Nghiên cứu kỹ JD và công ty target", done: false },
-    { id: "questions", label: "Chuẩn bị 3–5 câu hỏi muốn hỏi mentor", done: false },
-    { id: "wifi", label: "Kiểm tra kết nối Internet ổn định", done: false },
-  ]);
-  const checklistDone = checklist.filter((c) => c.done).length;
-
   /* ── Notes ── */
   const [notes, setNotes] = useState("");
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -364,11 +481,12 @@ export function SessionDetail() {
   const [rescheduleSlot, setRescheduleSlot] = useState("");
   const [rescheduleSlotOptions, setRescheduleSlotOptions] = useState([]);
   const [loadingRescheduleSlots, setLoadingRescheduleSlots] = useState(false);
-
   const needsMentorCancelChoice = mentorActionMode === "choose" && Boolean(mongoBookingId && isLoggedIn());
 
+  const needRescheduleSlots = Boolean(sessionData?.mentorId && mentorResolutionStep === "reschedule");
+
   useEffect(() => {
-    if (mentorResolutionStep !== "reschedule" || !sessionData?.mentorId) {
+    if (!needRescheduleSlots) {
       setRescheduleSlotOptions([]);
       return;
     }
@@ -376,25 +494,8 @@ export function SessionDetail() {
     setLoadingRescheduleSlots(true);
     void (async () => {
       try {
-        const [availability, bookedRes] = await Promise.all([
-          fetchMentorAvailability(sessionData.mentorId),
-          fetchBookedSlots(sessionData.mentorId),
-        ]);
+        const options = await loadMentorRescheduleSlotOptions(sessionData.mentorId);
         if (cancelled) return;
-        if (!availability?.availableSlots) {
-          setRescheduleSlotOptions([]);
-          return;
-        }
-        const bookedMap = bookedRes.success ? bookedRes.booked || {} : {};
-        const options = [];
-        for (const [date, slots] of Object.entries(availability.availableSlots || {})) {
-          const bookingDate = toBookingDateFormat(date);
-          for (const slot of Array.isArray(slots) ? slots : []) {
-            const taken = Array.isArray(bookedMap[date]) ? bookedMap[date].includes(slot) : false;
-            if (!taken) options.push({ date: bookingDate, slot, label: `${bookingDate} • ${slot}` });
-          }
-        }
-        options.sort((a, b) => `${a.date} ${a.slot}`.localeCompare(`${b.date} ${b.slot}`));
         setRescheduleSlotOptions(options);
         if (options.length > 0) {
           setRescheduleDate(options[0].date);
@@ -409,7 +510,7 @@ export function SessionDetail() {
     return () => {
       cancelled = true;
     };
-  }, [mentorResolutionStep, sessionData?.mentorId]);
+  }, [needRescheduleSlots, sessionData?.mentorId]);
 
   const handleResolveMentorCancel = async (choice) => {
     if (!mongoBookingId) return;
@@ -431,7 +532,7 @@ export function SessionDetail() {
       const credit = Number(res.rebookCreditVnd ?? res.booking?.rebookCreditVnd ?? 0);
       toastApiSuccess(
         credit > 0
-          ? `Đã kích hoạt credit ${credit.toLocaleString("vi-VN")}₫ — chọn mentor khác, không cần CK lại nếu giá ≤ credit.`
+          ? `Đã kích hoạt credit ${credit.toLocaleString("vi-VN")}₫, chọn mentor khác, không cần CK lại nếu giá ≤ credit.`
           : "Hãy chọn mentor mới để đặt lịch.",
       );
       if (res.booking) setApiBooking(res.booking);
@@ -478,6 +579,10 @@ export function SessionDetail() {
         toastApiError("Vui lòng chọn ngày và giờ mới.");
         return;
       }
+      if (!isBookingSlotInFuture(rescheduleDate, rescheduleSlot)) {
+        toastApiError("Không thể chọn khung giờ đã qua. Vui lòng chọn thời gian trong tương lai.");
+        return;
+      }
       setResolutionBusy(true);
       let res;
       try {
@@ -496,7 +601,7 @@ export function SessionDetail() {
         toastApiError(res.error, "Không đổi được lịch.");
         return;
       }
-      toastApiSuccess("Đã đổi lịch — buổi hẹn được khôi phục với thời gian mới.");
+      toastApiSuccess("Đã đổi lịch, buổi hẹn được khôi phục với thời gian mới.");
       if (res.booking) setApiBooking(res.booking);
       setMentorResolutionStep("");
     }
@@ -513,9 +618,9 @@ export function SessionDetail() {
 
   const refundBankFormTitle =
     mentorResolution === "no_show_refund"
-      ? "Mentor không tham gia — hoàn 100%"
+      ? "Mentor không tham gia, hoàn 100%"
       : mentorResolution === "late_cancel_refund"
-        ? "Mentor hủy gấp — hoàn 100% ưu tiên"
+        ? "Mentor hủy gấp, hoàn 100% ưu tiên"
         : String(sessionData?.cancelledBy || "") === "mentor"
           ? "Điền STK nhận hoàn tiền"
           : "Điền STK nhận hoàn tiền";
@@ -540,7 +645,7 @@ export function SessionDetail() {
         toastApiError(res.error, "Không gửi được báo no-show.");
         return;
       }
-      toastApiSuccess("Đã ghi nhận no-show. Hoàn 100% — vui lòng điền STK nếu được yêu cầu.");
+      toastApiSuccess("Đã ghi nhận no-show. Hoàn 100%, vui lòng điền STK nếu được yêu cầu.");
       if (res.booking) setApiBooking(res.booking);
     } catch {
       toastApiError("Lỗi kết nối khi gửi báo no-show.");
@@ -637,11 +742,11 @@ export function SessionDetail() {
       String(res.booking?.paymentStatus || "").toLowerCase() === "paid";
     let extra = "";
     if (refundAmt > 0) {
-      extra = ` Yêu cầu hoàn ${Math.round(refundAmt).toLocaleString("vi-VN")}₫${refundPct != null ? ` (${refundPct}%)` : ""} đã ghi nhận. Admin CK hoàn sau — bạn được báo khi xong.`;
+      extra = ` Yêu cầu hoàn ${Math.round(refundAmt).toLocaleString("vi-VN")}₫${refundPct != null ? ` (${refundPct}%)` : ""} đã ghi nhận. Admin CK hoàn sau, bạn được báo khi xong.`;
     } else if (paid && refundPct === 0) {
       extra = " Theo chính sách, không hoàn tiền cho khoảng thời gian này.";
     } else if (pol?.ledger === "cancelled_pending_transfer") {
-      extra = " Giao dịch chờ CK đã hủy — chưa thu tiền.";
+      extra = " Giao dịch chờ CK đã hủy, chưa thu tiền.";
     }
     toastApiSuccess(`Đã hủy lịch.${extra}`);
     setCancelModalOpen(false);
@@ -654,53 +759,56 @@ export function SessionDetail() {
 
   if (sessionLoading) {
     return (
-      <div className="p-12 text-center text-sm text-gray-500 antialiased">
-        Đang tải thông tin buổi phỏng vấn…
-      </div>
+      <MentorPageShell bottomPad="pb-20">
+        <div
+          className={`relative z-10 flex min-h-[40vh] items-center justify-center pb-10 pt-8 sm:pt-10 ${CUSTOMER_SHELL_GUTTER}`}
+        >
+          <div className={`${CUSTOMER_SHELL_MAX} w-full text-center text-sm font-medium text-slate-500 antialiased`}>
+            Đang tải thông tin buổi phỏng vấn…
+          </div>
+        </div>
+      </MentorPageShell>
     );
   }
 
   if (!sessionData) {
     return (
-      <div className="p-8 text-center text-gray-400 antialiased">
-        <WarningCircle className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-        <p>{loadError || "Không tìm thấy thông tin buổi phỏng vấn."}</p>
-        {!isLoggedIn() ? (
-          <button
-            type="button"
-            onClick={() => navigate("/login")}
-            className="mt-4 px-4 py-2 rounded-xl text-sm font-medium text-white"
-            style={{ background: "#8037f4" }}
-          >
-            Đăng nhập
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="mt-4 px-4 py-2 rounded-xl text-sm font-medium text-white"
-            style={{ background: "#8037f4" }}
-          >
-            Về trang chủ
-          </button>
-        )}
-      </div>
+      <MentorPageShell bottomPad="pb-20">
+        <div
+          className={`relative z-10 flex min-h-[40vh] flex-col items-center justify-center pb-10 pt-8 text-center sm:pt-10 ${CUSTOMER_SHELL_GUTTER}`}
+        >
+          <div className={`${CUSTOMER_SHELL_MAX} w-full text-slate-500 antialiased`}>
+            <WarningCircle className="mx-auto mb-3 h-12 w-12 text-slate-300" />
+            <p>{loadError || "Không tìm thấy thông tin buổi phỏng vấn."}</p>
+            {!isLoggedIn() ? (
+              <button
+                type="button"
+                onClick={() => navigate("/login")}
+                className="mt-4 rounded-xl bg-[#8037f4] px-4 py-2 text-sm font-medium text-white hover:bg-[#630ed4]"
+              >
+                Đăng nhập
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="mt-4 rounded-xl bg-[#8037f4] px-4 py-2 text-sm font-medium text-white hover:bg-[#630ed4]"
+              >
+                Về trang chủ
+              </button>
+            )}
+          </div>
+        </div>
+      </MentorPageShell>
     );
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-6 pb-12 antialiased">
-      {state !== "done" ? (
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="group -ml-3 mb-6 flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+    <MentorPageShell bottomPad="pb-20">
+      <div className={`relative z-10 pb-10 pt-8 sm:pt-10 ${CUSTOMER_SHELL_GUTTER}`}>
+        <div
+          className={`${CUSTOMER_SHELL_MAX} w-full antialiased selection:bg-[rgba(122,35,229,0.18)] selection:text-slate-900`}
         >
-          <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
-          Quay lại
-        </button>
-      ) : null}
-
       {canReportNoShow && !mentorActionMode ? (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50/90 p-4">
           <p className="text-sm font-bold text-red-900">Mentor không tham gia?</p>
@@ -762,218 +870,59 @@ export function SessionDetail() {
           {/* LEFT COL */}
           <div className="lg:col-span-2 space-y-5">
 
-            {/* ── Status header ── */}
+            {/* ── Status header, chỉ trạng thái + mã; ngày/giờ xem cột Chi tiết buổi hẹn ── */}
             <div
-              className="rounded-2xl p-5 flex items-center gap-4"
-              style={{ background: "linear-gradient(135deg, #1F1B2E 0%, #2D2640 100%)", border: "1px solid rgba(180,240,0,0.15)" }}
+              className="flex items-center justify-between gap-4 rounded-2xl border px-5 py-4"
+              style={{
+                background: BRAND_LIME_SOFT,
+                borderColor: BRAND_LIME_BORDER,
+              }}
             >
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(180,240,0,0.12)" }}>
-                <Calendar className="w-6 h-6" style={{ color: "#B4F000" }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-bold" style={{ fontSize: "1.05rem" }}>Buổi phỏng vấn đã được xác nhận</p>
-                <p className="text-white/50 text-sm mt-0.5">{sessionData.date} · {sessionData.time}–{sessionData.endTime} · Zoom / Google Meet</p>
-              </div>
-              <div className="flex-shrink-0 text-right">
-                <p className="text-xs font-semibold" style={{ color: "rgba(180,240,0,0.7)" }}>MÃ ĐẶT LỊCH</p>
-                <p className="text-white font-bold text-sm">#{sessionData.orderNum}</p>
-              </div>
-            </div>
-
-            {/* ── Countdown ── */}
-            <div className="card-premium overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between" style={{ background: "rgba(128, 55, 244,0.03)" }}>
-                <div className="flex items-center gap-2">
-                  <Timer className="w-4 h-4" style={{ color: "#8037f4" }} />
-                  <span className="font-semibold text-gray-800 text-sm">Đếm ngược đến buổi phỏng vấn</span>
-                </div>
-                <span className="text-xs text-gray-400">{sessionData.date} lúc {sessionData.time}</span>
-              </div>
-              <div className="p-6">
-                <div className="grid grid-cols-4 gap-3">
-                  {[
-                    { label: "Ngày", val: String(days).padStart(2, "0") },
-                    { label: "Giờ", val: String(hours).padStart(2, "0") },
-                    { label: "Phút", val: String(minutes).padStart(2, "0") },
-                    { label: "Giây", val: String(seconds).padStart(2, "0") },
-                  ].map((item) => (
-                    <div key={item.label} className="text-center">
-                      <div
-                        className="rounded-2xl py-4 mb-2 font-black tabular-nums"
-                        style={{
-                          background: "linear-gradient(135deg, #1F1B2E, #2D2640)",
-                          color: "#B4F000",
-                          fontSize: "2.25rem",
-                          letterSpacing: "-0.05em",
-                          lineHeight: 1,
-                        }}
-                      >
-                        {item.val}
-                      </div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{item.label}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Google Meet link ── */}
-            <div className="card-premium overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2" style={{ background: "rgba(128, 55, 244,0.03)" }}>
-                <Video className="w-4 h-4" style={{ color: "#8037f4" }} />
-                <span className="font-semibold text-gray-800 text-sm">Link tham gia phòng họp</span>
-              </div>
-              <div className="p-5">
-                {/* Meet link card */}
+              <div className="flex min-w-0 items-center gap-3">
                 <div
-                  className="rounded-2xl p-4 mb-4 flex items-center gap-4"
-                  style={{ background: "rgba(66,133,244,0.05)", border: "1.5px solid rgba(66,133,244,0.2)" }}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: "rgba(128, 55, 244, 0.1)" }}
                 >
-                  <div
-                    className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: "#4285F4" }}
-                  >
-                    <GoogleLogo className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-gray-900 font-bold text-sm">Google Meet</p>
-                    <p
-                      className="font-mono text-xs mt-0.5 truncate"
-                      style={{ color: "#4285F4" }}
-                    >
-                      {sessionData.meetLink}
-                    </p>
-                  </div>
-                  <div className="flex flex-col gap-2 flex-shrink-0">
-                    <a
-                      href={sessionData.meetLink}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-xl text-white transition-all hover:opacity-90"
-                      style={{ background: "#4285F4" }}
-                    >
-                      Mở Meet <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                    <CopyBtn text={sessionData.meetLink} label="Sao chép liên kết" />
-                  </div>
+                  <CheckCircle className="h-6 w-6" style={{ color: BRAND_PURPLE }} />
                 </div>
-
-                {/* Add to calendar */}
-                <div className="flex items-center gap-3">
-                  <button
-                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90 border card-premium animate-fade-in" style={{ color: "#374151" }}
-                  >
-                    <Calendar className="w-4 h-4 text-gray-500" />
-                    Thêm vào Google Calendar
-                  </button>
-                  <button
-                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all border card-premium animate-fade-in" style={{ color: "#374151" }}
-                  >
-                    <Bell className="w-4 h-4 text-gray-500" />
-                    Đặt nhắc nhở
-                  </button>
-                </div>
-
-                <p className="text-xs text-gray-400 mt-3 flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5" style={{ color: "#8037f4" }} />
-                  Link sẽ chỉ hoạt động đúng giờ phỏng vấn. Email xác nhận đã được gửi.
+                <p className="text-base font-bold text-slate-900 sm:text-[1.05rem]">
+                  Buổi phỏng vấn đã được xác nhận
                 </p>
               </div>
+              <div className="shrink-0 text-right">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Mã đặt lịch
+                </p>
+                <p className="text-sm font-bold text-slate-900">#{sessionData.orderNum}</p>
+              </div>
             </div>
 
-            {/* ── Checklist ── */}
-            <div className="card-premium overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between" style={{ background: "rgba(128, 55, 244,0.03)" }}>
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" style={{ color: "#8037f4" }} />
-                  <span className="font-semibold text-gray-800 text-sm">Checklist chuẩn bị trước buổi</span>
-                </div>
-                <span
-                  className="text-xs font-bold px-3 py-1 rounded-full"
-                  style={{
-                    background: checklistDone === checklist.length ? "rgba(180,240,0,0.15)" : "rgba(128, 55, 244,0.08)",
-                    color: checklistDone === checklist.length ? "#4A7A00" : "#8037f4",
-                  }}
-                >
-                  {checklistDone}/{checklist.length} hoàn thành
-                </span>
-              </div>
-              <div className="p-5">
-                {/* Progress bar */}
-                <div className="w-full h-1.5 bg-gray-100 rounded-full mb-5 overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{
-                      width: `${(checklistDone / checklist.length) * 100}%`,
-                      background: checklistDone === checklist.length
-                        ? "linear-gradient(90deg, #B4F000, #8CC700)"
-                        : "#8037f4",
-                    }}
-                  />
-                </div>
-                <div className="space-y-3">
-                  {checklist.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() =>
-                        setChecklist((prev) =>
-                          prev.map((c) => c.id === item.id ? { ...c, done: !c.done } : c)
-                        )
-                      }
-                      className="w-full flex items-center gap-3 text-left transition-all"
-                    >
-                      <div
-                        className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all"
-                        style={{
-                          background: item.done ? "#8037f4" : "#fff",
-                          border: item.done ? "2px solid #8037f4" : "2px solid #D1D5DB",
-                        }}
-                      >
-                        {item.done && <Check className="w-3 h-3 text-white" />}
-                      </div>
-                      <span
-                        className="text-sm transition-all"
-                        style={{
-                          color: item.done ? "#9CA3AF" : "#374151",
-                          textDecoration: item.done ? "line-through" : "none",
-                        }}
-                      >
-                        {item.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                {checklistDone === checklist.length && (
-                  <div
-                    className="mt-4 rounded-xl p-3 flex items-center gap-2"
-                    style={{ background: "rgba(180,240,0,0.1)", border: "1px solid rgba(180,240,0,0.3)" }}
-                  >
-                    <PartyPopper className="w-5 h-5" style={{ color: "#4A7A00" }} />
-                    <p className="text-sm font-semibold" style={{ color: "#4A7A00" }}>
-                      Bạn đã sẵn sàng 100%! Chúc buổi phỏng vấn thành công.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <SessionMeetingLinkCard sessionData={sessionData} />
 
             {/* ── Tips ── */}
             <div className="card-premium p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap className="w-4 h-4" style={{ color: "#FFD600" }} />
-                <span className="font-semibold text-gray-800 text-sm">Tips từ mentor cho buổi phỏng vấn</span>
+              <div className="mb-4 flex items-center gap-2">
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded-lg"
+                  style={{ background: BRAND_LIME_SOFT }}
+                >
+                  <Zap className="h-4 w-4" style={{ color: BRAND_PURPLE }} />
+                </div>
+                <span className="text-sm font-semibold text-gray-800">Tips từ mentor cho buổi phỏng vấn</span>
               </div>
-              <div className="space-y-3">
-                {[
-                  { icon: "💬", tip: "Trả lời theo cấu trúc STAR: Tình huống → Nhiệm vụ → Hành động → Kết quả" },
-                  { icon: "⏱", tip: "Giữ mỗi câu trả lời trong 2–3 phút, đừng quá ngắn hoặc quá dài" },
-                  { icon: "👁", tip: "Nhìn thẳng camera để tạo giao tiếp bằng mắt ảo, không nhìn màn hình" },
-                  { icon: "📝", tip: "Chuẩn bị sẵn giấy để ghi chú những điểm mentor nhận xét" },
-                  { icon: "🎯", tip: "Hỏi mentor về những gì thực sự diễn ra trong quy trình tuyển dụng" },
-                ].map((t, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: "#F9FAFB" }}>
-                    <span style={{ fontSize: "1.1rem" }}>{t.icon}</span>
-                    <p className="text-sm text-gray-600 leading-relaxed">{t.tip}</p>
+              <div className="space-y-2.5">
+                {MENTOR_INTERVIEW_TIPS.map(({ Icon, tip }) => (
+                  <div
+                    key={tip}
+                    className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-3"
+                  >
+                    <div
+                      className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
+                      style={{ background: "rgba(128, 55, 244, 0.08)" }}
+                    >
+                      <Icon className="h-3.5 w-3.5" style={{ color: BRAND_PURPLE }} />
+                    </div>
+                    <p className="text-sm leading-relaxed text-slate-600">{tip}</p>
                   </div>
                 ))}
               </div>
@@ -1013,8 +962,6 @@ export function SessionDetail() {
                   { icon: Calendar, label: "Ngày", value: sessionData.date },
                   { icon: Clock, label: "Thời gian", value: `${sessionData.time} – ${sessionData.endTime}` },
                   { icon: Timer, label: "Thời lượng", value: "60 phút" },
-                  { icon: Video, label: "Hình thức", value: "Google Meet" },
-                  { icon: User, label: "Vị trí", value: sessionData.position },
                 ].map((row) => (
                   <div key={row.label} className="flex items-start gap-3">
                     <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: "rgba(128, 55, 244,0.07)" }}>
@@ -1040,7 +987,19 @@ export function SessionDetail() {
                       <p className="text-xs font-semibold text-gray-700 truncate">{sessionData.cvFile}</p>
                       <p className="text-xs text-gray-400">CV đính kèm</p>
                     </div>
-                    <Check className="w-4 h-4 flex-shrink-0" style={{ color: "#4A7A00" }} />
+                    {sessionData.cvFileUrl ? (
+                      <a
+                        href={sessionData.cvFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold shrink-0"
+                        style={{ color: "#8037f4" }}
+                      >
+                        Mở
+                      </a>
+                    ) : (
+                      <Check className="w-4 h-4 flex-shrink-0" style={{ color: "#4A7A00" }} />
+                    )}
                   </div>
                 )}
                 {sessionData.jdFile && (
@@ -1050,7 +1009,19 @@ export function SessionDetail() {
                       <p className="text-xs font-semibold text-gray-700 truncate">{sessionData.jdFile}</p>
                       <p className="text-xs text-gray-400">JD đính kèm</p>
                     </div>
-                    <Check className="w-4 h-4 flex-shrink-0" style={{ color: "#4A7A00" }} />
+                    {sessionData.jdFileUrl ? (
+                      <a
+                        href={sessionData.jdFileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-semibold shrink-0"
+                        style={{ color: "#8037f4" }}
+                      >
+                        Mở
+                      </a>
+                    ) : (
+                      <Check className="w-4 h-4 flex-shrink-0" style={{ color: "#4A7A00" }} />
+                    )}
                   </div>
                 )}
                 {!sessionData.jdFile && (
@@ -1079,7 +1050,7 @@ export function SessionDetail() {
                   {Number(sessionData?.cancelRefundAmountVnd) > 0 ? (
                     <p className="text-[11px] text-amber-950/80">
                       {Number(sessionData?.rebookCreditRemainderVnd) > 0
-                        ? "Phần tiền thừa sau đổi mentor — hoàn: "
+                        ? "Phần tiền thừa sau đổi mentor, hoàn: "
                         : "Số hoàn dự kiến: "}
                       <strong>
                         {Math.round(
@@ -1123,24 +1094,15 @@ export function SessionDetail() {
                 </div>
               ) : null}
 
-              {/* Cancel booking (API) + refund policy — khớp backend bookingsService.cancelMyBooking */}
+              {/* Cancel booking (API) + refund policy, khớp backend bookingsService.cancelMyBooking */}
               <div className="space-y-3">
                 {canCancelOnServer ? (
                   <button
                     type="button"
                     onClick={() => setCancelModalOpen(true)}
-                    className="w-full py-3 rounded-xl text-sm font-semibold transition-all border flex items-center justify-center gap-2 card-premium animate-fade-in"
-                    style={{ color: "#6B7280" }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = "#EF4444";
-                      e.currentTarget.style.color = "#EF4444";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = "#E5E7EB";
-                      e.currentTarget.style.color = "#6B7280";
-                    }}
+                    className="card-premium animate-fade-in flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white py-3 text-sm font-semibold text-violet-800 transition hover:border-violet-300 hover:bg-violet-50"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="h-4 w-4" />
                     Hủy buổi phỏng vấn
                   </button>
                 ) : (
@@ -1151,42 +1113,7 @@ export function SessionDetail() {
                   </p>
                 )}
 
-                <div className="rounded-xl p-3 space-y-1.5" style={{ background: "#F9FAFB" }}>
-                  <div className="flex items-center gap-2">
-                    <CircleDollarSign
-                      className="w-4 h-4 flex-shrink-0"
-                      style={{
-                        color: hoursLeft >= 24 ? "#10b981" : hoursLeft >= 12 ? "#f59e0b" : "#ef4444",
-                      }}
-                    />
-                    <p
-                      className="text-xs font-semibold"
-                      style={{
-                        color: hoursLeft >= 24 ? "#10b981" : hoursLeft >= 12 ? "#f59e0b" : "#ef4444",
-                      }}
-                    >
-                      {hoursLeft >= 24
-                        ? "Hoàn 100% (nếu đã thanh toán) nếu hủy ngay"
-                        : hoursLeft >= 12
-                          ? "Hoàn 50% (nếu đã thanh toán) nếu hủy ngay"
-                          : "Không hoàn tiền (nếu đã thanh toán) nếu hủy ngay"}
-                    </p>
-                  </div>
-                  <ul className="text-xs text-gray-500 space-y-0.5 ml-6">
-                    <li className={hoursLeft >= 24 ? "text-emerald-600" : ""}>
-                      • Hủy trước buổi từ 24 giờ trở lên: hoàn 100%
-                    </li>
-                    <li className={hoursLeft >= 12 && hoursLeft < 24 ? "text-amber-600" : ""}>
-                      • Hủy từ 12 giờ đến dưới 24 giờ trước buổi: hoàn 50%
-                    </li>
-                    <li className={hoursLeft < 12 ? "text-red-600" : ""}>
-                      • Dưới 12 giờ trước buổi / không tham gia: không hoàn tiền
-                    </li>
-                  </ul>
-                  <p className="text-xs text-gray-400 pt-2 border-t border-gray-200">
-                    Liên hệ <strong className="text-gray-600">support@prointerview.vn</strong> để đổi lịch miễn phí
-                  </p>
-                </div>
+                <UserCancelPolicyBrief variant="icons" hoursLeft={hoursLeft} />
               </div>
             </div>
           </div>
@@ -1202,7 +1129,7 @@ export function SessionDetail() {
             {/* Live banner */}
             <div
               className="rounded-2xl p-5 flex items-center gap-4"
-              style={{ background: "linear-gradient(135deg, #1F1B2E, #2D2640)", border: "1px solid rgba(180,240,0,0.2)" }}
+              style={{ background: "#1F1B2E", border: "1px solid rgba(180,240,0,0.2)" }}
             >
               <div className="relative">
                 <div className="w-4 h-4 rounded-full" style={{ background: "#B4F000" }} />
@@ -1227,7 +1154,7 @@ export function SessionDetail() {
                 {!inLiveWindow && minutesUntilStart > 0 && (
                   <div className="rounded-2xl border border-violet-200 bg-violet-50 px-5 py-4 text-sm text-violet-900">
                     Còn khoảng <strong>{minutesUntilStart} phút</strong> đến giờ hẹn. Bạn có thể vào
-                    thử phòng sớm — trạng thái buổi học chỉ chuyển sang &quot;đang diễn ra&quot; khi
+                    thử phòng sớm, trạng thái buổi học chỉ chuyển sang &quot;đang diễn ra&quot; khi
                     đến khung giờ cho phép.
                   </div>
                 )}
@@ -1307,7 +1234,7 @@ export function SessionDetail() {
             </div>
           </div>
 
-          {/* Right col — mentor + session info */}
+          {/* Right col, mentor + session info */}
           <div className="space-y-4">
             <div className="card-premium p-5">
               <img
@@ -1507,6 +1434,16 @@ export function SessionDetail() {
               <div className="space-y-2">
                 {[
                   {
+                    icon: Sparkles,
+                    iconColor: BRAND_PURPLE,
+                    labelColor: BRAND_PURPLE,
+                    bg: BRAND_PURPLE_SOFT_LIGHT,
+                    title: "Luyện tập với AI Interview",
+                    desc: "Áp dụng feedback vào mock interview AI",
+                    action: () => navigate("/interview"),
+                    label: "Bắt đầu →",
+                  },
+                  {
                     icon: FileText,
                     iconColor: BRAND_PURPLE,
                     labelColor: BRAND_PURPLE,
@@ -1638,29 +1575,28 @@ export function SessionDetail() {
                 initial={{ scale: 0.96, y: 16, opacity: 0 }}
                 animate={{ scale: 1, y: 0, opacity: 1 }}
                 exit={{ scale: 0.96, y: 16, opacity: 0 }}
-                className="grid w-full max-w-lg max-h-[min(85dvh,calc(100vh-3rem))] grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl"
+                className="grid w-full max-w-lg max-h-[min(85dvh,calc(100vh-3rem))] grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-3xl border border-violet-200/80 bg-white shadow-xl shadow-violet-500/10"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="min-h-0 overflow-y-auto overscroll-contain px-5 pb-2 pt-5 sm:px-6 sm:pt-6">
                   <h4 className="text-xl font-black text-slate-900">Hủy lịch phỏng vấn?</h4>
                   <p className="mt-2 text-sm text-slate-600">
-                    {hoursLeft >= 24
-                      ? "Theo chính sách hiện tại: nếu đã thanh toán, bạn được hoàn 100% (hủy từ 24 giờ trở lên trước buổi)."
-                      : hoursLeft >= 12
-                        ? "Từ 12 giờ đến dưới 24 giờ trước buổi: nếu đã thanh toán, hoàn 50%."
-                        : "Dưới 12 giờ trước buổi: không hoàn tiền nếu đã thanh toán."}
+                    {userCancelWarningMessage(getUserCancelPolicyFromHours(hoursLeft))}
+                    {String(sessionData?.paymentStatus || "").toLowerCase() === "paid"
+                      ? " Tiền hoàn theo STK bạn khai báo (nếu có)."
+                      : " Buổi chưa thanh toán sẽ được hủy, không thu phí."}
                   </p>
                   <textarea
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
-                    className="mt-4 min-h-[5rem] w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-900 outline-none focus:border-violet-400"
+                    className="mt-4 min-h-[5rem] w-full rounded-2xl border border-violet-200 bg-slate-50 p-3 text-sm text-slate-900 outline-none focus:border-[#8037f4] focus:ring-2 focus:ring-violet-100"
                     placeholder="Lý do hủy (tuỳ chọn)"
                   />
                   {needsRefundBankDetails ? (
                     <div className="mt-4 space-y-2 rounded-2xl border border-sky-200 bg-sky-50/90 p-3 sm:p-4">
                       <p className="text-xs font-bold text-sky-900">Tài khoản nhận hoàn tiền</p>
                       <p className="text-[11px] leading-snug text-sky-950/80">
-                        Tiền vào TK công ty — hệ thống không lưu STK nguồn. Điền STK nhận hoàn (số tiền do hệ thống tính).
+                        Tiền vào TK công ty, hệ thống không lưu STK nguồn. Điền STK nhận hoàn (số tiền do hệ thống tính).
                       </p>
                       <input
                         type="text"
@@ -1701,7 +1637,7 @@ export function SessionDetail() {
                         setRefundAccountNumber("");
                         setRefundAccountHolder("");
                       }}
-                      className="rounded-xl border border-slate-200 bg-slate-50 py-3 text-xs font-black uppercase tracking-wider text-slate-800 disabled:opacity-50"
+                      className="rounded-xl border border-violet-200 bg-white py-3 text-xs font-bold text-violet-800 transition hover:border-violet-300 hover:bg-violet-50 disabled:opacity-50"
                     >
                       Giữ lịch
                     </button>
@@ -1709,7 +1645,7 @@ export function SessionDetail() {
                       type="button"
                       disabled={cancelBusy}
                       onClick={() => void handleConfirmCancelBooking()}
-                      className="rounded-xl border border-red-300 bg-red-50 py-3 text-xs font-black uppercase tracking-wider text-red-700 disabled:opacity-50"
+                      className="rounded-xl bg-[#8037f4] py-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#630ed4] disabled:opacity-50"
                     >
                       {cancelBusy ? "Đang xử lý…" : "Xác nhận hủy"}
                     </button>
@@ -1720,6 +1656,8 @@ export function SessionDetail() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+        </div>
+      </div>
+    </MentorPageShell>
   );
 }

@@ -140,7 +140,7 @@ function WithdrawalModal({
               </div>
               <h2 className="text-xl font-black sm:text-2xl text-slate-900 tracking-tighter">Yêu cầu thành công!</h2>
               <p className="text-sm text-zinc-500 font-medium px-4">Số tiền của bạn đang được hệ thống xử lý và sẽ chuyển khoản trong vòng 1-2 ngày làm việc.</p>
-              <button onClick={onClose} className="w-full py-4 rounded-2xl bg-white text-black text-[10px] font-black uppercase tracking-widest shadow-xl">Đóng cửa sổ</button>
+              <button onClick={onClose} className="w-full py-4 rounded-2xl bg-white text-slate-900 text-[10px] font-black uppercase tracking-widest shadow-xl">Đóng cửa sổ</button>
             </div>
           ) : (
             <div className="space-y-8">
@@ -217,7 +217,7 @@ function WithdrawalModal({
               <button 
                 onClick={handleWithdraw}
                 disabled={!hasEnoughAmount || loading || savingAccount || !isAccountReady}
-                className="w-full py-5 rounded-3xl bg-primary-fixed text-black text-[10px] font-black uppercase tracking-widest shadow-[0_15px_40px_rgba(196, 255, 71,0.32)] hover:scale-[1.02] disabled:opacity-30 disabled:hover:scale-100 transition-all">
+                className="w-full py-5 rounded-3xl bg-primary-fixed text-[#000000] text-[10px] font-black uppercase tracking-widest shadow-[0_15px_40px_rgba(196, 255, 71,0.32)] hover:scale-[1.02] disabled:opacity-30 disabled:hover:scale-100 transition-all">
                 {loading ? "Đang xử lý..." : "Xác nhận gửi yêu cầu"}
               </button>
               <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-[0.2em]">
@@ -323,7 +323,7 @@ export function MentorFinance() {
         {/* Main Wallet Cards */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 mb-16">
            {/* Primary Balance */}
-           <div className="lg:col-span-7 glass-card p-12 bg-gradient-to-br from-[#8037f4]/20 to-transparent overflow-hidden group">
+           <div className="lg:col-span-7 glass-card p-12 bg-[#8037f4]/10 overflow-hidden group">
               <div className="absolute top-0 right-0 p-12 rotate-12 opacity-10 group-hover:rotate-0 transition-all duration-700">
                  <Wallet size={160} className="text-[#8037f4]" />
               </div>
@@ -336,7 +336,7 @@ export function MentorFinance() {
                  <div className="flex flex-wrap gap-4">
                     <button 
                        onClick={() => setShowWithdraw(true)}
-                       className="px-10 py-5 rounded-3xl bg-primary-fixed text-black text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-[0_15px_40px_rgba(196, 255, 71,0.32)]">
+                       className="px-10 py-5 rounded-3xl bg-primary-fixed text-[#000000] text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-[0_15px_40px_rgba(196, 255, 71,0.32)]">
                        Rút tiền ngay
                     </button>
                     <button
@@ -394,7 +394,7 @@ export function MentorFinance() {
               </div>
               <div className="flex gap-2">
                  {["all", "income", "withdraw"].map(t => (
-                    <button key={t} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-white text-black' : 'bg-slate-50 text-zinc-500 hover:text-slate-900'}`} onClick={() => setActiveTab(t)}>
+                    <button key={t} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-white text-slate-900' : 'bg-slate-50 text-zinc-500 hover:text-slate-900'}`} onClick={() => setActiveTab(t)}>
                        {t === 'all' ? 'Tất cả' : t === 'income' ? 'Thu nhập' : 'Rút tiền'}
                     </button>
                  ))}
@@ -597,7 +597,7 @@ export function MentorFinance() {
               </div>
               <button
                 onClick={() => setSelectedTx(null)}
-                className="mt-8 w-full py-3 rounded-xl bg-white text-black text-[10px] font-black uppercase tracking-widest shadow-xl"
+                className="mt-8 w-full py-3 rounded-xl bg-white text-slate-900 text-[10px] font-black uppercase tracking-widest shadow-xl"
               >
                 Đóng
               </button>

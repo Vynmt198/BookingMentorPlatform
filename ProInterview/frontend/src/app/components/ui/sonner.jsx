@@ -13,21 +13,21 @@ const Toaster = ({ ...props }) => {
       toastOptions={{
         classNames: {
           toast: TOAST_CLASS,
-          title: "!font-bold !text-[#1a1b23]",
+          title: "!font-bold !text-[#000000]",
           description: "!text-slate-600",
-          actionButton: "!bg-[#6d2fd6] !text-white",
-          cancelButton: "!bg-violet-50 !text-[#6d2fd6]",
+          actionButton: "!bg-[#8037f4] !text-white",
+          cancelButton: "!bg-violet-50 !text-[#8037f4]",
           closeButton:
-            "!border-violet-200 !bg-violet-50 !text-[#6d2fd6] hover:!bg-violet-100",
+            "!border-violet-200 !bg-violet-50 !text-[#8037f4] hover:!bg-violet-100",
           success: "!border-emerald-200/80 !shadow-emerald-500/10",
           error: "!border-violet-300/80",
           warning: "!border-amber-200/80",
-          info: "!border-l-4 !border-l-[#6d2fd6] !from-violet-50/95 !to-white !bg-gradient-to-r",
+          info: "!border-l-4 !border-l-[#8037f4] !bg-violet-50",
         },
       }}
       style={{
         "--normal-bg": "#ffffff",
-        "--normal-text": "#1a1b23",
+        "--normal-text": "#000000",
         "--normal-border": "rgba(128, 55, 244, 0.22)",
         "--success-bg": "#f0fdf4",
         "--success-border": "rgba(34, 197, 94, 0.35)",

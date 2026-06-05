@@ -466,7 +466,7 @@ function VideoPlayer({ lesson, thumbnail, fullBleed = false }) {
         </div>
       ) : (
         <div
-          className="pointer-events-none absolute inset-0 bg-gradient-to-br from-slate-100 via-violet-50/20 to-slate-200/40 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900"
+          className="pointer-events-none absolute inset-0 bg-slate-100 dark:bg-slate-900"
           aria-hidden
         />
       )}
@@ -520,7 +520,7 @@ function VideoPlayer({ lesson, thumbnail, fullBleed = false }) {
             }}
           >
             <div
-              className="absolute left-0 top-0 h-full rounded-full bg-[#a66ff8]"
+              className="absolute left-0 top-0 h-full rounded-full bg-[#93f72b]"
               style={{ width: `${progressPct}%` }}
             />
             <div
@@ -637,7 +637,7 @@ function CertificateModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
       <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl">
         {/* Header */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-violet-50 via-white to-violet-50/80 p-8 text-center">
+        <div className="relative overflow-hidden bg-white p-8 text-center">
           <div className="pointer-events-none absolute inset-0">
             <div className="absolute left-1/4 top-0 h-40 w-40 rounded-full bg-violet-200/40 blur-3xl" />
             <div className="absolute bottom-0 right-1/4 h-32 w-32 rounded-full bg-violet-100/60 blur-3xl" />
@@ -659,7 +659,7 @@ function CertificateModal({
               <div
                 className="rounded-2xl p-6 mb-5 text-center relative overflow-hidden"
                 style={{
-                  background: "linear-gradient(135deg, #f9f4ff, #fff8e1)",
+                  background: "#f9f4ff",
                   border: "2px solid rgba(128, 55, 244,0.15)",
                 }}
               >

@@ -96,7 +96,7 @@ export function PaymentReturn() {
     <div className="pi-page-dashboard-bg relative min-h-screen flex items-center justify-center overflow-hidden p-6 font-sans antialiased text-white">
       {/* Background Orbs */}
       <div className="absolute top-[-10%] right-[-10%] h-[60vh] w-[60vh] rounded-full bg-fuchsia-600/20 blur-[120px]" />
-      <div className="absolute bottom-[-10%] left-[-10%] h-[60vh] w-[60vh] rounded-full bg-[#93f72b]/10 blur-[120px]" />
+      <div className="absolute bottom-[-10%] left-[-10%] h-[60vh] w-[60vh] rounded-full bg-[#8037f4]/10 blur-[120px]" />
 
       <AnimatePresence mode="wait">
         <motion.div 
@@ -146,7 +146,7 @@ export function PaymentReturn() {
 
                 <h1 className="text-3xl md:text-4xl font-black tracking-tighter mt-6 lowercase first-letter:uppercase">
                    {status === "loading" && "Đang xác thực..."}
-                   {status === "success" && <span className="bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent uppercase font-black">Thanh toán Thành công!</span>}
+                   {status === "success" && <span className="text-emerald-500 uppercase font-black">Thanh toán Thành công!</span>}
                    {status === "failure" && <span className="text-amber-400 uppercase font-black">Giao dịch bị Hủy</span>}
                    {status === "error" && <span className="text-red-500 uppercase font-black">Lỗi Thanh toán</span>}
                 </h1>
@@ -201,7 +201,7 @@ export function PaymentReturn() {
                 {status === "success" ? (
                    <button
                       onClick={() => navigate("/")}
-                      className="group relative flex h-16 items-center justify-center gap-3 overflow-hidden rounded-[24px] bg-[#93f72b] font-black text-black transition-all hover:scale-[1.02] active:scale-[0.98] shadow-[0_10px_40px_rgba(196,255,71,0.25)]"
+                      className="group relative flex h-16 items-center justify-center gap-3 overflow-hidden rounded-[24px] bg-[#93f72b] font-black text-[#000000] transition-all hover:scale-[1.02] active:scale-[0.98] shadow-[0_10px_40px_rgba(196,255,71,0.25)]"
                    >
                       <span className="text-[10px] uppercase tracking-[0.25em]">Về trang chủ</span>
                       <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
@@ -241,7 +241,7 @@ export function PaymentReturn() {
 
       <style>{`
         .glass-card {
-           background: linear-gradient(145deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+           background: rgba(255,255,255,0.06);
            backdrop-filter: blur(48px);
            border-radius: 40px;
            position: relative;

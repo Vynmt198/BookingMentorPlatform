@@ -165,7 +165,7 @@ export function CourseRecommendations({
     return (
       <div
         className="rounded-3xl overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #1a0a3e 0%, #2d1060 100%)" }}
+        style={{ background: "#1a0a3e" }}
       >
         <div className="p-6">
           {/* Header */}
@@ -218,7 +218,7 @@ export function CourseRecommendations({
     return (
       <div
         className="rounded-3xl overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #1a0a3e 0%, #2d1060 100%)" }}
+        style={{ background: "#1a0a3e" }}
       >
         <div className="p-6">
           {/* Header */}

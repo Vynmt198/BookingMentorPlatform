@@ -6,7 +6,6 @@ import {
   Upload as UploadSimple,
   FileText,
   Check,
-  ArrowLeft,
   ChevronRight as CaretRight,
   Video as VideoCamera,
   Bell,
@@ -17,15 +16,20 @@ import {
   Coffee,
   Moon,
   RotateCcw as ArrowsClockwise,
-  CircleDollarSign as CurrencyCircleDollar,
   Sparkles as Sparkle,
   X,
 } from "lucide-react";
 import { fetchMentor, fetchMentorAvailability } from "../../utils/mentorApi";
+import { isBookingSlotInFuture } from "../../utils/bookingSchedule";
 import { fetchBookedSlots, fetchRebookCredit } from "../../utils/bookingsApi";
-import { toastApiError } from "../../utils/apiToast";
+import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
+import { uploadFile } from "../../utils/uploadApi";
 import { getSuggestedBookingDataAsync, saveUploadedCV, saveUploadedJD } from "../../utils/history";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
+import { BookingStepBar } from "../../components/booking/BookingStepBar";
+import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
+import { BookingPolicySummary } from "../../components/booking/BookingPolicySummary";
+import { BRAND_CTA_LIME_STYLE } from "../../constants/brandColors";
 import { avatarSrc } from "../../utils/mediaUrl";
 
 const VI_DAY_SHORT = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
@@ -143,7 +147,11 @@ export function Booking() {
   const [suggestedData, setSuggestedData] = useState(null);
   const [showSmartBanner, setShowSmartBanner] = useState(false);
   const [selectedCvFile, setSelectedCvFile] = useState("");
+  const [selectedCvUrl, setSelectedCvUrl] = useState("");
+  const [cvUploading, setCvUploading] = useState(false);
   const [selectedJdFile, setSelectedJdFile] = useState("");
+  const [selectedJdUrl, setSelectedJdUrl] = useState("");
+  const [jdUploading, setJdUploading] = useState(false);
   const cvInputRef = useRef(null);
   const jdInputRef = useRef(null);
   const calendarWeeks = useMemo(() => {
@@ -184,27 +192,55 @@ export function Booking() {
     setShowSmartBanner(false);
   };
 
-  const handleCvFileChange = (e) => {
+  const handleCvFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setCvUploading(true);
     setSelectedCvFile(file.name);
+    setSelectedCvUrl("");
+    const res = await uploadFile(file, "cv");
+    setCvUploading(false);
+    e.target.value = "";
+    if (!res.success || !res.url) {
+      setSelectedCvFile("");
+      toastApiError(res.error, "Không tải CV lên được.");
+      return;
+    }
+    setSelectedCvFile(res.fileName || file.name);
+    setSelectedCvUrl(res.url);
     setForm((prev) => ({ ...prev, cv: true }));
     saveUploadedCV({ name: file.name, size: file.size, type: file.type });
-    e.target.value = "";
+    toastApiSuccess("Đã tải CV lên, mentor có thể mở khi xem buổi hẹn.");
   };
 
-  const handleJdFileChange = (e) => {
+  const handleJdFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setJdUploading(true);
     setSelectedJdFile(file.name);
+    setSelectedJdUrl("");
+    const res = await uploadFile(file, "jd");
+    setJdUploading(false);
+    e.target.value = "";
+    if (!res.success || !res.url) {
+      setSelectedJdFile("");
+      toastApiError(res.error, "Không tải JD lên được.");
+      return;
+    }
+    setSelectedJdFile(res.fileName || file.name);
+    setSelectedJdUrl(res.url);
     setForm((prev) => ({ ...prev, jd: true }));
     saveUploadedJD({ name: file.name, size: file.size, type: file.type });
-    e.target.value = "";
+    toastApiSuccess("Đã tải JD lên.");
   };
 
   const handleProceed = () => {
-    if (!selectedCvFile) {
-      toastApiError("Vui lòng tải lên CV (chọn file PDF/DOC).");
+    if (!selectedCvFile || !selectedCvUrl) {
+      toastApiError("Vui lòng tải CV lên server (chọn file và đợi tải xong).");
+      return;
+    }
+    if (form.jd && selectedJdFile && !selectedJdUrl) {
+      toastApiError("JD chưa tải xong, chọn lại file hoặc bỏ JD.");
       return;
     }
     const params = new URLSearchParams({
@@ -216,7 +252,9 @@ export function Booking() {
       position: form.position,
       note: form.note,
       cvFile: selectedCvFile,
+      cvFileUrl: selectedCvUrl,
       jdFile: form.jd && selectedJdFile ? selectedJdFile : "",
+      jdFileUrl: form.jd && selectedJdUrl ? selectedJdUrl : "",
     });
     if (rebookFrom) params.set("rebookFrom", rebookFrom);
     navigate(`/checkout?${params.toString()}`);
@@ -265,7 +303,7 @@ export function Booking() {
 
     const recurring = Array.isArray(av.recurringSchedule) ? av.recurringSchedule : [];
     const slotMapKeys = Object.keys(av.availableSlots || {}).length;
-    // Chỉ chặn ngày (blockedDates) — không có lịch cụ thể → mở khung giờ mặc định (khớp backend).
+    // Chỉ chặn ngày (blockedDates), không có lịch cụ thể → mở khung giờ mặc định (khớp backend).
     if (!recurring.length && slotMapKeys === 0) {
       return TIME_GROUPS.flatMap((g) => g.slots);
     }
@@ -275,25 +313,8 @@ export function Booking() {
     return row && Array.isArray(row.slots) ? row.slots.map((x) => String(x).trim()).filter(Boolean) : [];
   };
 
-  const isSelectedDayToday = useMemo(() => {
-    if (!selectedDay) return false;
-    const [d, m, y] = selectedDay.split("/").map(Number);
-    if (!d || !m || !y) return false;
-    const dayDate = new Date(y, m - 1, d);
-    return toDateOnly(dayDate).getTime() === toDateOnly(new Date()).getTime();
-  }, [selectedDay]);
-
-  const isPastTimeInSelectedDay = (time) => {
-    if (!isSelectedDayToday) return false;
-    const [h, mi] = String(time).split(":").map(Number);
-    const now = new Date();
-    if (h < now.getHours()) return true;
-    if (h === now.getHours() && (mi || 0) <= now.getMinutes()) return true;
-    return false;
-  };
-
   const isSlotBooked = (time) => (selectedDay ? getBookedOfDay(selectedDay).includes(time) : false);
-  const isSlotPast = (time) => isPastTimeInSelectedDay(time);
+  const isSlotPast = (time) => (selectedDay ? !isBookingSlotInFuture(selectedDay, time) : false);
 
   const availableSlotCount = selectedDay
     ? (() => {
@@ -313,8 +334,10 @@ export function Booking() {
   if (mentorLoading) {
     return (
       <MentorPageShell bottomPad="pb-32">
-        <div className="flex min-h-[50vh] items-center justify-center px-6 text-sm font-medium text-slate-600">
-          Đang tải thông tin mentor…
+        <div className={`relative z-10 flex min-h-[50vh] items-center justify-center pb-8 pt-8 sm:pt-10 ${CUSTOMER_SHELL_GUTTER}`}>
+          <div className={`${CUSTOMER_SHELL_MAX} w-full text-center text-sm font-medium text-slate-600`}>
+            Đang tải thông tin mentor…
+          </div>
         </div>
       </MentorPageShell>
     );
@@ -323,15 +346,17 @@ export function Booking() {
   if (!mentor) {
     return (
       <MentorPageShell bottomPad="pb-32">
-        <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-6 text-center text-slate-600">
+        <div className={`relative z-10 flex min-h-[50vh] flex-col items-center justify-center gap-4 pb-8 pt-8 text-center text-slate-600 sm:pt-10 ${CUSTOMER_SHELL_GUTTER}`}>
+          <div className={`${CUSTOMER_SHELL_MAX} flex w-full flex-col items-center gap-4`}>
           <p>Không tìm thấy mentor hoặc mentor chưa mở nhận booking.</p>
           <button
             type="button"
             onClick={() => navigate("/mentors")}
-            className="rounded-full bg-[#93f72b] px-6 py-2 text-sm font-bold text-slate-900 shadow-sm transition hover:brightness-95"
+            className="rounded-full bg-[#93f72b] px-6 py-2 text-sm font-bold text-[#000000] shadow-sm transition hover:brightness-95"
           >
             Về danh sách mentor
           </button>
+          </div>
         </div>
       </MentorPageShell>
     );
@@ -339,53 +364,13 @@ export function Booking() {
 
   return (
     <MentorPageShell bottomPad="pb-32">
-      <div className="relative z-10 mx-auto max-w-3xl px-5 pt-8 font-sans text-slate-900 antialiased selection:bg-[rgba(122,35,229,0.18)] selection:text-slate-900 sm:px-6 sm:pt-10">
-        <button
-          type="button"
-          onClick={() => (step === 1 ? navigate(-1) : setStep(1))}
-          className="group -ml-1 mb-6 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition-colors hover:bg-white hover:text-slate-900"
+      <div className={`relative z-10 pb-8 pt-8 sm:pt-10 ${CUSTOMER_SHELL_GUTTER}`}>
+        <div
+          className={`${CUSTOMER_SHELL_MAX} w-full font-sans text-slate-900 antialiased selection:bg-[rgba(122,35,229,0.18)] selection:text-slate-900`}
         >
-          <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-0.5" />
-          {step === 1 ? "Quay lại" : "Quay lại chọn lịch"}
-        </button>
+        <BookingStepBar current={step} />
 
-        <div className="mb-8 flex select-none items-center gap-0">
-          {[
-            { n: 1, label: "Chọn lịch" },
-            { n: 2, label: "Thông tin & Xác nhận" },
-          ].map((s, i) => (
-            <span key={s.n} className="contents">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-black transition-all ${
-                    step > s.n
-                      ? "bg-[#93f72b] text-slate-900 shadow-[0_0_16px_rgba(196,255,71,0.45)]"
-                      : step === s.n
-                        ? "bg-gradient-to-br from-[#8037f4] to-[#a66ff8] text-white shadow-[0_0_0_3px_rgba(128,55,244,0.2)]"
-                        : "border border-slate-200 bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  {step > s.n ? <Check className="h-4 w-4" strokeWidth={2.5} /> : s.n}
-                </div>
-                <span
-                  className={`hidden text-sm font-bold sm:block ${
-                    step === s.n ? "text-[#4d6600]" : step > s.n ? "text-slate-600" : "text-slate-400"
-                  }`}
-                >
-                  {s.label}
-                </span>
-              </div>
-              {i < 1 && (
-                <div
-                  className={`mx-3 h-0.5 flex-1 rounded-full transition-colors ${
-                    step > s.n ? "bg-[#93f72b]" : "bg-slate-200"
-                  }`}
-                />
-              )}
-            </span>
-          ))}
-        </div>
-
+        {step === 1 ? (
         <div className="mb-6 flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <img
             src={avatarSrc(mentor.avatar)}
@@ -407,6 +392,7 @@ export function Booking() {
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">/ 60 phút</p>
           </div>
         </div>
+        ) : null}
 
         {step === 1 && (
           <div className="space-y-4">
@@ -417,13 +403,13 @@ export function Booking() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-slate-900">Chọn ngày phỏng vấn</p>
-                  <p className="text-xs text-slate-500">Lịch trống của {mentor.name} — theo thời gian hiện tại</p>
+                  <p className="text-xs text-slate-500">Lịch trống của {mentor.name}, theo thời gian hiện tại</p>
                 </div>
               </div>
               <div className="space-y-5 p-5">
                 {calendarWeeks.map((week) => (
                   <div key={week.label}>
-                    <p className="mb-3 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{week.label}</p>
+                    <p className="mb-3 text-[10px] font-black uppercase tracking-wide text-slate-500">{week.label}</p>
                     <div className="grid grid-cols-7 gap-2">
                       {week.days.map((d) => {
                         const isSelected = selectedDay === d.dateKey;
@@ -442,7 +428,7 @@ export function Booking() {
                             }}
                             className={`flex flex-col items-center rounded-xl py-3 transition-all ${
                               isSelected
-                                ? "bg-gradient-to-br from-[#8037f4] to-[#a66ff8] text-white shadow-[0_8px_24px_rgba(128,55,244,0.35)]"
+                                ? "bg-[#8037f4] text-white shadow-[0_8px_24px_rgba(128,55,244,0.35)]"
                                 : canBookDay
                                   ? "border border-slate-200 bg-white text-slate-900 shadow-sm hover:border-violet-300 hover:shadow-md"
                                   : "cursor-not-allowed border border-slate-100 bg-slate-50 opacity-45"
@@ -479,7 +465,7 @@ export function Booking() {
                 ))}
                 <div className="flex flex-wrap items-center gap-4 border-t border-slate-200 pt-3 text-xs text-slate-500">
                   <span className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#8037f4] to-[#a66ff8]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#8037f4]" />
                     Đã chọn
                   </span>
                   <span className="flex items-center gap-1.5">
@@ -516,7 +502,7 @@ export function Booking() {
                     <div key={group.label}>
                       <div className="mb-3 flex items-center gap-2">
                         <group.icon className="h-3.5 w-3.5 text-slate-500" />
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">{group.label}</p>
+                        <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">{group.label}</p>
                       </div>
                       <div className="grid grid-cols-4 gap-2">
                         {group.slots
@@ -538,7 +524,7 @@ export function Booking() {
                               onClick={() => setSelectedTime(time)}
                               className={`relative rounded-xl py-3 text-sm font-bold transition-all ${
                                 selected
-                                  ? "bg-gradient-to-br from-[#8037f4] to-[#a66ff8] text-white shadow-[0_6px_20px_rgba(128,55,244,0.35)]"
+                                  ? "bg-[#8037f4] text-white shadow-[0_6px_20px_rgba(128,55,244,0.35)]"
                                   : disabled
                                     ? "cursor-not-allowed border border-slate-100 bg-slate-50 text-slate-400"
                                     : "border border-slate-200 bg-white text-slate-900 shadow-sm hover:border-violet-300 hover:text-[#8037f4]"
@@ -597,13 +583,13 @@ export function Booking() {
               onClick={() => setStep(2)}
               className={`flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-black uppercase tracking-wide transition-all active:scale-[0.98] ${
                 selectedDay && selectedTime
-                  ? "bg-gradient-to-br from-[#8037f4] to-[#a66ff8] text-white shadow-[0_8px_28px_rgba(128,55,244,0.35)] hover:shadow-[0_12px_36px_rgba(128,55,244,0.45)]"
+                  ? "bg-[#8037f4] text-white shadow-[0_8px_28px_rgba(128,55,244,0.35)] hover:shadow-[0_12px_36px_rgba(128,55,244,0.45)]"
                   : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
               }`}
             >
               {selectedDay && selectedTime ? (
                 <>
-                  Tiếp tục — Thông tin và xác nhận <CaretRight className="h-4 w-4" />
+                  Tiếp tục, Thông tin và xác nhận <CaretRight className="h-4 w-4" />
                 </>
               ) : (
                 "Vui lòng chọn ngày và giờ"
@@ -614,22 +600,8 @@ export function Booking() {
 
         {step === 2 && (
           <div className="space-y-5">
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <CalendarBlank className="h-4 w-4 flex-shrink-0 text-[#8037f4]" />
-              <p className="min-w-0 flex-1 truncate text-sm font-bold text-slate-900">
-                {selectedDayFull} · {selectedTime} – {endTime}
-              </p>
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="flex-shrink-0 rounded-lg px-3 py-1 text-xs font-bold text-[#8037f4] transition-colors hover:bg-violet-50"
-              >
-                Đổi lịch
-              </button>
-            </div>
-
             {showSmartBanner && suggestedData && (
-              <div className="flex items-start gap-3 rounded-2xl border border-lime-200 bg-gradient-to-br from-lime-50 to-violet-50 p-4">
+              <div className="flex items-start gap-3 rounded-2xl border border-lime-200 bg-violet-50 p-4">
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-lime-100">
                   <Sparkle className="h-5 w-5 text-[#4d6600]" />
                 </div>
@@ -642,7 +614,7 @@ export function Booking() {
                     <button
                       type="button"
                       onClick={handleUseSmartFill}
-                      className="rounded-lg bg-gradient-to-br from-[#8037f4] to-[#a66ff8] px-4 py-1.5 text-xs font-black text-white shadow-lg"
+                      className="rounded-lg bg-[#8037f4] px-4 py-1.5 text-xs font-black text-white shadow-lg"
                     >
                       Dùng ngay
                     </button>
@@ -666,10 +638,10 @@ export function Booking() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
-              <div className="glass-card space-y-5 p-5 lg:col-span-3">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
+              <div className="glass-card space-y-5 p-5 lg:col-span-7 xl:col-span-8">
                 <div>
-                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Vị trí đang ứng tuyển <span className="text-[#4d6600]">*</span>
                   </label>
                   <input
@@ -681,7 +653,7 @@ export function Booking() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Tải lên CV <span className="font-normal normal-case text-slate-600">(bắt buộc)</span>
                   </label>
                   <input
@@ -704,12 +676,19 @@ export function Booking() {
                         : "border-slate-300 hover:border-violet-300 hover:bg-violet-50/40"
                     }`}
                   >
-                    {form.cv && selectedCvFile ? (
-                      <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#2f4200]">
-                        <Check className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-                        <span className="truncate max-w-[280px]" title={selectedCvFile}>
-                          {selectedCvFile}
-                        </span>
+                    {cvUploading ? (
+                      <p className="text-sm font-medium text-violet-700">Đang tải CV lên server…</p>
+                    ) : form.cv && selectedCvFile ? (
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#2f4200]">
+                          <Check className="h-4 w-4 shrink-0" strokeWidth={2.5} />
+                          <span className="truncate max-w-[280px]" title={selectedCvFile}>
+                            {selectedCvFile}
+                          </span>
+                        </div>
+                        {selectedCvUrl ? (
+                          <p className="text-xs text-slate-500">Mentor sẽ mở được file sau khi đặt lịch</p>
+                        ) : null}
                       </div>
                     ) : (
                       <div className="flex items-center justify-center gap-3">
@@ -724,7 +703,7 @@ export function Booking() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
                     Tải lên JD <span className="font-normal normal-case text-slate-600">(khuyến khích)</span>
                   </label>
                   <input
@@ -747,7 +726,9 @@ export function Booking() {
                         : "border-slate-300 hover:border-violet-300 hover:bg-violet-50/40"
                     }`}
                   >
-                    {form.jd && selectedJdFile ? (
+                    {jdUploading ? (
+                      <p className="text-sm font-medium text-violet-700">Đang tải JD lên server…</p>
+                    ) : form.jd && selectedJdFile ? (
                       <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#2f4200]">
                         <Check className="h-4 w-4 shrink-0" strokeWidth={2.5} />
                         <span className="truncate max-w-[280px]" title={selectedJdFile}>
@@ -767,7 +748,7 @@ export function Booking() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wider text-slate-500">Ghi chú (nếu có)</label>
+                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">Ghi chú (nếu có)</label>
                   <textarea
                     className={`${fieldClass} resize-none`}
                     rows={2}
@@ -778,10 +759,14 @@ export function Booking() {
                 </div>
               </div>
 
-              <div className="space-y-4 lg:col-span-2">
+              <div className="space-y-4 lg:col-span-5 xl:col-span-4">
                 <div className="glass-card p-5">
-                  <h2 className="mb-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Tóm tắt đặt lịch</h2>
+                  <h2 className="mb-4 text-[10px] font-black uppercase tracking-wide text-slate-500">Tóm tắt đặt lịch</h2>
                   <div className="space-y-3 text-sm">
+                    <div className="flex justify-between gap-2 border-b border-slate-100 pb-3">
+                      <span className="text-slate-500">Mentor</span>
+                      <span className="max-w-[60%] text-right font-semibold text-slate-900">{mentor.name}</span>
+                    </div>
                     <div className="flex justify-between gap-2">
                       <span className="flex items-center gap-2 text-slate-500">
                         <CalendarBlank className="h-3.5 w-3.5 text-slate-400" />
@@ -805,24 +790,6 @@ export function Booking() {
                       </span>
                       <span className="font-semibold text-slate-900">Google Meet</span>
                     </div>
-                    {form.cv && selectedCvFile && (
-                      <div className="flex justify-between gap-2">
-                        <span className="text-slate-500 shrink-0">CV</span>
-                        <span className="flex min-w-0 items-center gap-1 font-semibold text-[#2f4200]">
-                          <Check className="h-3 w-3 shrink-0" strokeWidth={3} />
-                          <span className="truncate" title={selectedCvFile}>{selectedCvFile}</span>
-                        </span>
-                      </div>
-                    )}
-                    {form.jd && selectedJdFile && (
-                      <div className="flex justify-between gap-2">
-                        <span className="text-slate-500 shrink-0">JD</span>
-                        <span className="flex min-w-0 items-center gap-1 font-semibold text-[#2f4200]">
-                          <Check className="h-3 w-3 shrink-0" strokeWidth={3} />
-                          <span className="truncate" title={selectedJdFile}>{selectedJdFile}</span>
-                        </span>
-                      </div>
-                    )}
                     <div className="flex justify-between border-t border-slate-200 pt-3">
                       <span className="font-bold text-slate-900">Tổng tiền</span>
                       <span className="text-lg font-black text-[#3d5200]">{mentor.price.toLocaleString("vi")}đ</span>
@@ -830,53 +797,46 @@ export function Booking() {
                   </div>
                 </div>
 
-                <div className="glass-card space-y-3 p-4">
-                  <div className="flex gap-2.5">
-                    <CurrencyCircleDollar className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-600" />
-                    <div>
-                      <p className="mb-0.5 text-xs font-bold text-slate-900">Hoàn tiền 100%</p>
-                      <p className="text-xs text-slate-600">Nếu mentor hủy hoặc bạn hủy từ 24 giờ trở lên trước buổi</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2.5">
-                    <ArrowsClockwise className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#4d6600]" />
-                    <div>
-                      <p className="mb-0.5 text-xs font-bold text-slate-900">Đổi lịch miễn phí</p>
-                      <p className="text-xs text-slate-600">Thông báo trước 24h · 1 lần mỗi lần đặt lịch</p>
-                    </div>
-                  </div>
+                <div className="glass-card p-4">
+                  <BookingPolicySummary variant="compact" />
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <Bell className="h-4 w-4 flex-shrink-0 text-amber-700" />
-              <p className="text-xs font-medium leading-relaxed text-amber-950/90">
-                Bạn sẽ nhận email nhắc nhở trước 24 giờ và 1 giờ trước buổi phỏng vấn.
+            <div className="flex items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/90 px-4 py-3">
+              <Bell className="h-4 w-4 flex-shrink-0 text-[#8037f4]" />
+              <p className="text-xs font-medium leading-relaxed text-violet-900/90">
+                Email nhắc lịch sẽ được gửi trước buổi phỏng vấn 01 giờ
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-1.5 text-xs text-slate-600">
-                <ShieldCheck className="h-4 w-4 flex-shrink-0 text-[#4d6600]" />
+                <ShieldCheck className="h-4 w-4 flex-shrink-0 text-[#8037f4]" />
                 Thanh toán bảo mật và mã hóa
               </div>
               <button
                 type="button"
-                disabled={!form.position || !form.cv || !selectedCvFile}
+                disabled={!form.position || !form.cv || !selectedCvFile || !selectedCvUrl || cvUploading || jdUploading}
                 onClick={handleProceed}
-                className={`ml-auto flex items-center gap-2 rounded-2xl px-8 py-4 text-sm font-black uppercase tracking-wide transition-all active:scale-[0.98] ${
-                  form.position && form.cv && selectedCvFile
-                    ? "bg-gradient-to-br from-[#8037f4] to-[#a66ff8] text-white shadow-[0_8px_28px_rgba(128,55,244,0.35)] hover:shadow-[0_12px_36px_rgba(128,55,244,0.45)]"
+                className={`flex w-full items-center justify-center gap-2 rounded-2xl px-8 py-4 text-sm font-black uppercase tracking-wide transition-all active:scale-[0.98] sm:w-auto ${
+                  form.position && form.cv && selectedCvFile && selectedCvUrl && !cvUploading && !jdUploading
+                    ? "shadow-[0_8px_28px_rgba(147,247,43,0.35)] hover:brightness-95"
                     : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400"
                 }`}
+                style={
+                  form.position && form.cv && selectedCvFile && selectedCvUrl && !cvUploading && !jdUploading
+                    ? BRAND_CTA_LIME_STYLE
+                    : undefined
+                }
               >
-                Tiếp tục thanh toán — {mentor.price.toLocaleString("vi")}đ
+                Tiếp tục thanh toán, {mentor.price.toLocaleString("vi")}đ
                 <CaretRight className="h-4 w-4" />
               </button>
             </div>
           </div>
         )}
+        </div>
       </div>
     </MentorPageShell>
   );

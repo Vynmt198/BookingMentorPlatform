@@ -12,8 +12,6 @@ export function AppLayout() {
   const user = getUser();
   const isMentor = user?.role === "mentor";
   const isHome = location.pathname === "/" || location.pathname === "";
-  const pathNorm = location.pathname.replace(/^\/+/, "");
-  const hideNavbar = pathNorm === "interview/room";
   const ambientModifier = isHome ? " app-shell-ambient--home" : "";
 
   useEffect(() => {
@@ -64,12 +62,8 @@ export function AppLayout() {
         aria-hidden
       />
       <div className="relative z-[1] flex min-h-svh w-full flex-col">
-        {!hideNavbar && <Navbar variant="customer" />}
-        <main
-          className={`relative z-[1] min-h-0 flex-1 ${
-            hideNavbar ? "flex min-h-svh flex-col pt-0" : "pt-[3.75rem] sm:pt-[4.25rem] md:pt-[4.75rem]"
-          }`}
-        >
+        <Navbar variant="customer" />
+        <main className="relative z-[1] min-h-0 flex-1 pt-[3.75rem] sm:pt-[4.25rem] md:pt-[4.75rem]">
           <Outlet />
         </main>
       </div>

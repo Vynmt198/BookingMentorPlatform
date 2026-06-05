@@ -9,7 +9,7 @@ import { Zap as Lightning } from "lucide-react";
 const PI = {
   pageGradient: "#ffffff",
   purple: "#8037f4",
-  lilac: "#a66ff8",
+  lilac: "#93f72b",
   lime: "#93f72b",
   limeDark: "#7fe015",
   limeSoft: "rgba(196,255,71,0.16)",
