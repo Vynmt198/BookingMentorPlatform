@@ -129,7 +129,7 @@ function HeroInterviewVideoCard() {
             <source src={HOME_AI_DEMO_VIDEO} type="video/mp4" />
           </video>
           <div
-            className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-violet-900/10"
+            className="pointer-events-none absolute inset-0 bg-violet-900/5"
             aria-hidden
           />
 
@@ -143,19 +143,13 @@ function HeroInterviewVideoCard() {
                   cy="18"
                   r="15.2"
                   fill="none"
-                  stroke="url(#heroHudScore)"
+                  stroke="#8037f4"
                   strokeWidth="3"
                   strokeLinecap="round"
                   strokeDasharray="86 96"
                 />
-                <defs>
-                  <linearGradient id="heroHudScore" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#8037f4" />
-                    <stop offset="100%" stopColor="#a66ff8" />
-                  </linearGradient>
-                </defs>
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-extrabold text-[#6d2fd6] sm:text-[10px]">
+              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-extrabold text-[#8037f4] sm:text-[10px]">
                 92
               </span>
             </div>
@@ -169,7 +163,7 @@ function HeroInterviewVideoCard() {
             {waveformHeights.map((h, i) => (
               <span
                 key={i}
-                className="hero-video-wave w-[2.5px] rounded-full bg-gradient-to-t from-[#8037f4] to-[#b794f6] sm:w-[3px]"
+                className="hero-video-wave w-[2.5px] rounded-full bg-[#8037f4] sm:w-[3px]"
                 style={{ height: `${h}%` }}
               />
             ))}
@@ -190,7 +184,7 @@ function HeroInterviewVideoCard() {
               {starBars.map((w, i) => (
                 <div key={i} className="h-1.5 w-16 overflow-hidden rounded-full bg-violet-100 sm:w-[4.5rem]">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#8037f4] to-[#a66ff8]"
+                    className="h-full rounded-full bg-[#8037f4]"
                     style={{ width: `${w}%` }}
                   />
                 </div>
@@ -206,7 +200,7 @@ function HeroInterviewVideoCard() {
             </div>
             <div className="flex items-center justify-between gap-3">
               <span>Confidence</span>
-              <span className="font-extrabold text-[#6d2fd6]">95%</span>
+              <span className="font-extrabold text-[#8037f4]">95%</span>
             </div>
             <div className="flex items-center justify-between gap-2">
               <span>Structure</span>
@@ -267,7 +261,7 @@ export function Home() {
     >
       <style>{`
         .cute-glass {
-          background: linear-gradient(180deg, rgba(0,0,0,0.03), rgba(0,0,0,0.03));
+          background: rgba(0,0,0,0.03);
           border: 1px solid rgba(255,255,255,0.1);
           backdrop-filter: blur(14px);
           box-shadow: 0 12px 40px rgba(0,0,0,0.28);
@@ -281,17 +275,17 @@ export function Home() {
           position: relative;
           border-radius: 24px;
           border: 1px solid rgba(0,0,0,0.03);
-          background: linear-gradient(180deg, rgba(0,0,0,0.03), rgba(255,255,255,0.025));
+          background: rgba(0,0,0,0.03);
           transform-style: preserve-3d;
           transition: transform .28s ease, border-color .25s ease, box-shadow .25s ease;
         }
         .cute-card:hover {
           transform: perspective(1000px) translateY(-7px) rotateX(2.5deg) rotateY(-2.5deg);
-          border-color: rgba(196, 255, 71,0.42);
+          border-color: rgba(128, 55, 244, 0.42);
           box-shadow:
             0 16px 40px rgba(0,0,0,0.4),
-            0 0 36px -8px rgba(196, 255, 71, 0.22),
-            0 0 0 1px rgba(196, 255, 71, 0.1) inset;
+            0 0 36px -8px rgba(128, 55, 244, 0.18),
+            0 0 0 1px rgba(128, 55, 244, 0.1) inset;
         }
         .parallax-layer {
           transform: translateZ(18px);
@@ -302,7 +296,7 @@ export function Home() {
           width: 160px;
           height: 160px;
           border-radius: 999px;
-          background: radial-gradient(circle, rgba(110,53,232,0.22), transparent 70%);
+          background: rgba(110,53,232,0.12);
           opacity: 0;
           transition: opacity .25s ease;
           pointer-events: none;
@@ -500,7 +494,7 @@ export function Home() {
         }
         /* Bước Nổi bật — nền tím nhạt */
         .home-step-featured-dots {
-          background: linear-gradient(180deg, #f0ebf8 0%, #ebe4f6 100%);
+          background: #f0ebf8;
           border-color: rgba(128, 55, 244, 0.42) !important;
           box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(128, 55, 244, 0.14) inset;
         }
@@ -519,9 +513,9 @@ export function Home() {
           transform: translateY(-2px);
         }
         .courses-cta-primary {
-          background: #bff365;
-          color: #131f00;
-          box-shadow: 0 10px 24px rgba(164, 214, 76, 0.35);
+          background: #93f72b;
+          color: #000000;
+          box-shadow: 0 10px 24px rgba(147, 247, 43, 0.35);
         }
         .courses-cta-primary:hover {
           box-shadow: 0 14px 32px rgba(164, 214, 76, 0.45);
@@ -580,61 +574,67 @@ export function Home() {
         ])}
 
         <div className={`relative z-10 ${HOME_SHELL_MAX}`}>
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(300px,520px)] lg:items-center lg:gap-x-12 xl:gap-x-16">
-            <div className="order-1 min-w-0 text-left lg:py-2">
-              <div className="hero-intro-badge mb-5 -translate-y-[4.5rem]">
-                <div
-                  className="inline-flex items-center gap-2 rounded-full border-2 bg-white px-3 py-1.5 text-xs font-bold sm:text-sm"
-                  style={{
-                    borderColor: "rgba(128, 55, 244, 0.42)",
-                    color: "#8037f4",
-                  }}
-                >
-                  <SparkleGlyph className="h-3.5 w-3.5 shrink-0" />
-                  {HOME_COPY.badge}
-                </div>
-              </div>
-
-              <div className="hero-intro-copy -translate-y-[2rem]">
-                <h1
-                  className="hero-title-stack mb-6 max-w-full font-headline text-slate-900 cute-heading"
-                  style={{
-                    fontSize: HOME_HERO_TITLE_CLAMP,
-                  }}
-                >
-                  <span className="hero-title-line text-slate-900">
-                    {HOME_COPY.titleLine1}{" "}
-                    <span className="hero-title-highlight" style={{ color: "#8037f4" }}>
-                      {HOME_COPY.titleHighlight}
-                    </span>
-                  </span>
-                  <span className="hero-title-line text-slate-900">
-                    {HOME_COPY.titleLine2Suffix} {HOME_COPY.titleExtraLines?.[0] ?? ""}
-                  </span>
-                  <span className="hero-title-line text-slate-900">
-                    {HOME_COPY.titleExtraLines?.[1] ?? ""} {HOME_COPY.titleExtraLines?.[2] ?? ""}
-                  </span>
-                </h1>
-
-                <div className="mb-5 flex flex-col gap-3 translate-y-[2rem] sm:flex-row sm:justify-start">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/cv-analysis")}
-                    className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-black transition-all hover:brightness-105 active:scale-[0.98] hover:-translate-y-0.5 sm:text-base"
-                    style={{
-                      background: "#93f72b",
-                      color: "#0f172a",
-                      boxShadow: "0 8px 22px rgba(147, 247, 43, 0.35)",
-                    }}
-                  >
-                    <Lightning className="h-3.5 w-3.5" />
-                    {HOME_COPY.cta}
-                  </button>
-                </div>
+          <div className="mx-auto flex max-w-4xl flex-col items-center text-center lg:py-2">
+            <div className="hero-intro-badge mb-5 -translate-y-[4.5rem] flex justify-center">
+              <div
+                className="inline-flex items-center gap-2 rounded-full border-2 bg-white px-3 py-1.5 text-xs font-bold sm:text-sm"
+                style={{
+                  borderColor: "rgba(128, 55, 244, 0.42)",
+                  color: "#8037f4",
+                }}
+              >
+                <SparkleGlyph className="h-3.5 w-3.5 shrink-0" />
+                {HOME_COPY.badge}
               </div>
             </div>
 
+            <div className="hero-intro-copy -translate-y-[2rem] flex w-full flex-col items-center">
+              <h1
+                className="hero-title-stack mb-6 max-w-full font-headline text-center text-slate-900 cute-heading"
+                style={{
+                  fontSize: HOME_HERO_TITLE_CLAMP,
+                }}
+              >
+                <span className="hero-title-line text-slate-900">
+                  {HOME_COPY.titleLine1}{" "}
+                  <span className="hero-title-highlight" style={{ color: "#8037f4" }}>
+                    {HOME_COPY.titleHighlight}
+                  </span>
+                </span>
+                <span className="hero-title-line text-slate-900">
+                  {HOME_COPY.titleLine2}
+                </span>
+              </h1>
 
+              <div className="mb-5 flex translate-y-[2rem] flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => navigate("/mentors")}
+                  className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-black transition-all hover:brightness-105 active:scale-[0.98] hover:-translate-y-0.5 sm:px-6 sm:text-base"
+                  style={{
+                    background: "#93f72b",
+                    color: "#000000",
+                    boxShadow: "0 8px 22px rgba(147, 247, 43, 0.35)",
+                  }}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  {HOME_COPY.ctaMentor}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/cv-analysis")}
+                  className="inline-flex items-center justify-center gap-2 rounded-full border-2 bg-white px-5 py-2.5 text-sm font-black transition-all hover:scale-[1.02] active:scale-[0.98] sm:px-6 sm:text-base"
+                  style={{
+                    borderColor: "rgba(128, 55, 244, 0.45)",
+                    color: "#8037f4",
+                    boxShadow: "0 6px 18px rgba(128, 55, 244, 0.12)",
+                  }}
+                >
+                  <Lightning className="h-3.5 w-3.5" />
+                  {HOME_COPY.cta}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -675,7 +675,7 @@ export function Home() {
             </div>
           </LandingReveal>
 
-          <LandingStagger className="grid grid-cols-1 md:grid-cols-4 gap-5" stagger={0.1}>
+          <LandingStagger className="grid grid-cols-1 gap-5 md:grid-cols-3" stagger={0.1}>
             {STEPS.map((s, i) => (
               <LandingItem key={i}>
               <div
@@ -686,7 +686,7 @@ export function Home() {
                     : "border-black/[0.05]"
                   }`}
                 style={i === 1 ? undefined : {
-                  background: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,245,255,0.97) 100%)",
+                  background: "rgba(255,255,255,0.98)",
                   boxShadow: "0 12px 26px rgba(15,23,42,0.09), 0 2px 10px rgba(95,0,240,0.08)",
                 }}
               >
@@ -696,11 +696,11 @@ export function Home() {
                     {(i === 1 || i === 2) && (
                     <span
                         className={`inline-flex px-2 py-1 text-[10px] sm:text-[11px] font-bold tracking-wide rounded-md border ${i === 1
-                          ? "border-[#8037f4]/50 bg-white/90 text-[#6d2fd6]"
+                          ? "border-[#8037f4]/50 bg-white/90 text-[#8037f4]"
                           : "border-violet-200 bg-violet-100 text-violet-800 shadow-sm"
                           }`}
                       >
-                        {i === 1 ? "Nổi bật" : "Gợi ý mentor"}
+                        {i === 1 ? "Nổi bật" : "Học thêm"}
                       </span>
                     )}
                   </div>
@@ -713,7 +713,7 @@ export function Home() {
                       className={`text-8xl font-black italic leading-none ${
                         i === 1
                           ? "text-[#d4c8eb] group-hover:text-[#c9b9e6]"
-                          : "text-[#6d2fd6]/30"
+                          : "text-[#8037f4]/30"
                       }`}
                     >
                       {s.step}
@@ -726,7 +726,7 @@ export function Home() {
                         ? "bg-[#8037f4] text-[#ffffff] shadow-[0_0_24px_rgba(167,139,250,0.12)]"
                         : i === 1
                           ? "border-2 border-[#630ed4] bg-white text-[#630ed4]"
-                          : "border border-white/10 bg-white/5 text-[#8037f4] group-hover:border-[#8037f4]/35 group-hover:bg-[#8037f4]/15"
+                          : "border-2 border-[#8037f4]/35 bg-white text-[#8037f4] shadow-[0_0_20px_rgba(128,55,244,0.1)]"
                     }`}
                   >
                     <s.icon className="h-[1.4rem] w-[1.4rem] sm:h-6 sm:w-6" />

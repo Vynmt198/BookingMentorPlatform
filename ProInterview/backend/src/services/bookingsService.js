@@ -9,6 +9,7 @@ import { Payment } from "../models/Payment.js";
 import { ensureMentorProfilesForAllMentorUsers } from "./mentorProfileService.js";
 import { recordAdminTransferSuccess, recordTransferPending, recordTransferSubmitted } from "./paymentsService.js";
 import { tryCreditMentorForCompletedBooking } from "./mentorEarningsService.js";
+import { resolveBookingPlatformFeeRate } from "./mentorCommissionService.js";
 import { runInTransaction } from "../helpers/dbHelper.js";
 import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
 import { isBookingInLiveWindow } from "../utils/bookingSchedule.js";
@@ -620,7 +621,7 @@ export async function createBooking(userId, body) {
     : null;
   if (st && typeof st.price === "number" && st.price > 0) basePrice = st.price;
 
-  const platformRate = parseFeeRate(process.env.BOOKING_PLATFORM_FEE_RATE, 0.15);
+  const { rate: platformRate } = resolveBookingPlatformFeeRate(mentor);
   /** VAT tách trong giá hiển thị (mentor.price), không cộng thêm lên số khách CK. */
   const vatRate = parseFeeRate(process.env.BOOKING_VAT_RATE, 0);
 
@@ -703,6 +704,7 @@ export async function createBooking(userId, body) {
     meetingLink,
     status,
     price,
+    platformFeeRate: platformRate,
     platformFee,
     vat,
     totalAmount,
@@ -850,6 +852,7 @@ export function toPublicBooking(doc, mentorLean) {
     meetingLink: b.meetingLink ?? "",
     status: b.status,
     price: b.price,
+    platformFeeRate: b.platformFeeRate ?? null,
     platformFee: b.platformFee,
     vat: b.vat,
     totalAmount: b.totalAmount,

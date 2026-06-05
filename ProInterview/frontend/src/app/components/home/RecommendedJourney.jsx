@@ -162,7 +162,7 @@ export function RecommendedJourney({
     <div
       className="p-8 rounded-3xl"
       style={{
-        background: "linear-gradient(135deg, rgba(128, 55, 244,0.12) 0%, rgba(180,240,0,0.08) 100%)",
+        background: "rgba(128, 55, 244, 0.1)",
         border: "1px solid rgba(128, 55, 244,0.25)",
       }}
     >
@@ -203,8 +203,7 @@ export function RecommendedJourney({
         <div
           className="hidden md:block absolute top-12 left-[16.66%] right-[16.66%] h-0.5"
           style={{
-            background:
-              "linear-gradient(90deg, rgba(128, 55, 244,0.3), rgba(180,240,0,0.3), rgba(255,184,0,0.3))",
+            background: "rgba(128, 55, 244, 0.28)",
           }}
         />
 
@@ -229,7 +228,7 @@ export function RecommendedJourney({
                       background: isCompleted
                         ? "#93f72b"
                         : isActive
-                        ? `linear-gradient(135deg, ${step.color}DD, ${step.color})`
+                        ? step.color
                         : step.bgColor,
                       border: `2px solid ${
                         isCompleted

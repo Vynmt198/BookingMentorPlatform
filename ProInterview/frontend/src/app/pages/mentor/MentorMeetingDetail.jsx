@@ -369,7 +369,7 @@ export function MentorMeetingDetail() {
                     <div className="space-y-10">
                        {[
                          { label: "Situation", key: "situation", color: "#8037f4", desc: "Xác định hoàn cảnh và bối cảnh cụ thể" },
-                         { label: "Task", key: "task", color: "#a66ff8", desc: "Nhiệm vụ và mục tiêu cần đạt được" },
+                         { label: "Task", key: "task", color: "#93f72b", desc: "Nhiệm vụ và mục tiêu cần đạt được" },
                          { label: "Action", key: "action", color: "#93f72b", desc: "Hành động thực tế đã triển khai" },
                          { label: "Result", key: "result", color: "#FF8C42", desc: "Kết quả cuối cùng và giá trị đạt được" }
                        ].map((item) => {
@@ -506,7 +506,7 @@ export function MentorMeetingDetail() {
                          <button
                             onClick={() => navigate(`/meeting/${meeting.id}`)}
                             disabled={busyAction !== ""}
-                            className="w-full py-5 rounded-3xl bg-primary-fixed text-black text-[10px] font-black uppercase tracking-widest shadow-[0_15px_40px_rgba(196, 255, 71,0.32)] hover:scale-105 transition-all"
+                            className="w-full py-5 rounded-3xl bg-primary-fixed text-[#000000] text-[10px] font-black uppercase tracking-widest shadow-[0_15px_40px_rgba(196, 255, 71,0.32)] hover:scale-105 transition-all"
                          >
                              Vào phòng họp ngay
                           </button>
@@ -548,7 +548,7 @@ export function MentorMeetingDetail() {
                        <>
                           <button 
                             onClick={() => navigate(`/mentor/session-feedback/${meeting.id}`)}
-                            className="w-full py-5 rounded-3xl bg-primary-fixed text-black text-[10px] font-black uppercase tracking-widest shadow-[0_15px_40px_rgba(196, 255, 71,0.32)] hover:scale-105 transition-all flex items-center justify-center gap-2"
+                            className="w-full py-5 rounded-3xl bg-primary-fixed text-[#000000] text-[10px] font-black uppercase tracking-widest shadow-[0_15px_40px_rgba(196, 255, 71,0.32)] hover:scale-105 transition-all flex items-center justify-center gap-2"
                           >
                              <TrendingUp size={16} /> Gửi feedback bổ sung
                           </button>
@@ -615,7 +615,7 @@ export function MentorMeetingDetail() {
                 {actionError && <p className="text-xs text-red-400 font-bold">{actionError}</p>}
                 <div className="flex justify-end gap-3">
                   <button onClick={() => setActionModal("")} className="px-5 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-black text-zinc-300">Đóng</button>
-                  <button onClick={handleMentorReschedule} disabled={busyAction !== "" || !canReschedule || loadingSlots || slotOptions.length === 0} className="px-5 py-3 rounded-xl bg-primary-fixed text-black text-xs font-black disabled:opacity-60">
+                  <button onClick={handleMentorReschedule} disabled={busyAction !== "" || !canReschedule || loadingSlots || slotOptions.length === 0} className="px-5 py-3 rounded-xl bg-primary-fixed text-[#000000] text-xs font-black disabled:opacity-60">
                     {busyAction === "reschedule" ? "Đang dời lịch..." : "Xác nhận dời lịch"}
                   </button>
                 </div>

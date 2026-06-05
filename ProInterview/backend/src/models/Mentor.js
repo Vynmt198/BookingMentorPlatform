@@ -94,6 +94,14 @@ const mentorSchema = new Schema(
       reviewedAt: { type: Date, default: null },
       reviewedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     },
+    pricing: {
+      mentorActivatedAt: { type: Date, default: null },
+      platformFeeRate: { type: Number, default: null },
+      coursePlatformFeeRate: { type: Number, default: null },
+      isEarlyMentor: { type: Boolean, default: false },
+      earlyMentorRank: { type: Number, default: null },
+      earlyMentorExpiresAt: { type: Date, default: null },
+    },
   },
   { collection: "mentors", timestamps: true }
 );

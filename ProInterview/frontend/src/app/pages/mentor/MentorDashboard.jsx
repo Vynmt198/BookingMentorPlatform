@@ -90,7 +90,7 @@ function MenteeProgressModal({
   const starComponents = star
     ? [
         { key: "situation", label: "Situation", value: star.situation, color: "#8037f4" },
-        { key: "task", label: "Task", color: "#a66ff8", value: star.task },
+        { key: "task", label: "Task", color: "#93f72b", value: star.task },
         { key: "action", label: "Action", color: "#93f72b", value: star.action },
         { key: "result", label: "Result", color: "#FF8C42", value: star.result },
       ]
@@ -119,7 +119,7 @@ function MenteeProgressModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
-        <div className="relative border-b border-slate-200 bg-gradient-to-br from-violet-50 to-white p-8">
+        <div className="relative border-b border-slate-200 bg-white p-8">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-6">
                <div className="relative">
@@ -358,7 +358,7 @@ export function MentorDashboard() {
             </p>
           </div>
           <div className="flex gap-4">
-              <button type="button" onClick={() => navigate("/mentor/schedule")} className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#93f72b] to-[#7fe015] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-[#0a0814] shadow-[0_8px_24px_rgba(196,255,71,0.22)] transition-all hover:brightness-110">
+              <button type="button" onClick={() => navigate("/mentor/schedule")} className="flex items-center gap-2 rounded-xl bg-[#93f72b] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-[#0a0814] shadow-[0_8px_24px_rgba(196,255,71,0.22)] transition-all hover:brightness-110">
                  <Plus size={16} /> Tạo lịch mới
               </button>
           </div>
@@ -371,7 +371,7 @@ export function MentorDashboard() {
              { label: "Lịch hẹn sắp tới", value: stats.upcomingMeetings, sub: "Trong 7 ngày tới", icon: CalendarBlank, color: "#f59e0b" },
              { label: "Doanh thu tạm tính", value: `${(stats.totalEarnings / 1000000).toFixed(1)}M`, sub: "Sẵn sàng rút tiền", icon: CurrencyCircleDollar, color: "#93f72b" }
            ].map((stat, i) => (
-             <div key={i} className="glass-card group relative overflow-hidden bg-gradient-to-br from-white to-slate-50 p-5 sm:p-6">
+             <div key={i} className="glass-card group relative overflow-hidden bg-white p-5 sm:p-6">
                 <div className="absolute right-0 top-0 h-24 w-24 translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-violet-100/80 to-transparent" />
                 <div className="mb-4 flex items-center gap-3">
                    <div className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-slate-200 bg-white shadow-sm transition-all group-hover:border-violet-200">
@@ -486,7 +486,7 @@ export function MentorDashboard() {
               </div>
 
               {/* Peer Review Call-to-action */}
-              <div className="glass-card group relative overflow-hidden border-violet-200 bg-gradient-to-br from-violet-50 to-white p-5 sm:p-6">
+              <div className="glass-card group relative overflow-hidden border-violet-200 bg-white p-5 sm:p-6">
                  <div className="pointer-events-none absolute right-0 top-0 p-4 opacity-[0.12] transition-all duration-700 group-hover:rotate-0" style={{ transform: "rotate(12deg)" }}>
                     <SealCheck size={80} className="text-violet-500" />
                  </div>

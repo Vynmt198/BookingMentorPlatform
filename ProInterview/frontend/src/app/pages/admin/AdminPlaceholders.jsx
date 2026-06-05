@@ -61,7 +61,7 @@ function statusLabel(status) {
   if (key === "course_pending_ck") return "Chờ SePay (khóa học)";
   if (key === "confirmed") return "Đã xác nhận";
   if (key === "completed") return "Hoàn thành";
-  if (key === "approved") return "Đã duyệt — chờ chi";
+  if (key === "approved") return "Đã duyệt, chờ chi";
   if (key === "paid") return "Đã chuyển khoản";
   if (key === "cancelled") return "Đã hủy";
   if (key === "rejected") return "Đã từ chối";
@@ -110,9 +110,6 @@ export function AdminUserDetail() {
 
   return (
     <AdminPanel title="Chi tiết người dùng" description="Thông tin tài khoản và quota.">
-      <Link to="/admin/users" className="mb-4 inline-block text-sm font-semibold text-violet-700 hover:underline">
-        ← Danh sách người dùng
-      </Link>
       {loading && <p className="text-sm text-slate-500">Đang tải…</p>}
       {error && !loading && <p className="text-sm text-red-600">{error}</p>}
       {user && (
@@ -123,6 +120,7 @@ export function AdminUserDetail() {
             <p><span className="font-semibold">Vai trò:</span> {user.role}</p>
             <p><span className="font-semibold">Gói:</span> {user.plan || "free"}</p>
             <p><span className="font-semibold">CV đã dùng:</span> {user.quota?.cvAnalysisUsed ?? 0} / {user.quota?.cvAnalysisLimit ?? 3}</p>
+            <p><span className="font-semibold">Phỏng vấn AI:</span> {user.quota?.interviewUsed ?? 0} / {user.quota?.interviewLimit ?? user.quota?.interviewQuestionsAllowed ?? 1}</p>
             <p><span className="font-semibold">Lịch hẹn:</span> {user.stats?.bookingsCount ?? 0}</p>
             <p><span className="font-semibold">Khóa học:</span> {user.stats?.enrollmentsCount ?? 0}</p>
             <p><span className="font-semibold">Trạng thái:</span> {user.isActive === false ? "Đã khóa" : "Hoạt động"}</p>
@@ -141,7 +139,7 @@ export function AdminUserDetail() {
   );
 }
 
-/** @deprecated — dùng `AdminMentorDetail.jsx` */
+/** @deprecated, dùng `AdminMentorDetail.jsx` */
 export { AdminMentorDetail } from "./AdminMentorDetail.jsx";
 
 function bookingAmount(b) {
@@ -223,7 +221,7 @@ export function AdminFinance() {
       >
         <div className="min-w-0 flex-1">
           <h2 className="font-headline text-3xl font-black uppercase tracking-tighter text-slate-900">
-            <span className="text-violet-700">Tài chính</span> — Tổng quan
+            <span className="text-violet-700">Tài chính</span>, Tổng quan
           </h2>
         </div>
         <button
@@ -1298,7 +1296,7 @@ export function AdminPayouts() {
   );
 }
 
-/** @deprecated — dùng `AdminBookingDetail.jsx` */
+/** @deprecated, dùng `AdminBookingDetail.jsx` */
 export { AdminBookingDetail } from "./AdminBookingDetail.jsx";
 
 const INTERVIEW_STATUS_VI = {
@@ -1598,6 +1596,7 @@ export function AdminSystemSettings() {
                   <tr className="text-left text-xs uppercase text-slate-500">
                     <th className="py-2 pr-4">Gói</th>
                     <th className="py-2 pr-4">CV/tháng</th>
+                    <th className="py-2">Phỏng vấn AI</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1605,6 +1604,7 @@ export function AdminSystemSettings() {
                     <tr key={p.key} className="border-t border-slate-100">
                       <td className="py-2 pr-4 font-medium">{p.label || p.key}</td>
                       <td className="py-2 pr-4">{p.cvAnalysisLimit}</td>
+                      <td className="py-2">{p.interviewLimit}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1631,5 +1631,5 @@ export function AdminSystemSettings() {
   );
 }
 
-/** @deprecated — dùng `AdminSupport.jsx` */
+/** @deprecated, dùng `AdminSupport.jsx` */
 export { AdminSupport } from "./AdminSupport.jsx";

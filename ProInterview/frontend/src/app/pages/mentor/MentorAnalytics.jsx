@@ -383,7 +383,7 @@ export function MentorAnalytics() {
                </div>
                
                <div className="p-6 border-t border-slate-200 bg-slate-100 flex justify-end">
-                  <button onClick={() => setSelectedMentee(null)} className="px-8 py-4 rounded-xl bg-white text-black text-[10px] font-black uppercase tracking-widest">Đóng phân tích</button>
+                  <button onClick={() => setSelectedMentee(null)} className="px-8 py-4 rounded-xl bg-white text-slate-900 text-[10px] font-black uppercase tracking-widest">Đóng phân tích</button>
                </div>
             </motion.div>
           </motion.div>

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { CheckCircle, XCircle, FileText, Briefcase } from "lucide-react";
 import { adminApi } from "../../utils/adminApi";
 import { getInitials } from "../../utils/auth";
+import { formatEducationDisplay } from "../../utils/profileEducationHistory";
 import { formatWorkHistoryLines, parseWorkHistory } from "../../utils/profileWorkHistory";
 import { toast } from "sonner";
 
@@ -36,7 +37,7 @@ function hasUsableAvatar(url) {
   return s.startsWith("http") || s.startsWith("/");
 }
 
-/** Portal ra body — tránh fixed bị kẹt trong layout overflow-hidden của admin shell. */
+/** Portal ra body, tránh fixed bị kẹt trong layout overflow-hidden của admin shell. */
 function AdminModalPortal({ onClose, children, maxWidthClass = "max-w-2xl" }) {
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6 md:p-8">
@@ -121,9 +122,10 @@ function getMentorPreviewFromApplication(mentor) {
     ? mentor.companies.filter(Boolean)
     : [];
 
-  const education =
+  const educationRaw =
     String(mentor?.profileEducation ?? "").trim() ||
     String(u.profileEducation || u.school || "").trim();
+  const education = formatEducationDisplay(educationRaw);
 
   const rawWork =
     String(mentor?.profileWorkExperience ?? "").trim() ||
@@ -426,7 +428,7 @@ export function AdminMentorsPending() {
                   setPreviewMentor(null);
                   await handleApprove(id);
                 }}
-                className="rounded-xl border border-[#7fe015]/50 bg-[#93f72b] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#2D1B69] shadow-[0_8px_20px_rgba(180,245,0,0.35)] transition hover:brightness-95"
+                className="rounded-xl border border-[#93f72b]/50 bg-[#93f72b] px-4 py-2 text-xs font-black uppercase tracking-wider text-[#000000] shadow-[0_8px_20px_rgba(147,247,43,0.35)] transition hover:brightness-95"
               >
                 Phê duyệt
               </button>

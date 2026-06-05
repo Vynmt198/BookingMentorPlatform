@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { buildAdminTransferConfirmBody } from "../../utils/adminTransferConfirm.js";
 
 /**
- * Admin xác nhận CK thủ công — không cần học viên bấm «đã chuyển khoản» trong app.
+ * Admin xác nhận CK thủ công, không cần học viên bấm «đã chuyển khoản» trong app.
  * onConfirm nhận { force, forceNote }.
  */
 export function AdminSepayOverrideAction({
@@ -63,7 +63,7 @@ export function AdminSepayOverrideAction({
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">
                   Dùng khi đã kiểm tra sao kê (mã PI + đúng số tiền) nhưng SePay không tự khớp.{" "}
-                  <strong>Không cần</strong> học viên bấm «đã chuyển khoản» trong app — có thể nhắn Zalo/email
+                  <strong>Không cần</strong> học viên bấm «đã chuyển khoản» trong app, có thể nhắn Zalo/email
                   báo admin.
                 </p>
               </div>

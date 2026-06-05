@@ -1,22 +1,25 @@
-/** Màu brand ProInterview — đồng bộ với `src/styles/brand.css` (--pi-*). */
+/** Palette: #8037f4 · #000000 · #28552a · #93f72b — đồng bộ `src/styles/brand.css` */
 export const BRAND_PURPLE = "#8037f4";
-export const BRAND_PURPLE_HOVER = "#6d2fd6";
-export const BRAND_PURPLE_LIGHT = "#a66ff8";
+export const BRAND_BLACK = "#000000";
+export const BRAND_GREEN_DARK = "#28552a";
+export const BRAND_LIME = "#93f72b";
+
+export const BRAND_PURPLE_HOVER = "color-mix(in srgb, #8037f4 88%, #000000)";
 export const BRAND_PURPLE_SOFT = "rgba(128, 55, 244, 0.12)";
 export const BRAND_PURPLE_SOFT_LIGHT = "rgba(128, 55, 244, 0.08)";
 export const BRAND_PURPLE_BORDER = "rgba(128, 55, 244, 0.28)";
-export const BRAND_LIME = "#93f72b";
-export const BRAND_LIME_HOVER = "#7fe015";
+export const BRAND_LIME_HOVER = "color-mix(in srgb, #93f72b 88%, #28552a)";
 export const BRAND_LIME_SOFT = "rgba(147, 247, 43, 0.14)";
 export const BRAND_LIME_BORDER = "rgba(147, 247, 43, 0.28)";
+export const BRAND_GREEN_SOFT = "rgba(40, 85, 42, 0.12)";
 
-/** Nút CTA lime — nền phẳng, không gradient. */
+/** Nút CTA lime — nền lime, chữ đen */
 export const BRAND_CTA_LIME_STYLE = {
   background: BRAND_LIME,
-  color: "#0f172a",
+  color: BRAND_BLACK,
 };
 
-/** Nút primary tím — nền phẳng. */
+/** Nút primary tím */
 export const BRAND_CTA_PURPLE_STYLE = {
   background: BRAND_PURPLE,
   color: "#ffffff",

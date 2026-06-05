@@ -91,7 +91,7 @@ export function ReportMentorModal({
       >
         <div
           className="px-6 py-5 flex items-center justify-between"
-          style={{ background: "linear-gradient(135deg, #EF4444, #FF8C42)" }}
+          style={{ background: "#EF4444" }}
         >
           <div className="flex items-center gap-3">
             <div
@@ -215,7 +215,7 @@ export function ReportMentorModal({
               disabled={submitting}
               className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all hover:brightness-110 flex items-center justify-center gap-2 disabled:opacity-60"
               style={{
-                background: "linear-gradient(135deg, #EF4444, #FF8C42)",
+                background: "#EF4444",
                 color: "#fff",
                 boxShadow: "0 4px 16px rgba(239,68,68,0.3)",
               }}

@@ -96,7 +96,7 @@ export function CVAnalysisResultContent({
 
               {/* Free-tier notice */}
               {lockResultForFreePlan && (
-                <div className="flex items-center gap-4 rounded-2xl px-5 py-4 mb-6" style={{ background: "linear-gradient(135deg,rgba(128, 55, 244,0.08),rgba(139, 77, 255,0.05))", border: "1.5px solid rgba(128, 55, 244,0.2)" }}>
+                <div className="flex items-center gap-4 rounded-2xl px-5 py-4 mb-6" style={{ background: "rgba(128, 55, 244, 0.08)", border: "1.5px solid rgba(128, 55, 244,0.2)" }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(128, 55, 244,0.15)" }}><Lock className="w-5 h-5 text-[#8037f4]" /></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-slate-900">Đang xem bản xem trước — Gói Free</p>
@@ -259,7 +259,7 @@ export function CVAnalysisResultContent({
                         <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
                           <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" strokeWidth="10" />
                           <circle cx="50" cy="50" r="40" fill="none" stroke="url(#sg)" strokeWidth="10" strokeDasharray={`${overallScore * 2.51} 251`} strokeLinecap="round" />
-                          <defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#8037f4" /><stop offset="100%" stopColor="#a66ff8" /></linearGradient></defs>
+                          <defs><linearGradient id="sg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#8037f4" /><stop offset="100%" stopColor="#93f72b" /></linearGradient></defs>
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
                           <span className="text-[1.6rem] font-bold text-slate-900">{overallScore}</span>
@@ -293,7 +293,7 @@ export function CVAnalysisResultContent({
                               className="h-full rounded-full transition-all duration-700"
                               style={{
                                 width: `${(row.score / row.max) * 100}%`,
-                                background: row.status === "good" ? "#84cc16" : row.status === "ok" ? "#a66ff8" : "#f97316",
+                                background: row.status === "good" ? "#84cc16" : row.status === "ok" ? "#93f72b" : "#f97316",
                               }}
                             />
                           </div>

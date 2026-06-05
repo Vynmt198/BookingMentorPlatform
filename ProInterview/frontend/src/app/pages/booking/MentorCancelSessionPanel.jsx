@@ -40,7 +40,7 @@ export function MentorCancelSessionPanel({
       animate={{ opacity: 1, y: 0 }}
       className="mb-8 space-y-6"
     >
-      <motion.div className="rounded-[22px] border-2 border-violet-300/80 bg-gradient-to-br from-violet-50 via-white to-violet-50/40 p-6 shadow-sm sm:p-8">
+      <motion.div className="rounded-[22px] border-2 border-violet-300/80 bg-white p-6 shadow-sm sm:p-8">
         <div className="mb-6 flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-violet-300 bg-violet-100">
             <WarningCircle className="h-6 w-6 text-violet-800" />

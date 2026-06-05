@@ -34,7 +34,7 @@ export function FlowStepBar({
         <span
           className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold transition-colors ${
             active || done
-              ? "bg-[#6d2fd6] text-white shadow-[0_4px_14px_rgba(128,55,244,0.28)]"
+              ? "bg-[#8037f4] text-white shadow-[0_4px_14px_rgba(128,55,244,0.28)]"
               : "border-2 border-violet-200 bg-white text-violet-400"
           }`}
         >
@@ -42,7 +42,7 @@ export function FlowStepBar({
         </span>
         <span
           className={`max-w-[7.5rem] text-center text-[11px] font-bold uppercase leading-tight tracking-wide sm:max-w-none sm:text-xs ${
-            active ? "text-[#6d2fd6]" : done ? "text-violet-800" : "text-violet-400"
+            active ? "text-[#8037f4]" : done ? "text-violet-800" : "text-violet-400"
           }`}
         >
           {s.label}

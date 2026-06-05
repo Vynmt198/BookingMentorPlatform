@@ -247,7 +247,7 @@ function CustomerNavbar() {
             <ShoppingCart className="h-5 w-5 text-[#8037f4]/75" />
             {cartItemsCount > 0 && (
               <span
-                className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#1d1a26]"
+                className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#000000]"
                 style={{
                   background: "#93f72b",
                   fontSize: "0.6rem",
@@ -275,7 +275,7 @@ function CustomerNavbar() {
                       <Bell className="h-5 w-5 text-[#8037f4]/75" />
                       {unreadCount > 0 && (
                         <span
-                          className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#1d1a26]"
+                          className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#000000]"
                           style={{
                             background: "#93f72b",
                             fontSize: "0.6rem",
@@ -574,7 +574,7 @@ function MentorNavbar() {
               <Bell className="h-5 w-5 text-[#8037f4]/75" />
               {unreadCount > 0 && (
                 <span
-                  className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#1d1a26]"
+                  className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#000000]"
                   style={{
                     background: "#93f72b",
                     fontSize: "0.6rem",

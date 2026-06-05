@@ -63,7 +63,7 @@ export function CvAnalysisHubHero({ onJd, onField }) {
               </CustomerPageBadge>
 
               <h1 className="max-w-[min(100%,32rem)] font-headline tracking-tight">
-                <span className="block text-[clamp(1.8rem,4.35vw,2.65rem)] font-extrabold leading-[1.15] text-[#1a1b23]">
+                <span className="block text-[clamp(1.8rem,4.35vw,2.65rem)] font-extrabold leading-[1.15] text-[#000000]">
                   <span className="block whitespace-nowrap">Làm sao để CV ấn tượng</span>
                   <span className="block whitespace-nowrap">trong mắt nhà tuyển dụng?</span>
                 </span>
@@ -76,7 +76,7 @@ export function CvAnalysisHubHero({ onJd, onField }) {
                 <button
                   type="button"
                   onClick={onJd}
-                  className="cv-hub-cta inline-flex items-center justify-center rounded-2xl bg-gradient-to-br from-[#630ed4] to-[#7c3aed] px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-500/25 hover:brightness-105 hover:shadow-xl hover:shadow-violet-500/30 sm:text-sm"
+                  className="cv-hub-cta inline-flex items-center justify-center rounded-2xl bg-[#8037f4] px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-violet-500/25 hover:brightness-105 hover:shadow-xl hover:shadow-violet-500/30 sm:text-sm"
                 >
                   Phân tích CV + JD có sẵn
                 </button>
@@ -109,7 +109,7 @@ export function CvAnalysisHubHero({ onJd, onField }) {
 
             <div
               className="w-full overflow-hidden rounded-xl sm:rounded-2xl"
-              style={{ background: "linear-gradient(135deg,#6E35E8 0%,#9B6DFF 55%,#B794FF 100%)" }}
+              style={{ background: "#8037f4" }}
             >
               <div className="relative px-4 py-3 text-white sm:px-5 sm:py-3.5">
                 <div

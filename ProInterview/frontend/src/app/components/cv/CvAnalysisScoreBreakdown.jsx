@@ -17,7 +17,7 @@ function badgeClass(status) {
 
 function barColor(status) {
   if (status === "good") return "#84cc16";
-  if (status === "ok") return "#a66ff8";
+  if (status === "ok") return "#93f72b";
   return "#f97316";
 }
 
@@ -103,7 +103,7 @@ export function CvAnalysisScoreBreakdown({
                 <defs>
                   <linearGradient id="cv-hub-sg" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor="#8037f4" />
-                    <stop offset="100%" stopColor="#a66ff8" />
+                    <stop offset="100%" stopColor="#93f72b" />
                   </linearGradient>
                 </defs>
               </svg>

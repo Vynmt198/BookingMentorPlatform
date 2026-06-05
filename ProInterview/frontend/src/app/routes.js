@@ -40,6 +40,11 @@ import { MentorPeerReview } from "./pages/mentor/MentorPeerReview";
 import { MentorArea } from "./pages/mentor/MentorArea";
 import { MentorSessionFeedback } from "./pages/mentor/MentorSessionFeedback";
 import { Pricing } from "./pages/home/Pricing";
+import { About } from "./pages/home/About";
+import { Achievements as PublicAchievements } from "./pages/home/Achievements";
+import { Blog } from "./pages/home/Blog";
+import { Terms } from "./pages/home/Terms";
+import { Privacy } from "./pages/home/Privacy";
 import { AdminLayout } from "./pages/admin/AdminLayout.jsx";
 import { adminLoader } from "./pages/admin/adminLoader.js";
 import { AdminDashboard } from "./pages/admin/AdminDashboard.jsx";
@@ -50,7 +55,7 @@ import { AdminCoursePayments } from "./pages/admin/AdminCoursePayments.jsx";
 import { AdminSubscriptionPayments } from "./pages/admin/AdminSubscriptionPayments.jsx";
 import { AdminMentorsPending } from "./pages/admin/AdminMentorsPending.jsx";
 import { ProtectedOutlet } from "./components/auth/ProtectedOutlet.jsx";
-import { requireAuthLoader, customerOnlyLoader } from "./utils/requireAuthLoader.js";
+import { requireAuthLoader } from "./utils/requireAuthLoader.js";
 import {
   AdminUserDetail,
   AdminFinance,
@@ -64,6 +69,7 @@ import { AdminReviews } from "./pages/admin/AdminReviews.jsx";
 import { AdminSupport } from "./pages/admin/AdminSupport.jsx";
 import { AdminMentorDetail } from "./pages/admin/AdminMentorDetail.jsx";
 import { AdminBookingDetail } from "./pages/admin/AdminBookingDetail.jsx";
+import { AdminAchievements } from "./pages/admin/AdminAchievements.jsx";
 
 export const router = createHashRouter([
   {
@@ -76,6 +82,11 @@ export const router = createHashRouter([
       { path: "courses", Component: Courses },
       { path: "courses/:id", Component: CourseDetail },
       { path: "pricing", Component: Pricing },
+      { path: "about", Component: About },
+      { path: "achievements", Component: PublicAchievements },
+      { path: "blog", Component: Blog },
+      { path: "terms", Component: Terms },
+      { path: "privacy", Component: Privacy },
       { path: "cv-analysis", Component: CVAnalysisHub },
       { path: "cv-analysis/jd/history", Component: AnalysisHistory },
       { path: "cv-analysis/jd/result/:analysisId", Component: CVAnalysisResult },
@@ -175,6 +186,7 @@ export const router = createHashRouter([
       { path: "settings", Component: AdminSystemSettings },
       { path: "reviews", Component: AdminReviews },
       { path: "support", Component: AdminSupport },
+      { path: "achievements", Component: AdminAchievements },
     ],
   },
   { path: "*", loader: () => redirect("/") },

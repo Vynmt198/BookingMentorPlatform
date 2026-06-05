@@ -324,7 +324,7 @@ function AvailabilityModal({ onClose, availability, onSaved }) {
            <p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest px-4">Lưu ý: Thay đổi sẽ áp dụng từ tuần kế tiếp</p>
            <div className="flex gap-4">
               <button onClick={onClose} className="px-8 py-3 rounded-2xl bg-slate-50 border border-slate-200 text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-slate-900 transition-all">Hủy</button>
-              <button disabled={saving} onClick={handleSave} className="px-8 py-3 rounded-2xl bg-primary-fixed text-black text-[10px] font-black uppercase tracking-widest shadow-xl disabled:opacity-60">
+              <button disabled={saving} onClick={handleSave} className="px-8 py-3 rounded-2xl bg-primary-fixed text-[#000000] text-[10px] font-black uppercase tracking-widest shadow-xl disabled:opacity-60">
                 {saving ? "Đang lưu..." : "Lưu cấu hình"}
               </button>
            </div>
@@ -451,7 +451,7 @@ export function MentorSchedule() {
             <p className="text-zinc-500 text-sm font-medium">Bố trí thời gian rảnh và quản lý các buổi hẹn mentor</p>
           </div>
           <div className="flex gap-4">
-            <button onClick={() => setShowAvailability(true)} className="px-8 py-4 rounded-3xl bg-secondary text-black text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl flex items-center gap-2">
+            <button onClick={() => setShowAvailability(true)} className="px-8 py-4 rounded-3xl bg-secondary text-[#000000] text-xs font-black uppercase tracking-widest hover:scale-105 transition-all shadow-xl flex items-center gap-2">
               <Clock size={16} /> Cài đặt làm việc
             </button>
           </div>

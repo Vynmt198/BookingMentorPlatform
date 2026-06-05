@@ -103,7 +103,7 @@ function statusBadgeClass(status) {
   return "bg-orange-500/10 text-orange-900 border border-orange-400/25";
 }
 
-/** Nút hành động — cùng kiểu viền + nền nhạt như badge trạng thái. */
+/** Nút hành động, cùng kiểu viền + nền nhạt như badge trạng thái. */
 const actionBtn = {
   amber:
     "rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-amber-900 hover:bg-amber-500/20 disabled:opacity-50",
@@ -321,7 +321,7 @@ export function AdminSupport() {
                 filtered.map((rep) => {
                   const parsed = parseReportDescription(rep.description);
                   const preview = parsed.title
-                    ? `${parsed.title} — ${parsed.body}`
+                    ? `${parsed.title}, ${parsed.body}`
                     : parsed.body;
                   const link = targetLink(rep);
                   const busy = busyId === rep._id;

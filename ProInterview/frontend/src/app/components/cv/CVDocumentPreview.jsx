@@ -268,7 +268,7 @@ export function CVDocumentPreview({
             title="CV của bạn"
             fileName={cvFileName || "cv.pdf"}
             icon={<FileText className="w-4 h-4 text-white" />}
-            accentColor="linear-gradient(135deg, #4F46E5, #7C3AED)"
+            accentColor="#8037f4"
             file={cvSource}
             matchedKws={matchedKws}
             missingKws={missingKws}
@@ -278,7 +278,7 @@ export function CVDocumentPreview({
             title="Job Description"
             fileName={jdFileName || "jd.pdf"}
             icon={<Briefcase className="w-4 h-4 text-white" />}
-            accentColor="linear-gradient(135deg, #7C3AED, #9333ea)"
+            accentColor="#8037f4"
             file={jdSource}
             matchedKws={matchedKws}
             missingKws={missingKws}

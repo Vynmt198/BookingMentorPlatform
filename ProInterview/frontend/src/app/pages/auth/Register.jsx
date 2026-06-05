@@ -306,12 +306,12 @@ export function Register() {
       {/* ── RIGHT ──────────────────────────────────────────── */}
       <div
         className="hidden lg:flex flex-col flex-1 h-full relative overflow-hidden"
-        style={{ background: "linear-gradient(165deg, #FAF8FF 0%, #F0E8FF 42%, #E6E0FF 100%)" }}
+        style={{ background: "#FAF8FF" }}
       >
         <div className="absolute -top-20 -right-20 w-96 h-96 rounded-full opacity-25 blur-3xl pointer-events-none"
           style={{ background: "radial-gradient(circle, #8037f4 0%, transparent 70%)" }} />
         <div className="absolute -bottom-24 -left-16 w-[22rem] h-[22rem] rounded-full opacity-20 blur-3xl pointer-events-none"
-          style={{ background: "radial-gradient(circle, #a66ff8 0%, transparent 72%)" }} />
+          style={{ background: "radial-gradient(circle, #8037f4 0%, transparent 72%)" }} />
 
         {/* Badge + card: badge trong luồng flex để không đè lên thẻ khi căn giữa dọc */}
         <div className="relative z-10 flex min-h-0 flex-1 flex-col px-10 pb-6 pt-8">
@@ -355,10 +355,10 @@ export function Register() {
 
             <button type="button"
               onClick={() => document.getElementById("reg-name")?.focus()}
-              className="flex w-full items-center justify-center gap-1.5 rounded-full py-3 text-sm font-black text-[#0f172a] transition-all hover:scale-105 active:scale-[0.98]"
+              className="flex w-full items-center justify-center gap-1.5 rounded-full py-3 text-sm font-black text-[#000000] transition-all hover:scale-105 active:scale-[0.98]"
               style={{
                 background: "#93f72b",
-                boxShadow: "0 8px 20px rgba(15,23,42,0.1)",
+                boxShadow: "0 8px 20px rgba(40,85,42,0.15)",
               }}>
               {AUTH_COPY.registerFreeCta} →
             </button>
