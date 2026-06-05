@@ -8,6 +8,7 @@ import {
 import { CV_HUB_HERO_COPY, CV_SHOWCASE_COPY } from "../../constants/brandVoice";
 import { HOME_SECTION_TITLE_CLAMP } from "../../constants/homeTypography";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../layout/customerShellLayout";
+import { CustomerPageBadge } from "../layout/CustomerPageHeader";
 
 const HUB_STYLES = `
   .cv-hub-enter {

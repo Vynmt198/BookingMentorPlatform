@@ -1089,23 +1089,37 @@ async function main() {
     cvFileUrl: "https://example.com/files/backend-basic.pdf",
     jdText: "Hiring backend developer with Node.js and database design experience.",
     jdFileName: "backend-jd.txt",
-    analysisType: "match",
-    jdSource: "text",
+    position: "Backend Developer",
+    mode: "jd",
+    tier: "basic",
+    status: "completed",
+    completedAt: addDays(today, -5),
     result: {
-      overallSummary: "Good backend profile with solid API experience.",
-      experienceLevel: "junior-mid",
-      topStrengths: ["Node.js", "REST APIs", "SQL"],
-      areasToImprove: ["Testing depth", "System design vocabulary"],
-      matchScore: 82,
-      matchStrengths: ["API delivery", "Database fundamentals"],
-      matchWeaknesses: ["Scalability examples"],
-      missingKeywords: ["queue", "caching", "event-driven"],
-      recommendations: ["Add measurable impact", "Mention performance tuning"],
-      questions: [],
-      starAnswers: [],
+      match: {
+        score: 82,
+        matchedKeywords: ["Node.js", "REST API", "SQL"],
+        missingKeywords: ["queue", "caching", "event-driven"],
+      },
+      skills: {
+        cv: [
+          { name: "Node.js", category: "backend", confidence: 0.9 },
+          { name: "SQL", category: "database", confidence: 0.85 },
+        ],
+        jd: [
+          { name: "Node.js", category: "backend", confidence: 1 },
+          { name: "Database design", category: "database", confidence: 1 },
+        ],
+        matched: ["Node.js", "SQL"],
+        missing: ["System design", "Caching"],
+      },
+      _ui: {
+        overallSummary: "Good backend profile with solid API experience.",
+        topStrengths: ["Node.js", "REST APIs", "SQL"],
+        areasToImprove: ["Testing depth", "System design vocabulary"],
+      },
     },
     planAtTime: "free",
-    processingMs: 1850,
+    meta: { processingTimeMs: 1850, llmProvider: "mock", pythonEndpoint: "/analyze" },
   });
   await upsertDoc(CVAnalysis, { userId: users.customerStarter._id, cvFileName: `seed-${SEED_VERSION}-starter-questions.pdf` }, {
     userId: users.customerStarter._id,
@@ -1114,22 +1128,40 @@ async function main() {
     cvFileUrl: "https://example.com/files/starter-questions.pdf",
     jdText: "Business analyst role with SQL and communication requirements.",
     jdFileName: "ba-jd.txt",
-    analysisType: "questions",
-    jdSource: "text",
+    position: "Business Analyst",
+    mode: "jd",
+    tier: "suggestions",
+    status: "completed",
+    completedAt: addDays(today, -3),
     result: {
-      overallSummary: "Profile aligns well with analyst screening rounds.",
-      experienceLevel: "mid",
-      topStrengths: ["SQL", "Stakeholder communication"],
-      areasToImprove: ["Impact metrics"],
-      recommendations: ["Prepare two project stories with outcomes"],
-      questions: [
-        { question: "How do you gather ambiguous stakeholder requirements?", category: "behavioral" },
-        { question: "How would you validate a KPI dashboard before release?", category: "technical" },
-      ],
-      starAnswers: [],
+      match: {
+        score: 76,
+        matchedKeywords: ["SQL", "Stakeholder management", "Reporting"],
+        missingKeywords: ["Product analytics", "A/B testing"],
+      },
+      skills: {
+        cv: [{ name: "SQL", category: "data", confidence: 0.88 }],
+        jd: [{ name: "SQL", category: "data", confidence: 1 }],
+        matched: ["SQL"],
+        missing: ["Product analytics"],
+      },
+      scores: { clarity: 4, structure: 4, relevance: 4, credibility: 3.5 },
+      suggestions: {
+        executiveSummary: "Profile aligns well with analyst screening rounds.",
+        rewrittenBullets: [],
+        missingSkillSuggestions: [
+          { skill: "Impact metrics", priority: "medium", reason: "JD emphasizes measurable outcomes." },
+        ],
+      },
+      _ui: {
+        questions: [
+          { question: "How do you gather ambiguous stakeholder requirements?", category: "behavioral" },
+          { question: "How would you validate a KPI dashboard before release?", category: "technical" },
+        ],
+      },
     },
-    planAtTime: "student",
-    processingMs: 1760,
+    planAtTime: "pro",
+    meta: { processingTimeMs: 1760, llmProvider: "mock", pythonEndpoint: "/analyze/suggestions" },
   });
 
   await upsertDoc(InterviewSession, { shareToken: `seed-${SEED_VERSION}-interview-customer-1` }, {

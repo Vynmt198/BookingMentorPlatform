@@ -3,24 +3,25 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import {
   Search as MagnifyingGlass,
-  Star,
-  Clock,
   X,
-  Loader2 as CircleNotch,
   AlertCircle,
 } from "lucide-react";
 import { fetchMentors } from "../../utils/mentorApi";
 import { fetchRebookCredit } from "../../utils/bookingsApi";
 import { toastApiError } from "../../utils/apiToast";
-import { MENTOR_FILTER_FIELDS } from "../../constants/mentorFilterFields";
-import { CustomerPageHeader } from "../../components/layout/CustomerPageHeader";
+import {
+  MENTOR_FILTER_FIELDS,
+  mentorMatchesFilterField,
+} from "../../constants/mentorFilterFields";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
+import { CustomerPageHeader } from "../../components/layout/CustomerPageHeader";
 import {
   ExploreFilterSidebar,
   FilterRadio,
   FilterSection,
 } from "../../components/shared/ExploreFilterSidebar";
 import { ListPagination } from "../../components/shared/ListPagination";
+import { MentorListCard } from "../../components/mentor/MentorListCard";
 
 const EXPERIENCE_OPTIONS = [
   { label: "1-3 năm", value: "1-3" },
@@ -34,13 +35,7 @@ const PRICE_OPTIONS = [
   { label: "Trên 320k", min: 320000, max: Infinity },
 ];
 
-const RATING_OPTIONS = [
-  { label: "4.5+", min: 4.5 },
-  { label: "4.0+", min: 4.0 },
-  { label: "3.5+", min: 3.5 },
-];
-
-const MENTORS_PAGE_SIZE = 12;
+const MENTORS_PAGE_SIZE = 10;
 
 function MentorsSidebar({
   selectedField,
@@ -49,18 +44,15 @@ function MentorsSidebar({
   onExpChange,
   selectedPriceIndex,
   onPriceChange,
-  selectedRating,
-  onRatingChange,
   onClear,
   hasFilter,
 }) {
   const [openField, setOpenField] = useState(true);
   const [openExp, setOpenExp] = useState(true);
   const [openPrice, setOpenPrice] = useState(true);
-  const [openRating, setOpenRating] = useState(true);
 
   return (
-    <ExploreFilterSidebar onClear={onClear} hasFilter={hasFilter}>
+    <ExploreFilterSidebar onClear={onClear} hasFilter={hasFilter} mobileCollapsible>
       <FilterSection title="Lĩnh vực" open={openField} onToggle={() => setOpenField((v) => !v)}>
         {MENTOR_FILTER_FIELDS.map((field) => (
           <FilterRadio
@@ -98,23 +90,6 @@ function MentorsSidebar({
           </FilterRadio>
         ))}
       </FilterSection>
-
-      <FilterSection title="Đánh giá" open={openRating} onToggle={() => setOpenRating((v) => !v)}>
-        {RATING_OPTIONS.map((opt) => (
-          <FilterRadio
-            key={opt.label}
-            active={selectedRating === opt.label}
-            onClick={() =>
-              onRatingChange(selectedRating === opt.label ? null : opt.label)
-            }
-          >
-            <span className="inline-flex items-center gap-1">
-              <Star className="size-3.5 fill-amber-400 text-amber-400" />
-              {opt.label}
-            </span>
-          </FilterRadio>
-        ))}
-      </FilterSection>
     </ExploreFilterSidebar>
   );
 }
@@ -131,7 +106,6 @@ export function Mentors() {
   const [selectedField, setSelectedField] = useState(null);
   const [selectedExp, setSelectedExp] = useState(null);
   const [selectedPriceIndex, setSelectedPriceIndex] = useState(null);
-  const [selectedRating, setSelectedRating] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
 
   const [mentors, setMentors] = useState([]);
@@ -196,7 +170,7 @@ export function Mentors() {
         m.field.toLowerCase().includes(q) ||
         m.tags.some((t) => t.toLowerCase().includes(q));
 
-      const matchField = !selectedField || m.field === selectedField;
+      const matchField = mentorMatchesFilterField(m, selectedField);
 
       const matchExp =
         !selectedExp ||
@@ -209,12 +183,9 @@ export function Mentors() {
       const matchPrice =
         !priceRange || (m.price >= priceRange.min && m.price <= priceRange.max);
 
-      const ratingMin = RATING_OPTIONS.find((r) => r.label === selectedRating)?.min;
-      const matchRating = !ratingMin || m.rating >= ratingMin;
-
-      return matchSearch && matchField && matchExp && matchPrice && matchRating;
+      return matchSearch && matchField && matchExp && matchPrice;
     });
-  }, [search, selectedField, selectedExp, selectedPriceIndex, selectedRating, mentors]);
+  }, [search, selectedField, selectedExp, selectedPriceIndex, mentors]);
 
   const totalPages = Math.max(1, Math.ceil(filteredMentors.length / MENTORS_PAGE_SIZE));
 
@@ -227,20 +198,18 @@ export function Mentors() {
     Boolean(search) ||
     Boolean(selectedField) ||
     Boolean(selectedExp) ||
-    selectedPriceIndex != null ||
-    Boolean(selectedRating);
+    selectedPriceIndex != null;
 
   const clearFilters = () => {
     setSearch("");
     setSelectedField(null);
     setSelectedExp(null);
     setSelectedPriceIndex(null);
-    setSelectedRating(null);
   };
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, selectedField, selectedExp, selectedPriceIndex, selectedRating]);
+  }, [search, selectedField, selectedExp, selectedPriceIndex]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -251,7 +220,7 @@ export function Mentors() {
       <div className={`relative z-10 flex flex-col pb-8 pt-8 sm:pt-10 ${CUSTOMER_SHELL_GUTTER}`}>
         <div className={`${CUSTOMER_SHELL_MAX} w-full`}>
           {rebookCredit?.available ? (
-            <div className="mb-6 rounded-2xl border border-violet-200/80 bg-violet-50/95 px-4 py-3 text-sm text-violet-950">
+            <div className="mb-4 rounded-2xl border border-violet-200/80 bg-violet-50/95 px-4 py-3 text-sm text-violet-950">
               <p className="font-bold">Credit đổi mentor</p>
               <p className="mt-1 text-xs leading-relaxed text-violet-900/90">
                 Bạn có <strong>{Number(rebookCredit.creditVnd || 0).toLocaleString("vi-VN")}₫</strong> từ lịch mentor đã
@@ -265,14 +234,14 @@ export function Mentors() {
             badge="Mentor 1:1"
             title={
               <>
-                Tìm Mentor <span className="text-[#8037f4]">phù hợp</span>
+                Kết nối Mentor <span className="text-[#8037f4]">phù hợp</span>
               </>
             }
-            subtitle="Sau buổi mock 1-1, bạn nhận feedback cụ thể — biết cần sửa gì và tự tin hơn khi vào vòng phỏng vấn thật."
+            subtitle="Kết nối với Mentor giúp bạn có góc nhìn từ ngành, hiểu điều nhà tuyển dụng mong đợi và tự tin hơn khi bước vào phỏng vấn thật."
             className="mb-6"
           />
 
-          <div className="rounded-3xl border border-violet-200/80 bg-white px-5 py-5 shadow-sm sm:px-7 sm:py-6">
+          <div className="rounded-3xl border border-violet-200/80 bg-white px-4 py-4 shadow-sm sm:px-6 sm:py-5">
             <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
               <MentorsSidebar
                 selectedField={selectedField}
@@ -281,8 +250,6 @@ export function Mentors() {
                 onExpChange={setSelectedExp}
                 selectedPriceIndex={selectedPriceIndex}
                 onPriceChange={setSelectedPriceIndex}
-                selectedRating={selectedRating}
-                onRatingChange={setSelectedRating}
                 onClear={clearFilters}
                 hasFilter={hasFilter}
               />
@@ -309,46 +276,17 @@ export function Mentors() {
                   ) : null}
                 </div>
 
-                <div className="mb-4 rounded-xl bg-violet-50 px-4 py-3">
-                  <p className="text-sm font-semibold text-violet-950">
-                    {loading ? (
-                      <span className="inline-flex items-center gap-2">
-                        <CircleNotch className="size-4 animate-spin" />
-                        Đang tải...
-                      </span>
-                    ) : (
-                      <>
-                        <span className="text-lg font-black">{filteredMentors.length}</span> mentor phù hợp
-                        {selectedField ? (
-                          <span className="font-normal text-slate-600"> · {selectedField}</span>
-                        ) : null}
-                        {selectedExp ? (
-                          <span className="font-normal text-slate-600">
-                            {" "}
-                            · {EXPERIENCE_OPTIONS.find((o) => o.value === selectedExp)?.label}
-                          </span>
-                        ) : null}
-                        {selectedPriceIndex != null ? (
-                          <span className="font-normal text-slate-600">
-                            {" "}
-                            · {PRICE_OPTIONS[selectedPriceIndex].label}
-                          </span>
-                        ) : null}
-                        {selectedRating ? (
-                          <span className="font-normal text-slate-600"> · {selectedRating}</span>
-                        ) : null}
-                      </>
-                    )}
-                  </p>
-                </div>
-
                 {loading ? (
-                  <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                    {[...Array(6)].map((_, i) => (
-                      <div
-                        key={i}
-                        className="h-52 animate-pulse rounded-2xl border border-violet-100 bg-violet-50/50"
-                      />
+                  <div className="divide-y divide-slate-200/90">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="flex animate-pulse gap-4 py-7">
+                        <div className="size-[88px] shrink-0 rounded-full bg-violet-100" />
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div className="h-5 w-2/5 rounded bg-violet-100" />
+                          <div className="h-4 w-3/5 rounded bg-slate-100" />
+                          <div className="h-4 w-full rounded bg-slate-100" />
+                        </div>
+                      </div>
                     ))}
                   </div>
                 ) : error ? (
@@ -393,90 +331,14 @@ export function Mentors() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                    <div>
                       {paginatedMentors.map((mentor) => (
-                        <article
+                        <MentorListCard
                           key={mentor.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => navigate(`/mentors/${mentor.id}`)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              navigate(`/mentors/${mentor.id}`);
-                            }
-                          }}
-                          className="group cursor-pointer overflow-hidden rounded-2xl border border-violet-200/70 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-md"
-                        >
-                          <div className="h-1 w-full bg-[#8037f4]" />
-                          <div className="p-5">
-                            <div className="mb-4 flex items-start gap-3">
-                              <div className="relative shrink-0">
-                                <img
-                                  src={mentor.avatar}
-                                  alt=""
-                                  className="size-14 rounded-2xl border-2 border-violet-100 object-cover"
-                                />
-                                {mentor.available ? (
-                                  <span
-                                    className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full border-2 border-white bg-emerald-500"
-                                    title="Có lịch trống"
-                                  />
-                                ) : null}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <h3 className="truncate text-sm font-bold text-violet-950 group-hover:text-[#8037f4]">
-                                  {mentor.name}
-                                </h3>
-                                <p className="mt-0.5 truncate text-xs text-slate-500">{mentor.title}</p>
-                                <p className="mt-0.5 truncate text-xs font-medium text-violet-600">
-                                  {mentor.company}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="mb-3 flex items-center justify-between text-xs text-slate-500">
-                              <span className="inline-flex items-center gap-1 font-semibold text-slate-800">
-                                <Star className="size-3.5 fill-amber-400 text-amber-400" />
-                                {mentor.rating} ({mentor.reviews})
-                              </span>
-                              <span className="inline-flex items-center gap-1">
-                                <Clock className="size-3.5" />
-                                {mentor.responseTime}
-                              </span>
-                            </div>
-
-                            <div className="mb-4 flex flex-wrap gap-1.5">
-                              {mentor.tags.slice(0, 3).map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-
-                            <div className="flex items-center justify-between border-t border-violet-100 pt-3">
-                              <div>
-                                <span className="text-sm font-black text-violet-950">
-                                  {mentor.price.toLocaleString("vi-VN")}đ
-                                </span>
-                                <span className="text-xs text-slate-500"> / giờ</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(bookingPath(mentor.id));
-                                }}
-                                className="rounded-xl bg-[#8037f4] px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-violet-700"
-                              >
-                                Đặt lịch
-                              </button>
-                            </div>
-                          </div>
-                        </article>
+                          mentor={mentor}
+                          onOpenProfile={() => navigate(`/mentors/${mentor.id}`)}
+                          onBook={() => navigate(bookingPath(mentor.id))}
+                        />
                       ))}
                     </div>
                     <ListPagination
