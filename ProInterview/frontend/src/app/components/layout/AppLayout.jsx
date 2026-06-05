@@ -13,7 +13,18 @@ export function AppLayout() {
   const user = getUser();
   const isMentor = user?.role === "mentor";
   const isHome = location.pathname === "/" || location.pathname === "";
-  const ambientModifier = isHome ? " app-shell-ambient--home" : "";
+  const pathNorm = location.pathname.replace(/^\/+/, "");
+  const isCvAnalysisHub = pathNorm === "cv-analysis";
+  const allowHorizontalScroll = isHome || isCvAnalysisHub;
+  const isLegalDoc = pathNorm === "terms" || pathNorm === "privacy";
+  const hideNavbar = pathNorm === "interview/room";
+  const hideFooter = hideNavbar;
+  const showSiteFooter = !isMentor && !hideFooter;
+  const ambientModifier = isHome
+    ? " app-shell-ambient--home"
+    : isLegalDoc
+      ? " app-shell-ambient--legal"
+      : "";
 
   useEffect(() => {
     document.title = resolveDocumentTitle(location.pathname);
@@ -71,9 +82,19 @@ export function AppLayout() {
         className={`app-shell-ambient${ambientModifier}`}
         aria-hidden
       />
-      <div className="relative z-[1] flex min-h-svh w-full flex-col">
-        <Navbar variant="customer" />
-        <main className="relative z-[1] min-h-0 flex-1 pt-[3.75rem] sm:pt-[4.25rem] md:pt-[4.75rem]">
+      <div
+        className={`relative z-[1] flex min-h-svh w-full flex-col ${
+          isHome ? "home-layout-fixed max-lg:min-w-0 max-lg:w-full" : ""
+        }`}
+      >
+        {!hideNavbar && <Navbar variant="customer" />}
+        <main
+          className={`relative z-[1] min-h-0 flex-1 ${
+            hideNavbar
+              ? "flex min-h-svh flex-col pt-0"
+              : `pt-[3.75rem] sm:pt-[4.25rem] md:pt-[4.75rem] max-lg:overflow-x-hidden${allowHorizontalScroll ? " lg:overflow-x-auto lg:overflow-y-visible" : ""}`
+          }`}
+        >
           <Outlet />
         </main>
         {showSiteFooter ? <Footer variant="light" /> : null}

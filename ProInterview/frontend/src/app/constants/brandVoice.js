@@ -26,6 +26,28 @@ export const HOME_SECTION_COPY = {
     titleLine1: "Luyện phỏng vấn hôm nay,",
     titleLine2: "tự tin chinh phục job ngày\u00a0mai.",
   },
+  steps: [
+    {
+      step: "01",
+      title: "Phân tích CV với JD",
+      desc: "ProInterview chỉ rõ chỗ khớp, chỗ thiếu. Bạn biết sửa đâu trước khi nộp hồ sơ.",
+    },
+    {
+      step: "02",
+      title: "Luyện phỏng vấn với AI",
+      desc: "Phỏng vấn với AI theo vị trí ứng tuyển, nhận góp ý sau từng câu trả lời.",
+    },
+    {
+      step: "03",
+      title: "Kết nối Mentor 1:1",
+      desc: "Kết nối với Mentor để được góp ý cụ thể và có chiến lược chuẩn bị phù hợp.",
+    },
+    {
+      step: "04",
+      title: "Khóa học",
+      desc: "Video và bài tập mentor duyệt. Học xong biết áp dụng vào CV và buổi phỏng vấn.",
+    },
+  ],
   /** Bản gốc sếp — tham chiếu, không xóa. */
   stepsBossOriginal: [
     {

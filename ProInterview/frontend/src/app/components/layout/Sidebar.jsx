@@ -21,6 +21,7 @@ import {
   Home,
   LogIn,
   UserPlus,
+  Mic,
 } from "lucide-react";
 import {
   Sidebar,
