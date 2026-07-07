@@ -1,279 +1,183 @@
 import React from "react";
-import { HOME_SECTION_INNER } from "../layout/customerShellLayout";
 import {
-  GraduationCap,
-  Lock,
+  BadgeCheck,
+  Building2,
+  Calendar,
+  MessageSquare,
   BookOpen,
-  CircleCheck,
-  Video,
-  Users,
 } from "lucide-react";
-import { HOME_DEMO_COURSES } from "../../data/homeLandingDemo";
+import { HOME_SECTION_INNER } from "../layout/customerShellLayout";
 import { COURSES_SHOWCASE_COPY } from "../../constants/brandVoice";
-import {
-  homeSectionTitleStyle,
-  homeSectionClasses as ty,
-} from "../../constants/homeTypography";
-import { SparkleGlyph } from "../decor/SparkleGlyph";
+import { homeSectionTitleStyle } from "../../constants/homeTypography";
 
-/** Một khóa mẫu cố định (STAR), tab lọc chỉ minh họa UI. */
-const DEMO_COURSE = HOME_DEMO_COURSES[0];
-const DEMO_FILTER_LABELS = ["Phỏng vấn", "Viết CV", "Technical", "Soft skills"];
+const VISUAL_TOP_IMG = "/courses-student-learning.png";
+const VISUAL_BOTTOM_IMG =
+  "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=720&q=80&auto=format&fit=crop";
 
-const DEMO_PROGRESS = (() => {
-  const a = HOME_DEMO_COURSES[0];
-  const b = HOME_DEMO_COURSES[1];
-  const aTotal = a?.lessonsCount ?? 12;
-  const bTotal = b?.lessonsCount ?? 10;
-  const aDone = 3;
-  const bDone = 1;
-  return [
-    {
-      id: "1",
-      title: a?.title,
-      done: aDone,
-      total: aTotal,
-      pct: Math.round((aDone / aTotal) * 100),
-      category: a?.category,
-    },
-    {
-      id: "2",
-      title: b?.title,
-      done: bDone,
-      total: bTotal,
-      pct: Math.round((bDone / bTotal) * 100),
-      category: b?.category,
-    },
-  ];
-})();
+const FRAME_CLASS =
+  "overflow-hidden border-[5px] border-[#c4b5fd] bg-[#f5f0ff] p-[3px] shadow-[inset_0_3px_12px_rgba(128,55,244,0.08),0_10px_24px_rgba(128,55,244,0.04)]";
 
-function formatDurationMinutes(totalMin) {
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  if (h <= 0) return `${m} phút`;
-  return m > 0 ? `${h}h ${m}m` : `${h}h`;
-}
-
-function LessonRow({ title, active, locked }) {
+function CoursesBlobVisual() {
   return (
-    <li
-      className={`flex items-center gap-2 rounded-xl px-2 py-1.5 sm:px-2.5 sm:py-2 ${
-        active ? "bg-[#8037f4] text-white" : ""
-      }`}
-    >
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full sm:h-[1.375rem] sm:w-[1.375rem] ${
-          active
-            ? "bg-white/20 text-white"
-            : locked
-              ? "bg-slate-100 text-slate-400"
-              : "bg-violet-50 text-violet-400"
-        }`}
-      >
-        {locked ? (
-          <Lock className="h-2.5 w-2.5" strokeWidth={2.5} />
-        ) : (
-          <BookOpen className="h-2.5 w-2.5" strokeWidth={2.5} />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span
-          className={`block text-[11px] font-semibold leading-snug sm:text-xs ${
-            active ? "text-white" : locked ? "text-slate-400" : "text-slate-700"
-          }`}
-        >
-          {title}
-        </span>
-      </span>
-    </li>
-  );
-}
-
-function CoursesLearningMockup() {
-  if (!DEMO_COURSE) return null;
-
-  const displayLessons = (DEMO_COURSE.lessons || []).slice(0, 4);
-  const moreLessons = Math.max(0, (DEMO_COURSE.lessonsCount ?? 0) - displayLessons.length);
-
-  return (
-    <div className="courses-mock-panel relative mx-auto w-full max-w-[42rem] overflow-hidden rounded-[1.75rem] px-4 pb-5 pt-4 sm:rounded-[2rem] sm:px-5 sm:pb-6 sm:pt-5 lg:max-w-none">
+    <div className="relative flex min-h-[16.5rem] items-center justify-center sm:min-h-[18.5rem] lg:min-h-[20.5rem]">
       <div
-        className="relative z-[1] flex flex-wrap justify-center gap-1.5 rounded-2xl border border-white/80 bg-white/90 p-1.5 shadow-sm sm:gap-2 sm:p-2"
+        className="pointer-events-none absolute right-[9%] top-[5%] z-[1] size-10 rounded-full bg-lime-400 shadow-[0_4px_16px_rgba(163,230,53,0.45)] sm:right-[11%] sm:top-[7%] sm:size-[2.7rem]"
         aria-hidden
-      >
-        {DEMO_FILTER_LABELS.map((label, idx) => (
-          <span
-            key={label}
-            className={`inline-flex items-center rounded-xl px-3 py-1.5 text-[11px] font-bold sm:px-3.5 sm:py-2 sm:text-xs ${
-              idx === 0
-                ? "bg-[#8037f4] text-white shadow-md shadow-violet-500/25"
-                : "text-slate-600"
-            }`}
-          >
-            {label}
-          </span>
-        ))}
-      </div>
+      />
+      <div
+        className="pointer-events-none absolute right-[18%] top-[16%] z-[1] size-6 rounded-full bg-lime-200 sm:right-[20%] sm:top-[18%] sm:size-7"
+        aria-hidden
+      />
 
-      <div className="relative z-[1] mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1.05fr_0.95fr] sm:items-stretch sm:gap-3.5">
-        <div className="flex flex-col rounded-2xl border border-violet-100/80 bg-white p-3.5 shadow-[0_10px_28px_rgba(99,14,212,0.08)] sm:p-4">
-          <div className="mb-2.5 flex items-start gap-2.5 border-b border-slate-100 pb-2.5">
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-100 bg-violet-50/90 text-[#8037f4] sm:h-10 sm:w-10"
-              aria-hidden
-            >
-              <Users className="h-4 w-4 sm:h-[1.125rem] sm:w-[1.125rem]" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="line-clamp-1 text-xs font-bold leading-snug text-[#000000] sm:text-sm">
-                {DEMO_COURSE.title}
-              </p>
-              <p className="text-[10px] font-medium text-slate-500 sm:text-[11px]">
-                {DEMO_COURSE.mentorName} · {DEMO_COURSE.mentorCompany}
-              </p>
-            </div>
-          </div>
-          <p className="mb-2 text-xs font-bold text-[#8037f4] sm:text-sm">
-            Gồm {DEMO_COURSE.lessonsCount} bài video · {formatDurationMinutes(DEMO_COURSE.duration)}
-          </p>
-          <ul className="space-y-1.5">
-            {displayLessons.map((lesson, idx) => (
-              <LessonRow
-                key={lesson.id}
-                title={lesson.title}
-                active={idx === 0}
-                locked={idx > 0}
-              />
-            ))}
-          </ul>
-          {moreLessons > 0 ? (
-            <p className="mt-2 pl-1 text-[10px] font-medium text-slate-400 sm:text-[11px]">
-              +{moreLessons} bài khác trong khóa
-            </p>
-          ) : null}
+
+
+      <div className="relative z-10 mx-auto -mt-12 h-[17.5rem] w-full max-w-[28.5rem] sm:h-[18.5rem] sm:max-w-[30rem]">
+        {/* Top-left Bubble Card */}
+        <div
+          className={`absolute left-0 top-0 z-20 h-[58%] w-[50%] rounded-[2rem] rounded-br-none ${FRAME_CLASS}`}
+        >
+          <img
+            src={VISUAL_TOP_IMG}
+            alt=""
+            className="h-full w-full rounded-[1.7rem] rounded-br-none object-cover"
+            decoding="async"
+          />
         </div>
 
-        <div className="flex h-full flex-col justify-between gap-2.5 sm:gap-3">
-          <div className="rounded-2xl border border-violet-100/80 bg-white px-3.5 py-2.5 shadow-sm sm:px-4 sm:py-3">
-            <div className="flex items-center gap-2 text-[11px] font-bold text-slate-800 sm:text-xs">
-              <Video className="h-4 w-4 shrink-0 text-[#8037f4]" />
-              {COURSES_SHOWCASE_COPY.panelVideoTitle}
-            </div>
-            <p className="mt-1.5 text-[11px] font-medium leading-snug text-slate-600 sm:text-xs">
-              {COURSES_SHOWCASE_COPY.panelVideoBody}
-            </p>
-            <p className="mt-1 text-[10px] text-slate-500 sm:text-[11px]">
-              {COURSES_SHOWCASE_COPY.panelVideoNote}
-            </p>
-          </div>
-
-          {DEMO_PROGRESS.map((mod) => (
-            <div
-              key={mod.id}
-              className="rounded-2xl border border-violet-100/80 bg-white px-3.5 py-2.5 shadow-sm sm:px-4 sm:py-3"
-            >
-              <div className="mb-1.5 flex items-start justify-between gap-2">
-                <p className="line-clamp-2 text-[11px] font-bold leading-snug text-slate-800 sm:text-xs">
-                  {mod.title}
-                </p>
-                <span className="shrink-0 text-[11px] font-bold text-[#8037f4]">
-                  {mod.done}/{mod.total}
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-violet-100">
-                <div
-                  className="h-full rounded-full bg-[#8037f4]"
-                  style={{ width: `${mod.pct}%` }}
-                />
-              </div>
-              <p className="mt-1.5 text-[10px] font-medium text-slate-500 sm:text-[11px]">
-                {mod.category}
-              </p>
-            </div>
-          ))}
+        {/* Bottom-right Bubble Card */}
+        <div
+          className={`absolute bottom-0 right-0 z-10 h-[58%] w-[50%] rounded-[2rem] rounded-tl-none ${FRAME_CLASS}`}
+        >
+          <img
+            src={VISUAL_BOTTOM_IMG}
+            alt=""
+            className="h-full w-full rounded-[1.7rem] rounded-tl-none object-cover"
+            decoding="async"
+          />
         </div>
       </div>
     </div>
   );
 }
 
-/** Showcase khóa học — desktop: mockup trái, copy phải (khớp mock). */
-export function CoursesFeatureShowcase({ onCtaClick }) {
+const COURSE_FEATURES = [
+  { icon: Building2, text: COURSES_SHOWCASE_COPY.bullets[0], tone: "text-[#7c3aed]" },
+  { icon: MessageSquare, text: COURSES_SHOWCASE_COPY.bullets[1], tone: "text-[#7c3aed]" },
+  { icon: Calendar, text: COURSES_SHOWCASE_COPY.bullets[2], tone: "text-[#7c3aed]" },
+  { icon: BadgeCheck, text: COURSES_SHOWCASE_COPY.bullets[3], tone: "text-[#7c3aed]" },
+];
+
+const COURSE_TABS = [
+  { id: "interview", label: "Phỏng vấn" },
+  { id: "cv", label: "Viết CV" },
+  { id: "technical", label: "Technical" },
+  { id: "soft-skills", label: "Soft skills" },
+];
+
+function CoursesLearningCard() {
+  return (
+    <div className="relative">
+      <div className="courses-learning-card rounded-[2rem] bg-white border border-[#c7d2fe]/40 p-5 shadow-[0_24px_64px_rgba(15,23,42,0.07)] sm:rounded-[2.25rem] sm:p-6 lg:p-7">
+        <div
+          className="pointer-events-none mb-5 inline-flex max-w-full flex-wrap rounded-full bg-[#e9e5f3] p-1.5 shadow-[inset_0_1px_2px_rgba(0,0,0,0.03),0_8px_24px_rgba(15,23,42,0.03)]"
+          aria-hidden
+        >
+          {COURSE_TABS.map((item, index) => {
+            const active = index === 0;
+            return (
+              <span
+                key={item.id}
+                className={`rounded-full px-4 py-2 text-sm font-bold sm:px-5 sm:py-2.5 ${
+                  active
+                    ? "bg-[#7c3aed] text-white shadow-[0_8px_20px_rgba(124,58,237,0.22)]"
+                    : "text-[#7c3aed]"
+                }`}
+              >
+                {item.label}
+              </span>
+            );
+          })}
+        </div>
+
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2 lg:gap-8 xl:gap-10">
+          <div className="min-w-0">
+            <p className="max-w-lg text-base font-medium leading-relaxed text-slate-600 sm:text-[1.05rem]">
+              {COURSES_SHOWCASE_COPY.body}
+            </p>
+
+            <ul className="mt-7 space-y-4">
+              {COURSE_FEATURES.map((feature) => {
+                const Icon = feature.icon;
+                return (
+                  <li key={feature.text} className="flex items-start gap-3">
+                    <Icon className={`mt-0.5 size-5 shrink-0 ${feature.tone}`} strokeWidth={2.25} />
+                    <span className="text-[0.98rem] font-semibold leading-relaxed text-slate-800">
+                      {feature.text}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <CoursesBlobVisual />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Showcase khóa học — layout giống mẫu tab + nội dung trái / visual phải. */
+export function CoursesFeatureShowcase() {
   return (
     <section
       id="courses"
-      className="home-courses-panel relative z-10 flex min-h-svh scroll-mt-24 flex-col justify-center overflow-x-clip overflow-y-visible px-0 py-10 sm:py-12 lg:py-14"
+      className="home-courses-panel relative z-10 flex min-h-svh scroll-mt-24 flex-col justify-center overflow-x-clip overflow-y-visible bg-[#eee0fb] px-0 py-4 sm:py-5 lg:py-6"
     >
-      <style>{`
-        .courses-mock-panel {
-          background: #f0ebf8;
-          border: 2px solid #8037f4;
-          box-shadow: 0 12px 32px rgba(99, 14, 212, 0.1);
-        }
-      `}</style>
-      <div
-        className={`home-mobile-gutter relative z-10 flex w-full items-center overflow-visible py-2 ${HOME_SECTION_INNER}`}
-      >
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-8 overflow-visible max-lg:gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] lg:gap-4 xl:max-w-[68rem] xl:gap-5">
-          <div className="relative z-10 flex w-full min-w-0 justify-center max-lg:order-last lg:justify-start lg:-translate-x-[5.9rem]">
-            <div className="w-full origin-top max-lg:mx-auto lg:scale-[1.05]">
-              <CoursesLearningMockup />
-            </div>
-          </div>
-
-          <article className="relative z-10 flex min-w-0 flex-col items-start gap-[0.825rem] sm:gap-[0.95rem] max-lg:order-first lg:-translate-x-[5rem] lg:pl-0 xl:-translate-x-[5.5rem]">
-            <SparkleGlyph
-              className="pointer-events-none absolute right-0 top-0 z-[3] h-9 w-9 rotate-12 drop-shadow-md sm:h-11 sm:w-11 lg:right-2"
-              tone="violet"
-            />
-            <span className={ty.badge}>
-              <GraduationCap className="h-3.5 w-3.5 shrink-0" aria-hidden />
-              {COURSES_SHOWCASE_COPY.badge}
-            </span>
-            <h2
-              className={`${ty.sectionTitle} max-w-full pr-10 sm:pr-12 lg:max-w-none`}
-              style={homeSectionTitleStyle}
-            >
-              <span
-                className={`${ty.titleLineSecond} ${ty.titleLineDark} block lg:whitespace-nowrap`}
-              >
-                {COURSES_SHOWCASE_COPY.titleLine1}
-              </span>
-              <span
-                className={`${ty.titleLineSecond} ${ty.titleLineAccent} block lg:whitespace-nowrap`}
-              >
-                {COURSES_SHOWCASE_COPY.titleLine2}
-              </span>
-            </h2>
-            <p
-              className={`${ty.coursesBody} flex w-full max-w-none flex-col gap-[0.25rem]`}
-            >
-              <span className="block max-lg:text-pretty lg:whitespace-nowrap">
-                {COURSES_SHOWCASE_COPY.bodyLine1}
-              </span>
-              <span className="block max-lg:text-pretty lg:whitespace-nowrap">
-                {COURSES_SHOWCASE_COPY.bodyLine2}
-              </span>
-            </p>
-            <ul className={`${ty.coursesBulletList} w-full max-w-none`}>
-              {COURSES_SHOWCASE_COPY.bullets.map((item) => (
-                <li key={item} className="flex items-start gap-2">
-                  <CircleCheck className={ty.bulletIcon} strokeWidth={2.5} />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-            {onCtaClick ? (
-              <button
-                type="button"
-                onClick={onCtaClick}
-                className={`courses-cta-primary mt-1 ${ty.cta} text-[#000000]`}
-              >
-                {COURSES_SHOWCASE_COPY.cta}
-              </button>
-            ) : null}
-          </article>
+      <div className={`relative z-10 ${HOME_SECTION_INNER}`}>
+        <div className="flex justify-center mb-3 sm:mb-4">
+          <span className="inline-flex items-center gap-2 rounded-full border border-[#7c3aed]/30 bg-[#7c3aed]/10 px-3.5 py-1 font-semibold text-[#7c3aed] text-[0.875rem] sm:text-[0.95rem]">
+            <BookOpen className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            {COURSES_SHOWCASE_COPY.badge}
+          </span>
         </div>
+        <div className="relative mx-auto max-w-max">
+          {/* Lime Squiggle Accent at bottom-left */}
+          <svg
+            viewBox="0 0 70 40"
+            className="absolute -left-24 bottom-0 h-12 w-24 -rotate-[15deg] text-lime-400 opacity-90 sm:-left-36 sm:bottom-2 sm:h-16 sm:w-32"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3.25"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M10 35c3-15 12-22 17-12 3 7-4 15-9 9 9-15 18-22 23-12 3 7-4 15-9 9 9-15 18-22 23-12 3 7-4 15-9 9" />
+          </svg>
+
+          {/* Purple (now Lime) Squiggle Accent at top-right (scaled up) */}
+          <svg
+            viewBox="0 0 70 40"
+            className="absolute -right-14 -top-8 h-12 w-24 rotate-[15deg] text-lime-400 opacity-90 sm:-right-20 sm:-top-10 sm:h-16 sm:w-32"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="3.25"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M10 35c3-15 12-22 17-12 3 7-4 15-9 9 9-15 18-22 23-12 3 7-4 15-9 9 9-15 18-22 23-12 3 7-4 15-9 9" />
+          </svg>
+
+          <h2
+            className="home-section-title mb-5 text-center font-headline font-bold leading-[1.08] tracking-tight text-slate-900 sm:mb-6"
+            style={homeSectionTitleStyle}
+          >
+            <span className="block">{COURSES_SHOWCASE_COPY.sectionTitleLine1}</span>
+            <span className="block text-[#7c3aed]">{COURSES_SHOWCASE_COPY.sectionTitleLine2}</span>
+          </h2>
+        </div>
+
+        <CoursesLearningCard />
       </div>
     </section>
   );

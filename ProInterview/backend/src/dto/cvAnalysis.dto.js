@@ -1,5 +1,12 @@
 import Joi from "joi";
 
+function normalizeAnalysisPlanAtTime(value) {
+  const raw = String(value ?? "free").trim().toLowerCase();
+  if (raw === "pro") return "professional";
+  if (raw === "enterprise") return "premium";
+  return raw;
+}
+
 // ============================================================
 // SUB-SCHEMAS — match với CVAnalysisResultSchema trong model
 // ============================================================
@@ -94,7 +101,17 @@ const saveAnalysisSchema = Joi.object({
   }).required(),
 
   // ----- Plan -----
-  planAtTime: Joi.string().valid("free", "pro", "enterprise").default("free"),
+  planAtTime: Joi.string()
+    .trim()
+    .lowercase()
+    .custom((value, helpers) => {
+      const normalized = normalizeAnalysisPlanAtTime(value);
+      if (["free", "student", "professional", "premium"].includes(normalized)) {
+        return normalized;
+      }
+      return helpers.error("any.only");
+    })
+    .default("free"),
 
   // ----- Metadata -----
   meta: Joi.object({

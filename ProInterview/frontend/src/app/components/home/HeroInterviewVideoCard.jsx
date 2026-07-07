@@ -98,7 +98,7 @@ export function HeroInterviewVideoCard({ overlap = false }) {
               <div className="h-2.5 w-2.5 rounded-full bg-[#27c93f] sm:h-3 sm:w-3" />
             </div>
             <div className="absolute inset-0 flex items-center justify-center gap-1.5 pointer-events-none">
-              <div className="h-1.5 w-1.5 rounded-full bg-[#8037f4] sm:h-2 sm:w-2" />
+              <div className="h-1.5 w-1.5 rounded-full bg-[#7c3aed] sm:h-2 sm:w-2" />
               <span className="text-[10px] font-bold text-slate-500 sm:text-xs">ProInterview - Phòng Phỏng Vấn</span>
             </div>
             <div className="w-12 sm:w-16" />
@@ -192,7 +192,7 @@ export function HeroInterviewVideoCard({ overlap = false }) {
                       {[40, 80, 50, 100, 60, 90, 40].map((h, i) => (
                         <span
                           key={i}
-                          className="hero-video-wave w-[2px] sm:w-[3px] rounded-full bg-gradient-to-t from-[#8037f4] to-[#b794f6]"
+                          className="hero-video-wave w-[2px] sm:w-[3px] rounded-full bg-gradient-to-t from-[#7c3aed] to-[#b794f6]"
                           style={{ height: `${h}%` }}
                         />
                       ))}

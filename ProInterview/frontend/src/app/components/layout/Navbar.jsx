@@ -60,7 +60,9 @@ const PAGE_TITLES = {
   "/mentor/meeting": { label: "Phòng họp", sub: "Buổi mentor trực tuyến" },
 };
 
-function ShellNavLinks({ items, pathname, isActive, onNavigate, className = "", stacked = false }) {
+function ShellNavLinks({ items, pathname, isActive, onNavigate, className = "", stacked = false, tone = "light" }) {
+  const darkTone = tone === "dark";
+  const homeTone = tone === "home";
   return (
     <nav className={className} aria-label="Menu chính">
       {items.map((item) => {
@@ -71,8 +73,12 @@ function ShellNavLinks({ items, pathname, isActive, onNavigate, className = "", 
               key={item.url}
               to={item.url}
               onClick={onNavigate}
-              className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-violet-50 hover:text-violet-700"
-              style={active ? { color: "#8037f4", fontWeight: 800 } : undefined}
+              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors ${
+                darkTone
+                  ? "text-white/85 hover:bg-white/10 hover:text-white"
+                  : "text-slate-700 hover:bg-violet-50 hover:text-violet-700"
+              }`}
+              style={active ? { color: darkTone ? "#ffffff" : "#8037f4", fontWeight: 800 } : undefined}
             >
               {item.title}
             </Link>
@@ -85,21 +91,35 @@ function ShellNavLinks({ items, pathname, isActive, onNavigate, className = "", 
             onClick={onNavigate}
             className="relative shrink-0 cursor-pointer whitespace-nowrap py-1 text-sm transition-all duration-300"
             style={{
-              color: active ? "#8037f4" : "rgb(71, 85, 105)",
+              color: darkTone
+                ? active
+                  ? "#ffffff"
+                  : "rgba(255,255,255,0.82)"
+                : homeTone
+                  ? active
+                    ? "#ffffff"
+                    : "rgba(255,255,255,0.76)"
+                  : active
+                    ? "#8037f4"
+                    : "rgb(71, 85, 105)",
               fontWeight: active ? 800 : 600,
             }}
           >
             {item.title}
-            <span
-              className={`absolute -bottom-1 left-0 h-[3px] w-full rounded-full transition-all duration-300 ${
-                active ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0"
-              }`}
-              style={{
-                background: "#93f72b",
-                boxShadow: "0 0 12px rgba(196, 255, 71, 0.8)",
-              }}
-              aria-hidden
-            />
+            {darkTone ? null : (
+              <span
+                className={`absolute -bottom-1 left-0 h-[3px] w-full rounded-full transition-all duration-300 ${
+                  active ? "scale-x-100 opacity-100" : "scale-x-0 opacity-0"
+                }`}
+                style={{
+                  background: "#93f72b",
+                  boxShadow: homeTone
+                    ? "0 0 16px rgba(196, 255, 71, 0.85)"
+                    : "0 0 12px rgba(196, 255, 71, 0.8)",
+                }}
+                aria-hidden
+              />
+            )}
           </Link>
         );
       })}
@@ -113,6 +133,7 @@ function CustomerNavbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const isHome = location.pathname === "/" || location.pathname === "";
 
   const loggedIn = isLoggedIn();
   const user = getUser();
@@ -121,7 +142,7 @@ function CustomerNavbar() {
   const loginHref = buildLoginPath(`${location.pathname}${location.search}`);
   const registerHref = buildRegisterPath(`${location.pathname}${location.search}`);
   const { cartItemsCount, setIsCartOpen } = useCart();
-  const isHome = location.pathname === "/" || location.pathname === "";
+  const navVariant = isHome ? "home" : "light";
 
   React.useEffect(() => {
     setMobileOpen(false);
@@ -207,7 +228,7 @@ function CustomerNavbar() {
 
   return (
     <>
-      <TopNavShell variant="light" alignTop={isHome}>
+      <TopNavShell variant={navVariant} pinned={!isHome}>
         <Link
           to="/"
           className="flex shrink-0 items-center leading-none"
@@ -230,15 +251,16 @@ function CustomerNavbar() {
           items={CUSTOMER_NAV_ITEMS}
           pathname={location.pathname}
           isActive={(p, item) => isCustomerNavActive(p, item.url)}
-          className={`hidden items-center justify-center gap-3 px-1 md:flex md:gap-4 lg:gap-5 ${
-            isHome ? "shrink-0" : "min-w-0 flex-1"
-          }`}
+          tone={isHome ? "home" : "light"}
+          className="hidden min-w-0 flex-1 items-center justify-center gap-3 px-1 md:flex md:gap-4 lg:gap-5"
         />
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           <button
             type="button"
-            className="inline-flex p-2 rounded-lg text-slate-600 transition-colors hover:bg-slate-100 md:hidden"
+            className={`inline-flex rounded-lg p-2 transition-colors md:hidden ${
+              isHome ? "text-white/85 hover:bg-white/10" : "text-slate-600 hover:bg-slate-100"
+            }`}
             aria-label={mobileOpen ? "Đóng menu" : "Mở menu"}
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((o) => !o)}
@@ -248,11 +270,13 @@ function CustomerNavbar() {
 
           <button
             type="button"
-            className="relative inline-flex size-9 items-center justify-center rounded-xl transition-all focus:outline-none hover:bg-[#8037f4]/10"
+            className={`relative inline-flex size-9 items-center justify-center rounded-xl transition-all focus:outline-none ${
+              isHome ? "hover:bg-white/10" : "hover:bg-[#8037f4]/10"
+            }`}
             aria-label="Giỏ hàng"
             onClick={() => setIsCartOpen(true)}
           >
-            <ShoppingCart className="h-5 w-5 text-[#8037f4]/75" />
+            <ShoppingCart className={`h-5 w-5 ${isHome ? "text-white/85" : "text-[#8037f4]/75"}`} />
             {cartItemsCount > 0 && (
               <span
                 className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#000000]"
@@ -275,12 +299,20 @@ function CustomerNavbar() {
                       type="button"
                       className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-xl transition-all focus:outline-none md:size-9"
                       style={{
-                        background: notifOpen ? "rgba(128,55,244,0.1)" : "transparent",
-                        border: notifOpen ? "1px solid rgba(128,55,244,0.25)" : "1px solid transparent",
+                        background: notifOpen
+                          ? isHome
+                            ? "rgba(255,255,255,0.14)"
+                            : "rgba(128,55,244,0.1)"
+                          : "transparent",
+                        border: notifOpen
+                          ? isHome
+                            ? "1px solid rgba(255,255,255,0.22)"
+                            : "1px solid rgba(128,55,244,0.25)"
+                          : "1px solid transparent",
                       }}
                       aria-label="Thông báo"
                     >
-                      <Bell className="size-4 text-[#8037f4]/75 md:size-5" />
+                      <Bell className={`size-4 md:size-5 ${isHome ? "text-white/85" : "text-[#8037f4]/75"}`} />
                       {unreadCount > 0 && (
                         <span
                           className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#000000]"
@@ -350,7 +382,11 @@ function CustomerNavbar() {
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="flex shrink-0 items-center justify-center rounded-full border border-violet-200/80 bg-white p-0 shadow-sm transition-colors hover:border-violet-300 size-7 md:gap-2 md:py-1 md:pl-1 md:pr-2.5 md:size-auto"
+                    className={`flex size-7 shrink-0 items-center justify-center rounded-full p-0 shadow-sm transition-colors md:size-auto md:gap-2 md:py-1 md:pl-1 md:pr-2.5 ${
+                      isHome
+                        ? "border border-white/16 bg-white/8 hover:border-white/28"
+                        : "border border-violet-200/80 bg-white hover:border-violet-300"
+                    }`}
                   >
                     <span
                       className="flex size-full items-center justify-center rounded-full text-[10px] font-bold leading-none text-white md:size-8 md:text-xs"
@@ -358,7 +394,11 @@ function CustomerNavbar() {
                     >
                       {initials}
                     </span>
-                    <span className="hidden max-w-[7rem] truncate text-sm font-semibold text-slate-700 md:inline">
+                    <span
+                      className={`hidden max-w-[7rem] truncate text-sm font-semibold md:inline ${
+                        isHome ? "text-white" : "text-slate-700"
+                      }`}
+                    >
                       {displayName}
                     </span>
                   </button>
@@ -401,7 +441,11 @@ function CustomerNavbar() {
             <>
               <Link
                 to={loginHref}
-                className="hidden items-center gap-1.5 whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 sm:inline-flex"
+                className={`hidden items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-all sm:inline-flex ${
+                  isHome
+                    ? "border border-white/16 bg-white/8 text-white hover:bg-white/12"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
               >
                 <LogIn className="size-3.5 shrink-0" aria-hidden />
                 Đăng nhập
@@ -410,9 +454,10 @@ function CustomerNavbar() {
                 to={registerHref}
                 className="hidden sm:inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-all hover:scale-105 active:scale-95 sm:px-5"
                 style={{
-                  background: "#fff",
-                  color: "#8037f4",
-                  border: "1.5px solid #8037f4",
+                  background: isHome ? "#93f72b" : "#fff",
+                  color: isHome ? "#140826" : "#8037f4",
+                  border: isHome ? "1.5px solid rgba(196,255,71,0.22)" : "1.5px solid #8037f4",
+                  boxShadow: isHome ? "0 10px 30px rgba(147, 247, 43, 0.22)" : undefined,
                 }}
               >
                 <UserPlus className="size-3.5 shrink-0" aria-hidden />
@@ -425,7 +470,7 @@ function CustomerNavbar() {
 
       {mobileOpen ? (
         <div
-          className="top-nav-shell-outer fixed right-3 top-[3.8rem] z-[99] w-[14rem] sm:right-6 sm:top-[4.2rem] sm:w-[16rem] md:hidden"
+          className={`top-nav-shell-outer ${isHome ? "absolute" : "fixed"} right-3 top-[3.8rem] z-[99] w-[14rem] sm:right-6 sm:top-[4.2rem] sm:w-[16rem] md:hidden`}
         >
           <div
             className="rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl"

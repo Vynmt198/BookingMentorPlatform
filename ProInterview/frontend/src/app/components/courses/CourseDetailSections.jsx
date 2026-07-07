@@ -47,7 +47,7 @@ export function StarRating({ rating, size = "sm", variant = "default" }) {
   const n = rating == null ? NaN : Number(rating);
   const filled = Number.isFinite(n) ? Math.min(5, Math.max(0, Math.round(n))) : 0;
   const emptyColor = variant === "onDark" ? "rgba(255,255,255,0.35)" : "#e2e8f0";
-  const fillColor = "#FFD600";
+  const fillColor = "#a3e635";
 
   return (
     <div className="flex gap-0.5" aria-hidden>
@@ -114,7 +114,7 @@ export function CoursePurchaseCard({
   const includes = buildCourseIncludes(course);
 
   const ctaClassName =
-    "flex w-full items-center justify-center gap-2 rounded-xl bg-[#8037f4] py-3.5 text-sm font-bold text-white shadow-md shadow-violet-500/25 transition-all hover:bg-[#630ed4] active:scale-[0.99] lg:rounded-sm lg:py-3 lg:shadow-none";
+    "flex w-full items-center justify-center gap-2 rounded-xl bg-[#a3e635] py-3.5 text-sm font-bold text-slate-900 shadow-md shadow-[#a3e635]/30 transition-all hover:bg-[#84cc16] active:scale-[0.99] lg:rounded-sm lg:py-3 lg:shadow-none";
 
   return (
     <div className="w-full overflow-hidden rounded-2xl border border-violet-200/60 bg-white shadow-[0_16px_48px_rgba(128,55,244,0.12)] lg:max-w-none lg:rounded-md lg:border-slate-200 lg:shadow-[0_12px_40px_rgba(15,23,42,0.08)]">
@@ -190,7 +190,7 @@ export function CoursePurchaseCard({
             {canTakeStudentActions
               ? price === 0
                 ? "Đăng ký miễn phí"
-                : "Ghi danh khóa học"
+                : "Mua khóa học"
               : "Mentor chỉ xem"}
           </button>
         )}
@@ -217,7 +217,7 @@ export function CoursePurchaseCard({
 
         {!hasPaidEnrollment ? (
           <p className="border-t border-slate-100 pt-3 text-xs leading-relaxed text-slate-500 lg:block">
-            Bạn đang xem preview. Đăng ký để truy cập đầy đủ nội dung khóa học.
+            Bạn đang xem preview. Mua khóa học (hoặc đăng ký miễn phí) để truy cập đầy đủ nội dung.
           </p>
         ) : null}
       </div>
@@ -500,7 +500,7 @@ export function CourseReviewsBlock({ course, enrolled, reviews, onReviewSubmitte
               type="button"
               onClick={handleSubmit}
               disabled={!reviewRating || reviewComment.trim().length < 30 || submitting}
-              className="flex w-full items-center justify-center gap-2 rounded-sm bg-[#8037f4] py-2.5 text-sm font-bold text-white disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-sm bg-[#a3e635] py-2.5 text-sm font-bold text-slate-900 disabled:opacity-50"
             >
               <MessageCircle className="size-4" />
               Gửi đánh giá

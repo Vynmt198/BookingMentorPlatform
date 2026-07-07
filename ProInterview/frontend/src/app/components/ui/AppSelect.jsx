@@ -9,6 +9,8 @@ import {
 } from "./select";
 import { cn } from "./utils";
 
+const EMPTY_OPTION_VALUE = "__empty__";
+
 const TRIGGER_SIZE = {
   default:
     "h-auto min-h-[46px] rounded-2xl border-slate-200 bg-white px-5 py-3 text-xs font-bold text-slate-900 shadow-none focus:border-[#8037f4] focus:ring-4 focus:ring-[#8037f4]/10 data-[size=default]:h-auto",
@@ -38,11 +40,26 @@ export function AppSelect({
 }) {
   const stringValue =
     value === undefined || value === null || value === "" ? undefined : String(value);
+  const normalizedOptions = options.map((opt) => ({
+    ...opt,
+    selectValue:
+      opt.value === undefined || opt.value === null || opt.value === ""
+        ? EMPTY_OPTION_VALUE
+        : String(opt.value),
+  }));
+
+  const handleValueChange = (nextValue) => {
+    if (nextValue === EMPTY_OPTION_VALUE) {
+      onValueChange("");
+      return;
+    }
+    onValueChange(nextValue);
+  };
 
   return (
     <Select
       value={stringValue}
-      onValueChange={onValueChange}
+      onValueChange={handleValueChange}
       disabled={disabled}
     >
       <SelectTrigger
@@ -53,10 +70,10 @@ export function AppSelect({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className={contentClassName} position="popper">
-        {options.map((opt) => (
+        {normalizedOptions.map((opt) => (
           <SelectItem
-            key={String(opt.value)}
-            value={String(opt.value)}
+            key={opt.selectValue}
+            value={opt.selectValue}
             disabled={opt.disabled}
           >
             {opt.label}

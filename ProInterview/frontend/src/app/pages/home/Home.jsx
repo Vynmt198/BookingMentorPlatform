@@ -21,6 +21,8 @@ import {
   HOME_MENTOR_MASCOTS,
 } from "../../components/home/MentorFeatureShowcase";
 import { CoursesFeatureShowcase } from "../../components/home/CoursesFeatureShowcase";
+import { CinematicHero } from "../../components/home/CinematicHero";
+import { NewsFeatureShowcase } from "../../components/home/NewsFeatureShowcase";
 import { SparkleGlyph } from "../../components/decor/SparkleGlyph.jsx";
 import {
   SectionReveal,
@@ -539,73 +541,12 @@ export function Home() {
       `}</style>
 
       {/* ═══ HERO — section 1 ═════════════════════════════════ */}
-      <section
-        ref={heroRef}
-        id="home-hero-section"
-        className="home-hero-section relative z-10 flex min-h-svh flex-col justify-center overflow-x-clip overflow-y-visible px-6 pb-8 pt-[5.25rem] sm:px-10 sm:pb-10 sm:pt-[5.75rem] md:pt-[6.25rem] lg:px-16"
-      >
-        <HeroAtmosphere paused={heroAtmospherePaused} />
-        {renderSectionSticks(HERO_DECOR_STICKS, "brand", "sm")}
-
-        <div
-          className={`relative z-10 mx-auto flex w-full max-w-5xl flex-col items-center px-4 text-center sm:max-w-6xl sm:px-6 ${HOME_SHELL_MAX}`}
-        >
-          <div className="hero-intro-badge mb-4 sm:mb-5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/75 px-3.5 py-1.5 text-xs font-bold text-[#8037f4] shadow-sm backdrop-blur sm:text-sm">
-              <SparkleGlyph className="h-3.5 w-3.5 shrink-0" tone="violet" />
-              {HOME_COPY.badge}
-            </div>
-          </div>
-
-          <div className="hero-intro-copy w-full">
-            <h1
-              className="home-hero-title hero-title-stack cute-heading mx-auto mb-6 text-slate-900"
-              style={{ fontSize: HOME_HERO_TITLE_CLAMP }}
-            >
-              <span className="hero-title-line text-slate-900">
-                {HOME_COPY.titleLine1}{" "}
-                <span className="hero-title-highlight" style={{ color: "#8037f4" }}>
-                  {HOME_COPY.titleHighlight}
-                </span>
-              </span>
-              <span className="hero-title-line text-slate-900">
-                {HOME_COPY.titleLine2Suffix} {HOME_COPY.titleExtraLines?.[0] ?? ""}
-              </span>
-            </h1>
-
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => navigate("/cv-analysis")}
-                className="hero-intro-cta inline-flex items-center justify-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-black transition-all hover:brightness-105 active:scale-[0.98] sm:px-5 sm:py-2 sm:text-lg"
-                style={{
-                  background: "#93f72b",
-                  color: "#0f172a",
-                  boxShadow: "0 8px 22px rgba(147, 247, 43, 0.35)",
-                }}
-              >
-                <Lightning className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                {HOME_COPY.cta}
-              </button>
-              {HOME_COPY.ctaMentor ? (
-                <button
-                  type="button"
-                  onClick={() => navigate("/mentors")}
-                  className="hero-intro-cta inline-flex items-center justify-center gap-1.5 rounded-full border-2 border-[#8037f4] bg-white/90 px-3.5 py-1.5 text-sm font-black text-[#8037f4] transition-all hover:bg-violet-50 active:scale-[0.98] sm:px-5 sm:py-2 sm:text-lg"
-                >
-                  <Users className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  {HOME_COPY.ctaMentor}
-                </button>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </section>
+      <CinematicHero />
 
       {/* ═══ LỘ TRÌNH — section 2 (#features) ═════════════════ */}
       <section
         id="features"
-        className="home-features-panel landing-section-flow scroll-mt-24 relative z-10 flex min-h-svh flex-col justify-center overflow-x-clip overflow-y-visible px-6 py-10 sm:px-10 sm:py-12 lg:px-16"
+        className="home-features-panel bg-white landing-section-flow scroll-mt-24 relative z-10 flex min-h-svh flex-col justify-center overflow-x-clip overflow-y-visible px-6 py-10 sm:px-10 sm:py-12 lg:px-16"
       >
         {renderSectionSticks([
           { x: 10, y: 16, size: 34, opacity: 0.45 },
@@ -613,29 +554,19 @@ export function Home() {
           { x: 82, y: 78, size: 32, opacity: 0.44 },
         ])}
         <div className={`${HOME_SECTION_INNER} relative z-10`}>
-          <LandingReveal className="mb-8 w-full" y={20}>
-            <div className="mx-auto flex max-w-4xl flex-col items-center">
-              <div className="flex items-center justify-center">
-                <img
-                  src="/mascot-features.png?v=13"
-                  alt=""
-                  aria-hidden
-                  className="relative z-10 h-auto w-[11rem] shrink-0 -translate-x-[2.4rem] -translate-y-[0.85rem] rotate-[3deg] object-contain sm:w-[12.5rem] sm:-translate-y-[1.05rem] md:w-[14rem] lg:w-[15rem]"
-                />
-                <div className="relative z-0 -ml-[3.5rem] -translate-x-[0.1rem] text-left sm:-ml-[4rem] md:-ml-[4.35rem] lg:-ml-[4.75rem]">
-                  <span className="mb-3 block h-1.5 w-12 rounded-full bg-[#8037f4]/40" />
-                  <h2
-                    className={homeTy.sectionTitle}
-                    style={homeSectionTitleStyle}
-                  >
-                    {HOME_SECTION_COPY.howItWorks.titleLine1}
-                    <br />
-                    <span className="whitespace-nowrap text-[#8037f4]">
-                      {HOME_SECTION_COPY.howItWorks.titleLine2}
-                    </span>
-                  </h2>
-                </div>
-              </div>
+          <LandingReveal className="mb-12 w-full" y={20}>
+            <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
+              <span className="mb-4 block h-1.5 w-12 rounded-full bg-[#8037f4]/40" />
+              <h2
+                className={homeTy.sectionTitle}
+                style={homeSectionTitleStyle}
+              >
+                {HOME_SECTION_COPY.howItWorks.titleLine1}
+                <br />
+                <span className="whitespace-nowrap text-[#8037f4]">
+                  {HOME_SECTION_COPY.howItWorks.titleLine2}
+                </span>
+              </h2>
             </div>
           </LandingReveal>
 
@@ -649,8 +580,8 @@ export function Home() {
                     : "border-black/[0.05]"
                 }`}
                 style={{
-                  background: "rgba(255,255,255,0.98)",
-                  boxShadow: "0 12px 26px rgba(15,23,42,0.09), 0 2px 10px rgba(95,0,240,0.08)",
+                  background: "#ffffff",
+                  boxShadow: "0 12px 26px rgba(15,23,42,0.08), 0 2px 10px rgba(95,0,240,0.06)",
                 }}
               >
                 <div className="relative z-[1]">
@@ -662,18 +593,14 @@ export function Home() {
                       </span>
                     )}
                   </div>
-                  <div className="pointer-events-none absolute top-0 right-0 p-4 opacity-[0.18] transition-opacity group-hover:opacity-[0.26]">
-                    <span className="text-8xl font-black italic leading-none text-[#8037f4]/30">
+                  <div className="pointer-events-none absolute top-0 right-0 p-4 opacity-[0.28] transition-opacity group-hover:opacity-[0.4]">
+                    <span className="text-8xl font-black italic leading-none text-[#8037f4]">
                       {s.step}
                     </span>
                   </div>
 
                   <div
-                    className={`relative mb-4 flex h-12 w-12 items-center justify-center rounded-xl shadow-lg transition-all duration-500 sm:h-[3.25rem] sm:w-[3.25rem] ${
-                      i === 0
-                        ? "bg-[#8037f4] text-[#ffffff] shadow-[0_0_24px_rgba(167,139,250,0.12)]"
-                        : "border-2 border-[#8037f4]/35 bg-white text-[#8037f4] shadow-[0_0_20px_rgba(128,55,244,0.1)]"
-                    }`}
+                    className="relative mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#93f72b] text-[#0f172a] shadow-[0_0_24px_rgba(147,247,43,0.25)] transition-all duration-500 sm:h-[3.25rem] sm:w-[3.25rem]"
                   >
                     <s.icon className="h-[1.4rem] w-[1.4rem] sm:h-6 sm:w-6" />
                   </div>
@@ -712,7 +639,7 @@ export function Home() {
       {/* ═══ TESTIMONIALS ═══════════════════════════════════ */}
       <section
         id="mentors"
-        className="home-testimonials-panel landing-section-flow relative z-10 flex min-h-svh scroll-mt-24 flex-col justify-center overflow-x-clip pb-12 pt-10 sm:pb-16 sm:pt-12 lg:pb-20"
+        className="home-testimonials-panel landing-section-flow relative z-10 flex min-h-svh scroll-mt-24 flex-col justify-center overflow-x-clip pb-12 pt-10 sm:pb-16 sm:pt-12 lg:pb-20 bg-white"
       >
         {renderSectionSticks([
           { x: 78, y: 12, size: 34, opacity: 0.46 },
@@ -831,13 +758,20 @@ export function Home() {
                     </div>
                   </div>
                 </div>
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-[2] w-12 bg-gradient-to-r from-[#f3f0f9] via-[#f3f0f9]/80 to-transparent sm:w-14" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 z-[2] w-12 bg-gradient-to-l from-[#f3f0f9] via-[#f3f0f9]/80 to-transparent sm:w-14" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-[2] w-12 bg-gradient-to-r from-white via-white/80 to-transparent sm:w-14" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-[2] w-12 bg-gradient-to-l from-white via-white/80 to-transparent sm:w-14" />
               </div>
             </div>
           </div>
         </div>
       </section>
+
+      {/* ═══ NEWS & ACTIVITIES ═════════════════════════════════ */}
+      <div className="landing-section-flow">
+        <SectionReveal variant="news" delay={0.05}>
+          <NewsFeatureShowcase />
+        </SectionReveal>
+      </div>
 
     </div>
   );

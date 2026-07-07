@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router";
 import { BookOpen, Check } from "lucide-react";
-import { fetchCourseById, fetchReviewsForCourse } from "../../utils/courseApi";
+import { fetchCourseById, fetchAllReviewsForCourse } from "../../utils/courseApi";
 import { enrollmentApi } from "../../utils/enrollmentApi";
 import { getUser } from "../../utils/auth";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
@@ -27,7 +27,6 @@ import {
   StarRating,
   formatCourseDuration,
 } from "../../components/courses/CourseDetailSections";
-import { useCart } from "../../hooks/useCart";
 
 function mapApiCourse(c) {
   const stats = normalizeCourseStats(c.stats);
@@ -92,11 +91,13 @@ export function CourseDetail() {
   const [loading, setLoading] = useState(true);
   const [enrollmentRow, setEnrollmentRow] = useState(null);
   const currentUser = getUser();
-  const { addToCart } = useCart();
 
   const reloadReviews = useCallback(async () => {
     if (!id) return;
-    const [revRes, courseRes] = await Promise.all([fetchReviewsForCourse(id), fetchCourseById(id)]);
+    const [revRes, courseRes] = await Promise.all([
+      fetchAllReviewsForCourse(id),
+      fetchCourseById(id),
+    ]);
     if (revRes.success) setReviews(revRes.reviews || []);
     if (courseRes.success) setCourse(mapApiCourse(courseRes.course));
   }, [id]);
@@ -109,7 +110,7 @@ export function CourseDetail() {
       try {
         const [res, revRes] = await Promise.all([
           fetchCourseById(id),
-          fetchReviewsForCourse(id),
+          fetchAllReviewsForCourse(id),
         ]);
         if (cancelled) return;
         if (res.success) {
@@ -175,18 +176,6 @@ export function CourseDetail() {
     }
   };
 
-  const handleAddToCart = () => {
-    if (!id || !course) return;
-    addToCart(
-      "Course",
-      id,
-      course.title,
-      course.price,
-      1,
-      course.thumbnail
-    );
-  };
-
   if (loading) {
     return (
       <MentorPageShell bottomPad="pb-24">
@@ -206,9 +195,9 @@ export function CourseDetail() {
           <button
             type="button"
             onClick={() => navigate("/courses")}
-            className="rounded-sm bg-[#8037f4] px-6 py-3 font-semibold text-white"
+            className="rounded-sm bg-[#a3e635] px-6 py-3 font-semibold text-slate-900 hover:bg-[#84cc16]"
           >
-            Quay lại danh sách
+            Khám phá khóa học
           </button>
         </div>
       </MentorPageShell>
@@ -223,7 +212,6 @@ export function CourseDetail() {
       canTakeStudentActions={canTakeStudentActions}
       isReadOnlyMentorView={isReadOnlyMentorView}
       onEnroll={handleEnroll}
-      onAddToCart={handleAddToCart}
       onContinueLearn={() => navigate(`/courses/${course.id}/learn`)}
       onContinuePayment={() =>
         navigate(`/checkout?type=course&courseId=${course.id}&price=${course.price}`)
@@ -253,34 +241,62 @@ export function CourseDetail() {
             </button>
           </div>
         ) : null}
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_calc(280px+1rem)] lg:items-start lg:gap-5">
-          <div className="min-w-0 space-y-4 lg:space-y-5">
-            <header className="rounded-md bg-[#8037f4] px-7 py-6 text-white sm:px-10 sm:py-7">
-              <h1 className="mb-2 text-3xl font-bold leading-tight sm:text-4xl">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_calc(280px+1rem)] lg:items-start lg:gap-5">
+          <div className="min-w-0 space-y-5 lg:space-y-5">
+            <header className="overflow-hidden rounded-2xl bg-gradient-to-br from-[#8037f4] via-[#7230e8] to-[#630ed4] px-5 py-5 text-white shadow-[0_12px_40px_rgba(128,55,244,0.28)] sm:px-8 sm:py-6 lg:rounded-md lg:bg-gradient-to-r lg:from-[#8037f4] lg:to-[#630ed4] lg:px-10 lg:py-7 lg:shadow-none">
+              {course.category ? (
+                <p className="mb-2.5 inline-flex max-w-full truncate rounded-full bg-white/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/95 backdrop-blur-sm sm:text-[11px] lg:hidden">
+                  {course.category}
+                </p>
+              ) : null}
+              <h1 className="mb-2 text-xl font-bold leading-snug sm:text-3xl lg:mb-2 lg:text-4xl">
                 {course.title}
               </h1>
-              <p className="mb-3 line-clamp-3 text-base leading-relaxed text-white/90 sm:text-lg">
-                {course.description}
-              </p>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5 text-base text-white/90 sm:text-lg">
+              {course.description ? (
+                <p className="mb-4 line-clamp-3 text-sm leading-relaxed text-white/90 sm:text-base lg:mb-3 lg:text-lg">
+                  {course.description}
+                </p>
+              ) : null}
+              <div className="flex flex-col gap-3 sm:gap-3.5 lg:hidden">
+                <p className="text-sm font-semibold text-white sm:text-base">
+                  {course.mentorName}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-sm sm:text-sm">
+                    <span className="font-black text-white">
+                      {course.rating != null && course.rating > 0
+                        ? course.rating.toFixed(1)
+                        : "—"}
+                    </span>
+                    <StarRating rating={course.rating} size="sm" variant="onDark" />
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-white/12 px-2.5 py-1 text-xs font-medium text-white/95 backdrop-blur-sm sm:text-sm">
+                    {course.modulesCount} học phần · {course.lessonsCount} bài
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-white/12 px-2.5 py-1 text-xs font-medium text-white/95 backdrop-blur-sm sm:text-sm">
+                    {formatCourseDuration(course.duration)}
+                  </span>
+                </div>
+              </div>
+              <div className="hidden flex-wrap items-center gap-x-6 gap-y-2.5 text-base text-white/90 lg:flex lg:text-lg">
                 <span className="font-semibold">{course.mentorName}</span>
                 <span className="flex items-center gap-2.5">
-                  <span className="text-xl font-bold text-amber-300 sm:text-2xl">
+                  <span className="text-xl font-bold text-white lg:text-2xl">
                     {course.rating != null ? course.rating.toFixed(1) : "—"}
                   </span>
                   <StarRating rating={course.rating} size="lg" />
-                    </span>
+                </span>
                 <span>
                   {course.modulesCount} học phần · {course.lessonsCount} bài ·{" "}
                   {formatCourseDuration(course.duration)}
-                    </span>
-        </div>
-      </header>
+                </span>
+              </div>
+            </header>
 
-            <div className="flex justify-center lg:hidden">{purchaseCard}</div>
+            <div className="w-full lg:hidden">{purchaseCard}</div>
 
               {course.learningOutcomes.length > 0 ? (
-                <section className="rounded-md border border-slate-200 bg-white p-4 sm:p-5">
+                <section className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5 lg:rounded-md lg:shadow-none">
                   <h2 className="mb-3 text-lg font-bold text-slate-900">Bạn sẽ học được gì</h2>
                   <ul className="grid gap-2 sm:grid-cols-2">
                     {course.learningOutcomes.map((outcome, i) => (
@@ -294,7 +310,9 @@ export function CourseDetail() {
               ) : null}
 
               <section>
-                <h2 className="mb-3 text-lg font-bold text-slate-900">Danh sách bài học</h2>
+                <h2 className="mb-3 text-base font-bold text-slate-900 sm:text-lg">
+                  Danh sách bài học
+                </h2>
                 <CourseCurriculumAccordion
                   modules={course.modules}
                   certificateEnabled={course.certificateEnabled}

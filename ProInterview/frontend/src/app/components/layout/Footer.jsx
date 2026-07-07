@@ -348,3 +348,11 @@ function FooterLight() {
 export function Footer({ variant = "light" }) {
   return variant === "dark" ? <FooterDark /> : <FooterLight />;
 }
+
+export {
+  FacebookIcon,
+  TiktokIcon,
+  LinkedinIcon,
+  InstagramIcon,
+  SOCIAL_LINKS
+};

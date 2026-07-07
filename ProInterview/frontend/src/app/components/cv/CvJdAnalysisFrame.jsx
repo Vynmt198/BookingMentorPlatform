@@ -27,10 +27,9 @@ const FIELD_SUBTITLE_CLASS =
 export function cvAnalysisPageHeader(mode) {
   if (mode === "field") {
     return {
-      badge: "Phân tích theo ngành",
       title: (
         <>
-          Phân tích CV <span className="text-[#8037f4]">theo ngành</span>
+          Phân tích CV <span className="text-[#630ed4]">theo ngành</span>
         </>
       ),
       subtitle: FIELD_SUBTITLE,
@@ -38,10 +37,9 @@ export function cvAnalysisPageHeader(mode) {
     };
   }
   return {
-    badge: "Tối ưu CV theo vị trí ứng tuyển",
     title: (
       <>
-        Phân tích CV <span className="text-[#8037f4]">với JD</span>
+        Tối ưu CV theo vị trí <span className="text-[#630ed4]">ứng tuyển</span>
       </>
     ),
     subtitle: JD_SUBTITLE,
@@ -59,10 +57,10 @@ export function CvJdAnalysisPage({
   tabAnalysisPath,
   tabHistoryPath,
   children,
-  badge = "Tối ưu CV theo vị trí ứng tuyển",
+  badge = null,
   title = (
     <>
-      Phân tích CV <span className="text-[#8037f4]">với JD</span>
+      Tối ưu CV theo vị trí <span className="text-[#630ed4]">ứng tuyển</span>
     </>
   ),
   subtitle = JD_SUBTITLE,

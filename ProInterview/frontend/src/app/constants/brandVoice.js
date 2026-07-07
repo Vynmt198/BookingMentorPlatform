@@ -184,19 +184,24 @@ export const MENTOR_BOOKING_COPY = {
 };
 
 export const COURSES_SHOWCASE_COPY = {
+  sectionTitle: "Nâng Tầm Bản Thân, Chinh Phục Mọi Cuộc Phỏng Vấn",
+  sectionTitleLine1: "Nâng Tầm Bản Thân,",
+  sectionTitleLine2: "Chinh Phục Mọi Cuộc Phỏng Vấn",
   badge: "Khóa học từ Mentor",
-  titleLine1: "Học từ kinh nghiệm Mentor",
+  titleLine1: "Luyện phỏng vấn",
   titleLine2: "qua khóa học thực tế",
-  body: "Khóa học do Mentor xây dựng, giúp bạn học theo từng chủ đề và cải thiện những kỹ năng cần thiết cho hành trình ứng tuyển.",
+  panelTitle: "Luyện phỏng vấn",
+  body: "Tham gia các khóa học chuyên sâu được thiết kế để trang bị cho bạn những kiến thức và kỹ năng cần thiết để chinh phục mọi buổi phỏng vấn.",
   bodyLine1:
-    "Khóa học do Mentor xây dựng, giúp bạn học theo từng chủ đề và cải thiện",
-  bodyLine2: "những kỹ năng cần thiết cho hành trình ứng tuyển.",
+    "Tham gia các khóa học chuyên sâu được thiết kế để trang bị cho bạn",
+  bodyLine2: "những kiến thức và kỹ năng cần thiết để chinh phục mọi buổi phỏng vấn.",
   bullets: [
-    "Chủ đề đa dạng.",
-    "Video ngắn, dễ học theo lộ trình.",
-    "Chọn khóa đúng kỹ năng cần luyện.",
+    "Chuyên gia dày dặn kinh nghiệm đến từ các tập đoàn lớn.",
+    "Phản hồi chi tiết, cá nhân hóa để giúp bạn cải thiện từng ngày.",
+    "Lịch học linh hoạt, phù hợp với mọi thời gian biểu.",
+    "Cam kết hiệu quả, giúp bạn tự tin hơn trong các buổi phỏng vấn thật.",
   ],
-  cta: "Xem tất cả khóa học",
+  cta: "Xem khóa luyện phỏng vấn",
   panelVideoTitle: "Video từng bài",
   panelVideoBody: "Ghi danh xong, mở hết bài trong khóa.",
   panelVideoNote: "Ghi chú theo bài, học tiếp đúng chỗ.",

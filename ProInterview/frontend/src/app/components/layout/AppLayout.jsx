@@ -18,7 +18,7 @@ export function AppLayout() {
   const allowHorizontalScroll = isCvAnalysisHub;
   const isLegalDoc = pathNorm === "terms" || pathNorm === "privacy";
   const hideNavbar = pathNorm === "interview/room";
-  const hideFooter = hideNavbar;
+  const hideFooter = pathNorm === "interview/room";
   const showSiteFooter = !isMentor && !hideFooter;
   const ambientModifier = isHome
     ? " app-shell-ambient--home"
@@ -28,6 +28,11 @@ export function AppLayout() {
 
   useEffect(() => {
     document.title = resolveDocumentTitle(location.pathname);
+    window.scrollTo(0, 0);
+    const mentorContainer = document.getElementById("mentor-scroll-container");
+    if (mentorContainer) {
+      mentorContainer.scrollTo(0, 0);
+    }
   }, [location.pathname]);
 
   useEffect(() => {
@@ -66,6 +71,7 @@ export function AppLayout() {
           <SidebarInset className="relative z-[1] flex h-svh max-h-svh min-h-0 flex-1 flex-col overflow-hidden bg-transparent shadow-none md:peer-data-[variant=inset]:shadow-none md:peer-data-[variant=inset]:m-0 md:peer-data-[variant=inset]:rounded-none">
             <Navbar variant="mentor" />
             <div
+              id="mentor-scroll-container"
               className={`relative z-[1] min-h-0 flex-1 overflow-x-hidden overflow-y-auto ${MENTOR_MAIN_TOP_PAD}`}
             >
               <Outlet />

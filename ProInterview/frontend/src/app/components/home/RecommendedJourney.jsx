@@ -17,9 +17,9 @@ const JOURNEY_STEPS = [
     title: "Phỏng vấn AI",
     desc: "Luyện tập với AI và nhận phản hồi chi tiết",
     route: "/interview",
-    color: "#8037f4",
-    bgColor: "rgba(128, 55, 244,0.12)",
-    borderColor: "rgba(128, 55, 244,0.35)",
+    color: "#7c3aed",
+    bgColor: "rgba(124, 58, 237,0.12)",
+    borderColor: "rgba(124, 58, 237,0.35)",
   },
   {
     number: "02",
@@ -54,15 +54,15 @@ export function RecommendedJourney({
       <div
         className="p-5 rounded-2xl"
         style={{
-          background: "rgba(128, 55, 244,0.08)",
-          border: "1px solid rgba(128, 55, 244,0.2)",
+          background: "rgba(124, 58, 237,0.08)",
+          border: "1px solid rgba(124, 58, 237,0.2)",
         }}
       >
         <div className="flex items-start gap-3 mb-4">
           <div
             className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
             style={{
-              background: "#8037f4",
+              background: "#7c3aed",
             }}
           >
             <Lightning className="w-5 h-5 text-white" />

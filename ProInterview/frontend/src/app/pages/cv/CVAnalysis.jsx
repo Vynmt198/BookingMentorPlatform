@@ -1,15 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router";
 import {
-  FileText,
-  ChevronDown,
-  ChevronRight,
   Check,
   X,
   Zap,
   AlertTriangle as Warning,
-  Briefcase,
-  ArrowLeft,
   Lock,
   Percent as SealPercent,
   Trash2 as Trash,
@@ -20,10 +15,11 @@ import {
   RefreshCw,
   BadgeCheck,
 } from "lucide-react";
-import { getPlans, getCVRemaining, incrementCVCount, CV_FREE_LIMIT, isLoggedIn } from "../../utils/auth";
+import { getPlans, getUser, hasAuthCredentials, CV_FREE_LIMIT, isLoggedIn } from "../../utils/auth";
 import { buildLoginPath } from "../../utils/authGate";
 import { apiUrl as expressApiUrl, isExpressBackendConfigured } from "../../utils/api";
 import { CvJdAnalysisPage, cvAnalysisPageHeader } from "../../components/cv/CvJdAnalysisFrame";
+import { AppSelect } from "../../components/ui/AppSelect";
 import {
   CV_FIELD_ANALYSIS_PATH,
   CV_FIELD_HISTORY_PATH,
@@ -36,6 +32,7 @@ import {
   deleteCvAnalysis,
   fetchCvAnalyses,
   fetchCvAnalysisById,
+  fetchCvQuota,
   formatCvSaveError,
   saveCvAnalysis,
 } from "../../utils/cvApi";
@@ -45,7 +42,7 @@ import {
   mapPythonCvPipelineToAnalysis,
 } from "../../utils/cvMappers.js";
 import { uploadCvJdFiles } from "../../utils/cvFileUpload.js";
-import { projectId, publicAnonKey } from "/utils/supabase/info.js";
+import { projectId } from "/utils/supabase/info.js";
 
 // ─── API base ─────────────────────────────────────────────────────────────────
 const EDGE_FN = "make-server-64a0c849";
@@ -109,6 +106,10 @@ function buildFd(
 /** FastAPI trả `detail` (string hoặc mảng validation); Express dùng `error`. */
 function formatCvAnalyzerHttpError(status, body) {
   const e = body ?? {};
+  if (status === 429) return "Hệ thống đang bận, vui lòng thử lại sau 1-2 phút.";
+  if (status === 403 && e.error === "quota_exceeded") {
+    return e.message || "Bạn đã hết lượt phân tích CV. Vui lòng nâng cấp gói.";
+  }
   if (typeof e.detail === "string" && e.detail.trim()) return e.detail.trim();
   if (Array.isArray(e.detail)) {
     const parts = e.detail
@@ -116,6 +117,7 @@ function formatCvAnalyzerHttpError(status, body) {
       .filter(Boolean);
     if (parts.length) return parts.join(" · ");
   }
+  if (typeof e.message === "string" && e.message.trim()) return e.message.trim();
   if (typeof e.error === "string" && e.error.trim()) return e.error.trim();
   return `CV Analyzer lỗi ${status}`;
 }
@@ -147,13 +149,11 @@ function preventDragDefaults(e) {
 
 /** Chiều cao cố định — CV và JD luôn bằng nhau (chưa chọn / đã chọn) */
 const UPLOAD_ZONE_HEIGHT =
-  "flex h-[10.75rem] w-full flex-col items-center justify-between rounded-2xl border-2 border-dashed border-violet-200/90 bg-violet-50/25 px-5 py-4 text-center transition sm:h-[11rem] sm:px-6 sm:py-5";
+  "flex h-[14rem] w-full min-w-0 overflow-hidden flex-col items-center justify-between rounded-2xl border-2 border-dashed border-violet-200/90 bg-violet-50/25 px-5 py-6 text-center transition sm:h-[15.5rem] sm:px-6 sm:py-7";
 
 function CvUploadDropZone({ kind, hasFile, fileName, fileSizeKb, onPick, onClear, onFile }) {
   const isCv = kind === "cv";
-  const headline = isCv
-    ? "Tải lên CV từ máy tính, chọn hoặc kéo thả"
-    : "Tải lên Job Description, chọn hoặc kéo thả";
+  const headline = isCv ? "Tải lên CV từ máy tính" : "Tải lên Job Description";
   const pickLabel = isCv ? "Chọn CV" : "Chọn JD";
   const zoneLabel = isCv ? "CV của bạn" : "Job Description";
 
@@ -172,7 +172,7 @@ function CvUploadDropZone({ kind, hasFile, fileName, fileSizeKb, onPick, onClear
     : `${UPLOAD_ZONE_HEIGHT} cursor-pointer hover:border-violet-300 hover:bg-violet-50/55`;
 
   return (
-    <div className="flex h-full flex-col px-6 pt-6 sm:px-8 sm:pt-7">
+    <div className="flex h-full min-w-0 flex-col px-6 pt-6 sm:px-8 sm:pt-7">
       <p className="mb-1.5 shrink-0 text-xs font-bold uppercase tracking-wide text-violet-600">
         {zoneLabel}
       </p>
@@ -193,17 +193,19 @@ function CvUploadDropZone({ kind, hasFile, fileName, fileSizeKb, onPick, onClear
         }
         className={shellClass}
       >
-        <div className="flex w-full max-w-sm items-center justify-center gap-2">
+        <div className="flex w-full min-w-0 max-w-sm items-center justify-center gap-2">
           <CloudUpload className="h-6 w-6 shrink-0 text-violet-400" strokeWidth={1.5} />
-          <p className="text-left text-xs font-bold leading-snug text-violet-950 sm:text-sm">{headline}</p>
+          <p className="min-w-0 text-left text-xs font-bold leading-snug text-violet-950 sm:text-sm">
+            {headline}
+          </p>
         </div>
 
         {/* Khối giữa cố định 2 dòng — tránh lệch chiều cao CV vs JD */}
-        <div className="flex min-h-[2.75rem] w-full max-w-sm flex-col items-center justify-center gap-0.5 px-1">
+        <div className="flex min-h-[2.75rem] w-full min-w-0 max-w-sm flex-col items-center justify-center gap-0.5 px-1">
           {hasFile ? (
             <>
               <p
-                className="max-w-full truncate text-sm font-semibold leading-tight text-emerald-700"
+                className="w-full break-all text-sm font-semibold leading-snug text-emerald-700"
                 title={fileName}
               >
                 {fileName || "—"}
@@ -257,7 +259,8 @@ export function CVAnalysis() {
   const loginReturnPath = routeMode === "field" ? "/cv-analysis/field" : "/cv-analysis/jd";
   
   const [plans]            = useState(getPlans());
-  const [cvRemaining, setCvRemaining] = useState(getCVRemaining());
+  const [cvRemaining, setCvRemaining] = useState(0);
+  const [cvQuotaLimit, setCvQuotaLimit] = useState(CV_FREE_LIMIT);
 
   // Page-level view
   const [pageView, setPageView] = useState("analysis");
@@ -269,7 +272,6 @@ export function CVAnalysis() {
   const [selectedField, setSelectedField] = useState(() =>
     routeMode === "field" ? DEFAULT_FIELD : ""
   );
-  const [fieldOpen, setFieldOpen] = useState(false);
 
   useEffect(() => {
     if (routeMode === "field") {
@@ -305,6 +307,29 @@ export function CVAnalysis() {
   const [enableJD, setEnableJD] = useState(routeMode === "jd" || (routeMode !== "field" && USE_EXPRESS_CV));
   const [enableField, setEnableField] = useState(routeMode === "field");
 
+  const loadCvQuota = useCallback(async () => {
+    if (!hasAuthCredentials()) {
+      setCvRemaining(0);
+      setCvQuotaLimit(CV_FREE_LIMIT);
+      return;
+    }
+
+    const res = await fetchCvQuota();
+    if (!res.success || !res.quota) return;
+
+    const planKey = getUser()?.plan ?? "free";
+    const isUnlimitedPlan = ["student", "professional", "premium"].includes(String(planKey));
+    const remaining = Math.max(
+      0,
+      isUnlimitedPlan
+        ? Number.POSITIVE_INFINITY
+        : (Number(res.quota.cvAnalysisLimit) || CV_FREE_LIMIT) - (Number(res.quota.cvAnalysisUsed) || 0),
+    );
+
+    setCvRemaining(Number.isFinite(remaining) ? remaining : 999);
+    setCvQuotaLimit(Number(res.quota.cvAnalysisLimit) || CV_FREE_LIMIT);
+  }, []);
+
   useEffect(() => {
     if (!routeMode) {
       navigate("/cv-analysis", { replace: true });
@@ -319,7 +344,12 @@ export function CVAnalysis() {
     }
   }, [routeMode, navigate]);
 
-  const canAnalyze  = plans.student || plans.professional || plans.premium || cvRemaining > 0;
+  useEffect(() => {
+    loadCvQuota();
+  }, [loadCvQuota]);
+
+  const canAnalyze  =
+    !hasAuthCredentials() || plans.student || plans.professional || plans.premium || cvRemaining > 0;
   const hasCvInput = Boolean(cvUploaded || reuseCV || cvFile);
   const hasJdInput = Boolean(jdUploaded || reuseJD || jdFile);
   const needsJdForRoute = routeMode === "jd";
@@ -429,11 +459,6 @@ export function CVAnalysis() {
     if (!hasCVInput) return;
     if (needsJdForRoute && !Boolean(jdUploaded || reuseJD || jdFile)) return;
     if (!canAnalyze) return;
-
-    if (!plans.student && !plans.professional && !plans.premium) {
-      setCvRemaining(prev => Math.max(0, prev - 1));
-      incrementCVCount();
-    }
 
     setStep("loading"); setAnalyzeError(null); setProgress(0); setLoadingStage(0);
 
@@ -773,6 +798,7 @@ export function CVAnalysis() {
         applyResult(data);
 
         setProgress(100);
+        await loadCvQuota();
         await new Promise((r) => setTimeout(r, 350));
         goToResultPage(data);
         setStep("upload");
@@ -781,6 +807,7 @@ export function CVAnalysis() {
         console.error("CV analysis error:", err);
         setAnalyzeError(err.message ?? "Lỗi phân tích");
         setStep("upload");
+        loadCvQuota();
       }
     } else {
       // ── Demo path ──────────────────────────────────────────────────────
@@ -846,6 +873,7 @@ export function CVAnalysis() {
       const res = await deleteCvAnalysis(id);
       if (!res.success) throw new Error(res.error || "Không xóa được");
       setHistoryList(prev => prev.filter(a => a.analysisId !== id));
+      await loadCvQuota();
     } catch (err) {
       alert(`Lỗi xóa: ${err.message}`);
     } finally {
@@ -875,14 +903,19 @@ export function CVAnalysis() {
     <CvJdAnalysisPage
       activeTab="analysis"
       cardVariant={routeMode === "field" ? "field" : "default"}
-      showTabs={routeMode === "jd" || routeMode === "field"}
-      tabAnalysisPath={routeMode === "field" ? CV_FIELD_ANALYSIS_PATH : undefined}
+      showTabs={true}
+      tabAnalysisPath={routeMode === "field" ? CV_FIELD_ANALYSIS_PATH : "/cv-analysis/jd"}
       tabHistoryPath={
         routeMode === "field" ? CV_FIELD_HISTORY_PATH : CV_JD_HISTORY_PATH
       }
       {...pageHeader}
       tabTrailing={
-        routeMode === "jd" && !plans.student && !plans.professional && !plans.premium && step === "upload" ? (
+        routeMode === "jd" &&
+        hasAuthCredentials() &&
+        !plans.student &&
+        !plans.professional &&
+        !plans.premium &&
+        step === "upload" ? (
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold sm:text-[11px] ${
               cvRemaining === 0
@@ -891,7 +924,7 @@ export function CVAnalysis() {
             }`}
           >
             {cvRemaining === 0 ? <Lock className="h-3 w-3" /> : <SealPercent className="h-3 w-3" />}
-            {cvRemaining}/{CV_FREE_LIMIT} lượt
+            {cvRemaining}/{cvQuotaLimit} lượt
           </span>
         ) : null
       }
@@ -1044,7 +1077,7 @@ export function CVAnalysis() {
                 </div>
               )}
 
-              {cvRemaining === 0 && !plans.student && !plans.professional && !plans.premium && (
+              {hasAuthCredentials() && cvRemaining === 0 && !plans.student && !plans.professional && !plans.premium && (
                 <div className="mx-4 mb-0 mt-3 flex items-center justify-between gap-2 rounded-xl border border-amber-200/90 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 sm:mx-5">
                   <span>Đã hết lượt miễn phí — nâng cấp để tiếp tục</span>
                   <button type="button" onClick={() => navigate("/pricing")} className="font-bold text-[#8037f4] hover:underline">
@@ -1099,65 +1132,23 @@ export function CVAnalysis() {
               {routeMode === "field" && enableField && (
                 <div className="border-t border-violet-100 px-4 py-4 pb-6 sm:px-5 sm:pb-8">
                   <p className="mb-2 text-xs font-bold uppercase tracking-wide text-violet-700">Ngành nghề</p>
-                  <div className="relative z-20">
-                    <button
-                      type="button"
-                      onClick={() => setFieldOpen(!fieldOpen)}
-                      className="group flex w-full items-center justify-between rounded-sm border border-violet-200 bg-white px-4 py-3 text-sm transition-colors hover:border-violet-300"
-                    >
-                      <span className={selectedField ? "font-semibold text-violet-950" : "text-violet-500"}>
-                        {selectedField || "Chọn ngành nghề..."}
-                      </span>
-                      <ChevronDown className={`h-4 w-4 text-violet-500 transition-transform ${fieldOpen ? "rotate-180" : ""}`} />
-                    </button>
-                    {fieldOpen && (
-                      <div className="mt-2 max-h-64 overflow-y-auto rounded-sm border border-violet-200/90 bg-white shadow-lg ring-1 ring-violet-100/80">
-                        {FIELD_OPTIONS.map((opt) => {
-                          const isSelected = opt.available && selectedField === opt.label;
-                          return (
-                            <button
-                              key={opt.label}
-                              type="button"
-                              disabled={!opt.available}
-                              onClick={() => {
-                                if (!opt.available) return;
-                                setSelectedField(opt.label);
-                                setFieldOpen(false);
-                              }}
-                              className={`flex w-full items-center justify-between gap-3 border-b border-violet-100/90 px-4 py-3 text-left text-sm transition-colors last:border-0 ${
-                                opt.available
-                                  ? isSelected
-                                    ? "bg-violet-50/90 hover:bg-violet-50"
-                                    : "hover:bg-violet-50/60"
-                                  : "cursor-not-allowed bg-violet-50/40 opacity-95"
-                              }`}
-                            >
-                              <span
-                                className={
-                                  opt.available
-                                    ? isSelected
-                                      ? "font-semibold text-violet-950"
-                                      : "font-medium text-violet-800"
-                                    : "font-medium text-slate-500"
-                                }
-                              >
-                                {opt.label}
-                              </span>
-                              {!opt.available && (
-                                <span className="inline-flex shrink-0 items-center rounded-sm border border-violet-200/70 bg-violet-50 px-2 py-1 text-[10px] font-bold tracking-wide text-violet-700 shadow-sm">
-                                  Sắp ra mắt
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <AppSelect
+                    size="md"
+                    value={selectedField || undefined}
+                    onValueChange={setSelectedField}
+                    placeholder="Chọn ngành nghề..."
+                    aria-label="Ngành nghề"
+                    triggerClassName="rounded-2xl border-violet-200 bg-white focus:border-[#8037f4]"
+                    options={FIELD_OPTIONS.map((opt) => ({
+                      value: opt.label,
+                      label: opt.available ? opt.label : `${opt.label} · Sắp ra mắt`,
+                      disabled: !opt.available,
+                    }))}
+                  />
                 </div>
               )}
 
-              <div className="border-t border-violet-100 bg-violet-50 px-6 py-6 sm:px-8 sm:py-8">
+              <div className="border-t border-violet-100 bg-gradient-to-b from-violet-50/40 to-violet-50/70 px-6 py-6 sm:px-8 sm:py-8">
                 <button
                   type="button"
                   onClick={handleAnalyze}
@@ -1171,9 +1162,6 @@ export function CVAnalysis() {
                   <Zap className="h-5 w-5 shrink-0" strokeWidth={2.25} />
                   {primaryCtaLabel}
                 </button>
-                <p className="mt-2.5 text-center text-[10px] font-medium text-violet-600/90 sm:text-[11px]">
-                  Dữ liệu được xử lý an toàn · Gemini AI
-                </p>
               </div>
 
             </div>

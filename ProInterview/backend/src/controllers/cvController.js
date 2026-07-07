@@ -2,6 +2,16 @@ import { CVAnalysis } from "../models/CVAnalysis.js";
 import { User } from "../models/User.js";
 import { validateSaveAnalysis, formatValidationError } from "../dto/cvAnalysis.dto.js";
 import { logger } from "../config/logger.js";
+import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
+import { enforceExpiry } from "../utils/planGuard.js";
+
+function withResolvedFileUrls(analysis) {
+  if (!analysis) return analysis;
+  const doc = analysis.toObject ? analysis.toObject() : { ...analysis };
+  if (doc.cvFileUrl) doc.cvFileUrl = resolveStoredUploadUrl(doc.cvFileUrl);
+  if (doc.jdFileUrl) doc.jdFileUrl = resolveStoredUploadUrl(doc.jdFileUrl);
+  return doc;
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -68,8 +78,9 @@ export const CVController = {
   /** Lấy quota còn lại */
   getQuota: async (req, res) => {
     try {
-      const user = await User.findById(req.userId).select("quota");
+      let user = await User.findById(req.userId).select("quota plan planExpiresAt");
       if (!user) return res.status(404).json({ success: false, error: "Người dùng không tồn tại" });
+      user = await enforceExpiry(user);
       res.json({ success: true, quota: user.quota });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
@@ -103,21 +114,29 @@ export const CVController = {
     }
 
     // ── Step 2: Kiểm tra quota ────────────────────────────────────────────
-    const user = await User.findById(userId).select("+quota").catch(() => null);
+    let user = await User.findById(userId).select("quota plan planExpiresAt").catch(() => null);
     if (!user) {
       return res.status(404).json({ success: false, error: "Người dùng không tồn tại" });
     }
 
-    if (user.quota?.cvAnalysisUsed >= user.quota?.cvAnalysisLimit) {
+    user = await enforceExpiry(user);
+
+    const updatedUser = await User.findOneAndUpdate(
+      { _id: userId, "quota.cvAnalysisUsed": { $lt: user.quota?.cvAnalysisLimit ?? 2 } },
+      { $inc: { "quota.cvAnalysisUsed": 1 } },
+      { new: true },
+    );
+
+    if (!updatedUser) {
       logger.warn("cv_analysis_quota_exceeded", {
         userId,
-        used:  user.quota.cvAnalysisUsed,
-        limit: user.quota.cvAnalysisLimit,
+        used:  user.quota?.cvAnalysisUsed,
+        limit: user.quota?.cvAnalysisLimit,
       });
       return res.status(403).json({
         success: false,
         error: "quota_exceeded",
-        message: "Bạn đã hết lượt phân tích CV miễn phí. Vui lòng nâng cấp gói.",
+        message: "Bạn đã hết lượt phân tích CV. Vui lòng nâng cấp gói.",
       });
     }
 
@@ -133,9 +152,6 @@ export const CVController = {
         completedAt: new Date(),
       });
 
-      user.quota.cvAnalysisUsed += 1;
-      await user.save();
-
       logger.info("cv_analysis_created", {
         userId,
         analysisId:  String(analysis._id),
@@ -144,8 +160,11 @@ export const CVController = {
         matchScore:  analysis.result?.match?.score,
       });
 
-      return res.status(201).json({ success: true, analysis });
+      return res.status(201).json({ success: true, analysis: withResolvedFileUrls(analysis) });
     } catch (err) {
+      await User.findByIdAndUpdate(userId, { $inc: { "quota.cvAnalysisUsed": -1 } }).catch((rollbackErr) =>
+        logger.error("cv_quota_rollback_failed", { userId, error: rollbackErr.message })
+      );
       logger.error("cv_analysis_create_failed", { userId, error: err.message });
       return res.status(500).json({ success: false, error: err.message });
     }
@@ -157,7 +176,7 @@ export const CVController = {
       const list = await CVAnalysis.find({ userId: req.userId })
         .sort({ createdAt: -1 })
         .select("-cvText -jdText"); // loại raw text để giảm payload
-      res.json({ success: true, list });
+      res.json({ success: true, list: list.map(withResolvedFileUrls) });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
@@ -168,7 +187,7 @@ export const CVController = {
     try {
       const analysis = await CVAnalysis.findOne({ _id: req.params.id, userId: req.userId });
       if (!analysis) return res.status(404).json({ success: false, error: "Không tìm thấy" });
-      res.json({ success: true, analysis });
+      res.json({ success: true, analysis: withResolvedFileUrls(analysis) });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }
@@ -179,7 +198,33 @@ export const CVController = {
     try {
       const deleted = await CVAnalysis.findOneAndDelete({ _id: req.params.id, userId: req.userId });
       if (!deleted) return res.status(404).json({ success: false, error: "Không tìm thấy để xóa" });
+      await User.findOneAndUpdate(
+        { _id: req.userId, "quota.cvAnalysisUsed": { $gt: 0 } },
+        { $inc: { "quota.cvAnalysisUsed": -1 } },
+      ).catch((refundErr) =>
+        logger.error("cv_quota_refund_failed", { userId: req.userId, error: refundErr.message })
+      );
       res.json({ success: true, message: "Đã xóa bản phân tích CV" });
+    } catch (error) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+
+  submitFeedback: async (req, res) => {
+    try {
+      const { rating } = req.body;
+      if (!["helpful", "not_helpful"].includes(rating)) {
+        return res.status(400).json({ success: false, error: "rating phải là helpful hoặc not_helpful" });
+      }
+
+      const doc = await CVAnalysis.findOneAndUpdate(
+        { _id: req.params.id, userId: req.userId },
+        { "feedback.rating": rating, "feedback.submittedAt": new Date() },
+        { new: true, select: "feedback" },
+      );
+      if (!doc) return res.status(404).json({ success: false, error: "Không tìm thấy" });
+
+      res.json({ success: true, feedback: doc.feedback });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
     }

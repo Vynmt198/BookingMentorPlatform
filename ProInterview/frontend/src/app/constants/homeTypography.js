@@ -12,8 +12,8 @@ export const homeSectionClasses = {
     "inline-flex items-center gap-2 rounded-full border border-[#8037f4]/30 bg-[#8037f4]/10 px-3.5 py-1 text-sm font-semibold text-[#8037f4] sm:text-base",
   /** H2 showcase / lộ trình / testimonials — đồng bộ với HOME_SECTION_TITLE_CLAMP */
   sectionTitle:
-    "home-section-title font-headline font-extrabold leading-[1.08] tracking-tight text-[#000000]",
-  title: "max-w-2xl font-headline font-extrabold leading-[1.08] tracking-tight text-[#000000]",
+    "home-section-title font-headline font-normal leading-[1.08] tracking-tight text-[#000000]",
+  title: "max-w-2xl font-headline font-normal leading-[1.08] tracking-tight text-[#000000]",
   titleLineSecond: "block leading-[1.08]",
   titleLineDark: "block text-[#000000]",
   titleLineAccent: "block font-headline text-[#8037f4]",
@@ -28,12 +28,12 @@ export const homeSectionClasses = {
   cardTitle: "font-headline text-xl font-bold text-[#000000] md:text-2xl",
   cardScore: "shrink-0 rounded-2xl border px-4 py-1.5 text-base font-bold sm:text-lg",
   stepCardTitle:
-    "font-headline text-lg font-extrabold leading-snug text-[#000000] sm:text-xl",
+    "font-headline text-lg font-bold leading-snug text-[#000000] sm:text-xl",
   stepCardBody: "text-pretty text-base font-medium leading-relaxed text-slate-600 sm:text-lg",
   howItWorksTitle:
-    "font-headline font-extrabold leading-[1.08] tracking-tight text-[#000000]",
+    "font-headline font-normal leading-[1.08] tracking-tight text-[#000000]",
   howItWorksStepTitle:
-    "mb-2 font-headline text-lg font-extrabold tracking-tight text-[#000000] sm:text-xl",
+    "mb-2 font-headline text-lg font-bold tracking-tight text-[#000000] sm:text-xl",
   howItWorksStepBody:
     "flex-1 text-left text-pretty text-sm font-medium leading-relaxed text-slate-600 sm:text-base lg:min-h-[5.1rem]",
   howItWorksStepBadge:
