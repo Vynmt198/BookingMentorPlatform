@@ -33,3 +33,13 @@ export const analyzeFaceLimiter = rateLimit({
   handler: (_req, res) =>
     res.status(429).json({ success: true, emotion: null, reason: "rate_limited" }),
 });
+
+/** CV Analysis — giới hạn nhẹ theo user để tránh spam service Python/LLM. */
+export const cvAnalyzeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: isProd ? 5 : 30,
+  keyGenerator: (req) => req.userId ?? req.ip,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: "Quá nhiều yêu cầu phân tích. Vui lòng thử lại sau 1 phút." },
+});

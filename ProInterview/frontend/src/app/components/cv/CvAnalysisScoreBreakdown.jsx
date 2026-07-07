@@ -16,8 +16,8 @@ function badgeClass(status) {
 }
 
 function barColor(status) {
-  if (status === "good") return "#84cc16";
-  if (status === "ok") return "#93f72b";
+  if (status === "good") return "#93f72b";
+  if (status === "ok") return "#8037f4";
   return "#f97316";
 }
 
@@ -121,7 +121,7 @@ export function CvAnalysisScoreBreakdown({
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span
-                  className="font-bold text-slate-900"
+                  className="font-bold text-slate-900 [font-variant-numeric:tabular-nums]"
                   style={{
                     fontSize: dense
                       ? shrinkRem
@@ -196,7 +196,7 @@ export function CvAnalysisScoreBreakdown({
                       {row.criteria}
                     </span>
                     <span
-                      className={`shrink-0 rounded-lg font-bold ${
+                      className={`shrink-0 rounded-lg font-bold [font-variant-numeric:tabular-nums] ${
                         rowsTight
                           ? "px-1 py-0 text-[9px]"
                           : hubPreview

@@ -39,22 +39,26 @@ const UPZI_STEPS = MENTOR_SHOWCASE_COPY.steps.map((step, i) => ({
   ...step,
 }));
 
-function MentorMiniCard({ mentor, className }) {
+function MentorMiniCard({ mentor, className, featured = false }) {
   return (
     <div className={className}>
       <div className="flex items-center gap-2">
         <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-violet-200/80 bg-violet-50/90 text-[#8037f4]"
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+            featured
+              ? "border border-violet-200/80 bg-white text-[#7c3aed]"
+              : "border border-violet-200/80 bg-white text-[#7c3aed]"
+          }`}
           aria-hidden
         >
           <Users className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[10px] font-bold text-slate-900">{mentor.name}</p>
-          <p className="text-[8px] text-slate-500">{mentor.company}</p>
+          <p className={`truncate text-[10px] font-bold ${featured ? "text-slate-900" : "text-slate-900"}`}>{mentor.name}</p>
+          <p className={`text-[8px] ${featured ? "text-slate-500" : "text-slate-500"}`}>{mentor.company}</p>
         </div>
-        <span className="flex shrink-0 items-center gap-0.5 text-[9px] font-bold text-[#8037f4]">
-          <Star className="h-3 w-3 fill-[#93f72b] text-[#8037f4]" />
+        <span className={`flex shrink-0 items-center gap-0.5 text-[9px] font-bold ${featured ? "text-[#7c3aed]" : "text-[#7c3aed]"}`}>
+          <Star className="h-3 w-3 fill-[#93f72b] text-[#93f72b]" />
           {mentor.rating}
         </span>
       </div>
@@ -68,10 +72,10 @@ function FindMentorVisual() {
   return (
     <div className="relative z-[1] flex h-full flex-col px-3 pb-4 pt-6 sm:px-3.5 sm:pt-7">
       <div className="relative mx-auto min-h-[12.5rem] w-[88%] flex-1 origin-top scale-105">
-        <div className="absolute left-0 right-4 top-0 z-[1] rotate-[-2deg] rounded-2xl bg-white p-2 shadow-lg">
-          <div className="flex items-center gap-1.5 rounded-lg bg-violet-50 px-2 py-1">
-            <Search className="h-3 w-3 text-[#8037f4]" />
-            <span className="text-[8px] font-semibold text-slate-600">IT · 4.5+ · dưới 400k</span>
+        <div className="absolute left-0 right-4 top-0 z-[1] rotate-[-2deg] rounded-2xl bg-[#f6f1ff] px-3 py-3 shadow-lg shadow-violet-300/20 ring-1 ring-violet-200/80">
+          <div className="flex items-center gap-1.5">
+            <Search className="h-3 w-3 text-[#7c3aed]" />
+            <span className="text-[8px] font-semibold text-[#7c3aed]">IT · 4.5+ · dưới 400k</span>
           </div>
         </div>
         {FIND_MENTOR_STACK.map((mentor, i) => {
@@ -83,13 +87,22 @@ function FindMentorVisual() {
               <div className={`absolute ${layout.inset} ${layout.top} ${layout.z}`}>
                 <MentorMiniCard
                   mentor={mentor}
-                  className={`${layout.rotate} rounded-2xl border border-violet-100 bg-white p-2 ${layout.shadow}`}
+                  featured={i === 0}
+                  className={`${layout.rotate} rounded-2xl p-2 ${layout.shadow} ${
+                    i === 0
+                      ? "border border-violet-200/80 bg-[#f0e8ff] shadow-violet-300/25"
+                      : "border border-violet-200/80 bg-[#f6f1ff] shadow-violet-300/20"
+                  }`}
                 />
               </div>
               <div
-                className={`absolute ${badge.inset} ${badge.top} z-[10] rounded-xl bg-white px-2.5 py-1.5 shadow-md ring-1 ring-violet-100`}
+                className={`absolute ${badge.inset} ${badge.top} z-[10] rounded-xl px-2.5 py-1.5 shadow-md ${
+                  i === 0
+                    ? "bg-[#6d28d9] ring-1 ring-violet-300/40"
+                    : "bg-[#7c3aed] ring-1 ring-violet-300/40"
+                }`}
               >
-                <p className="whitespace-nowrap text-[8px] font-bold leading-none text-[#8037f4]">
+                <p className="whitespace-nowrap text-[8px] font-bold leading-none text-white">
                   {mentor.reviews} review
                 </p>
               </div>
@@ -109,20 +122,22 @@ function BookingVisual() {
       <SparkleGlyph className="absolute right-3 top-8 z-[2] h-8 w-8 opacity-80" />
       <SparkleGlyph className="absolute left-2 top-14 z-[2] h-7 w-7 opacity-60" />
       <div className="relative flex w-[86%] flex-col justify-center">
-        <div className="relative z-[5] w-full rounded-md bg-white p-2.5 shadow-xl sm:p-3">
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-100">
-              <CircleCheck className="h-5 w-5 text-[#8037f4]" strokeWidth={2.5} />
+        <div className="relative z-[5] w-full rounded-sm bg-[#f3ecfd] p-2.5 shadow-xl shadow-violet-300/25 ring-1 ring-violet-200/80 sm:p-3">
+          <div className="rounded-sm bg-[linear-gradient(135deg,#5b21b6_0%,#7c3aed_100%)] px-3 py-3 shadow-lg shadow-violet-400/30">
+            <div className="flex flex-col items-center text-center">
+              <div className="flex h-9 w-9 items-center justify-center rounded-sm bg-white/12">
+                <CircleCheck className="h-5 w-5 text-[#93f72b]" strokeWidth={2.5} />
+              </div>
+              <p className="mt-1.5 text-[10px] font-extrabold leading-snug text-white">
+                Đặt lịch thành công!
+              </p>
+              <span className="mt-1 rounded-sm bg-white/12 px-2.5 py-0.5 text-[7px] font-bold text-white/90">
+                Mã BK-2847
+              </span>
             </div>
-            <p className="mt-1.5 text-[10px] font-extrabold leading-snug text-[#8037f4]">
-              Đặt lịch thành công!
-            </p>
-            <span className="mt-1 rounded-md bg-violet-50 px-2.5 py-0.5 text-[7px] font-bold text-[#8037f4]">
-              Mã BK-2847
-            </span>
           </div>
 
-          <div className="mt-2.5 space-y-1.5 rounded-md border border-violet-200 bg-violet-50/90 p-2">
+          <div className="mt-2.5 space-y-1.5 rounded-sm border border-violet-200/80 bg-white p-2 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[7px] font-semibold text-slate-500">Thời gian</span>
               <span className="text-[8px] font-bold text-slate-900">Thứ 5, 22/05 · 19:00</span>
@@ -135,9 +150,9 @@ function BookingVisual() {
               <span className="text-[7px] font-semibold text-slate-500">Buổi học</span>
               <span className="text-[8px] font-bold text-slate-900">Mock online · 60 phút</span>
             </div>
-            <div className="flex items-center justify-between gap-2 border-t border-violet-200/80 pt-1">
+            <div className="flex items-center justify-between gap-2 border-t border-violet-100 pt-1">
               <span className="text-[7px] font-semibold text-slate-500">Trạng thái</span>
-              <span className="rounded-md bg-[#8037f4] px-2 py-0.5 text-[7px] font-bold text-white">
+              <span className="rounded-sm bg-[#7c3aed] px-2 py-0.5 text-[7px] font-bold text-white">
                 Đã đặt
               </span>
             </div>
@@ -155,15 +170,17 @@ function FeedbackVisual() {
   return (
     <div className="relative z-[1] flex h-full flex-col items-center justify-center px-3 py-4 sm:px-4">
       <div className="flex w-[88%] flex-col origin-center scale-105">
-        <p className="mb-2 shrink-0 text-center text-[11px] font-bold leading-snug text-[#8037f4] sm:text-[12px]">
-          {MENTOR_SHOWCASE_COPY.afterMockLead}
-        </p>
-        <div className="flex flex-col rounded-lg bg-white p-3 shadow-xl sm:p-3.5">
+        <div className="mb-2 flex justify-center">
+          <p className="rounded-full bg-[#6d28d9] px-3 py-1 text-center text-[11px] font-bold leading-snug text-white shadow-md shadow-violet-400/25 sm:text-[12px]">
+            {MENTOR_SHOWCASE_COPY.afterMockLead}
+          </p>
+        </div>
+        <div className="flex flex-col rounded-sm bg-[#f3ecfd] p-3 shadow-xl shadow-violet-300/25 ring-1 ring-violet-200/80 sm:p-3.5">
           <ul className="flex flex-col justify-center gap-2.5 py-0.5 sm:gap-3">
             {AFTER_MOCK_POINTS.map((item) => (
               <li key={item.title} className="flex items-start gap-2">
                 <CircleCheck
-                  className="mt-0.5 h-4 w-4 shrink-0 text-[#8037f4] sm:h-[1.125rem] sm:w-[1.125rem]"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-[#7c3aed] sm:h-[1.125rem] sm:w-[1.125rem]"
                   strokeWidth={2.5}
                 />
                 <div className="min-w-0">
@@ -207,12 +224,12 @@ export function MentorFeatureShowcase({ onCtaClick }) {
   return (
     <section
       id="find-mentor"
-      className="home-mentor-panel relative z-10 flex min-h-svh scroll-mt-24 flex-col justify-center overflow-x-clip overflow-y-visible px-0 py-10 sm:py-12 lg:py-14"
+      className="home-mentor-panel relative z-10 flex min-h-svh scroll-mt-24 flex-col justify-center overflow-x-clip overflow-y-visible px-0 py-10 sm:py-12 lg:py-14 bg-white"
     >
       <style>{`
         .mentor-upzi-panel {
-          background: #f0ebf8;
-          border: 2px solid #8037f4;
+          background: #ffffff;
+          border: 2px solid #7c3aed;
           height: 20.5rem;
         }
         @media (min-width: 640px) {

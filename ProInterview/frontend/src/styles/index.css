@@ -99,9 +99,15 @@ body {
 }
 
 /* ── Custom scrollbar ──────────────────────────────── */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 55, 244, 0.5) transparent;
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-track {
@@ -109,12 +115,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(128, 55, 244, 0.25);
+  background: rgba(128, 55, 244, 0.4);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--pi-lime) 55%, rgba(128, 55, 244, 0.5));
+  background: color-mix(in srgb, var(--pi-lime) 55%, rgba(128, 55, 244, 0.6));
 }
 
 /* ── Smooth transitions for interactive elements ───── */
@@ -130,6 +136,15 @@ textarea {
 :focus-visible {
   outline: 2px solid rgba(128, 55, 244, 0.6);
   outline-offset: 2px;
+}
+
+/* ── Liquid Glass utility ──────────────────────────── */
+.liquid-glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
 }
 
 /* ── Glassmorphism utility ─────────────────────────── */
@@ -289,4 +304,9 @@ textarea {
 .divider-gradient {
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(128, 55, 244, 0.2), transparent);
+}
+
+/* ── Alternate Purple Section Background ─────────────── */
+.bg-alternate-purple {
+  background-color: #6425c9;
 }

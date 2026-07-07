@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import json
 import re
+import time
 import httpx
 
 # ── Ollama defaults (dùng khi không có cloud env vars) ──────────────────────
@@ -85,8 +86,6 @@ def _call_cloud(
         "Content-Type":  "application/json",
     }
 
-    # Groq / OpenAI / Gemini đều hỗ trợ json_object mode
-    # giúp đảm bảo output luôn là valid JSON
     payload = {
         "model":       cfg["model"],
         "messages": [
@@ -98,34 +97,66 @@ def _call_cloud(
         "response_format": {"type": "json_object"},
     }
 
-    try:
-        r = httpx.post(url, json=payload, headers=headers, timeout=timeout)
+    # gemini-2.5-flash mặc định bật "thinking" và tính chung vào max_tokens — với JSON
+    # output dài (nhiều bullet/skill), thinking có thể ngốn hết budget trước khi model
+    # kịp xuất JSON, khiến response bị cắt cụt (finish_reason="length", content rỗng/hỏng).
+    # Tắt hẳn thinking cho Gemini để completion luôn dùng trọn max_tokens.
+    if _detect_provider(cfg["base_url"]) == "Google Gemini":
+        payload["reasoning_effort"] = "none"
 
-        # Một số model không hỗ trợ response_format → retry không có nó
-        if r.status_code == 400 and "response_format" in r.text:
-            payload_plain = {k: v for k, v in payload.items() if k != "response_format"}
-            r = httpx.post(url, json=payload_plain, headers=headers, timeout=timeout)
+    _RETRY_DELAYS = [5, 15, 30]  # giây chờ sau lần 429 thứ 1, 2, 3
 
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+    for attempt, delay in enumerate([0] + _RETRY_DELAYS):
+        if delay:
+            print(f"  [llm] 429 — chờ {delay}s rồi retry (lần {attempt})...")
+            time.sleep(delay)
+        try:
+            r = httpx.post(url, json=payload, headers=headers, timeout=timeout)
 
-    except httpx.ConnectError:
-        raise ConnectionError(
-            f"Không kết nối được LLM endpoint: {url}\n"
-            "Kiểm tra LLM_BASE_URL trong .env hoặc biến môi trường."
-        )
-    except httpx.TimeoutException:
-        raise TimeoutError(f"Cloud LLM timeout sau {timeout}s.")
-    except httpx.HTTPStatusError as e:
-        status = e.response.status_code
-        if status == 429:
-            raise RuntimeError(
-                "API LLM bị giới hạn tần suất (429 Too Many Requests). "
-                "Đợi 1–2 phút rồi thử lại, hoặc đổi LLM_API_KEY / LLM_BASE_URL trong cv_jd_matching/.env hoặc backend/.env."
+            # Một số model không hỗ trợ response_format → retry không có nó
+            if r.status_code == 400 and "response_format" in r.text:
+                payload_plain = {k: v for k, v in payload.items() if k != "response_format"}
+                r = httpx.post(url, json=payload_plain, headers=headers, timeout=timeout)
+
+            if r.status_code == 413:
+                raise RuntimeError(
+                    "Payload quá lớn cho Groq API (413). "
+                    "CV hoặc JD có quá nhiều nội dung — hệ thống đã tự giới hạn nhưng "
+                    "file này vẫn vượt ngưỡng. Thử upload file CV/JD ngắn hơn (< 3 trang)."
+                )
+
+            if r.status_code in (429, 503):
+                if attempt < len(_RETRY_DELAYS):
+                    continue
+                raise RuntimeError("Gemini đang quá tải (503). Vui lòng thử lại sau ít phút.")
+
+            if r.status_code in (401, 403):
+                provider = _detect_provider(cfg["base_url"])
+                raise RuntimeError(
+                    f"API key {provider} không hợp lệ hoặc đã hết hạn (HTTP {r.status_code}). "
+                    "Vào Google AI Studio (aistudio.google.com) → tạo key mới → "
+                    "cập nhật LLM_API_KEY trong cv_jd_matching/.env."
+                )
+
+            r.raise_for_status()
+            content = r.json()["choices"][0]["message"].get("content") or ""
+            return content
+
+        except httpx.ConnectError:
+            raise ConnectionError(
+                f"Không kết nối được LLM endpoint: {url}\n"
+                "Kiểm tra LLM_BASE_URL trong .env hoặc biến môi trường."
             )
-        raise RuntimeError(f"Cloud LLM HTTP {status}: {e}")
-    except Exception as e:
-        raise RuntimeError(f"Cloud LLM error: {e}")
+        except httpx.TimeoutException:
+            raise TimeoutError(f"Cloud LLM timeout sau {timeout}s.")
+        except httpx.HTTPStatusError as e:
+            raise RuntimeError(f"Cloud LLM HTTP {e.response.status_code}: {e}")
+        except RuntimeError:
+            raise
+        except Exception as e:
+            raise RuntimeError(f"Cloud LLM error: {e}")
+
+    raise RuntimeError("RATE_LIMIT_429")
 
 
 def _call_ollama(
@@ -187,7 +218,7 @@ def extract_json(raw: str, fallback: dict) -> dict:
         except json.JSONDecodeError:
             pass
 
-    return {**fallback, "_parse_error": True, "_raw": raw[:300]}
+    return {**fallback, "_parse_error": True}
 
 
 def check_llm_health() -> dict:

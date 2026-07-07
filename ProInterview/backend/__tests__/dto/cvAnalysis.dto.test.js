@@ -65,6 +65,18 @@ describe("CV Analysis DTO Validator", () => {
       expect(value.result.scores.clarity).toBe(4);
     });
 
+    test("normalizes legacy planAtTime aliases", () => {
+      const { error, value } = validateSaveAnalysis({
+        cvFileName: "cv.pdf",
+        mode: "jd",
+        tier: "basic",
+        planAtTime: "pro",
+        result: { matchScore: 70 },
+      });
+      expect(error).toBeNull();
+      expect(value.planAtTime).toBe("professional");
+    });
+
     test("accepts suggestions-tier payload", () => {
       const payload = {
         cvFileName: "cv.pdf",

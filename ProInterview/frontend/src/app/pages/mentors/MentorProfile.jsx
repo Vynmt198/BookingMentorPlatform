@@ -19,6 +19,10 @@ import {
   formatRecurringScheduleRows,
   mentorFieldTags,
 } from "../../utils/mentorProfileHelpers";
+import {
+  CUSTOMER_SHELL_GUTTER,
+  CUSTOMER_SHELL_MAX,
+} from "../../components/layout/customerShellLayout";
 import { formatEducationDisplay } from "../../utils/profileEducationHistory";
 
 const PROFILE_TABS = [
@@ -46,7 +50,7 @@ function TabBar({ activeTab, onChange }) {
             onClick={() => onChange(tab.id)}
             className={`shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
               active
-                ? "border-[#8037f4] text-[#8037f4]"
+                ? "border-lime-400 text-[#8037f4]"
                 : "border-transparent text-slate-500 hover:text-slate-800"
             }`}
           >
@@ -56,10 +60,6 @@ function TabBar({ activeTab, onChange }) {
       })}
     </div>
   );
-}
-
-function SectionDivider() {
-  return <hr className="my-8 border-slate-200/90" />;
 }
 
 export function MentorProfile() {
@@ -149,58 +149,53 @@ export function MentorProfile() {
         education={education}
         awards={awards}
       />
-      <SectionDivider />
-      <MentorWorkSection mentor={mentor} workEntries={workEntries} compactTitle />
-      <SectionDivider />
-      <MentorSkillsSection skillTags={skillTags} compactTitle />
-      <SectionDivider />
-      <MentorReviewsSection
-        realReviews={realReviews}
-        reviewSummary={reviewSummary}
-        compactTitle
-      />
     </div>
   );
 
   return (
     <MentorPageShell bottomPad="pb-24">
-      <div className="relative z-10 mx-auto max-w-6xl px-4 pb-8 pt-6 sm:px-6 sm:pt-8">
-        <div className="grid items-start gap-6 lg:grid-cols-[1fr_320px] xl:grid-cols-[1fr_340px]">
-          <div className="min-w-0 space-y-5">
-            <MentorProfileHeader
-              mentor={mentor}
-              ratingDisplay={ratingDisplay}
-              reviewCount={reviewCount}
-              experienceYears={experienceYears}
-            />
+      <div className={`relative z-10 pb-8 pt-6 sm:pt-8 ${CUSTOMER_SHELL_GUTTER}`}>
+        <div className={`${CUSTOMER_SHELL_MAX} w-full`}>
+          <div className="grid items-start gap-6 lg:grid-cols-[1fr_300px] xl:grid-cols-[1fr_320px]">
+            <div className="min-w-0 space-y-5">
+              <MentorProfileHeader
+                mentor={mentor}
+                ratingDisplay={ratingDisplay}
+                reviewCount={reviewCount}
+                experienceYears={experienceYears}
+              />
 
-            <div className="glass-card overflow-hidden">
-              <TabBar activeTab={activeTab} onChange={setActiveTab} />
-              <div className="p-4 sm:p-6">
-                {activeTab === "intro" ? introFull : null}
-                {activeTab === "work" ? (
-                  <MentorWorkSection mentor={mentor} workEntries={workEntries} />
-                ) : null}
-                {activeTab === "skills" ? (
-                  <MentorSkillsSection skillTags={skillTags} />
-                ) : null}
-                {activeTab === "reviews" ? (
-                  <MentorReviewsSection
-                    realReviews={realReviews}
-                    reviewSummary={reviewSummary}
-                  />
-                ) : null}
+              <div className="glass-card overflow-hidden">
+                <div className="px-4 pt-2 sm:px-6">
+                  <TabBar activeTab={activeTab} onChange={setActiveTab} />
+                </div>
+
+                <div className="p-4 sm:p-6">
+                  {activeTab === "intro" ? introFull : null}
+                  {activeTab === "work" ? (
+                    <MentorWorkSection mentor={mentor} workEntries={workEntries} />
+                  ) : null}
+                  {activeTab === "skills" ? (
+                    <MentorSkillsSection skillTags={skillTags} />
+                  ) : null}
+                  {activeTab === "reviews" ? (
+                    <MentorReviewsSection
+                      realReviews={realReviews}
+                      reviewSummary={reviewSummary}
+                    />
+                  ) : null}
+                </div>
               </div>
             </div>
-          </div>
 
-          <MentorProfileAside
-            mentor={mentor}
-            bookingHref={bookingHref}
-            onBook={goBook}
-            onReport={() => setShowReportModal(true)}
-            scheduleRows={scheduleRows}
-          />
+            <MentorProfileAside
+              mentor={mentor}
+              bookingHref={bookingHref}
+              onBook={goBook}
+              onReport={() => setShowReportModal(true)}
+              scheduleRows={scheduleRows}
+            />
+          </div>
         </div>
       </div>
 

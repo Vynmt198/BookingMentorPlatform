@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation, useParams } from "react-router";
 import { Loader2 } from "lucide-react";
-import { getPlans, isLoggedIn } from "../../utils/auth";
+import { isLoggedIn } from "../../utils/auth";
 import { buildLoginPath } from "../../utils/authGate";
 import { fetchCvAnalysisById } from "../../utils/cvApi";
 import { CVAnalysisResultContent } from "../../components/cv/CVAnalysisResultContent";
@@ -24,19 +24,14 @@ export function CVAnalysisResult() {
   const historyPath = routeMode === "field" ? CV_FIELD_HISTORY_PATH : CV_JD_HISTORY_PATH;
   const loginReturnPath = cvAnalysisResultPath(routeMode, paramId);
 
-  const [plans] = useState(getPlans());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [resultReady, setResultReady] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [savedFileInfo, setSavedFileInfo] = useState(null);
   const [historySaveWarning, setHistorySaveWarning] = useState(null);
-  const [isReplayFromHistory, setIsReplayFromHistory] = useState(false);
   const [cvFile, setCvFile] = useState(null);
   const [jdFile, setJdFile] = useState(null);
-
-  const isFreeTier = !plans.student && !plans.professional && !plans.premium;
-  const lockResultForFreePlan = isFreeTier && !isReplayFromHistory;
 
   useEffect(() => {
     if (!isLoggedIn()) {
@@ -55,7 +50,6 @@ export function CVAnalysisResult() {
         setAnalysisResult(state.analysis);
         setSavedFileInfo(state.savedFileInfo ?? null);
         setHistorySaveWarning(state.historySaveWarning ?? null);
-        setIsReplayFromHistory(Boolean(state.isReplayFromHistory));
         setCvFile(state.cvFile ?? null);
         setJdFile(state.jdFile ?? null);
         setResultReady(true);
@@ -65,7 +59,7 @@ export function CVAnalysisResult() {
 
       const id = paramId || state?.viewHistoryId;
       if (!id) {
-        setLoadError("Không có dữ liệu kết quả — hãy phân tích CV trước.");
+        setLoadError("Không có dữ liệu kết quả, hãy phân tích CV trước.");
         setLoading(false);
         return;
       }
@@ -86,7 +80,6 @@ export function CVAnalysisResult() {
         cvFileUrl: res.analysis?.cvFileUrl ?? null,
         jdFileUrl: res.analysis?.jdFileUrl ?? null,
       });
-      setIsReplayFromHistory(true);
       setResultReady(true);
       setLoading(false);
     })();
@@ -112,7 +105,7 @@ export function CVAnalysisResult() {
             onClick={() => navigate(analysisPath)}
             className="mt-4 inline-flex items-center gap-2 rounded-xl bg-[#8037f4] px-5 py-2.5 text-sm font-semibold text-white"
           >
-            Quay lại phân tích
+            Mở trang phân tích
           </button>
         </div>
       )}
@@ -128,9 +121,9 @@ export function CVAnalysisResult() {
           jdFileName={savedFileInfo?.jdFileName ?? jdFile?.name}
           cvFileUrl={savedFileInfo?.cvFileUrl ?? analysisResult?.cvFileUrl}
           jdFileUrl={savedFileInfo?.jdFileUrl ?? analysisResult?.jdFileUrl}
-          lockResultForFreePlan={lockResultForFreePlan}
           analysisPath={analysisPath}
           historyPath={historyPath}
+          analysisId={savedFileInfo?.analysisId ?? paramId ?? null}
         />
       )}
     </CvJdAnalysisPage>

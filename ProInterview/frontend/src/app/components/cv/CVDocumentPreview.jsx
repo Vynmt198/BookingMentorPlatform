@@ -2,7 +2,7 @@ import React, { useState, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import "react-pdf/dist/Page/TextLayer.css";
 import "react-pdf/dist/Page/AnnotationLayer.css";
-import { FileText, Briefcase, Eye, CheckCircle2, XCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { FileText, Briefcase, Eye, ChevronLeft, ChevronRight } from "lucide-react";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -56,56 +56,6 @@ function makeTextRenderer(matchedKws, missingKws, side) {
       return `<mark data-kw="${lower}" data-kwtype="missing" style="background:#fecaca;color:#7f1d1d;border-radius:3px;padding:0 4px;font-weight:700;border:1px solid #f87171;cursor:pointer">${match}</mark>`;
     });
   };
-}
-
-// ─── Keyword chips summary ────────────────────────────────────────────────────
-const chipMatched = {
-  background: "#dcfce7",
-  color: "#14532d",
-  border: "1px solid #22c55e",
-};
-const chipMissing = {
-  background: "#ffedd5",
-  color: "#9a3412",
-  border: "1px solid #ea580c",
-};
-
-function KeywordChips({ matchedKws, missingKws, side }) {
-  const matched = filterHighlightKeywords(matchedKws);
-  const missing = filterHighlightKeywords(missingKws);
-  const showMissing = (side === "cv" || side === "jd") && missing.length > 0;
-  if (matched.length === 0 && !showMissing) return null;
-
-  return (
-    <div
-      className="flex-shrink-0 border-t border-slate-200 bg-slate-100 px-3 py-2.5"
-      style={{ maxHeight: 112, overflowY: "auto" }}
-    >
-      <div className="flex flex-wrap gap-1.5">
-        {matched.map(kw => (
-          <span
-            key={`m-${kw}`}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold leading-tight"
-            style={chipMatched}
-          >
-            <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-800" strokeWidth={2.5} aria-hidden />
-            {kw}
-          </span>
-        ))}
-        {showMissing &&
-          missing.map(kw => (
-            <span
-              key={`x-${kw}`}
-              className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold leading-tight"
-              style={chipMissing}
-            >
-              <XCircle className="h-3 w-3 shrink-0 text-orange-800" strokeWidth={2.5} aria-hidden />
-              {kw}
-            </span>
-          ))}
-      </div>
-    </div>
-  );
 }
 
 // ─── Single document panel ───────────────────────────────────────────────────
@@ -209,9 +159,6 @@ export function DocPanel({ title, fileName, icon, accentColor, file, matchedKws,
           </button>
         </div>
       )}
-
-      {/* Keyword chips (only in standalone mode) */}
-      {showHeader && <KeywordChips matchedKws={matchedKws} missingKws={missingKws} side={side} />}
     </div>
   );
 }

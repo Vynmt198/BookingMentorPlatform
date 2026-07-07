@@ -1,5 +1,6 @@
 import { createHashRouter, redirect } from "react-router";
 import { AppLayout } from "./components/layout/AppLayout";
+import { CinematicHeroPage } from "./pages/home/CinematicHeroPage";
 import { Home } from "./pages/home/Home";
 import { Login } from "./pages/auth/Login";
 import { Register } from "./pages/auth/Register";
@@ -161,6 +162,7 @@ export const router = createHashRouter([
       },
     ],
   },
+  { path: "/landing", Component: CinematicHeroPage },
   { path: "/login", Component: Login },
   { path: "/register", Component: Register },
   { path: "/forgot-password", Component: ForgotPassword },

@@ -26,12 +26,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from pdf_parser import parse_pdf
 from skill_extractor import extract_skills
 from matcher import compute_match
+from semantic_matcher import semantic_match
 from scorer import score_resume
 from suggester import generate_suggestions, extract_bullets_from_text
 from llm_client import check_llm_health
 from field_analyzer import analyze_cv_by_field
+import cache as cv_cache
+from cache import md5_of_bytes
 
-app = FastAPI(title="Resume Analyzer API", version="0.3.0")
+app = FastAPI(title="Resume Analyzer API", version="0.4.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,6 +54,12 @@ async def _process_upload(label: str, upload: UploadFile) -> dict:
     if len(file_bytes) == 0:
         raise HTTPException(400, f"File '{label}' rỗng")
 
+    # Cache by MD5 — cùng file không parse lại
+    file_hash = md5_of_bytes(file_bytes)
+    cached = cv_cache.get("pdf_parse", file_hash)
+    if cached:
+        return cached
+
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
@@ -64,11 +73,13 @@ async def _process_upload(label: str, upload: UploadFile) -> dict:
         raise HTTPException(400, f"Lỗi parse '{label}': {parsed['error']}")
 
     skills = extract_skills(parsed["text"])
-    return {
+    result = {
         "text":       parsed["text"],
         "page_count": parsed["page_count"],
         "skills":     skills,
     }
+    cv_cache.set(result, "pdf_parse", file_hash)
+    return result
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -123,16 +134,31 @@ async def analyze_full(
     model:  str = Query(default="mistral:7b", description="Ollama model name"),
 ):
     """
-    Day 1+2: skill matching + scoring 4 dimensions.
-    Yêu cầu Ollama đang chạy.
+    Semantic matching + scoring 4 dimensions.
+    LLM đọc nguyên văn CV+JD, hiểu kỹ năng ẩn và chuyển đổi — không chỉ so từ khóa.
     """
     resume_data = await _process_upload("resume", resume)
     jd_data     = await _process_upload("jd", jd)
 
-    match = compute_match(
-        cv_skills=resume_data["skills"]["skills"],
-        jd_skills=jd_data["skills"]["skills"],
-    )
+    # cached = cv_cache.get("analyze/full", resume_data["text"], jd_data["text"])
+    # if cached:
+    #     # return cached
+    #     pass
+
+    try:
+        match = semantic_match(
+            cv_text=resume_data["text"],
+            jd_text=jd_data["text"],
+            model=model,
+        )
+    except (ConnectionError, TimeoutError):
+        # Fallback về heuristic nếu mạng/timeout
+        match = compute_match(
+            cv_skills=resume_data["skills"]["skills"],
+            jd_skills=jd_data["skills"]["skills"],
+        )
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
 
     try:
         scores = score_resume(
@@ -149,7 +175,7 @@ async def analyze_full(
     except RuntimeError as e:
         raise HTTPException(502, str(e))
 
-    return {
+    result = {
         "resume":      resume_data["skills"],
         "jd":          jd_data["skills"],
         "match":       match,
@@ -157,6 +183,8 @@ async def analyze_full(
         "resume_text": resume_data["text"],
         "jd_text":     jd_data["text"],
     }
+    cv_cache.set(result, "analyze/full", resume_data["text"], jd_data["text"])
+    return result
 
 
 @app.post("/analyze/suggestions")
@@ -188,11 +216,25 @@ async def analyze_suggestions(
     resume_data = await _process_upload("resume", resume)
     jd_data     = await _process_upload("jd", jd)
 
-    # ── Step 1: Match (no LLM) ────────────────────────────────────────────
-    match = compute_match(
-        cv_skills=resume_data["skills"]["skills"],
-        jd_skills=jd_data["skills"]["skills"],
-    )
+    # cached = cv_cache.get("analyze/suggestions", resume_data["text"], jd_data["text"])
+    # if cached:
+    #     # return cached
+    #     pass
+
+    # ── Step 1: Semantic match (LLM hiểu ngữ nghĩa, không chỉ từ khóa) ──
+    try:
+        match = semantic_match(
+            cv_text=resume_data["text"],
+            jd_text=jd_data["text"],
+            model=model,
+        )
+    except (ConnectionError, TimeoutError):
+        match = compute_match(
+            cv_skills=resume_data["skills"]["skills"],
+            jd_skills=jd_data["skills"]["skills"],
+        )
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
 
     # ── Step 2: Score — Day 2 ─────────────────────────────────────────────
     try:
@@ -232,13 +274,15 @@ async def analyze_suggestions(
     except RuntimeError as e:
         raise HTTPException(502, str(e))
 
-    return {
+    result = {
         "match":       match,
         "scores":      scores,
         "suggestions": suggestions,
         "resume_text": resume_data["text"],
         "jd_text":     jd_data["text"],
     }
+    cv_cache.set(result, "analyze/suggestions", resume_data["text"], jd_data["text"])
+    return result
 
 
 @app.post("/analyze/field")
@@ -253,6 +297,11 @@ async def analyze_field(
     """
     resume_data = await _process_upload("resume", resume)
 
+    # cached = cv_cache.get("analyze/field", resume_data["text"], field)
+    # if cached:
+    #     # return cached
+    #     pass
+
     result = analyze_cv_by_field(
         cv_text=resume_data["text"],
         cv_skills=resume_data["skills"]["skills"],
@@ -260,7 +309,7 @@ async def analyze_field(
         model=model,
     )
 
-    return {
+    response = {
         "resume":      resume_data["skills"],
         "match":       result["match"],
         "scores":      result["scores"],
@@ -271,6 +320,9 @@ async def analyze_field(
         "analysis_mode": "field",
         "fallback":    bool(result.get("_fallback")),
     }
+    if not result.get("_fallback"):
+        cv_cache.set(response, "analyze/field", resume_data["text"], field)
+    return response
 
 
 @app.post("/extract-text")

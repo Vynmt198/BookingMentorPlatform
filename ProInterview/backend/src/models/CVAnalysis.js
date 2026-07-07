@@ -1,5 +1,15 @@
 import mongoose from "mongoose";
 
+function normalizeAnalysisPlanAtTime(value) {
+  const raw = String(value ?? "free").trim().toLowerCase();
+  if (raw === "pro") return "professional";
+  if (raw === "enterprise") return "premium";
+  if (raw === "student" || raw === "professional" || raw === "premium" || raw === "free") {
+    return raw;
+  }
+  return "free";
+}
+
 // ============================================================
 // SUB-SCHEMAS (_id: false để tránh nested ObjectId noise)
 // ============================================================
@@ -166,10 +176,17 @@ const CVAnalysisSchema = new mongoose.Schema(
     // ----- Plan & metadata -----
     planAtTime: {
       type: String,
-      enum: ["free", "pro", "enterprise"],
+      enum: ["free", "student", "professional", "premium"],
       default: "free",
+      set: normalizeAnalysisPlanAtTime,
     },
     meta: { type: MetaSchema, default: () => ({}) },
+
+    // ----- User feedback -----
+    feedback: {
+      rating:      { type: String, enum: ["helpful", "not_helpful"], default: null },
+      submittedAt: { type: Date },
+    },
 
     // ----- Timestamps -----
     completedAt: { type: Date },
