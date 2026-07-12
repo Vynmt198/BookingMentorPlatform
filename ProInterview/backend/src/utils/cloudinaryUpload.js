@@ -54,4 +54,15 @@ export function deleteLocalFile(filepath) {
   try { fs.unlinkSync(filepath); } catch (_) {}
 }
 
+/**
+ * Tạo chữ ký Cloudinary cho direct upload từ browser.
+ * paramsToSign phải chứa tất cả params sẽ gửi lên (trừ file, api_key, resource_type, cloud_name).
+ * Ít nhất cần: { folder, timestamp }.
+ */
+export function generateUploadSignature(paramsToSign) {
+  if (!isConfigured()) return null;
+  ensureConfig();
+  return cloudinary.utils.api_sign_request(paramsToSign, process.env.CLOUDINARY_API_SECRET);
+}
+
 export { isConfigured as isCloudinaryConfigured };

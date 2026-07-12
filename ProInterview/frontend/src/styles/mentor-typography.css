@@ -1,0 +1,76 @@
+/**
+ * Typography mentor — Lexend headline stack, chữ đậm hơn customer mặc định.
+ * Bọc bởi `.mentor-role-shell` (MentorArea + phòng họp / feedback).
+ */
+
+.mentor-role-shell {
+  font-family: var(--font-headline), "Plus Jakarta Sans", system-ui, sans-serif;
+  font-weight: 500;
+  font-variation-settings: "wght" 530;
+  letter-spacing: -0.012em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mentor-role-shell .font-headline {
+  font-family: var(--font-headline), "Plus Jakarta Sans", system-ui, sans-serif;
+}
+
+.mentor-role-shell h1,
+.mentor-role-shell h2,
+.mentor-role-shell h3,
+.mentor-role-shell h4 {
+  font-family: var(--font-headline), "Plus Jakarta Sans", system-ui, sans-serif;
+  letter-spacing: -0.022em;
+}
+
+/* Bảng mentor (finance, schedule, …) */
+.mentor-role-shell table tbody td {
+  font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.mentor-role-shell table thead th {
+  font-weight: 900;
+}
+
+.mentor-role-shell input:not([type="checkbox"]):not([type="radio"]),
+.mentor-role-shell textarea,
+.mentor-role-shell select {
+  font-weight: 600;
+}
+
+.mentor-role-shell .font-normal {
+  font-weight: 500;
+}
+
+.mentor-role-shell .font-medium {
+  font-weight: 600;
+}
+
+.mentor-role-shell .font-semibold {
+  font-weight: 700;
+}
+
+.mentor-role-shell .font-bold {
+  font-weight: 800;
+}
+
+.mentor-role-shell .font-extrabold {
+  font-weight: 900;
+}
+
+.mentor-role-shell .font-black {
+  font-weight: 900;
+}
+
+.mentor-role-shell .glass-card > p.text-sm,
+.mentor-role-shell .glass-card > p.text-xs {
+  font-weight: 600;
+}
+
+.mentor-role-shell .mentor-label,
+.mentor-role-shell .mentor-eyebrow {
+  font-weight: 900;
+}

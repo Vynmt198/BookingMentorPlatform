@@ -8,10 +8,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { REPORT_CATEGORIES } from "../../constants/reportCategories";
-import { submitReport, REPORT_REASON_MAP } from "../../utils/reportsApi";
-import { toastApiError, tryApi } from "../../utils/apiToast";
-import { requireLoginNavigate } from "../../utils/authGate";
-import { isLoggedIn } from "../../utils/auth";
+import { submitReport, REPORT_REASON_MAP } from "../../utils/reportsApi.js";
+import { toastApiError, tryApi } from "../../utils/apiToast.js";
+import { requireLoginNavigate } from "../../utils/authGate.js";
+import { isLoggedIn } from "../../utils/auth.js";
+import { getCurrentAppPath } from "../../utils/appPath.js";
 
 export function ReportMentorModal({
   mentorId,
@@ -29,7 +30,7 @@ export function ReportMentorModal({
     e.preventDefault();
 
     if (!isLoggedIn()) {
-      requireLoginNavigate(navigate, window.location.hash.replace(/^#/, "") || "/");
+      requireLoginNavigate(navigate, getCurrentAppPath());
       return;
     }
 
@@ -91,7 +92,7 @@ export function ReportMentorModal({
       >
         <div
           className="px-6 py-5 flex items-center justify-between"
-          style={{ background: "#EF4444" }}
+          style={{ background: "linear-gradient(135deg, #EF4444, #FF8C42)" }}
         >
           <div className="flex items-center gap-3">
             <div
@@ -215,7 +216,7 @@ export function ReportMentorModal({
               disabled={submitting}
               className="flex-1 py-3 rounded-xl font-semibold text-sm transition-all hover:brightness-110 flex items-center justify-center gap-2 disabled:opacity-60"
               style={{
-                background: "#EF4444",
+                background: "linear-gradient(135deg, #EF4444, #FF8C42)",
                 color: "#fff",
                 boxShadow: "0 4px 16px rgba(239,68,68,0.3)",
               }}

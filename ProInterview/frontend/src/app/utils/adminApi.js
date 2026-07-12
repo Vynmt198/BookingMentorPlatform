@@ -52,10 +52,13 @@ export const adminApi = {
       method: "PATCH",
       body: JSON.stringify({ reason }),
     }),
-  updateMentorCommission: (id, payload = {}) =>
-    authedFetch(`/api/admin/mentors/${id}/commission`, {
-      method: "PATCH",
-      body: JSON.stringify(payload ?? {}),
+  approveMentorPrice: (id) =>
+    authedFetch(`/api/admin/mentors/${id}/approve-price`, {
+      method: "POST",
+    }),
+  rejectMentorPrice: (id) =>
+    authedFetch(`/api/admin/mentors/${id}/reject-price`, {
+      method: "POST",
     }),
   getUsers: () => authedFetch("/api/admin/users"),
   getUserById: (id) => authedFetch(`/api/admin/users/${encodeURIComponent(id)}`),
@@ -177,4 +180,15 @@ export const adminApi = {
       method: "PATCH",
       body: JSON.stringify({ isVisible }),
     }),
+  getUserBehavior: (days = 7) =>
+    authedFetch(`/api/admin/analytics/user-behavior?days=${encodeURIComponent(days)}`),
+  getUserJourney: (userId, params = {}) => {
+    const q = new URLSearchParams();
+    if (params.days) q.set("days", String(params.days));
+    if (params.limit) q.set("limit", String(params.limit));
+    const qs = q.toString();
+    return authedFetch(
+      `/api/admin/analytics/users/${encodeURIComponent(userId)}/journey${qs ? `?${qs}` : ""}`,
+    );
+  },
 };

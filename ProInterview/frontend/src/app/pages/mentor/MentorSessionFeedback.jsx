@@ -13,11 +13,11 @@ import {
   MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
+import { toastApiError, toastApiSuccess } from "../../utils/apiToast.js";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
-import { fetchMentorBookingById, updateMentorNotes } from "../../utils/bookingsApi";
-import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl";
-import { sessionTypeLabel } from "../../utils/sessionTypeLabels";
+import { fetchMentorBookingById, updateMentorNotes } from "../../utils/bookingsApi.js";
+import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl.js";
+import { sessionTypeLabel } from "../../utils/sessionTypeLabels.js";
 
 export function MentorSessionFeedback() {
   const { sessionId } = useParams();
@@ -89,14 +89,14 @@ ${generalNotes || "Không có ghi chú thêm."}
 
   if (loading) {
     return (
-      <MentorPageShell>
-        <div className="p-20 text-center font-medium text-slate-400">Đang tải thông tin...</div>
+      <MentorPageShell mentorRole>
+        <div className="p-20 text-center font-semibold text-slate-400">Đang tải thông tin...</div>
       </MentorPageShell>
     );
   }
 
   return (
-    <MentorPageShell bottomPad="pb-32">
+    <MentorPageShell bottomPad="pb-32" mentorRole>
       <div className="relative z-10 mx-auto max-w-4xl px-10 pb-10">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -109,10 +109,10 @@ ${generalNotes || "Không có ghi chú thêm."}
           </div>
 
           <div className="text-center space-y-4 mb-20">
-            <h1 className="text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
+            <h1 className="font-headline text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
               Đánh giá <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">chuyên sâu</span>
             </h1>
-            <p className="text-slate-500 font-medium text-lg">Ghi nhận tiến trình và định hướng cho học viên</p>
+            <p className="text-lg font-semibold text-slate-500">Ghi nhận tiến trình và định hướng cho học viên</p>
           </div>
 
           <div className="space-y-12">
@@ -127,12 +127,12 @@ ${generalNotes || "Không có ghi chú thêm."}
                       className="w-24 h-24 rounded-[32px] mx-auto mb-6 object-cover ring-8 ring-slate-50 shadow-inner"
                     />
                     <h3 className="text-xl font-black text-slate-900 tracking-tight">{booking?.customerName}</h3>
-                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-2">Học viên</p>
+                    <p className="text-[10px] font-normal text-indigo-500 uppercase tracking-widest mt-2">Học viên</p>
                     
                     <div className="mt-8 pt-8 border-t border-slate-50 space-y-4">
                       <div className="text-left">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Vị trí phỏng vấn</p>
-                        <p className="text-xs font-bold text-slate-700">{sessionTypeLabel(booking?.sessionType)}</p>
+                        <p className="text-[9px] font-normal text-slate-400 uppercase tracking-widest mb-1">Vị trí phỏng vấn</p>
+                        <p className="text-xs font-normal text-slate-700">{sessionTypeLabel(booking?.sessionType)}</p>
                       </div>
                     </div>
                   </div>
@@ -144,44 +144,44 @@ ${generalNotes || "Không có ghi chú thêm."}
                 {/* Structured Sections */}
                 <div className="grid md:grid-cols-2 gap-8">
                   <div className="bg-white rounded-[2.5rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-100">
-                    <h5 className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.3em] mb-6">ĐIỂM MẠNH</h5>
+                    <h5 className="text-[10px] font-normal text-emerald-500 uppercase tracking-[0.3em] mb-6">ĐIỂM MẠNH</h5>
                     <textarea 
                       value={strengths}
                       onChange={(e) => setStrengths(e.target.value)}
                       placeholder="Nội dung..."
-                      className="w-full h-40 bg-slate-50/30 rounded-2xl p-4 text-sm font-semibold text-slate-700 border border-transparent focus:border-emerald-100 focus:bg-white outline-none transition-all resize-none"
+                      className="w-full h-40 bg-slate-50/30 rounded-2xl p-4 text-sm font-normal text-slate-700 border border-transparent focus:border-emerald-100 focus:bg-white outline-none transition-all resize-none"
                     />
                   </div>
 
                   <div className="bg-white rounded-[2.5rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-100">
-                    <h5 className="text-[10px] font-black text-rose-500 uppercase tracking-[0.3em] mb-6">CẦN CẢI THIỆN</h5>
+                    <h5 className="text-[10px] font-normal text-rose-500 uppercase tracking-[0.3em] mb-6">CẦN CẢI THIỆN</h5>
                     <textarea 
                       value={weaknesses}
                       onChange={(e) => setWeaknesses(e.target.value)}
                       placeholder="Nội dung..."
-                      className="w-full h-40 bg-slate-50/30 rounded-2xl p-4 text-sm font-semibold text-slate-700 border border-transparent focus:border-rose-100 focus:bg-white outline-none transition-all resize-none"
+                      className="w-full h-40 bg-slate-50/30 rounded-2xl p-4 text-sm font-normal text-slate-700 border border-transparent focus:border-rose-100 focus:bg-white outline-none transition-all resize-none"
                     />
                   </div>
                 </div>
 
                 <div className="bg-white rounded-[2.5rem] p-10 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-100">
-                  <h5 className="text-[10px] font-black text-amber-500 uppercase tracking-[0.3em] mb-6">LỜI KHUYÊN PHÁT TRIỂN</h5>
+                  <h5 className="text-[10px] font-normal text-amber-500 uppercase tracking-[0.3em] mb-6">LỜI KHUYÊN PHÁT TRIỂN</h5>
                   <textarea 
                     value={advice}
                     onChange={(e) => setAdvice(e.target.value)}
                     placeholder="Định hướng tiếp theo cho học viên..."
-                    className="w-full h-40 bg-slate-50/30 rounded-2xl p-6 text-sm font-semibold text-slate-700 border border-transparent focus:border-amber-100 focus:bg-white outline-none transition-all resize-none"
+                    className="w-full h-40 bg-slate-50/30 rounded-2xl p-6 text-sm font-normal text-slate-700 border border-transparent focus:border-amber-100 focus:bg-white outline-none transition-all resize-none"
                   />
                 </div>
 
                 {/* Detailed Analysis */}
                 <div className="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-[2.5rem] p-12 shadow-2xl shadow-indigo-900/20 text-white">
-                  <h5 className="text-[10px] font-black text-indigo-300 uppercase tracking-[0.3em] mb-8">PHÂN TÍCH CHI TIẾT</h5>
+                  <h5 className="text-[10px] font-normal text-indigo-300 uppercase tracking-[0.3em] mb-8">PHÂN TÍCH CHI TIẾT</h5>
                   <textarea 
                     value={generalNotes}
                     onChange={(e) => setGeneralNotes(e.target.value)}
                     placeholder="Ghi chú bổ sung khác..."
-                    className="w-full h-60 bg-white/5 backdrop-blur-md rounded-3xl p-8 text-sm font-medium text-indigo-50 border border-white/10 focus:border-white/20 outline-none transition-all resize-none"
+                    className="w-full h-60 bg-white/5 backdrop-blur-md rounded-3xl p-8 text-sm font-normal text-indigo-50 border border-white/10 focus:border-white/20 outline-none transition-all resize-none"
                   />
                 </div>
 
@@ -190,7 +190,7 @@ ${generalNotes || "Không có ghi chú thêm."}
                   <button
                     onClick={handleSubmit}
                     disabled={saving}
-                    className="px-12 py-5 rounded-[2rem] bg-indigo-600 text-white text-xs font-black uppercase tracking-[0.3em] shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 hover:-translate-y-1 transition-all disabled:opacity-50"
+                    className="px-12 py-5 rounded-[2rem] bg-indigo-600 text-white text-xs font-semibold uppercase tracking-[0.3em] shadow-2xl shadow-indigo-600/30 hover:bg-indigo-700 hover:-translate-y-1 transition-all disabled:opacity-50"
                   >
                     {saving ? "Đang xử lý..." : "Xác nhận gửi báo cáo"}
                   </button>
@@ -218,7 +218,7 @@ ${generalNotes || "Không có ghi chú thêm."}
                   <CheckCircle2 size={48} />
                 </div>
                 <h2 className="text-xl font-extrabold text-slate-900 mb-4 tracking-tight sm:text-2xl">Tuyệt vời!</h2>
-                <p className="text-slate-500 font-medium leading-relaxed mb-8">
+                <p className="text-slate-500 font-normal leading-relaxed mb-8">
                   Đánh giá của bạn đã được gửi đi thành công. Cảm ơn bạn đã đồng hành cùng học viên.
                 </p>
                 <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">

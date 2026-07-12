@@ -15,6 +15,7 @@ export { Payment } from "./Payment.js";
 export { Subscription } from "./Subscription.js";
 export { Report } from "./Report.js";
 export { Activity } from "./Activity.js";
+export { UserEvent } from "./UserEvent.js";
 export { CourseQA } from "./CourseQA.js";
 export { MentorPeerReview } from "./MentorPeerReview.js";
 export { MentorKnowledge } from "./MentorKnowledge.js";

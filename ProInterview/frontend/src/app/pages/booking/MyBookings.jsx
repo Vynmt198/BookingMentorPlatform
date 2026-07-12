@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
-import { Calendar, Video, Star, FileText } from "lucide-react";
+import { Calendar, Video, Star, FileText, CalendarClock, CalendarCheck, CheckCircle2, CalendarX } from "lucide-react";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
+import { CustomerPageHeader } from "../../components/layout/CustomerPageHeader";
+import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
+import { CustomerStatGrid, CustomerStatCard } from "../../components/shared/CustomerStatCards";
 import { listBookings } from "../../utils/bookingsApi";
 import { apiBookingToLocal } from "../../utils/bookingMappers";
 import { parseDateMs } from "../../utils/bookings";
@@ -114,18 +117,27 @@ export function MyBookings() {
 
   return (
     <MentorPageShell bottomPad="pb-16">
+      <div className={`relative z-10 flex flex-col pb-10 pt-8 sm:pt-10 ${CUSTOMER_SHELL_GUTTER}`}>
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mx-auto max-w-3xl space-y-8"
+        className={`${CUSTOMER_SHELL_MAX} space-y-8`}
       >
-        <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">Lịch hẹn của tôi</h1>
-          <p className="mt-2 text-sm text-slate-500">Tất cả buổi mentor bạn đã đặt trên ProInterview</p>
-        </div>
+        <CustomerPageHeader
+          title={<span className="text-[#8037f4]">Buổi Mentor 1:1 của bạn</span>}
+          subtitle="Theo dõi lịch hẹn, trạng thái thanh toán và phiên học sắp tới."
+          className="mb-0 w-full"
+        />
+
+        <CustomerStatGrid>
+          <CustomerStatCard icon={CalendarClock} value={rows.length} label="Tổng lịch hẹn" />
+          <CustomerStatCard icon={CalendarCheck} value={counts.upcoming} label="Sắp tới" />
+          <CustomerStatCard icon={CheckCircle2} value={counts.past} label="Đã hoàn thành" tone="lime" />
+          <CustomerStatCard icon={CalendarX} value={counts.cancelled} label="Đã hủy" tone="red" />
+        </CustomerStatGrid>
 
         <motion.div
-          className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
+          className="flex max-w-md flex-wrap gap-2 rounded-full border border-slate-200 bg-white p-1.5 shadow-sm"
           role="tablist"
         >
           {TABS.map((t) => (
@@ -135,9 +147,9 @@ export function MyBookings() {
               role="tab"
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 min-w-[100px] rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all ${
+              className={`flex-1 min-w-[100px] rounded-full px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-all ${
                 tab === t.id
-                  ? "bg-[#8037f4] text-white shadow-md"
+                  ? "text-[#8037f4]"
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
               }`}
             >
@@ -259,6 +271,7 @@ export function MyBookings() {
           </div>
         )}
       </motion.div>
+      </div>
     </MentorPageShell>
   );
 }

@@ -18,6 +18,8 @@ adminRouter.get("/mentors/:id", asyncHandler(AdminController.getMentorById));
 adminRouter.patch("/mentors/:id/status", asyncHandler(AdminController.toggleMentorStatus));
 adminRouter.patch("/mentors/:id/commission", asyncHandler(AdminController.updateMentorCommission));
 adminRouter.patch("/mentors/:id/reject", asyncHandler(AdminController.rejectMentorApplication));
+adminRouter.post("/mentors/:id/approve-price", asyncHandler(AdminController.approveMentorPrice));
+adminRouter.post("/mentors/:id/reject-price", asyncHandler(AdminController.rejectMentorPrice));
 
 adminRouter.get("/users", asyncHandler(AdminController.getAllUsers));
 adminRouter.get("/users/:id", asyncHandler(AdminController.getUserById));
@@ -60,3 +62,5 @@ adminRouter.patch("/courses/:id/approve", asyncHandler(AdminController.approveCo
 adminRouter.patch("/courses/:id/reject", asyncHandler(AdminController.rejectCourse));
 adminRouter.patch("/courses/:id/archive", asyncHandler(AdminController.archiveCourse));
 adminRouter.get("/interview-metrics", asyncHandler(AdminController.getInterviewMetrics));
+adminRouter.get("/analytics/user-behavior", asyncHandler(AdminController.getPlatformBehavior));
+adminRouter.get("/analytics/users/:id/journey", asyncHandler(AdminController.getUserJourney));

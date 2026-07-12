@@ -3,26 +3,38 @@ import { useNavigate } from "react-router";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Calendar as CalendarBlank,
-  Users,
   Star,
-  CheckCircle,
-  CircleDollarSign as CurrencyCircleDollar,
   X,
   ArrowRight,
+  ChevronRight,
   BarChart3 as ChartBar,
+  CalendarClock,
+  Landmark,
   BadgeCheck as SealCheck,
   Target,
-  ArrowUpRight,
-  Plus
+  Zap as Lightning,
+  Wallet,
+  Users,
+  Quote,
+  User,
+  FileBadge,
 } from "lucide-react";
-import { getUser, getDisplayName } from "../../utils/auth";
+import { getUser, getDisplayName } from "../../utils/auth.js";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
-import { listMentorBookings } from "../../utils/bookingsApi";
-import { fetchMentorDashboard } from "../../utils/mentorApi";
-import { toastApiError } from "../../utils/apiToast";
-import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl";
-import { parseBookingNotes } from "../../utils/bookingMappers";
-import { parseMentorNotesSections, sessionTypeLabel } from "../../utils/sessionTypeLabels";
+import { MentorMoneyText } from "../../utils/moneyDisplay.jsx";
+import {
+  MentorStatPanel,
+  MentorStatMiniGrid,
+  MentorStatFrame,
+  MentorSessionActivityBlocks,
+} from "../../components/mentor/MentorStatFrames";
+import { listMentorBookings } from "../../utils/bookingsApi.js";
+import { fetchMentorDashboard } from "../../utils/mentorApi.js";
+import { toastApiError } from "../../utils/apiToast.js";
+import { formatVnd } from "../../utils/formatVnd.js";
+import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl.js";
+import { parseBookingNotes } from "../../utils/bookingMappers.js";
+import { parseMentorNotesSections, sessionTypeLabel } from "../../utils/sessionTypeLabels.js";
 
 function parseBookingDateTime(dateStr, timeStr = "00:00") {
   const raw = String(dateStr || "").trim();
@@ -76,6 +88,7 @@ function toMentorMeeting(booking, ratingByBookingId = {}) {
     feedback: String(booking.reviewComment || notesParsed.feedback || "").trim(),
     strengths: notesParsed.strengths,
     improvements: notesParsed.weaknesses,
+    menteeNotes: booking.notes || "",
   };
 }
 
@@ -102,7 +115,7 @@ function MenteeProgressModal({
   const starComponents = star
     ? [
         { key: "situation", label: "Situation", value: star.situation, color: "#8037f4" },
-        { key: "task", label: "Task", color: "#93f72b", value: star.task },
+        { key: "task", label: "Task", color: "#a66ff8", value: star.task },
         { key: "action", label: "Action", color: "#93f72b", value: star.action },
         { key: "result", label: "Result", color: "#FF8C42", value: star.result },
       ]
@@ -126,7 +139,7 @@ function MenteeProgressModal({
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
-        <div className="relative border-b border-slate-200 bg-white p-8">
+        <div className="relative border-b border-slate-200 bg-gradient-to-br from-violet-50 to-white p-8">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-6">
                <div className="relative">
@@ -282,6 +295,147 @@ function MenteeProgressModal({
   );
 }
 
+function formatVndCompact(amount) {
+  const n = Number(amount) || 0;
+  if (n >= 1_000_000) {
+    const m = n / 1_000_000;
+    return Number.isInteger(m) ? `${m}M` : `${m.toFixed(1).replace(/\.0$/, "")}M`;
+  }
+  if (n >= 1000) return `${Math.round(n / 1000)}K`;
+  return String(n);
+}
+
+function pickFeaturedTestimonial(bookings) {
+  const featured = bookings
+    .filter((m) => m.feedback && Number(m.overallScore) >= 4)
+    .sort((a, b) => Number(b.overallScore) - Number(a.overallScore))[0];
+  if (featured) {
+    return {
+      quote: featured.feedback,
+      author: featured.mentee?.name || "Khách hàng",
+      rating: Number(featured.overallScore) || 5,
+    };
+  }
+  return {
+    quote:
+      "Tư vấn CV chi tiết, chỉ ra điểm yếu và cách sửa cụ thể trên từng mục.",
+    author: "Khách hàng Dev",
+    rating: 5,
+  };
+}
+
+
+function padStat(n) {
+  return String(Math.max(0, Number(n) || 0)).padStart(2, "0");
+}
+
+function bookingDateKey(dateStr) {
+  const dt = parseBookingDateTime(dateStr, "00:00");
+  if (!dt) return null;
+  return `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
+}
+
+function MentorMiniCalendar({ highlightedDays, viewDate, onViewDateChange }) {
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const startPad = (first.getDay() + 6) % 7;
+  const daysInMonth = last.getDate();
+  const today = new Date();
+
+  const cells = [];
+  for (let i = 0; i < startPad; i += 1) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
+
+  const monthLabel = `Tháng ${month + 1}, ${year}`;
+
+  return (
+    <div className="w-full max-w-[280px] shrink-0 lg:border-r lg:border-slate-100 lg:pr-8">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          aria-label="Tháng trước"
+          onClick={() => onViewDateChange(new Date(year, month - 1, 1))}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-50 hover:text-violet-700"
+        >
+          ‹
+        </button>
+        <span className="text-sm font-bold text-slate-800">{monthLabel}</span>
+        <button
+          type="button"
+          aria-label="Tháng sau"
+          onClick={() => onViewDateChange(new Date(year, month + 1, 1))}
+          className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-50 hover:text-violet-700"
+        >
+          ›
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-y-1 text-center text-[11px] font-semibold text-slate-400">
+        {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map((d) => (
+          <span key={d} className="py-1.5">
+            {d}
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-y-1">
+        {cells.map((day, idx) => {
+          if (!day) return <div key={`e-${idx}`} className="h-9" />;
+          const key = `${year}-${month}-${day}`;
+          const isToday =
+            today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+          const hasMeeting = highlightedDays.has(key);
+          return (
+            <div key={key} className="flex h-9 items-center justify-center">
+              <span
+                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
+                  isToday
+                    ? "bg-[#8037f4] font-bold text-white"
+                    : hasMeeting
+                      ? "bg-violet-100 font-semibold text-violet-800"
+                      : "text-slate-700"
+                }`}
+              >
+                {day}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ── Dashboard entrance motion ─────────────────────────────────────────────── */
+const dashboardFadeUp = {
+  hidden: { opacity: 0, y: 22 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+const dashboardStagger = {
+  hidden: {},
+  visible: {
+    transition: { staggerChildren: 0.1, delayChildren: 0.12 },
+  },
+};
+
+const meetingRowFade = {
+  hidden: { opacity: 0, x: 14 },
+  visible: (i) => ({
+    opacity: 1,
+    x: 0,
+    transition: {
+      delay: i * 0.07,
+      duration: 0.38,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  }),
+};
+
 /* ── Main Dashboard ────────────────────────────────────────────────────────── */
 export function MentorDashboard() {
   const navigate = useNavigate();
@@ -289,6 +443,7 @@ export function MentorDashboard() {
   const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [mentorBookings, setMentorBookings] = useState([]);
   const [dashboard, setDashboard] = useState(null);
+  const [calendarView, setCalendarView] = useState(() => new Date());
 
   useEffect(() => {
     if (!user || user.role !== "mentor") {
@@ -353,182 +508,435 @@ export function MentorDashboard() {
     availableBalance,
   };
 
-  const formatVnd = (amount) => `${Number(amount || 0).toLocaleString("vi-VN")} Đ`;
+  const displayName = getDisplayName(user, "Mentor");
+  const mentorAvatar = avatarSrc(user?.avatar) || "";
+  const featuredReview = pickFeaturedTestimonial(mentorBookings);
+  const monthHint =
+    stats.thisMonthSessions > 0
+      ? `${stats.thisMonthSessions} buổi mới tháng này`
+      : "Chưa có buổi mới tháng này";
+
+  const meetingDayKeys = new Set();
+  mentorBookings.forEach((m) => {
+    const k = bookingDateKey(m.scheduledDate);
+    if (k) meetingDayKeys.add(k);
+  });
+
+  const upcomingCount = upcomingMeetings.length;
 
   return (
-    <MentorPageShell bottomPad="pb-20">
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.5); border-radius: 10px; }
-      `}</style>
-      <div className="relative z-10 mx-auto max-w-7xl px-6 pb-10 sm:px-8">
-        <div className="mb-8 flex flex-col justify-between gap-4 md:mb-10 md:flex-row md:items-end md:gap-6">
-          <div>
-            <h1 className="font-headline text-2xl font-black tracking-tight text-slate-900 sm:text-3xl break-words">
-               Xin chào,{" "}
-               <span className="text-violet-700">{getDisplayName(user, "Mentor")}!</span>
-            </h1>
-          </div>
-          <div className="flex gap-4">
-              <button type="button" onClick={() => navigate("/mentor/schedule")} className="flex items-center gap-2 rounded-xl bg-[#93f72b] px-5 py-2.5 text-xs font-bold text-[#120B2E] shadow-[0_8px_24px_rgba(147,247,43,0.28)] transition-all hover:brightness-105">
-                 <Plus size={16} /> Tạo lịch mới
+    <MentorPageShell bottomPad="pb-20" showAmbient={false} className="!bg-[#f8f9fc]">
+      <div className="relative z-10 mx-auto max-w-[1280px] px-4 pb-12 sm:px-6 lg:px-10">
+
+        {/* Hero */}
+        <motion.header
+          initial={{ opacity: 0, y: -14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-8 flex flex-col gap-6 pt-2 lg:flex-row lg:items-start lg:justify-between lg:gap-8"
+        >
+          <div className="contents lg:block lg:max-w-2xl lg:flex-1">
+            <div className="order-1">
+              <h1 className="font-headline text-[clamp(1.75rem,3.5vw,2.5rem)] font-extrabold leading-[1.12] tracking-tight text-slate-900">
+                Xin chào,{" "}
+                <span className="text-[#8037f4]">{displayName}</span>
+              </h1>
+              <p className="mt-4 text-sm leading-relaxed text-slate-600 sm:text-[15px]">
+                Theo dõi lịch tư vấn, dòng thu nhập và đánh giá chéo khóa học.
+              </p>
+            </div>
+            <div className="order-3 mt-6 flex flex-wrap gap-3 lg:order-none">
+              <motion.button
+                type="button"
+                onClick={() => navigate("/mentor/schedule")}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center justify-center gap-2.5 rounded-lg bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#1a0d35]"
+              >
+                <span className="size-2 shrink-0 rounded-full bg-[#93f72b]" aria-hidden />
+                Tạo lịch mới
+              </motion.button>
+              <button
+                type="button"
+                onClick={() => navigate("/mentor/schedule")}
+                className="inline-flex items-center justify-center gap-2.5 rounded-lg border-2 border-slate-900 bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-slate-50"
+              >
+                <CalendarBlank size={16} strokeWidth={2.25} aria-hidden />
+                Xem lịch trình
               </button>
+            </div>
           </div>
-        </div>
 
-        {/* Vital Stats Grid */}
-        <div className="mb-8 grid grid-cols-1 gap-4 md:mb-10 md:grid-cols-3 md:gap-5">
-           {[
-             {
-               label: "Tổng buổi mentor",
-               value: stats.totalSessions,
-               sub:
-                 stats.thisMonthSessions > 0
-                   ? `+${stats.thisMonthSessions} buổi tháng này`
-                   : "Chưa có buổi mới tháng này",
-               icon: Users,
-               color: "#8037f4",
-             },
-             { label: "Lịch hẹn sắp tới", value: stats.upcomingMeetings, sub: "Trong 7 ngày tới", icon: CalendarBlank, color: "#f59e0b" },
-             { label: "Tổng thu nhập", value: formatVnd(stats.totalEarned), sub: `Khả dụng ${formatVnd(stats.availableBalance)}`, icon: CurrencyCircleDollar, color: "#93f72b" }
-           ].map((stat, i) => (
-             <div key={i} className="glass-card group relative overflow-hidden bg-white p-5 sm:p-6">
-                <div className="absolute right-0 top-0 h-24 w-24 translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-violet-100/80 to-transparent" />
-                <div className="mb-4 flex items-center gap-3">
-                   <div className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-slate-200 bg-white shadow-sm transition-all group-hover:border-violet-200">
-                      <stat.icon size={18} style={{ color: stat.color }} />
-                   </div>
-                   <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">{stat.label}</span>
-                </div>
-                <h3 className="mb-1.5 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">{stat.value}</h3>
-                <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                   <ArrowUpRight size={14} className="text-violet-600" /> {stat.sub}
-                </p>
-             </div>
-           ))}
-        </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.45, delay: 0.1 }}
+            className="order-2 mx-auto flex shrink-0 flex-col items-center text-center lg:order-none lg:mx-0 lg:items-end lg:text-right"
+          >
+            <div className="relative flex h-[188px] w-[188px] items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 bg-white shadow-sm sm:h-[200px] sm:w-[200px]">
+              {mentorAvatar ? (
+                <img
+                  src={mentorAvatar}
+                  alt={displayName}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <User size={56} className="text-slate-300" strokeWidth={1.5} />
+              )}
+            </div>
+            <p className="mt-3 font-headline text-base font-black text-slate-900">{displayName}</p>
+          </motion.div>
+        </motion.header>
 
-        <div className="grid lg:grid-cols-12 gap-10 items-start">
-           {/* Main Controls & Lists */}
-           <div className="lg:col-span-8 space-y-10">
-              {/* Quick Navigation Cards */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                 {[
-                   { label: "Lịch trình", desc: "Quản lý meetings", icon: CalendarBlank, path: "/mentor/schedule", color: "#8037f4" },
-                   { label: "Tài chính", desc: "Thu nhập & Rút tiền", icon: CurrencyCircleDollar, path: "/mentor/finance", color: "#93f72b" },
-                 ].map((nav, i) => (
-                   <button type="button" key={i} onClick={() => navigate(nav.path)} className="glass-card group flex items-center gap-4 bg-white p-4 text-left">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 transition-transform group-hover:scale-105">
-                         <nav.icon size={20} style={{ color: nav.color }} />
-                      </div>
-                      <div>
-                         <p className="mb-1 text-xs font-black uppercase tracking-widest text-slate-900">{nav.label}</p>
-                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{nav.desc}</p>
-                      </div>
-                   </button>
-                 ))}
+        {/* Stats — mobile compact grid */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+          className="lg:hidden"
+        >
+          <MentorStatMiniGrid>
+            <MentorStatFrame
+              index={1}
+              compact
+              accent="purple"
+              value={String(stats.totalSessions)}
+              title="Tổng buổi mentor"
+              cornerIcon={Users}
+            />
+            <MentorStatFrame
+              index={2}
+              compact
+              accent="lime"
+              value={String(stats.upcomingMeetings)}
+              title="Lịch hẹn sắp tới"
+              cornerIcon={CalendarClock}
+            />
+            <MentorStatFrame
+              index={3}
+              compact
+              accent="purple"
+              value={formatVndCompact(stats.totalEarned)}
+              title="Tổng thu nhập"
+              cornerIcon={Landmark}
+            />
+            <MentorStatFrame
+              index={4}
+              compact
+              accent="lime"
+              value={formatVnd(stats.availableBalance)}
+              title="Khả dụng rút"
+              cornerIcon={Wallet}
+            />
+          </MentorStatMiniGrid>
+        </motion.div>
+
+        {/* Stats — desktop panel */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+          className="hidden lg:block"
+        >
+          <MentorStatPanel>
+            <MentorStatFrame
+              index={1}
+              accent="purple"
+              value={String(stats.totalSessions)}
+              title="Tổng buổi mentor"
+              subtitle={monthHint}
+              cornerIcon={Users}
+              footer={
+                <MentorSessionActivityBlocks
+                  activeCount={stats.thisMonthSessions > 0 ? Math.min(5, stats.thisMonthSessions) : 0}
+                />
+              }
+            />
+            <MentorStatFrame
+              index={2}
+              accent="lime"
+              value={String(stats.upcomingMeetings)}
+              title="Lịch hẹn sắp tới"
+              subtitle="Trong 7 ngày tới"
+              cornerIcon={CalendarClock}
+            />
+            <MentorStatFrame
+              index={3}
+              accent="purple"
+              value={formatVndCompact(stats.totalEarned)}
+              title="Tổng thu nhập"
+              subtitle={`Khả dụng để rút: ${formatVnd(stats.availableBalance)}`}
+              cornerIcon={Landmark}
+            />
+          </MentorStatPanel>
+        </motion.div>
+
+        {/* Testimonial */}
+        <motion.div
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+          className="mb-8 rounded-2xl bg-[#93f72b] px-6 py-6 sm:px-8 sm:py-7"
+        >
+          <Quote
+            size={28}
+            className="mb-3 text-slate-900/35"
+            fill="currentColor"
+            strokeWidth={0}
+          />
+          <p className="font-headline text-lg font-bold leading-snug text-slate-900 sm:text-xl">
+            &ldquo;{featuredReview.quote}&rdquo;
+          </p>
+          <p className="mt-4 text-[11px] font-bold uppercase tracking-wider text-slate-800/75">
+            {featuredReview.author} · Đánh giá {featuredReview.rating} / 5 sao
+          </p>
+        </motion.div>
+
+        {/* Main grid */}        <motion.div
+          variants={dashboardStagger}
+          initial="hidden"
+          animate="visible"
+          className="grid gap-6 lg:grid-cols-12 lg:items-start"
+        >
+          <div className="space-y-5 lg:col-span-8">
+            <motion.div
+              variants={dashboardFadeUp}
+              className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition-shadow duration-300 hover:shadow-[0_8px_28px_rgba(128,55,244,0.08)]"
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                <h2 className="font-headline text-sm font-black text-slate-900">
+                  <span className="text-slate-400">{padStat(upcomingCount)}</span>{" "}
+                  Lịch phỏng vấn sắp tới
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => navigate("/mentor/schedule")}
+                  className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 transition hover:text-violet-700"
+                >
+                  Tất cả lịch trình →
+                </button>
               </div>
 
-              {/* Upcoming Detailed Feed */}
-              <div className="glass-card bg-white p-5 sm:p-6">
-                 <div className="mb-6 flex items-center justify-between sm:mb-7">
-                    <h4 className="font-headline text-lg font-black tracking-tight text-slate-900 sm:text-xl">
-                      Lịch phỏng vấn sắp tới
-                    </h4>
-                    <button type="button" onClick={() => navigate("/mentor/schedule")} className="text-[10px] font-black uppercase tracking-widest text-violet-700 hover:underline">Xem tất cả lịch trình</button>
-                 </div>
-                 
-                 <div className="space-y-4">
-                    {upcomingMeetings.map((meeting) => (
-                      <div key={meeting.id} 
-                           role="button"
-                           tabIndex={0}
-                           onClick={() => navigate(`/mentor/meeting-detail/${meeting.id}`)}
-                           onKeyDown={(e) => { if (e.key === "Enter") navigate(`/mentor/meeting-detail/${meeting.id}`); }}
-                           className="group flex cursor-pointer items-center justify-between rounded-[28px] border border-slate-200 bg-slate-50/80 p-5 transition-all hover:border-violet-200 hover:bg-violet-50/40 sm:rounded-[32px] sm:p-6">
-                         <div className="flex items-center gap-4 sm:gap-6">
-                            <img src={meeting.mentee.avatar} alt="" className="h-12 w-12 rounded-2xl object-cover ring-2 ring-slate-200 sm:h-14 sm:w-14" />
-                            <div>
-                               <h5 className="text-base font-black text-slate-900 transition-colors group-hover:text-violet-800 sm:text-lg">{meeting.mentee.name}</h5>
-                               <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                                 {meeting.sessionTypeLabel || meeting.position}
-                               </p>
-                            </div>
-                         </div>
-                         <div className="flex items-center gap-6 sm:gap-10">
-                            <div className="hidden text-right sm:block">
-                               <p className="text-xs font-black text-slate-900">{meeting.scheduledTime}</p>
-                               <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                                 {formatMeetingDate(meeting.scheduledDate, meeting.scheduledTime)}
-                               </p>
-                            </div>
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-violet-600 opacity-0 transition-all group-hover:opacity-100">
-                               <ArrowRight size={18} />
-                            </div>
-                         </div>
-                      </div>
-                    ))}
-                 </div>
-              </div>
-           </div>
+              <div className="flex flex-col gap-6 p-5 sm:p-6 lg:flex-row lg:gap-0">
+                <MentorMiniCalendar
+                  highlightedDays={meetingDayKeys}
+                  viewDate={calendarView}
+                  onViewDateChange={setCalendarView}
+                />
 
-           {/* Sidebar: Recent Activity & Peer Review */}
-           <div className="lg:col-span-4 space-y-10">
-              <div className="glass-card bg-white p-5 sm:p-6">
-                 <h4 className="mb-5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                    <CheckCircle size={14} className="text-violet-600" /> Hoàn thành gần đây
-                 </h4>
-                 <div className="space-y-5">
-                    {recentCompleted.length === 0 && (
-                      <p className="text-xs font-medium text-slate-500">Chưa có buổi hoàn thành gần đây.</p>
-                    )}
-                    {recentCompleted.map((meeting) => (
-                      <div key={meeting.id} 
-                           role="button"
-                           tabIndex={0}
-                           onClick={() => setSelectedMeeting(meeting)}
-                           onKeyDown={(e) => { if (e.key === "Enter") setSelectedMeeting(meeting); }}
-                           className="group flex cursor-pointer items-center gap-4">
-                         <img src={meeting.mentee.avatar} alt="" className="h-10 w-10 rounded-xl object-cover grayscale transition-all group-hover:grayscale-0" />
-                         <div className="min-w-0 flex-1">
-                            <p className="mb-0.5 text-xs font-black tracking-tight text-slate-900">{meeting.mentee.name}</p>
-                            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500">
-                              {formatMeetingDate(meeting.scheduledDate, meeting.scheduledTime)}
+                {upcomingMeetings.length === 0 ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.25, duration: 0.4 }}
+                    className="flex min-h-[220px] flex-1 flex-col justify-center lg:pl-8"
+                  >
+                    <p className="text-lg font-bold text-slate-900">
+                      Chưa có buổi phỏng vấn nào được lên lịch
+                    </p>
+                    <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+                      Tạo lịch mới để mentee có thể đặt buổi tư vấn với bạn.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/mentor/schedule")}
+                      className="mt-4 inline-flex w-fit items-center gap-1 text-sm font-semibold text-[#8037f4] hover:underline"
+                    >
+                      Tạo lịch mới →
+                    </button>
+                  </motion.div>
+                ) : (
+                  <div className="min-w-0 flex-1 space-y-3 lg:pl-8">
+                    {upcomingMeetings.map((meeting, idx) => (
+                      <motion.div
+                        key={meeting.id}
+                        custom={idx}
+                        variants={meetingRowFade}
+                        initial="hidden"
+                        animate="visible"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => navigate(`/mentor/meeting-detail/${meeting.id}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") navigate(`/mentor/meeting-detail/${meeting.id}`);
+                        }}
+                        className="group flex cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:bg-violet-50/40 hover:shadow-[0_6px_18px_rgba(128,55,244,0.08)]"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <img
+                            src={meeting.mentee.avatar}
+                            alt=""
+                            className="h-11 w-11 shrink-0 rounded-full object-cover"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">{meeting.mentee.name}</p>
+                            <p className="text-xs text-slate-500">
+                              {meeting.sessionTypeLabel || meeting.position}
                             </p>
-                         </div>
-                         <div className="flex shrink-0 items-center gap-1.5 text-violet-700">
-                            <Star size={12} className="fill-current" />
-                            <span className="text-xs font-black">
-                              {meeting.overallScore > 0 ? meeting.overallScore.toFixed(1) : "—"}
-                            </span>
-                         </div>
-                      </div>
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-bold text-[#8037f4]">{meeting.scheduledTime}</p>
+                          <p className="text-xs text-slate-500">
+                            {formatMeetingDate(meeting.scheduledDate, meeting.scheduledTime)}
+                          </p>
+                        </div>
+                      </motion.div>
                     ))}
-                 </div>
-                 <button type="button" onClick={() => navigate("/mentor/analytics")} className="mt-6 w-full rounded-lg border border-slate-200 bg-slate-50 py-3 text-[10px] font-black uppercase tracking-widest text-slate-700 transition-all hover:bg-slate-100">
-                    Xem toàn bộ lịch sử
-                 </button>
+                  </div>
+                )}
               </div>
+            </motion.div>
 
-              {/* Peer Review Call-to-action */}
-              <div className="glass-card group relative overflow-hidden border-violet-200 bg-white p-5 sm:p-6">
-                 <div className="pointer-events-none absolute right-0 top-0 p-4 opacity-[0.12] transition-all duration-700 group-hover:rotate-0" style={{ transform: "rotate(12deg)" }}>
-                    <SealCheck size={80} className="text-violet-500" />
-                 </div>
-                 <p className="relative mb-2 text-[10px] font-black uppercase tracking-[0.25em] text-violet-700">Đánh giá chéo</p>
-                 <h4 className="relative mb-2 text-base font-black tracking-tight text-slate-900 sm:text-lg">
-                   Tham gia Đánh giá Khóa học
-                 </h4>
-                 <p className="relative mb-4 text-xs font-medium leading-relaxed text-slate-600">
-                   Góp ý nội dung cho đồng nghiệp và nhận điểm thưởng từ ProInterview.
-                 </p>
-                 <button type="button" onClick={() => navigate("/mentor/peer-review")} className="relative flex items-center gap-2 text-[11px] font-black text-violet-800 transition-all hover:gap-3">
-                    Bắt đầu ngay <ArrowRight size={16} className="text-violet-700" />
-                 </button>
+            <motion.div variants={dashboardFadeUp} className="grid gap-4 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => navigate("/mentor/schedule")}
+                className="group flex items-center gap-4 rounded-2xl border border-violet-100 bg-[#8037f4]/[0.06] p-5 text-left transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-[0_8px_22px_rgba(128,55,244,0.1)]"
+              >
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#8037f4]/15 text-[#8037f4] transition-transform duration-200 group-hover:scale-110">
+                  <CalendarBlank size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-slate-900">Lịch trình</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Quản lý meetings &amp; tài liệu</p>
+                </div>
+                <ChevronRight size={18} className="shrink-0 text-slate-300 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-violet-500" />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/mentor/finance")}
+                className="group flex items-center gap-4 rounded-2xl border border-[#93f72b]/40 bg-[#93f72b]/15 p-5 text-left transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-[#93f72b]/60 hover:shadow-[0_8px_22px_rgba(147,247,43,0.14)]"
+              >
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#93f72b]/20 text-slate-900 transition-transform duration-200 group-hover:scale-110">
+                  <Wallet size={20} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-slate-900">Tài chính</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Rút tiền về ví của bạn</p>
+                </div>
+                <ChevronRight size={18} className="shrink-0 text-slate-300 transition-transform duration-200 group-hover:translate-x-1 group-hover:text-slate-700" />
+              </button>
+            </motion.div>
+          </div>
+
+          <div className="space-y-5 lg:col-span-4">
+            <motion.div
+              variants={dashboardFadeUp}
+              className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#8037f4] to-[#630ed4] p-6 text-white shadow-[0_8px_30px_rgba(128,55,244,0.28)]"
+            >
+              <motion.div
+                animate={{ scale: [1, 1.08, 1], opacity: [0.25, 0.35, 0.25] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-violet-500/25"
+                aria-hidden
+              />
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-200/90">
+                Tổng thu nhập
+              </p>
+              <p className="mentor-stat-num mentor-stat-num--hero mentor-stat-num--on-dark mentor-stat-num--money mt-3">
+                <MentorMoneyText amount={stats.totalEarned} />
+              </p>
+              <p className="mt-2 text-xs text-violet-200/90">
+                Khả dụng để rút -{" "}
+                <MentorMoneyText amount={stats.availableBalance} className="font-semibold" />
+              </p>
+              <motion.button
+                type="button"
+                onClick={() => navigate("/mentor/finance")}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#93f72b] py-3.5 text-sm font-bold text-slate-900 shadow-[0_8px_20px_rgba(147,247,43,0.35)] transition hover:brightness-105"
+              >
+                <Wallet size={16} />
+                Rút tiền
+              </motion.button>
+            </motion.div>
+
+            <motion.div
+              variants={dashboardFadeUp}
+              className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition-shadow duration-300 hover:shadow-[0_6px_20px_rgba(15,23,42,0.06)] sm:p-6"
+            >
+              <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
+                Hoàn thành gần đây
+              </h3>
+              {recentCompleted.length === 0 ? (
+                <p className="mt-4 text-sm text-slate-500">Chưa có buổi hoàn thành gần đây</p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {recentCompleted.map((meeting, idx) => (
+                    <motion.div
+                      key={meeting.id}
+                      initial={{ opacity: 0, x: 10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.2 + idx * 0.06, duration: 0.35 }}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setSelectedMeeting(meeting)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") setSelectedMeeting(meeting);
+                      }}
+                      className="group flex cursor-pointer items-center gap-3 rounded-lg p-1 transition-colors duration-200 hover:bg-slate-50"
+                    >
+                      <img
+                        src={meeting.mentee.avatar}
+                        alt=""
+                        className="h-9 w-9 rounded-full object-cover grayscale transition group-hover:grayscale-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900">{meeting.mentee.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {formatMeetingDate(meeting.scheduledDate, meeting.scheduledTime)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1 text-violet-700">
+                        <Star size={12} className="fill-current" />
+                        <span className="text-xs font-bold">
+                          {meeting.overallScore > 0 ? meeting.overallScore.toFixed(1) : "—"}
+                        </span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => navigate("/mentor/analytics")}
+                className="mt-5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 transition hover:text-violet-700"
+              >
+                Xem toàn bộ lịch sử →
+              </button>
+            </motion.div>
+
+            <motion.div
+              variants={dashboardFadeUp}
+              className="overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-6 shadow-[0_1px_3px_rgba(15,23,42,0.04)] transition-shadow duration-300 hover:shadow-[0_8px_24px_rgba(128,55,244,0.1)]"
+            >
+              <div className="mb-4 flex h-24 items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50">
+                <FileBadge size={32} className="text-[#8037f4]/40" strokeWidth={1.5} />
               </div>
-           </div>
-        </div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#8037f4]">
+                Đánh giá khóa học
+              </p>
+              <h3 className="mt-2 font-headline text-lg font-black text-slate-900">
+                Góp ý &amp; nhận điểm thưởng
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                Đánh giá chéo nội dung cho đồng nghiệp và nhận điểm thưởng từ ProInterview.
+              </p>
+              <motion.button
+                type="button"
+                onClick={() => navigate("/mentor/peer-review")}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-slate-900 py-3 text-sm font-bold text-white transition hover:bg-[#8037f4]"
+              >
+                Bắt đầu ngay
+                <ArrowRight size={14} />
+              </motion.button>
+            </motion.div>
+          </div>
+        </motion.div>
       </div>
 
       <AnimatePresence>

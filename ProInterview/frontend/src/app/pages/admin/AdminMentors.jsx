@@ -1,18 +1,20 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
-import { Users, Search, Filter, CheckCircle, XCircle, Eye, ShieldCheck, Star } from "lucide-react";
-import { adminApi } from "../../utils/adminApi";
-import { tryApi } from "../../utils/apiToast";
+import { Users, Search, Filter, CheckCircle, XCircle, Eye, ShieldCheck, Star, TrendingUp } from "lucide-react";
+import { adminApi } from "../../utils/adminApi.js";
+import { tryApi } from "../../utils/apiToast.js";
+import { UserOnlineStatus } from "../../components/admin/UserOnlineStatus.jsx";
 
 export function AdminMentors() {
   const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const loadMentors = async () => {
-    setLoading(true);
+  const loadMentors = async (silent = false) => {
+    if (!silent) setLoading(true);
     const res = await tryApi(() => adminApi.getMentors(), {
       fallback: "Không thể tải danh sách cố vấn.",
+      silent: true,
     });
     if (res.success) {
       const active = res.mentors.filter(
@@ -20,11 +22,13 @@ export function AdminMentors() {
       );
       setMentors(active);
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   };
 
   useEffect(() => {
     void loadMentors();
+    const timer = window.setInterval(() => void loadMentors(true), 45_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const handleToggleActive = async (mentor) => {
@@ -47,11 +51,16 @@ export function AdminMentors() {
     );
   };
 
-  const filtered = mentors.filter(
-    (m) =>
-      m.userId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.userId?.email?.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filtered = mentors
+    .filter(
+      (m) =>
+        m.userId?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        m.userId?.email?.toLowerCase().includes(searchTerm.toLowerCase()),
+    )
+    .sort((a, b) => {
+      if (a.isOnline === b.isOnline) return 0;
+      return a.isOnline ? -1 : 1;
+    });
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -90,7 +99,10 @@ export function AdminMentors() {
                 <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Cố vấn</th>
                 <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-slate-500">Chuyên môn</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-500">
-                  Trạng thái
+                  Hồ sơ
+                </th>
+                <th className="px-8 py-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Trực tuyến
                 </th>
                 <th className="px-8 py-6 text-center text-[10px] font-black uppercase tracking-widest text-slate-500">
                   Đánh giá
@@ -106,13 +118,13 @@ export function AdminMentors() {
             <tbody className="divide-y divide-slate-100 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="px-8 py-20 text-center italic text-slate-500">
+                  <td colSpan="7" className="px-8 py-20 text-center italic text-slate-500">
                     Đang tải dữ liệu...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-8 py-20 text-center italic text-slate-500">
+                  <td colSpan="7" className="px-8 py-20 text-center italic text-slate-500">
                     Không tìm thấy cố vấn nào.
                   </td>
                 </tr>
@@ -129,6 +141,15 @@ export function AdminMentors() {
                         <div>
                           <p className="font-black text-slate-900">{mentor.userId?.name}</p>
                           <p className="text-[10px] text-slate-500">{mentor.userId?.email}</p>
+                          {mentor.pendingPricePerHour ? (
+                            <Link
+                              to={`/admin/mentors/${mentor._id}`}
+                              className="mt-1 inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-800 hover:bg-amber-100"
+                              title={`Đề xuất giá mới: ${Number(mentor.pendingPricePerHour).toLocaleString("vi-VN")} Đ/giờ`}
+                            >
+                              <TrendingUp size={10} /> Yêu cầu đổi giá
+                            </Link>
+                          ) : null}
                         </div>
                       </div>
                     </td>
@@ -152,6 +173,13 @@ export function AdminMentors() {
                           </span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <UserOnlineStatus
+                        isOnline={Boolean(mentor.isOnline)}
+                        lastSeenAt={mentor.lastSeenAt}
+                        isActive={mentor.isActive !== false && mentor.userId?.isActive !== false}
+                      />
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex items-center justify-center gap-1 text-amber-500">

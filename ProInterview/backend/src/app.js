@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
+import { getJaasPublicStatus } from "./services/jaasService.js";
 import dns from "node:dns";
 import helmet from "helmet";
 import hpp from "hpp";
@@ -28,6 +29,7 @@ import { enrollmentsRouter } from "./routes/enrollments.js";
 import { cvRouter } from "./routes/cv.js";
 import { cvMatchRouter } from "./routes/cvMatch.js";
 import { interviewsRouter } from "./routes/interviews.js";
+import { analyticsRouter } from "./routes/analytics.js";
 import { uploadRouter } from "./routes/upload.js";
 import { mockCoursesRouter } from "./routes/mockCourses.js";
 import { aiProvidersRouter } from "./routes/aiProviders.js";
@@ -144,6 +146,7 @@ export function createApp() {
       reports: "/api/reports",
       notifications: "/api/notifications",
       admin: "/api/admin",
+      analytics: "/api/analytics",
       enrollments: "/api/enrollments",
 
       cv: "/api/cv",
@@ -170,6 +173,7 @@ export function createApp() {
       sepayWebhookConfigured: Boolean(
         String(process.env.SEPAY_WEBHOOK_API_KEY || process.env.SEPAY_API_KEY || "").trim(),
       ),
+      jaas: getJaasPublicStatus(),
       timestamp: new Date().toISOString(),
     });
   });
@@ -191,6 +195,7 @@ export function createApp() {
   app.use("/api/cv", cvRouter);
   app.use("/api/cv", cvMatchRouter);
   app.use("/api/interviews", interviewsRouter);
+  app.use("/api/analytics", analyticsRouter);
   app.use("/api/upload", uploadRouter);
   app.use("/api/mock", mockCoursesRouter);
   app.use("/api/ai", aiProvidersRouter);

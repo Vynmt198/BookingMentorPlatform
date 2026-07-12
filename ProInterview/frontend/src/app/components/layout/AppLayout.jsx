@@ -1,12 +1,9 @@
 import React, { useEffect } from "react";
 import { Outlet, useLocation } from "react-router";
-import { SidebarProvider, SidebarInset } from "../ui/sidebar";
-import { AppSidebar } from "./Sidebar";
 import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
 import { resolveDocumentTitle } from "../../utils/documentTitle";
 import { getUser } from "../../utils/auth";
-import { MENTOR_MAIN_TOP_PAD } from "./customerShellLayout";
 
 export function AppLayout() {
   const location = useLocation();
@@ -29,10 +26,6 @@ export function AppLayout() {
   useEffect(() => {
     document.title = resolveDocumentTitle(location.pathname);
     window.scrollTo(0, 0);
-    const mentorContainer = document.getElementById("mentor-scroll-container");
-    if (mentorContainer) {
-      mentorContainer.scrollTo(0, 0);
-    }
   }, [location.pathname]);
 
   useEffect(() => {
@@ -53,35 +46,6 @@ export function AppLayout() {
     fontFamily: "'Lexend', 'Plus Jakarta Sans', system-ui, sans-serif",
   };
 
-  if (isMentor) {
-    return (
-      <div className={shellClass} style={shellStyle}>
-        <div
-          className={`app-shell-ambient${ambientModifier}`}
-          aria-hidden
-        />
-        <SidebarProvider
-          className="relative z-[1] flex min-h-svh w-full bg-transparent"
-          style={{
-            "--sidebar-width": "228px",
-            "--sidebar-width-icon": "56px",
-          }}
-        >
-          <AppSidebar />
-          <SidebarInset className="relative z-[1] flex h-svh max-h-svh min-h-0 flex-1 flex-col overflow-hidden bg-transparent shadow-none md:peer-data-[variant=inset]:shadow-none md:peer-data-[variant=inset]:m-0 md:peer-data-[variant=inset]:rounded-none">
-            <Navbar variant="mentor" />
-            <div
-              id="mentor-scroll-container"
-              className={`relative z-[1] min-h-0 flex-1 overflow-x-hidden overflow-y-auto ${MENTOR_MAIN_TOP_PAD}`}
-            >
-              <Outlet />
-            </div>
-          </SidebarInset>
-        </SidebarProvider>
-      </div>
-    );
-  }
-
   return (
     <div className={shellClass} style={shellStyle}>
       <div
@@ -93,7 +57,7 @@ export function AppLayout() {
           isHome ? "home-layout-fixed max-lg:min-w-0 max-lg:w-full" : ""
         }`}
       >
-        {!hideNavbar && <Navbar variant="customer" />}
+        {!hideNavbar && <Navbar variant={isMentor ? "mentor" : "customer"} />}
         <main
           className={`relative z-[1] min-h-0 flex-1 ${
             hideNavbar

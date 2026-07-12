@@ -5,6 +5,8 @@
 export const HOME_HERO_TITLE_CLAMP = "clamp(3rem, 7.5vw, 6rem)";
 /** Tiêu đề section Home (trừ hero) — dùng chung một cỡ. */
 export const HOME_SECTION_TITLE_CLAMP = "clamp(2.25rem, 3.5vw, 3.25rem)";
+/** Alias — dùng bởi HomeSectionHeader (component dùng chung nhiều section). */
+export const HOME_SECTION_TITLE_SIZE = HOME_SECTION_TITLE_CLAMP;
 export const homeSectionTitleStyle = { fontSize: HOME_SECTION_TITLE_CLAMP };
 
 export const homeSectionClasses = {
@@ -17,6 +19,14 @@ export const homeSectionClasses = {
   titleLineSecond: "block leading-[1.08]",
   titleLineDark: "block text-[#000000]",
   titleLineAccent: "block font-headline text-[#8037f4]",
+  /** Aliases cho HomeSectionHeader (component dùng chung). */
+  sectionCopy: "relative z-10 flex w-full min-w-0 flex-col items-start gap-3 sm:gap-3.5",
+  sectionCopyCenter:
+    "relative z-10 flex w-full min-w-0 flex-col items-center gap-3 text-center sm:gap-3.5",
+  sectionTitleLineDark: "block text-[#000000]",
+  sectionTitleLineAccent: "block font-headline text-[#8037f4]",
+  sectionTitleLineLime: "block text-lime-600",
+  sectionBody: "max-w-2xl text-pretty text-lg font-medium leading-relaxed text-slate-600 sm:text-xl",
   body: "max-w-2xl text-pretty text-lg font-medium leading-relaxed text-slate-600 sm:text-xl",
   cvShowcaseBadge:
     "inline-flex items-center gap-2 rounded-full border border-[#8037f4]/30 bg-[#8037f4]/10 px-3.5 py-1 font-semibold text-[#8037f4] text-[0.975rem] sm:text-[1.1rem]",

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Star, Building2, Clock, Briefcase, Zap as Lightning, ChevronDown, User } from "lucide-react";
 import { ReviewReplyBlock } from "../../reviews/ReviewReplyBlock";
-import { mentorDisplayTitle, workEntryPeriodLabel } from "../../../utils/mentorProfileHelpers";
+import { mentorDisplayTitle, workEntryPeriodLabel } from "../../../utils/mentorProfileHelpers.js";
 
 function EmptyBlock({ icon: Icon, message }) {
   return (

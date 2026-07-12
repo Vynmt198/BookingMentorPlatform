@@ -1,6 +1,14 @@
 import { RefreshCw, Search } from "lucide-react";
 
 /** Layout thống nhất admin (theo Lịch hẹn & thanh toán). */
+export const adminPageKicker =
+  "text-[10px] font-black uppercase tracking-[0.16em] text-[#8037f4]";
+export const adminPageTitle =
+  "font-headline text-2xl font-black uppercase tracking-tight text-slate-900 sm:text-3xl";
+export const adminPageTitleAccent =
+  "font-headline text-2xl font-black uppercase tracking-tighter text-slate-900 sm:text-3xl";
+export const adminPageSubtitle =
+  "mt-1 max-w-2xl text-sm font-semibold leading-relaxed text-slate-600";
 export const adminThCell =
   "px-4 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 sm:px-5 sm:py-5 lg:px-6";
 export const adminTdCell = "px-4 py-4 sm:px-5 sm:py-5 lg:px-6";
@@ -25,9 +33,27 @@ export const adminSearchInput =
 export const adminStatGrid2 = "grid gap-4 sm:grid-cols-2";
 export const adminStatGrid3 = "grid gap-4 sm:grid-cols-3";
 export const adminStatGrid4 = "grid gap-4 sm:grid-cols-2 lg:grid-cols-4";
+export const adminStatLabel =
+  "text-[10px] font-black uppercase tracking-widest text-slate-500";
+export const adminStatValue = "mt-1 text-2xl font-black tabular-nums text-slate-900";
 
 export const adminGlassTable =
   "glass-card min-w-0 max-w-full overflow-hidden border-slate-200/90 [&:hover]:transform-none [&:hover]:shadow-[0_8px_18px_rgba(110,53,232,0.07)]";
+
+export function AdminPageHeader({ kicker, title, subtitle, children, className = "" }) {
+  return (
+    <div className={`min-w-0 flex-1 ${className}`.trim()}>
+      {kicker ? <p className={adminPageKicker}>{kicker}</p> : null}
+      {typeof title === "string" ? (
+        <h2 className={kicker ? `mt-1 ${adminPageTitleAccent}` : adminPageTitleAccent}>{title}</h2>
+      ) : (
+        title
+      )}
+      {subtitle ? <p className={adminPageSubtitle}>{subtitle}</p> : null}
+      {children}
+    </div>
+  );
+}
 
 export function AdminPageToolbar({ loading, onRefresh, searchTerm, onSearchChange, searchPlaceholder }) {
   return (

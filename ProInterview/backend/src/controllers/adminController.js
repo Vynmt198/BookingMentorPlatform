@@ -4,6 +4,8 @@ import * as paymentsService from "../services/paymentsService.js";
 import { tryCreditMentorForPaidEnrollment, tryCreditMentorForCompletedBooking } from "../services/mentorEarningsService.js";
 import { normalizeTransferRefs } from "../services/normalizeTransferRefsService.js";
 import { runInTransaction } from "../helpers/dbHelper.js";
+import { isUserOnline } from "../utils/userPresence.js";
+import { getPlatformBehavior, getUserJourney } from "../services/analyticsService.js";
 
 import { PayoutRequest } from "../models/PayoutRequest.js";
 import { Enrollment } from "../models/Enrollment.js";
@@ -121,14 +123,20 @@ export const AdminController = {
       const mentors = await Mentor.find()
         .populate(
           "userId",
-          "name email avatar role isActive profileWorkExperience profileEducation profileExtracurricular profileAwards desiredPosition currentCompany experience school",
+          "name email avatar role isActive lastSeenAt profileWorkExperience profileEducation profileExtracurricular profileAwards desiredPosition currentCompany experience school",
         )
         .sort({ createdAt: -1 })
         .lean();
-      
+
       // Có userId: gồm cố vấn đã duyệt (role mentor) và ứng viên đang chờ (role customer).
-      const filtered = mentors.filter((m) => m.userId);
-      
+      const filtered = mentors
+        .filter((m) => m.userId)
+        .map((m) => ({
+          ...m,
+          lastSeenAt: m.userId?.lastSeenAt ?? null,
+          isOnline: isUserOnline(m.userId?.lastSeenAt),
+        }));
+
       res.json({ success: true, mentors: filtered });
     } catch (error) {
       next(error);
@@ -142,7 +150,7 @@ export const AdminController = {
         return res.status(400).json({ success: false, error: "mentorId không hợp lệ." });
       }
       const mentor = await Mentor.findById(id)
-        .populate("userId", "name email avatar role isActive plan")
+        .populate("userId", "name email avatar role isActive plan lastSeenAt")
         .lean();
       if (!mentor) return res.status(404).json({ success: false, error: "Không tìm thấy cố vấn." });
 
@@ -151,6 +159,8 @@ export const AdminController = {
         success: true,
         mentor: {
           ...mentor,
+          lastSeenAt: mentor.userId?.lastSeenAt ?? null,
+          isOnline: isUserOnline(mentor.userId?.lastSeenAt),
           stats: { ...(mentor.stats || {}), sessionsCount },
         },
       });
@@ -258,6 +268,61 @@ export const AdminController = {
       const mentor = await Mentor.findByIdAndUpdate(id, { $set: update }, { new: true }).lean();
       if (!mentor) return res.status(404).json({ success: false, error: "Không tìm thấy mentor." });
       return res.json({ success: true, mentor });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  approveMentorPrice: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const mentor = await Mentor.findById(id);
+      if (!mentor) return res.status(404).json({ success: false, error: "Không tìm thấy mentor." });
+      if (!mentor.pendingPricePerHour) {
+        return res.status(400).json({ success: false, error: "Không có yêu cầu đổi giá nào." });
+      }
+
+      mentor.pricePerHour = mentor.pendingPricePerHour;
+      mentor.pendingPricePerHour = null;
+      await mentor.save();
+
+      if (mentor.userId) {
+        await Notification.create({
+          userId: mentor.userId,
+          type: "system",
+          title: "Yêu cầu đổi giá đã được duyệt",
+          body: `Admin đã chấp thuận mức giá mới của bạn là ${mentor.pricePerHour} VND/giờ.`,
+        });
+      }
+
+      res.json({ success: true, mentor });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  rejectMentorPrice: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const mentor = await Mentor.findById(id);
+      if (!mentor) return res.status(404).json({ success: false, error: "Không tìm thấy mentor." });
+      if (!mentor.pendingPricePerHour) {
+        return res.status(400).json({ success: false, error: "Không có yêu cầu đổi giá nào." });
+      }
+
+      mentor.pendingPricePerHour = null;
+      await mentor.save();
+
+      if (mentor.userId) {
+        await Notification.create({
+          userId: mentor.userId,
+          type: "system",
+          title: "Yêu cầu đổi giá bị từ chối",
+          body: "Admin đã từ chối mức giá mới bạn đề xuất. Mức giá hiện tại vẫn được giữ nguyên.",
+        });
+      }
+
+      res.json({ success: true, mentor });
     } catch (error) {
       next(error);
     }
@@ -1509,6 +1574,34 @@ export const AdminController = {
       });
     } catch (error) {
       res.status(500).json({ success: false, error: error.message });
+    }
+  },
+
+  getUserJourney: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const result = await getUserJourney(id, {
+        days: req.query.days,
+        limit: req.query.limit,
+      });
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, journey: result.journey });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getPlatformBehavior: async (req, res, next) => {
+    try {
+      const result = await getPlatformBehavior({ days: req.query.days });
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, behavior: result.behavior });
+    } catch (error) {
+      next(error);
     }
   },
 };

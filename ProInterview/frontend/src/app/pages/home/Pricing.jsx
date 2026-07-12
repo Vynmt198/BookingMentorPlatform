@@ -14,6 +14,7 @@ import { fetchCurrentPlan } from "../../utils/plansApi";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
 import { CustomerPageHeader } from "../../components/layout/CustomerPageHeader";
 import { PRICING_SUBTITLE } from "../../constants/brandVoice";
+import { trackAction } from "../../utils/analytics/analyticsApi";
 
 const FAQ_DATA = [
   {
@@ -228,6 +229,11 @@ export function Pricing() {
     }
     if (currentPlan === plan.id) return;
     const path = billing === "yearly" ? plan.checkoutYearly : plan.checkoutMonthly;
+    trackAction("plan_checkout_start", "/pricing", {
+      planKey: plan.id,
+      billing,
+      amount: billing === "yearly" ? plan.yearlyTotal : plan.monthlyDisplay,
+    });
     requireLoginNavigate(navigate, path);
   };
 
