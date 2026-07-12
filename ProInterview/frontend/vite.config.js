@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
     drop: mode === 'production' ? ['console', 'debugger'] : [],
   },
   server: {
+    host: true,
     // Giúp Google Identity Services / FedCM giao tiếp popup–tab (tránh COOP chặn postMessage trên dev).
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin-allow-popups',

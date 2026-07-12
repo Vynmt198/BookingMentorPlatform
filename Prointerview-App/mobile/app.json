@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "ProInterview",
+    "slug": "prointerview-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "platforms": [
+      "android",
+      "ios",
+      "web"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.prointerview.app"
+    },
+    "android": {
+      "packageName": "com.prointerview.app",
+      "package": "com.prointerview.app"
+    },
+    "scheme": "prointerview",
+    "plugins": [
+      [
+        "@react-native-google-signin/google-signin"
+      ],
+      "expo-web-browser"
+    ]
+  }
+}
