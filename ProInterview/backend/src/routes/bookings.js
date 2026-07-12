@@ -11,6 +11,8 @@ bookingsRouter.post("/", authJwt, asyncHandler(BookingsController.create));
 bookingsRouter.get("/mentor/list", authJwt, requireMentor, asyncHandler(BookingsController.listForMentor));
 bookingsRouter.get("/mentor/:id", authJwt, requireMentor, asyncHandler(BookingsController.getByIdForMentor));
 bookingsRouter.patch("/mentor/:id/start", authJwt, requireMentor, asyncHandler(BookingsController.startMeetingForMentor));
+bookingsRouter.patch("/mentor/:id/check-in", authJwt, requireMentor, asyncHandler(BookingsController.checkInForMentor));
+bookingsRouter.patch("/mentor/:id/session-capture", authJwt, requireMentor, asyncHandler(BookingsController.saveSessionCaptureForMentor));
 bookingsRouter.patch("/mentor/:id/reschedule", authJwt, requireMentor, asyncHandler(BookingsController.rescheduleForMentor));
 bookingsRouter.patch("/mentor/:id/cancel", authJwt, requireMentor, asyncHandler(BookingsController.cancelForMentor));
 bookingsRouter.patch("/:id/submit-transfer", authJwt, asyncHandler(BookingsController.submitTransfer));

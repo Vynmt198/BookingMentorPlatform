@@ -74,7 +74,7 @@ export class BookingsController {
       if (!result.ok) {
         return res.status(result.status).json({ success: false, error: result.error });
       }
-      res.json({ success: true, booking: result.booking });
+      res.json({ success: true, booking: result.booking, meeting: result.meeting });
     } catch (err) {
       next(err);
     }
@@ -85,6 +85,23 @@ export class BookingsController {
       const result = await bookingsService.startBookingMeeting(req.userId, req.params.id, {
         asMentor: true,
       });
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, booking: result.booking, meeting: result.meeting });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** PATCH /api/bookings/mentor/:id/check-in — mentor chụp webcam trước khi vào phòng họp. */
+  static async checkInForMentor(req, res, next) {
+    try {
+      const result = await bookingsService.recordMentorMeetingCheckIn(
+        req.userId,
+        req.params.id,
+        req.body ?? {},
+      );
       if (!result.ok) {
         return res.status(result.status).json({ success: false, error: result.error });
       }
@@ -101,6 +118,19 @@ export class BookingsController {
         return res.status(result.status).json({ success: false, error: result.error });
       }
       res.json({ success: true, booking: result.booking });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** PATCH /api/bookings/mentor/:id/session-capture — nháp ghi chú live trong buổi. */
+  static async saveSessionCaptureForMentor(req, res, next) {
+    try {
+      const result = await bookingsService.saveMentorSessionCapture(req.userId, req.params.id, req.body ?? {});
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, capture: result.capture });
     } catch (err) {
       next(err);
     }

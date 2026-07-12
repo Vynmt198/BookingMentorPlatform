@@ -258,6 +258,8 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 | POST | `/api/upload/avatar` | Bearer | Tải lên ảnh đại diện |
 | POST | `/api/upload/cv` | Bearer | Tải lên CV |
 | POST | `/api/upload/course-thumbnail` | Bearer + Mentor | Tải lên ảnh bìa khóa học |
+| POST | `/api/upload/course-video` | Bearer + Mentor | Tải lên video bài học (qua backend) |
+| POST | `/api/upload/sign-video` | Bearer + Mentor | Ký chữ ký Cloudinary cho video >50MB — FE upload thẳng lên Cloudinary (bỏ qua backend, tránh timeout Render); trả 503 nếu Cloudinary chưa cấu hình |
 
 ### A.10. Module Admin — `/api/admin`
 
@@ -272,6 +274,8 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 | GET | `/api/admin/mentors` | Danh sách mentor |
 | GET | `/api/admin/mentors/:id` | Chi tiết mentor + `stats.sessionsCount` |
 | PATCH | `/api/admin/mentors/:id/status` | Bật / tắt mentor |
+| POST | `/api/admin/mentors/:id/approve-price` | Duyệt yêu cầu đổi giá/giờ của mentor |
+| POST | `/api/admin/mentors/:id/reject-price` | Từ chối yêu cầu đổi giá/giờ của mentor |
 | GET | `/api/admin/bookings` | Tất cả booking |
 | GET | `/api/admin/bookings/:id` | Chi tiết booking (populate user/mentor) |
 | GET | `/api/admin/reports` | Danh sách báo cáo (`?status`, `?targetType`, `?page`, `?limit`) → `counts`, `pagination` |
@@ -289,8 +293,19 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 | PATCH | `/api/admin/courses/:id/approve` | Duyệt → `status: published`, xóa `adminReview` |
 | PATCH | `/api/admin/courses/:id/reject` | Từ chối — body `{ reason }` (bắt buộc) → `draft`, lưu `adminReview`, thông báo mentor |
 | PATCH | `/api/admin/courses/:id/archive` | Gỡ marketplace — body `{ reason? }` → `archived`, lưu `adminReview`, thông báo mentor |
+| GET | `/api/admin/analytics/user-behavior` | Tổng hợp hành vi người dùng đã đăng nhập (`?days=7`) — top route, funnel, top actions |
+| GET | `/api/admin/analytics/users/:id/journey` | Timeline hành trình 1 user (`?days=30&limit=80`) |
 
 **FE:** `frontend/src/app/utils/adminApi.js` — `AdminUsers`, `AdminMentors`, `AdminBookings`, `AdminContentCourses`, `AdminPlaceholders` (detail + support).
+
+---
+### A.11. Module Analytics — `/api/analytics`
+
+**File:** `backend/src/routes/analytics.js` · **Auth:** `[AUTH]`
+
+| Method | Path | Mô tả |
+|:-------|:-----|:------|
+| POST | `/api/analytics/events` | Ghi batch event hành vi user (`page_view`, `action`) để admin analytics đọc lại |
 
 ---
 | Trường hợp | Response |
@@ -385,8 +400,13 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | PATCH | `/api/bookings/:id/confirm` |
 | PATCH | `/api/bookings/:id/complete` |
 | PATCH | `/api/bookings/:id/notes` |
+| PATCH | `/api/bookings/:id/start` — vào phòng họp (mentee); trả kèm `meeting` (JAAS JWT hoặc fallback `jitsi_public`) |
+| PATCH | `/api/bookings/mentor/:id/start` — vào phòng họp (mentor); yêu cầu đã check-in webcam |
+| PATCH | `/api/bookings/mentor/:id/check-in` — mentor check-in webcam trước khi vào phòng |
+| PATCH | `/api/bookings/mentor/:id/session-capture` — mentor lưu nháp ghi chú live trong buổi |
 
 *Hủy booking:* chỉ dùng **`DELETE /api/bookings/:id`** (cập nhật trạng thái, vd. `cancelled` — không dùng `PATCH .../cancel` để tránh trùng contract).
+*Phòng họp:* dùng JAAS (8x8.vc) nếu backend đã cấu hình `JAAS_*` (xem `backend/.env.example`); không thì tự fallback `meet.jit.si` (giới hạn ~5' embed).
 
 ### C.4. CV trên Express — `/api/cv`
 
@@ -506,11 +526,21 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | GET | `/api/admin/mentors` |
 | GET | `/api/admin/mentors/:id` |
 | PATCH | `/api/admin/mentors/:id/status` |
+| POST | `/api/admin/mentors/:id/approve-price` |
+| POST | `/api/admin/mentors/:id/reject-price` |
 | GET | `/api/admin/bookings` |
 | GET | `/api/admin/bookings/:id` |
 | PATCH | `/api/admin/bookings/:id/status` |
 | PATCH | `/api/admin/bookings/:id/confirm-transfer-payment` |
 | PATCH | `/api/admin/bookings/:id/confirm-refund` |
+| GET | `/api/admin/analytics/user-behavior` |
+| GET | `/api/admin/analytics/users/:id/journey` |
+
+### C.15. Analytics — `/api/analytics`
+
+| Method | Path |
+|:-------|:-----|
+| POST | `/api/analytics/events` |
 
 ---
 

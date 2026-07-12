@@ -1,8 +1,12 @@
 import { motion } from "motion/react";
 import { AlertCircle as WarningCircle } from "lucide-react";
+import { AppSelect } from "../../components/ui/AppSelect";
+import { RefundBankFields } from "../../components/booking/RefundBankFields.jsx";
+import { BANK_OTHER } from "../../constants/vietnamBanks.js";
+import { formatVnd } from "../../utils/formatVnd.js";
 
 /**
- * Giao diện xử lý sau khi mentor hủy / no-show, học viên chọn phương án hoặc điền STK.
+ * Giao diện xử lý sau khi mentor hủy / no-show — học viên chọn phương án hoặc điền STK.
  */
 export function MentorCancelSessionPanel({
   sessionData,
@@ -18,8 +22,10 @@ export function MentorCancelSessionPanel({
   setRescheduleSlot,
   rescheduleSlotOptions,
   loadingRescheduleSlots,
-  refundBankName,
-  setRefundBankName,
+  refundBankSelect,
+  setRefundBankSelect,
+  refundCustomBankName,
+  setRefundCustomBankName,
   refundAccountNumber,
   setRefundAccountNumber,
   refundAccountHolder,
@@ -40,7 +46,7 @@ export function MentorCancelSessionPanel({
       animate={{ opacity: 1, y: 0 }}
       className="mb-8 space-y-6"
     >
-      <motion.div className="rounded-[22px] border-2 border-violet-300/80 bg-white p-6 shadow-sm sm:p-8">
+      <motion.div className="rounded-[22px] border-2 border-violet-300/80 bg-gradient-to-br from-violet-50 via-white to-violet-50/40 p-6 shadow-sm sm:p-8">
         <div className="mb-6 flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-violet-300 bg-violet-100">
             <WarningCircle className="h-6 w-6 text-violet-800" />
@@ -71,17 +77,17 @@ export function MentorCancelSessionPanel({
                   {refundAmt > 0 ? (
                     <>
                       {" "}
-                      (<strong>{refundAmt.toLocaleString("vi-VN")}₫</strong>)
+                      (<strong>{formatVnd(refundAmt)}</strong>)
                     </>
                   ) : null}
                   .
                 </>
               ) : mode === "late_refund" ? (
-                <>Mentor hủy khi còn dưới 24 giờ. Hoàn ưu tiên 100%, điền STK nhận hoàn bên dưới.</>
+                <>Mentor hủy khi còn dưới 24 giờ. Hoàn ưu tiên 100% — điền STK nhận hoàn bên dưới.</>
               ) : mode === "no_show" ? (
-                <>Buổi ghi nhận no-show. Hoàn ưu tiên 100%, điền STK nếu chưa có.</>
+                <>Buổi ghi nhận no-show. Hoàn ưu tiên 100% — điền STK nếu chưa có.</>
               ) : mode === "change_mentor_done" ? (
-                <>Đã kích hoạt credit, chọn mentor khác để đặt lịch mới.</>
+                <>Đã kích hoạt credit — chọn mentor khác để đặt lịch mới.</>
               ) : (
                 <>
                   Buổi <strong>{sessionData.date}</strong> lúc <strong>{sessionData.time}</strong> không còn hiệu
@@ -102,7 +108,7 @@ export function MentorCancelSessionPanel({
                   className="rounded-2xl border-2 border-violet-200 bg-white px-4 py-4 text-left transition hover:border-violet-500 hover:shadow-md"
                 >
                   <p className="text-xs font-black uppercase tracking-wider text-violet-900">Đổi lịch</p>
-                  <p className="mt-2 text-[11px] leading-relaxed text-slate-600">Giữ mentor, chọn ngày/giờ mới</p>
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-600">Giữ mentor — chọn ngày/giờ mới</p>
                 </button>
                 <button
                   type="button"
@@ -111,7 +117,7 @@ export function MentorCancelSessionPanel({
                   className="rounded-2xl border-2 border-violet-200 bg-white px-4 py-4 text-left transition hover:border-violet-500 hover:shadow-md disabled:opacity-50"
                 >
                   <p className="text-xs font-black uppercase tracking-wider text-violet-900">Đổi mentor</p>
-                  <p className="mt-2 text-[11px] leading-relaxed text-slate-600">Dùng credit đã trả, mentor khác</p>
+                  <p className="mt-2 text-[11px] leading-relaxed text-slate-600">Dùng credit đã trả — mentor khác</p>
                 </button>
                 <button
                   type="button"
@@ -130,23 +136,21 @@ export function MentorCancelSessionPanel({
                 {loadingRescheduleSlots ? (
                   <p className="text-xs text-gray-500">Đang tải lịch trống…</p>
                 ) : rescheduleSlotOptions.length === 0 ? (
-                  <p className="text-xs text-amber-700">Không có slot trống, chọn hoàn tiền hoặc liên hệ support.</p>
+                  <p className="text-xs text-amber-700">Không có slot trống — chọn hoàn tiền hoặc liên hệ support.</p>
                 ) : (
-                  <select
+                  <AppSelect
+                    size="md"
                     value={`${rescheduleDate}|${rescheduleSlot}`}
-                    onChange={(e) => {
-                      const [d, s] = e.target.value.split("|");
+                    onValueChange={(v) => {
+                      const [d, s] = String(v).split("|");
                       setRescheduleDate(d);
                       setRescheduleSlot(s);
                     }}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
-                  >
-                    {rescheduleSlotOptions.map((o) => (
-                      <option key={`${o.date}|${o.slot}`} value={`${o.date}|${o.slot}`}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={rescheduleSlotOptions.map((o) => ({
+                      value: `${o.date}|${o.slot}`,
+                      label: o.label,
+                    }))}
+                  />
                 )}
                 <div className="flex flex-wrap gap-2">
                   <button
@@ -164,8 +168,10 @@ export function MentorCancelSessionPanel({
 
             {mentorResolutionStep === "refund" ? (
               <RefundForm
-                refundBankName={refundBankName}
-                setRefundBankName={setRefundBankName}
+                refundBankSelect={refundBankSelect}
+                setRefundBankSelect={setRefundBankSelect}
+                refundCustomBankName={refundCustomBankName}
+                setRefundCustomBankName={setRefundCustomBankName}
                 refundAccountNumber={refundAccountNumber}
                 setRefundAccountNumber={setRefundAccountNumber}
                 refundAccountHolder={refundAccountHolder}
@@ -194,8 +200,10 @@ export function MentorCancelSessionPanel({
           <RefundForm
             title={refundBankFormTitle}
             refundAmount={refundAmt}
-            refundBankName={refundBankName}
-            setRefundBankName={setRefundBankName}
+            refundBankSelect={refundBankSelect}
+            setRefundBankSelect={setRefundBankSelect}
+            refundCustomBankName={refundCustomBankName}
+            setRefundCustomBankName={setRefundCustomBankName}
             refundAccountNumber={refundAccountNumber}
             setRefundAccountNumber={setRefundAccountNumber}
             refundAccountHolder={refundAccountHolder}
@@ -219,17 +227,19 @@ export function MentorCancelSessionPanel({
           </p>
           <p className="text-xs font-semibold text-violet-700">#{sessionData.orderNum}</p>
         </div>
-        <p className="text-lg font-black text-slate-900">{Number(sessionData.price || 0).toLocaleString("vi-VN")}₫</p>
+        <p className="text-lg font-black text-slate-900">{formatVnd(sessionData.price || 0)}</p>
       </div>
     </motion.div>
   );
 }
 
 function RefundForm({
-  title = "Tài khoản nhận hoàn",
+  title = "STK nhận hoàn",
   refundAmount = 0,
-  refundBankName,
-  setRefundBankName,
+  refundBankSelect,
+  setRefundBankSelect,
+  refundCustomBankName,
+  setRefundCustomBankName,
   refundAccountNumber,
   setRefundAccountNumber,
   refundAccountHolder,
@@ -244,33 +254,24 @@ function RefundForm({
 
   return (
     <div className={`mt-4 space-y-3 rounded-2xl border p-4 ${border}`}>
-      <p className="text-xs font-black uppercase tracking-wider text-slate-900">{title}</p>
+      {title ? <p className="text-sm font-bold text-slate-900">{title}</p> : null}
       {refundAmount > 0 ? (
-        <p className="text-sm text-slate-700">
-          Số hoàn dự kiến: <strong>{Math.round(refundAmount).toLocaleString("vi-VN")}₫</strong>
+        <p className="text-sm text-slate-600">
+          Hoàn dự kiến: <strong className="text-slate-900">{formatVnd(Math.round(refundAmount))}</strong>
         </p>
       ) : null}
-      <input
-        type="text"
-        value={refundBankName}
-        onChange={(e) => setRefundBankName(e.target.value)}
-        placeholder="Tên ngân hàng"
-        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400"
-      />
-      <input
-        type="text"
-        inputMode="numeric"
-        value={refundAccountNumber}
-        onChange={(e) => setRefundAccountNumber(e.target.value)}
-        placeholder="Số tài khoản"
-        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-sm outline-none focus:border-violet-400"
-      />
-      <input
-        type="text"
-        value={refundAccountHolder}
-        onChange={(e) => setRefundAccountHolder(e.target.value)}
-        placeholder="Tên chủ tài khoản (in hoa, không dấu)"
-        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-violet-400"
+      <RefundBankFields
+        bankSelect={refundBankSelect}
+        onBankSelectChange={(value) => {
+          setRefundBankSelect(value);
+          if (value !== BANK_OTHER) setRefundCustomBankName("");
+        }}
+        customBankName={refundCustomBankName}
+        onCustomBankNameChange={setRefundCustomBankName}
+        accountNumber={refundAccountNumber}
+        onAccountNumberChange={setRefundAccountNumber}
+        accountHolder={refundAccountHolder}
+        onAccountHolderChange={setRefundAccountHolder}
       />
       <div className="flex flex-wrap gap-2 pt-1">
         <button

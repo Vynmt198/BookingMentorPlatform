@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { User } from "../models/User.js";
 import { isAccessTokenJtiRevoked } from "../services/accessTokenBlacklist.js";
+import { touchUserPresence } from "../utils/userPresence.js";
 
 export async function authJwt(req, res, next) {
   const secret = process.env.JWT_SECRET;
@@ -54,6 +55,7 @@ export async function authJwt(req, res, next) {
     req.userId = payload.sub;
     req.tokenJti = typeof payload.jti === "string" ? payload.jti : "";
     req.tokenExp = typeof payload.exp === "number" ? payload.exp : undefined;
+    void touchUserPresence(payload.sub);
     next();
   } catch (err) {
     console.error(`[Auth] JWT Verify Error: ${err.message}`);

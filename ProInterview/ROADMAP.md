@@ -47,6 +47,7 @@ Khi merge xong một route: cập nhật **Phần A** trong `API_INDEX`, đổi 
 | GET | `/api/mentors/:id` | Public |
 | GET | `/api/health` | |
 | GET | `/api/users/dashboard-stats` | `[AUTH]` |
+| POST | `/api/analytics/events` | `[AUTH]` — ghi nhận page view / action cho admin analytics |
 | PATCH | `/api/users/:id/role` | `[ADMIN]` — gán role (vd. mentor) |
 | GET | `/api/admin/stats` | `[ADMIN]` |
 | GET | `/api/admin/users` | `[ADMIN]` |
@@ -59,6 +60,10 @@ Khi merge xong một route: cập nhật **Phần A** trong `API_INDEX`, đổi 
 | PATCH | `/api/admin/reports/:id` | `[ADMIN]` — cập nhật trạng thái báo cáo |
 | PATCH | `/api/admin/users/:id/status` | `[ADMIN]` |
 | PATCH | `/api/admin/mentors/:id/status` | `[ADMIN]` |
+| POST | `/api/admin/mentors/:id/approve-price` | `[ADMIN]` — duyệt yêu cầu đổi giá mentor |
+| POST | `/api/admin/mentors/:id/reject-price` | `[ADMIN]` — từ chối yêu cầu đổi giá mentor |
+| GET | `/api/admin/analytics/user-behavior` | `[ADMIN]` — top route, funnel, action của user |
+| GET | `/api/admin/analytics/users/:id/journey` | `[ADMIN]` — hành trình chi tiết 1 user |
 
 Các nhóm endpoint theo phase (bookings, payments, plans, courses, enrollments, mentor, reviews, reports, notifications, …): xem **bảng Phase 1–4** bên dưới — cột **Trạng thái** đã đồng bộ với code hiện tại.
 
@@ -304,10 +309,14 @@ Chi tiết response lỗi / thành công: tham chiếu `API_INDEX.md` (phần đ
 | `GET /api/admin/mentors` | Danh sách mentor |
 | `GET /api/admin/mentors/:id` | Chi tiết mentor (+ sessions count) |
 | `PATCH /api/admin/mentors/:id/status` | Bật / tắt mentor |
+| `POST /api/admin/mentors/:id/approve-price` | Duyệt yêu cầu đổi giá mentor |
+| `POST /api/admin/mentors/:id/reject-price` | Từ chối yêu cầu đổi giá mentor |
 | `GET /api/admin/bookings` | Tất cả booking |
 | `GET /api/admin/bookings/:id` | Chi tiết booking (user + mentor populate) |
 | `GET /api/admin/reports` | Danh sách báo cáo mentor |
 | `PATCH /api/admin/reports/:id` | Cập nhật trạng thái (`reviewing` / `resolved` / `dismissed`) |
+| `GET /api/admin/analytics/user-behavior` | Báo cáo hành vi user đã đăng nhập |
+| `GET /api/admin/analytics/users/:id/journey` | Timeline hành trình của 1 user |
 
 ---
 

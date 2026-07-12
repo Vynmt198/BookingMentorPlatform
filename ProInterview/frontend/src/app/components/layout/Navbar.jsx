@@ -1,13 +1,12 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
-import { Bell, BookOpen, Calendar, LogIn, LogOut, Menu, Settings, Shield, ShoppingCart, User, UserPlus, X } from "lucide-react";
+import { Bell, BookOpen, Calendar, FileText, LogIn, LogOut, Menu, Settings, Shield, ShoppingCart, User, UserPlus, X } from "lucide-react";
 import { TopNavShell } from "./TopNavShell";
 import {
   fetchNotifications,
   markAllNotificationsRead,
   markNotificationAsRead,
 } from "../../utils/notificationApi";
-import { SidebarTrigger } from "../ui/sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,42 +22,15 @@ import {
   isLoggedIn,
 } from "../../utils/auth";
 import { CUSTOMER_NAV_ITEMS, isCustomerNavActive } from "./customerNav";
-import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "./customerShellLayout";
-import { BrandLogo } from "../brand/BrandLogo";
+import {
+  MENTOR_MAIN_NAV,
+  MENTOR_SECONDARY_NAV,
+  isMentorNavActive,
+} from "./mentorNav";
 import { buildLoginPath, buildRegisterPath } from "../../utils/authGate";
 import { useCart } from "../../hooks/useCart";
 import { CartDrawer } from "../shared/CartDrawer";
-
-const PAGE_TITLES = {
-  "/my-bookings": {
-    label: "Lịch hẹn của bạn",
-    sub: "Buổi Mentor đã đặt, lịch sắp tới và trạng thái",
-  },
-  "/cv-analysis": { label: "Phân tích CV", sub: "Phân tích CV với JD hoặc chuẩn ngành, biết chỗ cần chỉnh" },
-  "/cv-analysis/jd/history": { label: "Lịch sử CV + JD", sub: "Các lần phân tích CV với Job Description" },
-  "/cv-analysis/field/history": { label: "Lịch sử theo ngành", sub: "Các lần phân tích CV theo ngành nghề" },
-  "/cv-analysis/jd": { label: "Phân tích CV + JD", sub: "Phân tích CV với Job Description" },
-  "/cv-analysis/field": { label: "Phân tích theo ngành", sub: "Đánh giá CV theo chuẩn ngành nghề" },
-  "/interview": { label: "Phỏng vấn AI", sub: "Thiết lập buổi luyện, Pio hỏi, bạn trả lời" },
-  "/mentors": { label: "Tìm Mentor", sub: "Đặt lịch 1:1 với anh/chị mentor" },
-  "/profile": { label: "Hồ sơ cá nhân", sub: "Thông tin và thành tích của bạn" },
-  "/settings": { label: "Cài đặt", sub: "Tuỳ chỉnh tài khoản" },
-  "/pricing": { label: "Bảng giá", sub: "Chọn gói phù hợp, luyện và nhận góp ý đầy đủ hơn" },
-  "/booking": { label: "Đặt lịch", sub: "Chọn thời gian phù hợp với mentor" },
-  "/courses": { label: "Khóa học", sub: "Video ngắn từ mentor, ôn kỹ năng trước phỏng vấn" },
-  "/my-courses": { label: "Khóa học của tôi", sub: "Tiến độ và khóa bạn đã đăng ký" },
-  "/mentor/dashboard": { label: "Mentor", sub: "Bảng điều khiển mentor" },
-  "/mentor/schedule": { label: "Lịch họp", sub: "Lịch rảnh và các buổi hẹn" },
-  "/mentor/courses": { label: "Khóa học", sub: "Quản lý nội dung khóa học" },
-  "/mentor/finance": { label: "Tài chính", sub: "Thu nhập & giao dịch" },
-  "/mentor/analytics": { label: "Phân tích", sub: "Số liệu & hiệu suất" },
-  "/mentor/reviews": { label: "Đánh giá", sub: "Phản hồi từ học viên" },
-  "/mentor/peer-review": { label: "Đánh giá chéo", sub: "Đánh giá chéo khóa học của đồng nghiệp" },
-  "/checkout": { label: "Thanh toán", sub: "Chuyển khoản & xác nhận đơn" },
-  "/session": { label: "Chi tiết buổi", sub: "Lịch hẹn & trạng thái" },
-  "/mentor/meeting-detail": { label: "Chi tiết buổi mentor", sub: "Thông tin phiên họp" },
-  "/mentor/meeting": { label: "Phòng họp", sub: "Buổi mentor trực tuyến" },
-};
+import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl";
 
 function ShellNavLinks({ items, pathname, isActive, onNavigate, className = "", stacked = false, tone = "light" }) {
   const darkTone = tone === "dark";
@@ -408,6 +380,10 @@ function CustomerNavbar() {
                     <User className="mr-2 size-4" />
                     Hồ sơ
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/cv-analysis/history")}>
+                    <FileText className="mr-2 size-4" />
+                    Lịch sử phân tích CV
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/my-courses")}>
                     <BookOpen className="mr-2 size-4" />
                     Khóa học của tôi
@@ -517,11 +493,45 @@ function CustomerNavbar() {
   );
 }
 
+function MentorNavAvatar({ user, initials }) {
+  const avatar = avatarSrc(user?.avatar, DEFAULT_AVATAR);
+
+  return (
+    <span
+      className="flex size-full items-center justify-center overflow-hidden rounded-full text-[10px] font-bold leading-none text-white md:size-8 md:text-xs"
+      style={{ background: "#8037f4" }}
+    >
+      {avatar ? (
+        <img
+          src={avatar}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+            const fallback = event.currentTarget.nextElementSibling;
+            if (fallback) fallback.style.display = "flex";
+          }}
+        />
+      ) : null}
+      <span
+        className="hidden h-full w-full items-center justify-center"
+        style={{ display: avatar ? "none" : "flex" }}
+      >
+        {initials}
+      </span>
+    </span>
+  );
+}
+
 function MentorNavbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [notifOpen, setNotifOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const user = getUser();
+  const displayName = getDisplayName(user);
+  const initials = getInitials(displayName);
 
   React.useEffect(() => {
     fetchNotifications().then((res) => {
@@ -534,6 +544,10 @@ function MentorNavbar() {
     }, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  React.useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   const handleMarkAllRead = () => {
     markAllNotificationsRead().then((res) => {
@@ -559,21 +573,8 @@ function MentorNavbar() {
     }
 
     const bookingId = notif.metadata?.bookingId || notif.bookingId;
-    if (
-      bookingId &&
-      (notif.type === "feedback" ||
-        notif.title?.toLowerCase().includes("nhận xét") ||
-        notif.body?.toLowerCase().includes("nhận xét"))
-    ) {
-      navigate(`/session/${bookingId}`);
-      return;
-    }
-
-    if (
-      bookingId &&
-      (notif.type?.includes("booking") || notif.title?.toLowerCase().includes("buổi học"))
-    ) {
-      navigate(`/session/${bookingId}`);
+    if (bookingId) {
+      navigate(`/mentor/meeting-detail/${bookingId}`);
       return;
     }
 
@@ -582,111 +583,236 @@ function MentorNavbar() {
     }
   };
 
-  const pageKey =
-    Object.keys(PAGE_TITLES).find(
-      (k) => k === location.pathname || location.pathname.startsWith(`${k}/`),
-    ) || location.pathname;
-  const pageInfo = PAGE_TITLES[pageKey] || { label: "ProInterview", sub: "" };
+  const handleLogout = async () => {
+    await logout();
+    navigate("/");
+  };
+
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
-    <header
-      className="z-30 flex h-16 shrink-0 items-center gap-4 border-b px-5 antialiased backdrop-blur-xl"
-      style={{
-        background: "rgba(255, 255, 255, 0.92)",
-        borderColor: "rgba(186, 165, 255, 0.45)",
-        boxShadow: "0 1px 0 rgba(128, 55, 244, 0.08), 0 4px 20px rgba(128, 55, 244, 0.06)",
-      }}
-    >
-      <SidebarTrigger className="rounded-lg text-[#8037f4]/75 transition-colors hover:bg-[#8037f4]/10 hover:text-[#8037f4]" />
-      <div className="h-6 w-px shrink-0 bg-[#8037f4]/20" />
-      <div className="min-w-0 flex flex-col gap-0">
-        <h1
-          className="truncate text-[#8037f4]"
-          style={{ fontSize: "0.9375rem", fontWeight: 700, lineHeight: 1.2, letterSpacing: "-0.015em" }}
+    <>
+      <TopNavShell variant="light" alignTop={false}>
+        <Link
+          to="/mentor/dashboard"
+          className="flex shrink-0 items-center leading-none"
+          aria-label="ProInterview Mentor"
         >
-          {pageInfo.label}
-        </h1>
-        {pageInfo.sub ? (
-          <p className="hidden truncate text-xs text-slate-500 sm:block">{pageInfo.sub}</p>
-        ) : null}
-      </div>
-      <div className="flex-1" />
-      <div className="flex items-center gap-2">
-        <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="relative inline-flex size-9 items-center justify-center rounded-xl transition-all focus:outline-none"
-              style={{
-                background: notifOpen ? "rgba(128,55,244,0.1)" : "transparent",
-                border: notifOpen ? "1px solid rgba(128,55,244,0.25)" : "1px solid transparent",
-              }}
-              aria-label="Thông báo"
-            >
-              <Bell className="h-5 w-5 text-[#8037f4]/75" />
-              {unreadCount > 0 && (
-                <span
-                  className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#000000]"
-                  style={{
-                    background: "#93f72b",
-                    fontSize: "0.6rem",
-                    boxShadow: "0 2px 8px rgba(180,245,0,0.45)",
-                  }}
-                >
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            className="w-80 overflow-hidden border border-slate-200/90 bg-white p-0 text-slate-900 shadow-xl"
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-              <span className="text-sm font-semibold text-slate-900">Thông báo</span>
-              {unreadCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleMarkAllRead}
-                  className="text-[10px] font-semibold text-[#8037f4] hover:underline"
-                >
-                  Đọc tất cả
-                </button>
-              )}
-            </div>
-            <div className="max-h-[400px] overflow-y-auto py-1">
-              {notifications.length === 0 && (
-                <div className="px-4 py-8 text-center text-xs text-slate-500">Không có thông báo mới</div>
-              )}
-              {notifications.map((n) => (
-                <DropdownMenuItem
-                  key={n._id}
-                  onClick={() => handleRead(n)}
-                  className="flex cursor-pointer items-start gap-3 px-4 py-3 focus:bg-violet-50"
-                >
-                  <div
-                    className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+          <img
+            src="/Logo.png"
+            alt=""
+            className="block h-7 w-auto shrink-0 object-contain contrast-[1.12] brightness-[0.94]"
+          />
+        </Link>
+
+        <ShellNavLinks
+          items={MENTOR_MAIN_NAV}
+          pathname={location.pathname}
+          isActive={(p, item) => isMentorNavActive(p, item.url)}
+          className="hidden min-w-0 flex-1 items-center justify-center gap-2 px-1 md:flex md:gap-3 lg:gap-4 xl:gap-5"
+        />
+
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <DropdownMenu open={notifOpen} onOpenChange={setNotifOpen}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="relative inline-flex size-8 shrink-0 items-center justify-center rounded-xl transition-all focus:outline-none md:size-9"
+                style={{
+                  background: notifOpen ? "rgba(128,55,244,0.1)" : "transparent",
+                  border: notifOpen ? "1px solid rgba(128,55,244,0.25)" : "1px solid transparent",
+                }}
+                aria-label="Thông báo"
+              >
+                <Bell className="size-4 text-[#8037f4]/75 md:size-5" />
+                {unreadCount > 0 && (
+                  <span
+                    className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full font-bold text-[#1d1a26]"
                     style={{
-                      background: !n.isRead ? "#8037f4" : "transparent",
-                      border: !n.isRead ? "none" : "1px solid rgba(148, 163, 184, 0.5)",
+                      background: "#93f72b",
+                      fontSize: "0.6rem",
+                      boxShadow: "0 2px 8px rgba(180,245,0,0.45)",
                     }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={`truncate text-sm ${!n.isRead ? "font-bold text-slate-900" : "font-medium text-slate-600"}`}
-                    >
-                      {n.title}
-                    </p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{n.body || n.message}</p>
-                  </div>
-                </DropdownMenuItem>
-              ))}
+                  >
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-[min(calc(100vw-1.5rem),20rem)] overflow-hidden border border-slate-200/90 bg-white p-0 text-slate-900 shadow-xl"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                <span className="text-sm font-semibold text-slate-900">Thông báo</span>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    className="text-[10px] font-semibold text-[#8037f4] hover:underline"
+                  >
+                    Đọc tất cả
+                  </button>
+                )}
+              </div>
+              <div className="max-h-[400px] overflow-y-auto py-1">
+                {notifications.length === 0 && (
+                  <div className="px-4 py-8 text-center text-xs text-slate-500">Không có thông báo mới</div>
+                )}
+                {notifications.map((n) => (
+                  <DropdownMenuItem
+                    key={n._id}
+                    onClick={() => handleRead(n)}
+                    className="flex cursor-pointer items-start gap-3 px-4 py-3 focus:bg-violet-50"
+                  >
+                    <div
+                      className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                      style={{
+                        background: !n.isRead ? "#8037f4" : "transparent",
+                        border: !n.isRead ? "none" : "1px solid rgba(148, 163, 184, 0.5)",
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={`truncate text-sm ${!n.isRead ? "font-bold text-slate-900" : "font-medium text-slate-600"}`}
+                      >
+                        {n.title}
+                      </p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{n.body || n.message}</p>
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex shrink-0 items-center justify-center rounded-full border border-violet-200/80 bg-white p-0 shadow-sm transition-colors hover:border-violet-300 size-7 md:gap-2 md:py-1 md:pl-1 md:pr-2.5 md:size-auto"
+                aria-label="Tài khoản mentor"
+              >
+                <MentorNavAvatar user={user} initials={initials} />
+                <span className="hidden max-w-[7rem] truncate text-sm font-semibold text-slate-700 md:inline">
+                  {displayName}
+                </span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="border-b border-border px-3 py-2.5">
+                <p className="truncate text-sm font-semibold text-slate-900">{displayName}</p>
+                <p className="truncate text-xs text-slate-500">{user?.email || ""}</p>
+              </div>
+              <DropdownMenuItem asChild>
+                <Link to="/profile" className="flex cursor-pointer items-center gap-2">
+                  <User className="size-4" />
+                  Hồ sơ
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link to="/settings" className="flex cursor-pointer items-center gap-2">
+                  <Settings className="size-4" />
+                  Cài đặt
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="flex cursor-pointer items-center gap-2 font-semibold text-[#8037f4] focus:text-[#8037f4]"
+              >
+                <LogOut className="size-4" />
+                Đăng xuất
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <button
+            type="button"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 md:hidden"
+            aria-label={mobileOpen ? "Đóng menu" : "Mở menu"}
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((o) => !o)}
+          >
+            {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
+        </div>
+      </TopNavShell>
+
+      {mobileOpen ? (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-[98] bg-slate-900/25 md:hidden"
+            aria-label="Đóng menu"
+            onClick={() => setMobileOpen(false)}
+          />
+          <div className="top-nav-shell-outer fixed right-3 top-[3.8rem] z-[99] w-[min(100vw-1.5rem,18rem)] sm:right-6 sm:top-[4.2rem] md:hidden">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+              <MentorMobileNavPanel
+                pathname={location.pathname}
+                onNavigate={() => setMobileOpen(false)}
+              />
             </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+function MentorMobileNavPanel({ pathname, onNavigate }) {
+  return (
+    <div className="max-h-[min(70vh,520px)] overflow-y-auto py-2">
+      <p className="px-4 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+        Menu chính
+      </p>
+      <div className="space-y-1 px-3">
+        {MENTOR_MAIN_NAV.map((item) => {
+          const active = isMentorNavActive(pathname, item.url);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.url}
+              to={item.url}
+              onClick={onNavigate}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                active
+                  ? "bg-[#8037f4] text-white shadow-[0_4px_14px_rgba(128,55,244,0.28)]"
+                  : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <Icon className={`size-[18px] shrink-0 ${active ? "text-white" : "text-slate-500"}`} />
+              <span className="flex-1">{item.title}</span>
+              {active ? <span className="size-1.5 rounded-full bg-[#93f72b]" /> : null}
+            </Link>
+          );
+        })}
       </div>
-    </header>
+      <div className="mx-4 my-3 h-px bg-slate-200" />
+      <p className="px-4 pb-2 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+        Khác
+      </p>
+      <div className="space-y-1 px-3 pb-2">
+        {MENTOR_SECONDARY_NAV.map((item) => {
+          const active = isMentorNavActive(pathname, item.url);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.url}
+              to={item.url}
+              onClick={onNavigate}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                active ? "bg-[#8037f4] text-white" : "text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              <Icon className={`size-[18px] shrink-0 ${active ? "text-white" : "text-slate-500"}`} />
+              {item.title}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

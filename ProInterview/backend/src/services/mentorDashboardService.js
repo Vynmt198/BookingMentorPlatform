@@ -10,7 +10,6 @@ import { User } from "../models/User.js";
 import { InterviewSession } from "../models/InterviewSession.js";
 import { MentorKnowledge } from "../models/MentorKnowledge.js";
 import { deliverNotification } from "./notificationDeliveryService.js";
-import { recalcCourseReviewStats } from "./reviewsService.js";
 import {
   mentorCommissionConfig,
   resolveBookingPlatformFeeRate,
@@ -153,6 +152,7 @@ export async function getMentorDashboard(userId) {
   const sessionsThisMonth = await Booking.countDocuments({
     mentorId: mentor._id,
     createdAt: { $gte: monthStart },
+    status: { $in: ["confirmed", "in_progress", "completed"] },
   });
 
   const upcomingRaw = await Booking.find({
@@ -215,12 +215,12 @@ export async function getMentorFinance(userId) {
     status: "completed",
     paymentStatus: "paid",
   })
-    .select("price platformFee createdAt")
+    .select("price totalAmount platformFee createdAt")
     .lean();
   const bookingIncomeTotal = completed.reduce((sum, b) => {
-    const price = Math.round(Number(b.price || 0));
+    const gross = Math.round(Number(b.totalAmount ?? b.price ?? 0));
     const platformFee = Math.round(Number(b.platformFee || 0));
-    return sum + Math.max(0, price - platformFee);
+    return sum + Math.max(0, gross - platformFee);
   }, 0);
   const totalSessions = completed.length;
 
@@ -256,7 +256,7 @@ export async function getMentorFinance(userId) {
   const incomeRows = completed.slice(0, 50).map((b) => ({
     id: String(b._id),
     type: "income",
-    amount: Math.max(0, Math.round(Number(b.price || 0)) - Math.round(Number(b.platformFee || 0))),
+    amount: Math.max(0, Math.round(Number(b.totalAmount ?? b.price ?? 0)) - Math.round(Number(b.platformFee || 0))),
     status: "completed",
     date: b.createdAt,
     description: "Thu từ booking",
@@ -301,14 +301,14 @@ export async function getMentorFinance(userId) {
     finance: {
       availableBalance: mentor.finance?.availableBalance ?? 0,
       pendingBalance: mentor.finance?.pendingBalance ?? 0,
-      totalEarned: mentor.finance?.totalEarned ?? computedTotalEarned,
+      totalEarned: (mentor.finance?.totalEarned > 0 ? mentor.finance.totalEarned : null) ?? computedTotalEarned,
       incomeBreakdown: {
         booking: bookingIncomeTotal,
         course: courseIncomeTotal,
       },
       payoutAccount: normalizePayoutAccount(mentor.finance?.bankAccount || {}),
       payoutAccountMasked: maskAccountNumber(mentor.finance?.bankAccount?.accountNumber || ""),
-      payoutAccountOwnerName: sanitizeText(mentor.name || ""),
+      payoutAccountOwnerName: sanitizeText(mentor.finance?.bankAccount?.accountName || mentor.name || ""),
       totalSessions,
       history,
       commissionPolicy: {
@@ -325,6 +325,8 @@ export async function getMentorFinance(userId) {
         earlyMentorRank: earlyRank,
         earlyMentorExpiresAt: earlyExpiresAt,
       },
+      pricePerHour: mentor.pricePerHour,
+      pendingPricePerHour: mentor.pendingPricePerHour || null,
     },
   };
 }
@@ -982,6 +984,16 @@ export async function requestPayout(userId, body) {
     return { ok: false, status: 400, error: "Vui lòng cập nhật tài khoản nhận tiền trước khi rút." };
   }
 
+  // Atomic check-and-decrement: nếu balance thay đổi giữa hai request đồng thời, chỉ một request thành công
+  const updated = await Mentor.findOneAndUpdate(
+    { _id: mentor._id, "finance.availableBalance": { $gte: roundedAmount } },
+    { $inc: { "finance.availableBalance": -roundedAmount, "finance.pendingBalance": roundedAmount } },
+    { new: true },
+  );
+  if (!updated) {
+    return { ok: false, status: 400, error: "Số dư khả dụng không đủ để rút." };
+  }
+
   const payout = await PayoutRequest.create({
     mentorId: mentor._id,
     amount: roundedAmount,
@@ -989,16 +1001,6 @@ export async function requestPayout(userId, body) {
     payoutAccount,
     requestedAt: new Date(),
   });
-
-  await Mentor.updateOne(
-    { _id: mentor._id },
-    {
-      $inc: {
-        "finance.availableBalance": -roundedAmount,
-        "finance.pendingBalance": roundedAmount,
-      },
-    },
-  );
 
   await deliverNotification(userId, {
     mentorPrefKey: "payout_update",
@@ -1008,7 +1010,17 @@ export async function requestPayout(userId, body) {
     metadata: { actionUrl: "/mentor/finance" },
   });
 
-  return { ok: true, payout: { id: String(payout._id), amount: roundedAmount, status: payout.status, payoutAccount } };
+  return {
+    ok: true,
+    payout: {
+      id: String(payout._id),
+      amount: roundedAmount,
+      status: payout.status,
+      payoutAccountMasked: maskAccountNumber(payoutAccount.accountNumber),
+      bankName: payoutAccount.bankName,
+      accountName: payoutAccount.accountName,
+    },
+  };
 }
 
 export async function updatePayoutAccount(userId, body) {
@@ -1039,7 +1051,12 @@ export async function updatePayoutAccount(userId, body) {
     },
   );
 
-  return { ok: true, payoutAccount };
+  return {
+    ok: true,
+    payoutAccountMasked: maskAccountNumber(payoutAccount.accountNumber),
+    payoutAccountBankName: payoutAccount.bankName,
+    payoutAccountOwnerName: payoutAccount.accountName,
+  };
 }
 
 export async function getMentorPayoutHistory(userId) {
@@ -1158,7 +1175,9 @@ export async function submitMentorPeerReview(userId, courseId, body) {
     { upsert: true, new: true, setDefaultsOnInsert: true },
   ).lean();
 
-  await recalcCourseReviewStats(course._id);
+  // Đánh giá chéo mentor KHÔNG ảnh hưởng course.stats.rating công khai (xem
+  // recalcCourseReviewStats trong reviewsService.js) — chỉ hiển thị riêng qua
+  // GET /api/courses/:id/peer-reviews, nên không cần recalc ở đây.
 
   const avg = (contentRating + qualityRating + priceValueRating) / 3;
   return {

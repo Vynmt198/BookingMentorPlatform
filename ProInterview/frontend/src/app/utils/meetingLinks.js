@@ -98,6 +98,38 @@ export function getMinutesUntilBookingStart(booking) {
   return Math.max(0, Math.ceil((start - Date.now()) / 60_000));
 }
 
+export function isBookingPastScheduledEnd(booking, { graceMinutes = 0 } = {}) {
+  const start = parseBookingStartMs(booking);
+  if (!Number.isFinite(start)) return false;
+  const dur = (Number(booking?.durationMinutes) || 60) * 60 * 1000;
+  return Date.now() >= start + dur + graceMinutes * 60 * 1000;
+}
+
+/** Đã tới hoặc qua giờ bắt đầu — mentor được phép đánh dấu hoàn thành. */
+export function isBookingAtOrPastStart(booking) {
+  const start = parseBookingStartMs(booking);
+  if (!Number.isFinite(start)) return false;
+  return Date.now() >= start;
+}
+
+export function canMentorCompleteBooking(booking) {
+  return isBookingAtOrPastStart(booking);
+}
+
+/** Hiển thị thời gian còn lại đến giờ hẹn (phút → ngày/giờ). */
+export function formatUntilStart(totalMinutes) {
+  const mins = Math.max(0, Math.ceil(Number(totalMinutes) || 0));
+  if (mins < 60) return `${mins} phút`;
+  if (mins < 24 * 60) {
+    const hours = Math.floor(mins / 60);
+    const rest = mins % 60;
+    return rest ? `${hours} giờ ${rest} phút` : `${hours} giờ`;
+  }
+  const days = Math.floor(mins / (24 * 60));
+  const hours = Math.floor((mins % (24 * 60)) / 60);
+  return hours ? `${days} ngày ${hours} giờ` : `${days} ngày`;
+}
+
 export function canEnterMeetingRoom(booking) {
   if (!booking) {
     return { ok: false, message: "Không tìm thấy buổi hẹn." };

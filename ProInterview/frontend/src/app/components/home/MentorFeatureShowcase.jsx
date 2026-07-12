@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Users, Star, Search, CircleCheck } from "lucide-react";
 import { HOME_SECTION_INNER } from "../layout/customerShellLayout";
 import { SparkleGlyph } from "../decor/SparkleGlyph.jsx";
 import { HOME_DEMO_MENTORS } from "../../data/homeLandingDemo";
+import { fetchMentors } from "../../utils/mentorApi";
 import { MENTOR_SHOWCASE_COPY } from "../../constants/brandVoice";
 import {
   homeSectionTitleStyle,
@@ -10,8 +11,31 @@ import {
 } from "../../constants/homeTypography";
 
 const HOME_MENTORS = HOME_DEMO_MENTORS;
-const FEATURED = HOME_MENTORS[0];
-const FIND_MENTOR_STACK = HOME_MENTORS.slice(0, 3);
+
+/** Mentor nổi bật cho showcase — mentor thật từ API, fallback demo tĩnh nếu API rỗng/lỗi. */
+function useShowcaseMentors(limit = 3) {
+  const [mentors, setMentors] = useState(HOME_MENTORS);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMentors().then((res) => {
+      if (cancelled || !res.success || !res.mentors.length) return;
+      const top = [...res.mentors]
+        .sort(
+          (a, b) =>
+            (Number(b.rating) || 0) - (Number(a.rating) || 0) ||
+            (Number(b.reviews) || 0) - (Number(a.reviews) || 0),
+        )
+        .slice(0, limit);
+      if (top.length) setMentors(top);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [limit]);
+
+  return mentors;
+}
 
 const FIND_MENTOR_CARD_LAYOUT = [
   { top: "top-8", inset: "left-2 right-1", z: "z-[2]", rotate: "rotate-[1deg]", shadow: "shadow-xl" },
@@ -67,8 +91,9 @@ function MentorMiniCard({ mentor, className, featured = false }) {
 }
 
 /** Ô 1 — thẻ mentor xếp chồng */
-function FindMentorVisual() {
-  if (!FIND_MENTOR_STACK.length) return null;
+function FindMentorVisual({ mentors }) {
+  const stack = mentors.slice(0, 3);
+  if (!stack.length) return null;
   return (
     <div className="relative z-[1] flex h-full flex-col px-3 pb-4 pt-6 sm:px-3.5 sm:pt-7">
       <div className="relative mx-auto min-h-[12.5rem] w-[88%] flex-1 origin-top scale-105">
@@ -78,7 +103,7 @@ function FindMentorVisual() {
             <span className="text-[8px] font-semibold text-[#7c3aed]">IT · 4.5+ · dưới 400k</span>
           </div>
         </div>
-        {FIND_MENTOR_STACK.map((mentor, i) => {
+        {stack.map((mentor, i) => {
           const layout = FIND_MENTOR_CARD_LAYOUT[i];
           const badge = FIND_MENTOR_BADGE_LAYOUT[i];
           if (!layout || !badge) return null;
@@ -115,8 +140,8 @@ function FindMentorVisual() {
 }
 
 /** Ô 2 — mock đặt lịch thành công */
-function BookingVisual() {
-  if (!FEATURED) return null;
+function BookingVisual({ featured }) {
+  if (!featured) return null;
   return (
     <div className="relative z-[1] flex h-full flex-col items-center justify-center px-3 py-4 sm:px-4">
       <SparkleGlyph className="absolute right-3 top-8 z-[2] h-8 w-8 opacity-80" />
@@ -144,7 +169,7 @@ function BookingVisual() {
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[7px] font-semibold text-slate-500">Mentor</span>
-              <span className="truncate text-[8px] font-bold text-slate-900">{FEATURED.name}</span>
+              <span className="truncate text-[8px] font-bold text-slate-900">{featured.name}</span>
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-[7px] font-semibold text-slate-500">Buổi học</span>
@@ -202,7 +227,7 @@ function FeedbackVisual() {
 
 const VISUALS = [FindMentorVisual, BookingVisual, FeedbackVisual];
 
-function UpziStepCard({ step, index }) {
+function UpziStepCard({ step, index, mentors, featured }) {
   const Visual = VISUALS[index];
 
   return (
@@ -211,7 +236,7 @@ function UpziStepCard({ step, index }) {
       style={{ animationDelay: `${index * 90}ms` }}
     >
       <div className="mentor-upzi-panel relative w-full overflow-hidden rounded-2xl shadow-[0_12px_32px_rgba(99,14,212,0.1)] sm:rounded-[1.35rem]">
-        <Visual />
+        <Visual mentors={mentors} featured={featured} />
       </div>
       <h3 className={`mt-[0.825rem] text-center ${ty.stepCardTitle}`}>{step.title}</h3>
       <p className={`mt-[0.45rem] text-center ${ty.stepCardBody}`}>{step.description}</p>
@@ -221,6 +246,8 @@ function UpziStepCard({ step, index }) {
 
 /** Showcase mentor — Upzi layout, nền tím nhạt. */
 export function MentorFeatureShowcase({ onCtaClick }) {
+  const mentors = useShowcaseMentors(3);
+  const featured = mentors[0];
   return (
     <section
       id="find-mentor"
@@ -322,7 +349,13 @@ export function MentorFeatureShowcase({ onCtaClick }) {
 
           <div className="mentor-showcase-cards-scale mt-[1.5rem] grid w-full grid-cols-1 gap-[1.2rem] px-3 sm:mt-4 sm:grid-cols-3 sm:gap-[1.75rem] sm:px-0">
             {UPZI_STEPS.map((step, idx) => (
-              <UpziStepCard key={step.title} step={step} index={idx} />
+              <UpziStepCard
+                key={step.title}
+                step={step}
+                index={idx}
+                mentors={mentors}
+                featured={featured}
+              />
             ))}
           </div>
         </div>

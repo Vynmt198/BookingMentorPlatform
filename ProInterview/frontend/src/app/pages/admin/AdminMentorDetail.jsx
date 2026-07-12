@@ -12,6 +12,9 @@ import {
   User,
   Lock,
   Unlock,
+  TrendingUp,
+  Check,
+  X,
 } from "lucide-react";
 import {
   adminGlassTable,
@@ -21,9 +24,12 @@ import {
 import { adminApi } from "../../utils/adminApi.js";
 import { tryApi } from "../../utils/apiToast.js";
 import { avatarSrc } from "../../utils/mediaUrl.js";
+import { UserOnlineStatus } from "../../components/admin/UserOnlineStatus.jsx";
+
+import { formatVnd } from "../../utils/formatVnd.js";
 
 function vnd(amount) {
-  return `${Number(amount || 0).toLocaleString("vi-VN")} đ`;
+  return formatVnd(amount);
 }
 
 function formatDate(iso) {
@@ -75,6 +81,10 @@ export function AdminMentorDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [commissionBusy, setCommissionBusy] = useState(false);
+  const [priceBusy, setPriceBusy] = useState(false);
+  const [bookingFeePct, setBookingFeePct] = useState("");
+  const [courseFeePct, setCourseFeePct] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +101,10 @@ export function AdminMentorDetail() {
         setMentor(null);
       } else {
         setMentor(res.mentor || null);
+        const b = Number(res.mentor?.pricing?.platformFeeRate);
+        const c = Number(res.mentor?.pricing?.coursePlatformFeeRate);
+        setBookingFeePct(Number.isFinite(b) && b > 0 ? String(Math.round(b * 1000) / 10) : "");
+        setCourseFeePct(Number.isFinite(c) && c > 0 ? String(Math.round(c * 1000) / 10) : "");
         if (!res.mentor) setError("Không tìm thấy cố vấn.");
       }
       setLoading(false);
@@ -122,6 +136,75 @@ export function AdminMentorDetail() {
     }
   };
 
+  const saveCommissionOverride = async () => {
+    if (!mentor) return;
+    const b = bookingFeePct.trim() === "" ? null : Number(bookingFeePct) / 100;
+    const c = courseFeePct.trim() === "" ? null : Number(courseFeePct) / 100;
+    if ((b != null && (!Number.isFinite(b) || b <= 0 || b > 1)) || (c != null && (!Number.isFinite(c) || c <= 0 || c > 1))) {
+      return;
+    }
+    setCommissionBusy(true);
+    const res = await tryApi(
+      () =>
+        adminApi.updateMentorCommission(mentor._id, {
+          bookingPlatformFeeRate: b,
+          coursePlatformFeeRate: c,
+        }),
+      {
+        fallback: "Không cập nhật được mức phí riêng.",
+        successMessage: "Đã lưu mức phí theo hợp đồng.",
+      },
+    );
+    setCommissionBusy(false);
+    if (res.success && res.mentor) {
+      setMentor(res.mentor);
+    }
+  };
+
+  const clearCommissionOverride = async () => {
+    if (!mentor) return;
+    setCommissionBusy(true);
+    const res = await tryApi(
+      () =>
+        adminApi.updateMentorCommission(mentor._id, {
+          bookingPlatformFeeRate: null,
+          coursePlatformFeeRate: null,
+        }),
+      {
+        fallback: "Không bỏ được override phí.",
+        successMessage: "Đã bỏ override phí riêng.",
+      },
+    );
+    setCommissionBusy(false);
+    if (res.success && res.mentor) {
+      setMentor(res.mentor);
+      setBookingFeePct("");
+      setCourseFeePct("");
+    }
+  };
+
+  const approvePrice = async () => {
+    if (!mentor) return;
+    setPriceBusy(true);
+    const res = await tryApi(() => adminApi.approveMentorPrice(mentor._id), {
+      fallback: "Không duyệt được yêu cầu đổi giá.",
+      successMessage: "Đã duyệt mức giá mới.",
+    });
+    setPriceBusy(false);
+    if (res.success && res.mentor) setMentor(res.mentor);
+  };
+
+  const rejectPrice = async () => {
+    if (!mentor) return;
+    setPriceBusy(true);
+    const res = await tryApi(() => adminApi.rejectMentorPrice(mentor._id), {
+      fallback: "Không từ chối được yêu cầu đổi giá.",
+      successMessage: "Đã từ chối yêu cầu đổi giá.",
+    });
+    setPriceBusy(false);
+    if (res.success && res.mentor) setMentor(res.mentor);
+  };
+
   return (
     <div className={adminPageWrap}>
       {loading && (
@@ -149,6 +232,11 @@ export function AdminMentorDetail() {
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusPill ok={mentor.isVerified} labelOk="Đã duyệt" labelNo="Chưa duyệt" />
                   <StatusPill ok={mentor.isActive} labelOk="Đang hoạt động" labelNo="Đã khóa" />
+                  <UserOnlineStatus
+                    isOnline={Boolean(mentor.isOnline)}
+                    lastSeenAt={mentor.lastSeenAt}
+                    isActive={mentor.isActive !== false && mentor.userId?.isActive !== false}
+                  />
                 </div>
                 <h3 className="mt-2 font-headline text-2xl font-black text-slate-900">{displayName}</h3>
                 <p className="mt-0.5 text-sm font-medium text-violet-800">{mentor.title || "—"}</p>
@@ -265,6 +353,95 @@ export function AdminMentorDetail() {
               )}
             </motion.div>
           </div>
+
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`${adminGlassTable} p-5`}>
+            <h4 className="mb-3 text-sm font-black uppercase tracking-wider text-slate-800">Phí mentor</h4>
+            <p className="mb-4 text-xs text-slate-500">Nhập % theo hợp đồng. Để trống = phí tiêu chuẩn.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-semibold text-slate-600">
+                Booking (%)
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={bookingFeePct}
+                  onChange={(e) => setBookingFeePct(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
+                  placeholder="30"
+                />
+              </label>
+              <label className="text-xs font-semibold text-slate-600">
+                Khóa học (%)
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={courseFeePct}
+                  onChange={(e) => setCourseFeePct(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900"
+                  placeholder="35"
+                />
+              </label>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={commissionBusy}
+                onClick={() => void saveCommissionOverride()}
+                className="rounded-lg border border-violet-300 bg-violet-50 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-violet-900 disabled:opacity-50"
+              >
+                Lưu
+              </button>
+              <button
+                type="button"
+                disabled={commissionBusy}
+                onClick={() => void clearCommissionOverride()}
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-[11px] font-black uppercase tracking-wider text-slate-700 disabled:opacity-50"
+              >
+                Xóa
+              </button>
+            </div>
+          </motion.div>
+
+          {mentor.pendingPricePerHour ? (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5"
+            >
+              <h4 className="mb-1 flex items-center gap-2 text-sm font-black uppercase tracking-wider text-amber-900">
+                <TrendingUp className="h-4 w-4" />
+                Yêu cầu đổi giá
+              </h4>
+              <p className="mb-4 text-sm text-amber-900/90">
+                Mentor đề xuất mức giá mới:{" "}
+                <span className="font-black">{vnd(mentor.pendingPricePerHour)}</span>
+                {" "}(hiện tại: {vnd(mentor.pricePerHour || mentor.hourlyRate)})
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={priceBusy}
+                  onClick={() => void approvePrice()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-lime-400/25 bg-lime-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-lime-900 hover:bg-lime-500/20 disabled:opacity-50"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  Duyệt
+                </button>
+                <button
+                  type="button"
+                  disabled={priceBusy}
+                  onClick={() => void rejectPrice()}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-[11px] font-black uppercase tracking-wider text-red-800 hover:bg-red-100 disabled:opacity-50"
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Từ chối
+                </button>
+              </div>
+            </motion.div>
+          ) : null}
 
           <motion.div
             initial={{ opacity: 0, y: 10 }}

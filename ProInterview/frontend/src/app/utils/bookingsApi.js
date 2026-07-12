@@ -176,6 +176,19 @@ export async function startBookingMeeting(id, { asMentor = false } = {}) {
   return authedSend("PATCH", path, {});
 }
 
+/** Mentor check-in webcam trước khi vào phòng họp. */
+export async function submitMentorMeetingCheckIn(id, imageUrl) {
+  if (!id) return { success: false, error: "Thiếu id." };
+  if (!imageUrl) return { success: false, error: "Thiếu ảnh check-in." };
+  return authedSend("PATCH", `/api/bookings/mentor/${encodeURIComponent(id)}/check-in`, { imageUrl });
+}
+
+/** Lưu nháp ghi chú live mentor trong buổi họp. */
+export async function saveMentorSessionCapture(id, payload) {
+  if (!id) return { success: false, error: "Thiếu id." };
+  return authedSend("PATCH", `/api/bookings/mentor/${encodeURIComponent(id)}/session-capture`, payload);
+}
+
 export async function updateMentorNotes(id, body) {
   if (!id) return { success: false, error: "Thiếu id." };
   return authedSend("PATCH", `/api/bookings/${encodeURIComponent(id)}/notes`, body);
