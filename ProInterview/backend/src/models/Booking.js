@@ -119,6 +119,18 @@ const bookingSchema = new Schema(
     completedAt: { type: Date },
     /** Đã ghi có thu nhập vào ví mentor (tránh cộng trùng). */
     mentorEarningsCreditedAt: { type: Date },
+    /** Ảnh check-in webcam mentor trước khi vào phòng họp. */
+    mentorCheckInImageUrl: { type: String, default: "" },
+    mentorCheckInAt: { type: Date },
+    mentorCheckInUserId: { type: Schema.Types.ObjectId, ref: "User" },
+    /** Ghi chú live mentor trong buổi (STT / tag nhanh). */
+    mentorSessionCapture: {
+      transcript: { type: String, default: "" },
+      questionsAsked: [{ type: String, trim: true }],
+      commonMistakes: [{ type: String, trim: true }],
+      keyInsights: [{ type: String, trim: true }],
+      updatedAt: { type: Date },
+    },
   },
   { collection: "bookings", timestamps: true }
 );

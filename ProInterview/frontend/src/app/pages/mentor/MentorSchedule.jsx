@@ -20,15 +20,15 @@ import {
   Clock3,
   Globe
 } from "lucide-react";
-import { getUser } from "../../utils/auth";
+import { getUser } from "../../utils/auth.js";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
-import { listMentorBookings } from "../../utils/bookingsApi";
-import { fetchMentorAvailability, updateMyMentorAvailability } from "../../utils/mentorApi";
-import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
+import { listMentorBookings } from "../../utils/bookingsApi.js";
+import { fetchMentorAvailability, updateMyMentorAvailability } from "../../utils/mentorApi.js";
+import { toastApiError, toastApiSuccess } from "../../utils/apiToast.js";
 import { AppSelect } from "../../components/ui/AppSelect";
 
-import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl";
-import { sessionTypeLabel } from "../../utils/sessionTypeLabels";
+import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl.js";
+import { sessionTypeLabel } from "../../utils/sessionTypeLabels.js";
 
 const BOOKING_STATUS_LABELS = {
   pending: "Chờ xác nhận",
@@ -280,8 +280,8 @@ function AvailabilityModal({ onClose, availability, onSaved }) {
                  <Globe size={20} />
               </div>
               <div>
-                 <p className="text-sm font-semibold text-slate-900">Múi giờ hệ thống</p>
-                 <p className="text-xs font-medium text-zinc-500">(GMT+07:00) Asia/Ho_Chi_Minh</p>
+                 <p className="text-sm font-normal text-slate-900">Múi giờ hệ thống</p>
+                 <p className="text-xs font-normal text-zinc-500">(GMT+07:00) Asia/Ho_Chi_Minh</p>
               </div>
            </div>
 
@@ -289,11 +289,11 @@ function AvailabilityModal({ onClose, availability, onSaved }) {
               {workingHours.map((row, idx) => (
                 <div key={idx} className="p-6 rounded-[32px] bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-6 group">
                    <div className="w-24 shrink-0">
-                      <p className="text-sm font-black text-slate-900 group-hover:text-violet-700 transition-colors">{row.day}</p>
+                      <p className="text-sm font-semibold text-slate-900 group-hover:text-violet-700 transition-colors">{row.day}</p>
                    </div>
                     <div className="flex-1 flex flex-wrap gap-2">
                        {row.slots.map((s, i) => (
-                         <div key={i} className="group/item relative flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-zinc-600 transition-all hover:border-red-200 hover:bg-red-50/30">
+                         <div key={i} className="group/item relative flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-normal text-zinc-600 transition-all hover:border-red-200 hover:bg-red-50/30">
                             <span className="group-hover/item:text-slate-900 transition-colors">{s}</span>
                             <button 
                                onClick={() => removeSlot(row.dayOfWeek, s)}
@@ -305,18 +305,18 @@ function AvailabilityModal({ onClose, availability, onSaved }) {
                          </div>
                        ))}
                        {row.slots.length === 0 && (
-                          <p className="text-[10px] italic text-zinc-400 font-medium py-2">Chưa có khung giờ nào cho ngày này.</p>
+                          <p className="text-[10px] italic text-zinc-400 font-normal py-2">Chưa có khung giờ nào cho ngày này.</p>
                        )}
                     </div>
                 </div>
               ))}
 
                <div className="mt-8 p-6 rounded-[32px] bg-slate-50/50 border-2 border-dashed border-slate-200">
-                  <p className="mb-4 text-center text-sm font-semibold text-slate-500">Thêm khung giờ mới</p>
+                  <p className="mb-4 text-center text-sm font-normal text-slate-500">Thêm khung giờ mới</p>
                   <div className="flex flex-col md:flex-row items-center gap-4">
                      <div className="flex-1 w-full grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                           <p className="ml-3 text-xs font-semibold text-violet-700">Ngày trong tuần</p>
+                           <p className="ml-3 text-xs font-normal text-violet-700">Ngày trong tuần</p>
                            <AppSelect
                               size="default"
                               value={newSlotDay}
@@ -325,7 +325,7 @@ function AvailabilityModal({ onClose, availability, onSaved }) {
                            />
                         </div>
                         <div className="space-y-1.5">
-                           <p className="ml-3 text-xs font-semibold text-violet-700">Bắt đầu từ</p>
+                           <p className="ml-3 text-xs font-normal text-violet-700">Bắt đầu từ</p>
                            <AppSelect
                               size="default"
                               value={newSlotRange}
@@ -353,7 +353,7 @@ function AvailabilityModal({ onClose, availability, onSaved }) {
         <div className="p-6 border-t border-slate-200 bg-slate-100 flex items-center justify-between">
            <p className="px-4 text-xs text-zinc-600">Lưu ý: Thay đổi sẽ áp dụng từ tuần kế tiếp</p>
            <div className="flex gap-4">
-              <button onClick={onClose} className="rounded-2xl border border-slate-200 bg-slate-50 px-8 py-3 text-sm font-semibold text-zinc-600 transition-all hover:text-slate-900">Hủy</button>
+              <button onClick={onClose} className="rounded-2xl border border-slate-200 bg-slate-50 px-8 py-3 text-sm font-normal text-zinc-600 transition-all hover:text-slate-900">Hủy</button>
               <button disabled={saving} onClick={handleSave} className="rounded-2xl bg-[#93f72b] px-8 py-3 text-sm font-semibold text-[#120B2E] shadow-xl shadow-[#93f72b]/25 disabled:opacity-60">
                 {saving ? "Đang lưu..." : "Lưu cấu hình"}
               </button>
@@ -458,15 +458,16 @@ export function MentorSchedule() {
       className="!min-h-0 !pb-4"
       extraStyles={MENTOR_SCHEDULE_EXTRA_CSS}
     >
-      <div className="relative z-10 mx-auto flex h-[calc(100svh-7.5rem)] max-h-[calc(100svh-7.5rem)] min-h-0 max-w-7xl flex-col overflow-visible px-6 pt-2 lg:px-8">
+      <div className="relative z-10 mx-auto flex max-lg:min-h-0 max-lg:h-auto max-lg:max-h-none min-h-0 max-w-7xl flex-col overflow-visible px-4 pt-2 sm:px-6 lg:h-[calc(100svh-7.5rem)] lg:max-h-[calc(100svh-7.5rem)] lg:px-8">
         {/* Header — compact */}
-        <div className="mb-4 flex shrink-0 flex-col gap-3 overflow-visible pt-1 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex shrink-0 flex-col gap-3 overflow-visible pt-1 sm:mb-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 overflow-visible">
-            <h1 className="font-headline overflow-visible pb-0.5 text-2xl font-black leading-[1.2] tracking-tight text-slate-900 sm:text-3xl">
-               <span>LỊCH TRÌNH</span>{" "}
-               <span className="text-violet-700">HỆ THỐNG</span>
+            <h1 className="font-headline text-[clamp(1.75rem,4vw,2.75rem)] font-black leading-tight tracking-tight text-slate-900">
+              Lịch trình <span className="text-[#8037f4]">hệ thống</span>
             </h1>
-            <p className="text-xs font-medium text-zinc-500 sm:text-sm">Bố trí thời gian rảnh và quản lý các buổi hẹn mentor</p>
+            <p className="mt-2 max-w-xl text-sm text-slate-500">
+              Lịch rảnh và quản lý các buổi hẹn mentor.
+            </p>
           </div>
           <button
             type="button"
@@ -489,14 +490,14 @@ export function MentorSchedule() {
                        <h3 className="text-lg font-bold text-slate-900 sm:text-xl">
                           {formatMonthYear(currentDate)}
                        </h3>
-                       <p className="text-sm font-medium text-zinc-500">Lịch trình khả dụng</p>
+                       <p className="text-sm text-slate-500">Lịch rảnh trong tháng</p>
                     </div>
                  </div>
                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={goToToday}
-                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-violet-700 transition-colors hover:bg-violet-50"
+                      className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-normal text-violet-700 transition-colors hover:bg-violet-50"
                     >
                       Hôm nay
                     </button>
@@ -507,7 +508,7 @@ export function MentorSchedule() {
 
               <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-[auto_repeat(6,minmax(0,1fr))] gap-1 sm:gap-1.5">
                  {["T2", "T3", "T4", "T5", "T6", "T7", "CN"].map(d => (
-                   <div key={d} className="py-1 text-center text-xs font-semibold text-zinc-600">{d}</div>
+                   <div key={d} className="py-1 text-center text-xs font-normal text-zinc-600">{d}</div>
                  ))}
                  {finalDays.map((cell, i) => {
                    const isSelected = isSameCalendarDay(selectedDate, cell.date);
@@ -533,10 +534,10 @@ export function MentorSchedule() {
                  })}
               </div>
               <div className="mt-3 flex shrink-0 items-center gap-5 border-t border-slate-200 pt-3">
-                 <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                 <div className="flex items-center gap-1.5 text-xs font-normal text-zinc-500">
                     <div className="h-2.5 w-2.5 rounded-sm bg-white ring-2 ring-[#93f72b]" /> Hôm nay
                  </div>
-                 <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                 <div className="flex items-center gap-1.5 text-xs font-normal text-zinc-500">
                     <div className="h-2.5 w-2.5 rounded-full bg-[#8037f4]" /> Có lịch hẹn
                  </div>
               </div>
@@ -570,7 +571,7 @@ export function MentorSchedule() {
                             <img src={meeting.mentee.avatar} alt="" className="h-9 w-9 rounded-xl object-cover ring-2 ring-white/5" />
                             <div className="min-w-0">
                                <p className="truncate text-sm font-black text-slate-900">{meeting.mentee.name}</p>
-                               <p className="truncate text-xs font-medium text-zinc-600">{meeting.position}</p>
+                               <p className="truncate text-xs font-normal text-zinc-600">{meeting.position}</p>
                             </div>
                          </div>
                          <div className="flex items-center justify-between gap-2">
@@ -606,7 +607,7 @@ export function MentorSchedule() {
                       className="flex min-h-[72px] w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 text-zinc-700 transition-all hover:border-violet-200 hover:text-violet-700"
                     >
                        <PlusCircle size={24} className="mb-1 opacity-25" />
-                       <p className="text-sm font-semibold text-zinc-600">Thêm khung giờ trống mới</p>
+                       <p className="text-sm font-normal text-zinc-600">Thêm khung giờ trống mới</p>
                     </button>
                  </div>
               </div>

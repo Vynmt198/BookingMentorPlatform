@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import * as mentorDashboardService from "../services/mentorDashboardService.js";
 
 export class MentorController {
@@ -55,7 +56,12 @@ export class MentorController {
     try {
       const result = await mentorDashboardService.updatePayoutAccount(req.userId, req.body ?? {});
       if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
-      res.json({ success: true, payoutAccount: result.payoutAccount });
+      res.json({
+        success: true,
+        payoutAccountMasked: result.payoutAccountMasked,
+        payoutAccountBankName: result.payoutAccountBankName,
+        payoutAccountOwnerName: result.payoutAccountOwnerName,
+      });
     } catch (e) {
       next(e);
     }
@@ -90,6 +96,28 @@ export class MentorController {
       const result = await mentorDashboardService.getMentorReviews(req.userId);
       if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
       res.json({ success: true, items: result.items, summary: result.summary || null });
+    } catch (e) {
+      next(e);
+    }
+  }
+
+  static async requestPriceChange(req, res, next) {
+    try {
+      const { newPrice } = req.body;
+      if (typeof newPrice !== "number" || newPrice <= 0) {
+        return res.status(400).json({ success: false, error: "Mức giá không hợp lệ." });
+      }
+
+      const Mentor = mongoose.model("Mentor");
+      const mentor = await Mentor.findOne({ userId: req.userId });
+      if (!mentor) {
+        return res.status(404).json({ success: false, error: "Không tìm thấy hồ sơ Mentor." });
+      }
+
+      mentor.pendingPricePerHour = newPrice;
+      await mentor.save();
+
+      res.json({ success: true, pendingPricePerHour: newPrice });
     } catch (e) {
       next(e);
     }

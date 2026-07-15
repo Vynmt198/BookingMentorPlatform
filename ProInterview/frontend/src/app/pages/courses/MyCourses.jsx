@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { BookOpen, PlayCircle } from "lucide-react";
+import { BookOpen, PlayCircle, Trophy, Flame, TrendingUp, Clock, ArrowRight } from "lucide-react";
 import { enrollmentApi } from "../../utils/enrollmentApi";
 import { toastApiError } from "../../utils/apiToast";
 import { normalizeCourseStats } from "../../utils/courseStats";
@@ -10,38 +10,68 @@ import { ImageWithFallback } from "../../components/figma/ImageWithFallback";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 import { CustomerPageHeader } from "../../components/layout/CustomerPageHeader";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
+import { CustomerStatGrid, CustomerStatCard } from "../../components/shared/CustomerStatCards";
 
 function CourseCard({ item, onDetails }) {
-  const { course } = item;
+  const { course, progressPct } = item;
   const description =
     course.description?.trim() ||
     `Khóa học từ ${course.mentorName || "mentor"} — học theo lộ trình video ngắn, dễ áp dụng.`;
 
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-violet-200/70 bg-white shadow-sm transition-shadow hover:border-violet-300/80 hover:shadow-md">
-      <div className="aspect-[5/3] w-full overflow-hidden bg-violet-50/80">
+      <div className="relative aspect-[5/3] w-full overflow-hidden bg-violet-50/80">
         <ImageWithFallback
           src={course.thumbnail}
           alt=""
           className="h-full w-full object-cover"
         />
+        <div className="absolute inset-x-0 bottom-0 flex items-center gap-2 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-3 py-2.5">
+          <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/60 bg-white/20">
+            {course.mentorAvatar ? (
+              <img src={course.mentorAvatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-[10px] font-bold text-white">{course.mentorName?.[0] || "M"}</span>
+            )}
+          </span>
+          <div className="min-w-0 leading-tight text-white">
+            <p className="truncate text-xs font-bold">{course.mentorName || "Mentor"}</p>
+            <p className="flex items-center gap-1 text-[10px] text-white/80">
+              <Clock className="size-2.5" />
+              {course.lessonsCount} bài học
+            </p>
+          </div>
+        </div>
       </div>
       <div className="flex flex-1 flex-col p-3 sm:p-4">
-        <h3 className="line-clamp-2 text-xs font-bold leading-snug text-violet-950 transition-colors group-hover:text-[#8037f4] sm:text-sm">
+        <h3 className="line-clamp-2 text-xs font-bold leading-snug text-slate-900 transition-colors group-hover:text-[#8037f4] sm:text-sm">
           {course.title}
         </h3>
-        <p className="mt-1.5 line-clamp-2 flex-1 text-[11px] leading-relaxed text-slate-500 sm:text-xs">
+        <p className="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-slate-500 sm:text-xs">
           {description}
         </p>
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={onDetails}
-            className="text-xs font-semibold text-[#8037f4] transition-colors hover:text-[#8037f4] hover:underline sm:text-sm"
-          >
-            Chi tiết
-          </button>
+
+        <div className="mt-3 flex-1">
+          <div className="flex items-center justify-between text-[11px] sm:text-xs">
+            <span className="font-medium text-slate-500">Tiến độ học</span>
+            <span className="font-bold text-[#8037f4]">{progressPct}%</span>
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-violet-100">
+            <div
+              className="h-full rounded-full bg-[#8037f4]"
+              style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+            />
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onDetails}
+          className="mt-4 -mx-3 -mb-3 flex items-center justify-center gap-1.5 border-t border-slate-100 py-3 text-xs font-semibold text-[#8037f4] transition-colors hover:bg-violet-50 sm:-mx-4 sm:-mb-4 sm:text-sm"
+        >
+          Chi tiết
+          <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+        </button>
       </div>
     </article>
   );
@@ -134,20 +164,31 @@ export function MyCourses() {
     loadData();
   }, [loadData]);
 
+  const stats = useMemo(() => {
+    const total = enrolledCourses.length;
+    const completed = enrolledCourses.filter((item) => item.isCompleted).length;
+    const avgProgress = total
+      ? Math.round(enrolledCourses.reduce((sum, item) => sum + item.progressPct, 0) / total)
+      : 0;
+    return { total, completed, inProgress: total - completed, avgProgress };
+  }, [enrolledCourses]);
+
   return (
     <MentorPageShell bottomPad="pb-20">
       <div className={`relative z-10 flex flex-col pb-10 pt-8 sm:pt-10 ${CUSTOMER_SHELL_GUTTER}`}>
         <div className={`${CUSTOMER_SHELL_MAX} w-full`}>
           <CustomerPageHeader
-            badge="Khóa học của tôi"
-            title={
-              <>
-                Danh sách khóa <span className="text-[#8037f4]">bạn đã mua</span>
-              </>
-            }
-            subtitle="Mở khóa để xem nội dung, tiếp tục học hoặc ôn lại bài đã hoàn thành."
+            title={<span className="text-[#8037f4]">Khóa học của bạn</span>}
+            subtitle="Tiếp tục xem lại bài cũ và theo dõi tiến độ trong các khóa đã mua."
             className="mb-6"
           />
+
+          <CustomerStatGrid className="mb-6">
+            <CustomerStatCard icon={BookOpen} value={stats.total} label="Khóa đã mua" />
+            <CustomerStatCard icon={Trophy} value={stats.completed} label="Đã hoàn thành" tone="lime" />
+            <CustomerStatCard icon={Flame} value={stats.inProgress} label="Đang học" />
+            <CustomerStatCard icon={TrendingUp} value={`${stats.avgProgress}%`} label="Tiến độ trung bình" />
+          </CustomerStatGrid>
 
           <div className="rounded-3xl border border-violet-200/80 bg-white p-4 shadow-sm sm:p-6">
             {loading ? (

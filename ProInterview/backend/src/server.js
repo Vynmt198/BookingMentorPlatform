@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectDatabase } from "./db/connect.js";
 import "./models/index.js";
 import { createApp } from "./app.js";
+import { isJaasConfigured, getJaasPublicStatus } from "./services/jaasService.js";
 
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI;
@@ -71,6 +72,17 @@ export async function startServer() {
 
     if (!process.env.JWT_SECRET) {
       console.warn("JWT_SECRET is missing. Đăng nhập /api/auth sẽ lỗi cho đến khi bạn set trong .env");
+    }
+
+    if (isJaasConfigured()) {
+      const jaas = getJaasPublicStatus();
+      console.log(`[jaas] OK — domain: ${jaas.domain}, kid: ${jaas.kidSuffix}, key: ${jaas.keySource}`);
+    } else if (isProd) {
+      console.warn(
+        "[jaas] Production chưa cấu hình — phòng họp fallback meet.jit.si (giới hạn ~5 phút embed). Set JAAS_* trên Render.",
+      );
+    } else {
+      console.warn("[jaas] Chưa cấu hình — phòng họp fallback meet.jit.si (giới hạn 5 phút embed).");
     }
 
     if (isProd && !process.env.CORS_ORIGIN) {

@@ -46,6 +46,8 @@ import { avatarSrc, mediaSrc, DEFAULT_COURSE_THUMB } from "../../utils/mediaUrl"
 import { enrollmentAccessGranted } from "../../utils/enrollmentAccess.js";
 import { landingPrimaryButtonClass } from "../../constants/landingTheme";
 import { readLearningDarkMode, writeLearningDarkMode } from "../../utils/learningDarkMode";
+import { usePageAnalytics } from "../../hooks/usePageAnalytics.js";
+import { trackAction } from "../../utils/analytics/analyticsApi.js";
 
 /* ── Helpers ────────────────────────────────────────────────── */
 const formatDuration = (minutes) => {
@@ -885,6 +887,7 @@ function QASection({
 export function CourseLearning() {
   const { id } = useParams();
   const navigate = useNavigate();
+  usePageAnalytics();
 
   const [course, setCourse] = useState(null);
   const [enrollment, setEnrollment] = useState(null);
@@ -1104,6 +1107,11 @@ export function CourseLearning() {
       if (res.success) {
         setJustCompleted(true);
         if (updated.length === lessons.length) {
+          trackAction("course_complete", window.location.pathname || `/courses/${id}/learn`, {
+            courseId: id,
+            enrollmentId: enrollment._id,
+            lessonCount: lessons.length,
+          });
           setTimeout(() => setShowCertificate(true), 600);
         }
         setTimeout(() => setJustCompleted(false), 2800);

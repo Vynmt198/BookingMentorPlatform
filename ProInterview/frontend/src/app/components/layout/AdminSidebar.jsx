@@ -9,6 +9,7 @@ import {
   ArrowLeftRight,
   Banknote,
   Calendar,
+  Camera,
   BookOpen,
   Crown,
   LineChart,
@@ -50,6 +51,7 @@ const MAIN_GROUPS = [
     title: "Vận hành",
     items: [
       { to: "/admin/bookings", label: "Lịch hẹn & thanh toán", icon: Calendar },
+      { to: "/admin/bookings/check-ins", label: "Check-in mentor", icon: Camera },
       { to: "/admin/support", label: "Hỗ trợ", icon: LifeBuoy },
       { to: "/admin/mentors/pending", label: "Duyệt cố vấn", icon: UserPlus },
     ],
@@ -104,6 +106,11 @@ function pathActive(pathname, to, end) {
   // /admin/mentors/pending thuộc menu "Duyệt cố vấn", không tô "Cố vấn"
   if (t === "/admin/mentors") {
     if (p === "/admin/mentors/pending" || p.startsWith("/admin/mentors/pending/")) {
+      return false;
+    }
+  }
+  if (t === "/admin/bookings") {
+    if (p === "/admin/bookings/check-ins" || p.startsWith("/admin/bookings/check-ins/")) {
       return false;
     }
   }

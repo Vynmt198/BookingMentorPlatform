@@ -83,6 +83,7 @@ const userSchema = new Schema(
     isEmailVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     lastLoginAt: { type: Date },
+    lastSeenAt: { type: Date, default: null },
 
     /** Tăng khi logout / đổi mật khẩu — JWT phải khớp `tv` trong payload (vô hiệu token cũ phía server). */
     tokenVersion: { type: Number, default: 0 },

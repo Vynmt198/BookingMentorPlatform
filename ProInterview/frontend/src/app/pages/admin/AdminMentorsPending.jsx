@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle, XCircle, FileText, Briefcase } from "lucide-react";
-import { adminApi } from "../../utils/adminApi";
-import { getInitials } from "../../utils/auth";
-import { formatEducationDisplay } from "../../utils/profileEducationHistory";
-import { formatWorkHistoryLines, parseWorkHistory } from "../../utils/profileWorkHistory";
+import { adminApi } from "../../utils/adminApi.js";
+import { getInitials } from "../../utils/auth.js";
+import { formatEducationDisplay } from "../../utils/profileEducationHistory.js";
+import { formatWorkHistoryLines, parseWorkHistory } from "../../utils/profileWorkHistory.js";
 import { toast } from "sonner";
+
+import { formatVnd as formatVndUtil } from "../../utils/formatVnd.js";
 
 function formatVnd(n) {
   const x = Number(n);
   if (!Number.isFinite(x) || x <= 0) return "—";
-  return `${x.toLocaleString("vi-VN")} ₫`;
+  return formatVndUtil(x);
 }
 
 function ChipList({ items, empty }) {

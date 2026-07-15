@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router";
+import { useSearchParams, useNavigate, useLocation } from "react-router";
 import {
   ArrowLeft,
   Sparkles as Sparkle,
@@ -28,6 +28,8 @@ import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
 import { useCart } from "../../hooks/useCart";
 import { cartApi } from "../../utils/cartApi";
 import { isBookingSlotInFuture } from "../../utils/bookingSchedule";
+import { usePageAnalytics } from "../../hooks/usePageAnalytics";
+import { trackAction } from "../../utils/analytics/analyticsApi";
 
 /* ─── Plan meta ─────────────────────────────────────────── */
 
@@ -563,6 +565,8 @@ function BankTransferBlock({
 export function Checkout() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  usePageAnalytics();
 
   /* ── Booking / Course / Plan / Cart mode ─────────────────────────────── */
   const isBooking = searchParams.get("type") === "booking";
@@ -674,6 +678,7 @@ export function Checkout() {
   const [paymentSuccessOverlay, setPaymentSuccessOverlay] = useState(null);
   const autoOrderStartedRef = useRef(false);
   const paidRedirectStartedRef = useRef(false);
+  const checkoutOpenTrackedRef = useRef(false);
 
   const [cardError, setCardError] = useState("");
 
@@ -733,6 +738,18 @@ export function Checkout() {
     setVietQrLoadFailed(false);
   }, [vietQrUrl]);
 
+  useEffect(() => {
+    if (checkoutOpenTrackedRef.current) return;
+    checkoutOpenTrackedRef.current = true;
+    trackAction("checkout_open", location.pathname, {
+      checkoutType: isBooking ? "booking" : isCourse ? "course" : isCart ? "cart" : "plan",
+      planKey: isPlanCheckout ? planKey : "",
+      courseId: isCourse ? courseId : "",
+      mentorId: isBooking ? mentorId : "",
+      amount: payAmount,
+    });
+  }, [location.pathname, isBooking, isCourse, isCart, isPlanCheckout, planKey, courseId, mentorId, payAmount]);
+
   const handlePay = async ({ silent = false } = {}) => {
     if (!isLoggedIn()) {
       setCardError("");
@@ -755,6 +772,12 @@ export function Checkout() {
           if (apiRes.providerRef) setTransferOrderNum(apiRes.providerRef);
           setBankSubscriptionPaymentId(apiRes.paymentId);
           setAppStep("awaiting_transfer");
+          trackAction("plan_checkout_start", location.pathname, {
+            planKey: apiPlanKey,
+            billing,
+            amount: payAmount,
+            paymentMethod: "transfer",
+          });
           if (!silent) {
             toastApiSuccess(
               "Đã tạo đơn gói cước. Quét QR, CK — khi tiền vào sẽ tự kích hoạt gói qua SePay.",
@@ -807,6 +830,12 @@ export function Checkout() {
           if (serverOrder) setTransferOrderNum(serverOrder);
           setBankEnrollmentId(String(eid));
           setAppStep("awaiting_transfer");
+          trackAction("course_enroll", location.pathname, {
+            courseId,
+            enrollmentId: String(eid),
+            amount: expected,
+            paymentMethod: "transfer_pending",
+          });
           if (!silent) toastApiSuccess("Đã tạo ghi danh. Quét QR và chuyển khoản — hệ thống tự xác nhận qua SePay.");
           return { ok: true, enrollmentId: String(eid) };
         }
@@ -835,6 +864,12 @@ export function Checkout() {
           if (serverOrder) setTransferOrderNum(serverOrder);
           setBankEnrollmentId("cart-" + serverOrder); // Fake id to trigger the awaiting_transfer step
           setAppStep("awaiting_transfer");
+          trackAction("course_enroll", location.pathname, {
+            checkoutType: "cart",
+            itemCount: cartItems.length,
+            amount: cartTotal,
+            paymentMethod: "transfer_pending",
+          });
           if (!silent) toastApiSuccess("Đã gộp đơn hàng. Quét QR và chuyển khoản — hệ thống tự xác nhận toàn bộ.");
           clearCart();
           return { ok: true, isCart: true };
@@ -893,6 +928,14 @@ export function Checkout() {
           applyRebookCreditFromBookingId: rebookFrom,
         });
         if (apiRes.success && apiRes.booking?.id) {
+          trackAction("booking_submit", location.pathname, {
+            bookingId: apiRes.booking.id,
+            mentorId: bookingMentor.id,
+            date: bookingDate,
+            timeSlot: bookingTime,
+            paymentMethod: "rebook_credit",
+            rebookFrom,
+          });
           try {
             sessionStorage.removeItem("prointerview_rebook_from");
           } catch {
@@ -928,6 +971,15 @@ export function Checkout() {
         if (serverOrder) setTransferOrderNum(serverOrder);
         setBankBookingId(apiRes.booking.id);
         setAppStep("awaiting_transfer");
+        trackAction("booking_submit", location.pathname, {
+          bookingId: apiRes.booking.id,
+          mentorId: bookingMentor.id,
+          date: bookingDate,
+          timeSlot: bookingTime,
+          amount: bookingPrice,
+          paymentMethod: "transfer_pending",
+          rebookFrom,
+        });
         if (!silent) {
           toastApiSuccess(
             "Đã tạo lịch. Quét QR, chuyển khoản — khi tiền vào sẽ tự xác nhận và chuyển sang buổi hẹn.",
@@ -973,6 +1025,11 @@ export function Checkout() {
     setAppStep("paid");
 
     if (isPlanCheckout) {
+      trackAction("plan_upgrade", location.pathname, {
+        planKey,
+        billing,
+        amount: payAmount,
+      });
       try {
         const pr = await fetchCurrentPlan();
         if (pr.success) {

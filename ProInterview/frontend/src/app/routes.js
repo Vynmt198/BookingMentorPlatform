@@ -71,6 +71,7 @@ import { AdminReviews } from "./pages/admin/AdminReviews.jsx";
 import { AdminSupport } from "./pages/admin/AdminSupport.jsx";
 import { AdminMentorDetail } from "./pages/admin/AdminMentorDetail.jsx";
 import { AdminBookingDetail } from "./pages/admin/AdminBookingDetail.jsx";
+import { AdminBookingCheckIns } from "./pages/admin/AdminBookingCheckIns.jsx";
 import { AdminAchievements } from "./pages/admin/AdminAchievements.jsx";
 
 /** Đã đăng nhập mentor/admin → hub riêng, không xem landing customer. */
@@ -191,6 +192,7 @@ export const router = createHashRouter([
       { path: "transactions", Component: AdminTransactions },
       { path: "payouts", Component: AdminPayouts },
       { path: "bookings", Component: AdminBookings },
+      { path: "bookings/check-ins", Component: AdminBookingCheckIns },
       { path: "course-payments", Component: AdminCoursePayments },
       { path: "subscription-payments", Component: AdminSubscriptionPayments },
       { path: "bookings/:id", Component: AdminBookingDetail },
