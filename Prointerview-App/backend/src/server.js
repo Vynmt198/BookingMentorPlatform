@@ -85,7 +85,7 @@ export async function startServer() {
       );
     }
 
-    const server = app.listen(PORT);
+    const server = app.listen(PORT, "0.0.0.0");
     server.once("listening", () => {
       const addr = server.address();
       const bound = typeof addr === "object" && addr ? addr.port : PORT;

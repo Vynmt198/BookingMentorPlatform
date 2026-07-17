@@ -1105,7 +1105,7 @@ export function Profile() {
                     type="button"
                     disabled={saving}
                     onClick={handleSaveProfile}
-                    className="profile-btn-lime-outline flex w-full flex-1 items-center justify-center rounded-2xl py-4 text-sm font-bold transition-all hover:bg-[#fafef5] active:scale-[0.99] disabled:opacity-50"
+                    className="profile-btn-lime-outline flex w-full flex-1 items-center justify-center rounded-full py-4 text-xs font-bold transition-all hover:bg-[#fafef5] active:scale-[0.99] disabled:opacity-50"
                   >
                     {saving ? (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#2D1B69]/25 border-t-[#2D1B69]" />
@@ -1118,7 +1118,7 @@ export function Profile() {
                       type="button"
                       disabled={applying}
                       onClick={handleSidebarMentorRegister}
-                      className="profile-btn-lime flex w-full flex-1 items-center justify-center rounded-2xl py-4 text-sm font-bold transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50"
+                      className="profile-btn-lime flex w-full flex-1 items-center justify-center rounded-full py-4 text-xs font-bold transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50"
                     >
                       {applying ? (
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#2D1B69]/25 border-t-[#2D1B69]" />

@@ -14,6 +14,7 @@ import {
 import {
   confirmEnrollmentTransferByAdmin,
   confirmSubscriptionTransferByAdmin,
+  confirmCartCheckoutTransfer,
 } from "./paymentsService.js";
 import { confirmBankTransferPaymentByAdmin } from "./bookingsService.js";
 import {
@@ -58,11 +59,51 @@ function expectedBookingAmount(booking) {
   return Math.round(Number(booking.totalAmount ?? booking.price ?? 0));
 }
 
+async function getCartBatchEnrollmentIdSet() {
+  const rows = await Payment.find({
+    type: "course",
+    provider: "transfer",
+    status: "pending",
+    "providerResponse.cartCheckout": true,
+  })
+    .select("providerResponse.enrollmentIds")
+    .lean();
+  const ids = new Set();
+  for (const row of rows) {
+    for (const id of row.providerResponse?.enrollmentIds || []) {
+      ids.add(String(id));
+    }
+  }
+  return ids;
+}
+
 async function findPendingTargets(orderRef) {
   const norm = normalizePiOrderRef(orderRef);
   if (!norm) return [];
 
   const targets = [];
+  const cartBatchEnrollmentIds = await getCartBatchEnrollmentIdSet();
+
+  const cartPayments = await Payment.find({
+    type: "course",
+    provider: "transfer",
+    status: "pending",
+    "providerResponse.cartCheckout": true,
+  })
+    .select("_id userId amount providerRef providerResponse paymentExpiresAt createdAt")
+    .lean();
+  for (const p of cartPayments) {
+    if (isTransferPaymentExpired(p)) continue;
+    if (orderRefsMatch(p.providerRef, norm)) {
+      targets.push({
+        entityType: "cart",
+        entityId: String(p._id),
+        userId: String(p.userId),
+        expectedAmount: Math.round(Number(p.amount ?? 0)),
+        transferSubmittedAt: p.providerResponse?.submittedAt ?? null,
+      });
+    }
+  }
 
   const bookings = await Booking.find({
     paymentMethod: "transfer",
@@ -101,6 +142,7 @@ async function findPendingTargets(orderRef) {
   );
   for (const e of enrollments) {
     if (isTransferPaymentExpired(e)) continue;
+    if (cartBatchEnrollmentIds.has(String(e._id))) continue;
     if (orderRefsMatch(e.paymentRef, norm)) {
       const fromCourse = priceByCourseId.get(String(e.courseId)) ?? 0;
       const expectedAmount =
@@ -157,6 +199,9 @@ async function autoConfirmTarget(target, { sepayId, amount }) {
   }
   if (target.entityType === "course") {
     return confirmEnrollmentTransferByAdmin(target.entityId, opts);
+  }
+  if (target.entityType === "cart") {
+    return confirmCartCheckoutTransfer(target.entityId, opts);
   }
   if (target.entityType === "subscription") {
     return confirmSubscriptionTransferByAdmin(target.entityId, opts);
@@ -294,6 +339,12 @@ function mapEntityStatus(entityType, doc) {
     if (doc.providerResponse?.submittedAt) return "submitted";
     return "pending";
   }
+  if (entityType === "cart") {
+    if (doc.status === "success") return "paid";
+    if (doc.status === "cancelled") return "expired";
+    if (doc.providerResponse?.submittedAt) return "submitted";
+    return "pending";
+  }
   return "pending";
 }
 
@@ -322,6 +373,7 @@ function buildRedirect(entityType, doc) {
     return `/courses/${encodeURIComponent(String(doc.courseId))}/learn`;
   }
   if (entityType === "subscription") return "/dashboard?planUpgraded=1";
+  if (entityType === "cart") return "/dashboard";
   return "/dashboard";
 }
 
@@ -366,6 +418,31 @@ export async function getTransferStatusForUser(userId, orderRefRaw) {
     }
   }
 
+  const cartBatchEnrollmentIds = await getCartBatchEnrollmentIdSet();
+
+  const cartPayments = await Payment.find({
+    userId: uid,
+    type: "course",
+    provider: "transfer",
+    "providerResponse.cartCheckout": true,
+  })
+    .select("_id providerRef status providerResponse paymentExpiresAt createdAt")
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .lean();
+
+  for (const p of cartPayments) {
+    if (orderRefsMatch(p.providerRef, orderRef)) {
+      const live = await Payment.findById(p._id);
+      if (live) {
+        const status = mapEntityStatus("cart", live);
+        return statusPayload(live, "cart", String(live._id), orderRef, {
+          sepayAuto: status === "paid",
+        });
+      }
+    }
+  }
+
   const enrollments = await Enrollment.find({ userId: uid, paymentMethod: "transfer" })
     .select("_id paymentRef paymentStatus transferSubmittedAt courseId transferForceConfirm paymentExpiresAt createdAt")
     .sort({ createdAt: -1 })
@@ -373,6 +450,7 @@ export async function getTransferStatusForUser(userId, orderRefRaw) {
     .lean();
 
   for (const e of enrollments) {
+    if (cartBatchEnrollmentIds.has(String(e._id))) continue;
     if (orderRefsMatch(e.paymentRef, orderRef)) {
       const live = await Enrollment.findById(e._id);
       if (live) {

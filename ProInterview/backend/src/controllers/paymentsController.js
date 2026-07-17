@@ -74,6 +74,18 @@ export class PaymentsController {
     }
   }
 
+  static async getById(req, res, next) {
+    try {
+      const result = await paymentsService.getPaymentForUser(req.userId, req.params.paymentId);
+      if (!result.ok) {
+        return res.status(result.status || 400).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, payment: result.payment });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async webhookMomo(req, res, next) {
     try {
       const secret = req.headers["x-payment-secret"] ?? req.headers["X-Payment-Secret"];
@@ -153,11 +165,30 @@ export class PaymentsController {
   static async vnpayReturn(req, res, next) {
     try {
       const result = await paymentsService.handleIpnVnpay(req.query ?? {});
-      if (result.ok && result.data.RspCode === "00") {
-        res.json({ success: true, message: result.data.Message });
-      } else {
-        res.status(result.status || 400).json({ success: false, error: result.data.Message || "Thanh toán không thành công." });
+      const rspCode = result.data?.RspCode;
+      const paid = rspCode === "00" || rspCode === "02";
+      const wantsJson =
+        req.query.format === "json" ||
+        String(req.headers.accept || "").includes("application/json");
+
+      if (wantsJson) {
+        if (result.ok && paid) {
+          return res.json({ success: true, message: result.data.Message, rspCode });
+        }
+        return res.status(result.status || 400).json({
+          success: false,
+          error: result.data?.Message || "Thanh toán không thành công.",
+          rspCode,
+        });
       }
+
+      const frontendBase = (
+        process.env.FRONTEND_URL ||
+        process.env.VNP_FRONTEND_RETURN_URL ||
+        "http://localhost:8081"
+      ).replace(/\/$/, "");
+      const qs = new URLSearchParams(req.query ?? {}).toString();
+      return res.redirect(302, `${frontendBase}/${qs ? `?${qs}` : ""}`);
     } catch (err) {
       next(err);
     }

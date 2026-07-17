@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import os from "node:os";
 import qs from "node:querystring";
 import mongoose from "mongoose";
 import { Payment } from "../models/Payment.js";
@@ -14,6 +15,8 @@ import {
 import { incrementCourseEnrollmentCount } from "./courseStatsService.js";
 import { Mentor } from "../models/Mentor.js";
 import { deliverNotification } from "./notificationDeliveryService.js";
+import { Course } from "../models/Course.js";
+import { enrollmentAccessGranted } from "../helpers/enrollmentAccess.js";
 
 const MONGO_ERR = "MongoDB chưa kết nối. Kiểm tra MONGO_URI trong .env.";
 
@@ -23,6 +26,57 @@ function isMongoReady() {
 
 function webhookSecret() {
   return typeof process.env.PAYMENT_WEBHOOK_SECRET === "string" ? process.env.PAYMENT_WEBHOOK_SECRET.trim() : "";
+}
+
+function isLoopbackUrl(url) {
+  return /localhost|127\.0\.0\.1/i.test(String(url || ""));
+}
+
+/** IP LAN của máy chạy backend — điện thoại Expo cần URL này, không phải localhost. */
+function getLanIPv4() {
+  const nets = os.networkInterfaces();
+  for (const entries of Object.values(nets)) {
+    for (const net of entries || []) {
+      if (net.family === "IPv4" && !net.internal) return net.address;
+    }
+  }
+  return "";
+}
+
+function getBackendListenPort() {
+  return Number(process.env.PORT) || 5001;
+}
+
+/**
+ * Return URL VNPay phải mở được từ trình duyệt trên điện thoại.
+ * Ưu tiên: client gửi sẵn → env (nếu không phải localhost) → IP LAN → localhost.
+ */
+function resolveVnpayReturnUrl(clientReturnUrl = "") {
+  const trimmed = typeof clientReturnUrl === "string" ? clientReturnUrl.trim() : "";
+  if (/^https?:\/\//i.test(trimmed) && !isLoopbackUrl(trimmed)) {
+    return trimmed.replace(/\/$/, "");
+  }
+
+  const envReturn = typeof process.env.VNP_RETURN_URL === "string" ? process.env.VNP_RETURN_URL.trim() : "";
+  if (envReturn && !isLoopbackUrl(envReturn)) {
+    return envReturn.replace(/\/$/, "");
+  }
+
+  const envBackend = typeof process.env.BACKEND_URL === "string" ? process.env.BACKEND_URL.trim() : "";
+  if (envBackend && !isLoopbackUrl(envBackend)) {
+    return `${envBackend.replace(/\/$/, "")}/api/payments/vnpay/vnpay-return`;
+  }
+
+  const lan = getLanIPv4();
+  const port = getBackendListenPort();
+  if (lan) {
+    return `http://${lan}:${port}/api/payments/vnpay/vnpay-return`;
+  }
+
+  return (
+    envReturn ||
+    `http://localhost:${port}/api/payments/vnpay/vnpay-return`
+  ).replace(/\/$/, "");
 }
 
 /**
@@ -46,6 +100,16 @@ export async function initiatePayment(userId, body) {
   let referenceId;
   let referenceModel = "Booking";
   let providerResponse;
+  const mobileReturnUrl =
+    typeof body?.mobileReturnUrl === "string" && body.mobileReturnUrl.trim()
+      ? body.mobileReturnUrl.trim()
+      : "";
+  const clientVnpReturnUrl =
+    typeof body?.vnpReturnUrl === "string" && body.vnpReturnUrl.trim()
+      ? body.vnpReturnUrl.trim()
+      : typeof body?.apiBaseUrl === "string" && body.apiBaseUrl.trim()
+        ? `${body.apiBaseUrl.trim().replace(/\/$/, "")}/api/payments/vnpay/vnpay-return`
+        : "";
 
   if (type === "booking") {
     const bid = body?.bookingId;
@@ -69,47 +133,161 @@ export async function initiatePayment(userId, body) {
     else if (rawPlan.includes("professional") || rawPlan.includes("career") || rawPlan.includes("elite")) subscriptionPlan = "professional";
     else if (rawPlan.includes("student") || rawPlan.includes("basic") || rawPlan.includes("starter")) subscriptionPlan = "student";
     providerResponse = { plan: subscriptionPlan };
+  } else if (type === "course") {
+    const courseId = body?.courseId;
+    if (!courseId || !mongoose.isValidObjectId(courseId)) {
+      return { ok: false, status: 400, error: "courseId (ObjectId) bắt buộc khi type=course." };
+    }
+    const course = await Course.findById(courseId).lean();
+    if (!course) return { ok: false, status: 404, error: "Không tìm thấy khóa học." };
+    amount =
+      Number.isFinite(amount) && amount > 0
+        ? Math.round(amount)
+        : Math.round(Number(course.price) || 0);
+    if (amount <= 0) {
+      return { ok: false, status: 400, error: "Khóa miễn phí không cần thanh toán qua cổng." };
+    }
+
+    let enrollment = await Enrollment.findOne({ userId, courseId });
+    if (enrollment && enrollmentAccessGranted(enrollment)) {
+      return { ok: false, status: 400, error: "Bạn đã ghi danh khóa học này." };
+    }
+    if (!enrollment) {
+      try {
+        enrollment = await Enrollment.create({
+          userId,
+          courseId,
+          pricePaid: amount,
+          paymentStatus: "pending",
+          paymentMethod: providerEnum,
+          lastAccessedAt: new Date(),
+        });
+      } catch (err) {
+        // Double-click / race: unique (userId, courseId)
+        if (err?.code === 11000) {
+          enrollment = await Enrollment.findOne({ userId, courseId });
+        } else {
+          throw err;
+        }
+      }
+    }
+    if (!enrollment) {
+      return { ok: false, status: 500, error: "Không tạo được ghi danh." };
+    }
+    if (enrollmentAccessGranted(enrollment)) {
+      return { ok: false, status: 400, error: "Bạn đã ghi danh khóa học này." };
+    }
+    if (enrollment.paymentStatus === "pending" || !enrollment.paymentStatus) {
+      enrollment.paymentMethod = providerEnum;
+      enrollment.pricePaid = amount;
+      enrollment.paymentStatus = "pending";
+      await enrollment.save();
+    } else {
+      return { ok: false, status: 400, error: "Ghi danh đang ở trạng thái không thể thanh toán lại." };
+    }
+    referenceId = enrollment._id;
+    referenceModel = "Enrollment";
   } else {
-    return { ok: false, status: 400, error: "type phải là booking hoặc subscription." };
+    return { ok: false, status: 400, error: "type phải là booking, subscription hoặc course." };
   }
 
-  // Tạo mã tham chiếu ngắn gọn (10 ký tự) để đảm bảo VNPay Sandbox không bị lỗi không tìm thấy đơn hàng
-  const providerRef = crypto.randomBytes(5).toString('hex').toUpperCase();
-
-  const pay = await Payment.create({
+  const paymentType = type === "course" ? "course" : type;
+  // Index unique (provider, type, referenceId) → retry phải tái sử dụng bản ghi pending
+  let pay = await Payment.findOne({
     userId,
-    type,
+    type: paymentType,
     referenceId,
-    referenceModel,
-    amount,
-    currency: "VND",
     provider: providerEnum,
-    providerRef,
-    status: "pending",
-    ...(providerResponse ? { providerResponse } : {}),
   });
+
+  if (pay?.status === "success") {
+    return { ok: false, status: 400, error: "Giao dịch này đã thanh toán thành công." };
+  }
+
+  // TxnRef mới mỗi lần mở cổng (VNPay yêu cầu không trùng trong ngày)
+  const providerRef = crypto.randomBytes(5).toString("hex").toUpperCase();
+
+  if (pay && (pay.status === "pending" || pay.status === "failed" || pay.status === "cancelled")) {
+    pay.amount = amount;
+    pay.providerRef = providerRef;
+    pay.status = "pending";
+    pay.failureReason = "";
+    pay.providerResponse = {
+      ...(pay.providerResponse && typeof pay.providerResponse === "object" ? pay.providerResponse : {}),
+      ...(providerResponse || {}),
+      ...(mobileReturnUrl ? { mobileReturnUrl } : {}),
+    };
+    await pay.save();
+  } else if (!pay) {
+    try {
+      pay = await Payment.create({
+        userId,
+        type: paymentType,
+        referenceId,
+        referenceModel,
+        amount,
+        currency: "VND",
+        provider: providerEnum,
+        providerRef,
+        status: "pending",
+        ...((providerResponse || mobileReturnUrl)
+          ? { providerResponse: { ...(providerResponse || {}), ...(mobileReturnUrl ? { mobileReturnUrl } : {}) } }
+          : {}),
+      });
+    } catch (err) {
+      if (err?.code === 11000) {
+        pay = await Payment.findOne({
+          userId,
+          type: paymentType,
+          referenceId,
+          provider: providerEnum,
+        });
+        if (!pay) throw err;
+        if (pay.status === "success") {
+          return { ok: false, status: 400, error: "Giao dịch này đã thanh toán thành công." };
+        }
+        pay.amount = amount;
+        pay.providerRef = providerRef;
+        pay.status = "pending";
+        pay.failureReason = "";
+        pay.providerResponse = {
+          ...(pay.providerResponse && typeof pay.providerResponse === "object" ? pay.providerResponse : {}),
+          ...(providerResponse || {}),
+          ...(mobileReturnUrl ? { mobileReturnUrl } : {}),
+        };
+        await pay.save();
+      } else {
+        throw err;
+      }
+    }
+  } else {
+    return {
+      ok: false,
+      status: 400,
+      error: `Không thể tạo lại thanh toán (trạng thái: ${pay.status}).`,
+    };
+  }
 
   const base = process.env.FRONTEND_URL?.replace(/\/$/, "") || "http://localhost:5173";
   let payUrl = `${base}/#/checkout?paymentId=${pay._id.toString()}&mock=1`;
   let isMock = true;
 
-  // Xử lý VNPay thật (Sandbox)
   if (providerEnum === "vnpay" && process.env.VNP_TMN_CODE && process.env.VNP_HASH_SECRET) {
     const ipAddr = body?.ipAddr || "127.0.0.1";
-    // Sử dụng providerRef (UUID) thay vì ObjectId để đảm bảo định dạng linh hoạt cho VNPay
-    payUrl = createVnpayUrl(pay.providerRef, amount, ipAddr);
+    const returnUrl = resolveVnpayReturnUrl(clientVnpReturnUrl);
+    payUrl = createVnpayUrl(pay.providerRef, amount, ipAddr, returnUrl);
     isMock = false;
   }
 
   return {
     ok: true,
     paymentId: pay._id.toString(),
-    providerRef,
+    providerRef: pay.providerRef,
     payUrl,
     qrBase64: null,
     deepLink: null,
     mock: isMock,
-    message: isMock 
+    message: isMock
       ? "Sandbox: chưa gọi provider API thật. Dùng payUrl để giả lập."
       : "Redirecting to VNPay gateway.",
   };
@@ -117,11 +295,11 @@ export async function initiatePayment(userId, body) {
 
 /** ─── VNPay Helpers ─── */
 
-function createVnpayUrl(paymentId, amount, ipAddr) {
+function createVnpayUrl(paymentId, amount, ipAddr, returnUrlOverride = "") {
   const tmnCode = process.env.VNP_TMN_CODE;
   const secretKey = process.env.VNP_HASH_SECRET;
   let vnpUrl = process.env.VNP_URL || "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-  const returnUrl = process.env.VNP_RETURN_URL;
+  const returnUrl = resolveVnpayReturnUrl(returnUrlOverride);
 
   const date = new Date();
   const createDate = formatVnpDate(date);
@@ -697,6 +875,47 @@ export async function confirmEnrollmentTransferByAdmin(enrollmentId, options = {
   return { ok: true, enrollment };
 }
 
+/** Xác nhận thanh toán giỏ hàng (nhiều khóa — một lần CK tổng). */
+export async function confirmCartCheckoutTransfer(paymentId, options = {}) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  if (!mongoose.isValidObjectId(paymentId)) {
+    return { ok: false, status: 400, error: "paymentId không hợp lệ." };
+  }
+
+  const payment = await Payment.findById(paymentId);
+  if (!payment) return { ok: false, status: 404, error: "Không tìm thấy giao dịch giỏ hàng." };
+  if (!payment.providerResponse?.cartCheckout) {
+    return { ok: false, status: 400, error: "Giao dịch này không phải thanh toán giỏ hàng." };
+  }
+  if (payment.status === "success") return { ok: true, idempotent: true, payment };
+
+  const enrollmentIds = (payment.providerResponse?.enrollmentIds || [])
+    .map(String)
+    .filter((id) => mongoose.isValidObjectId(id));
+  if (enrollmentIds.length === 0) {
+    return { ok: false, status: 400, error: "Giỏ hàng không có ghi danh liên kết." };
+  }
+
+  const force = Boolean(options?.force);
+  const forceNote = String(options?.forceNote || "").trim();
+  const confirmOpts = { force, forceNote, adminUserId: options?.adminUserId || "" };
+
+  for (const eid of enrollmentIds) {
+    const row = await Enrollment.findById(eid).lean();
+    if (!row || row.paymentStatus === "paid") continue;
+    const result = await confirmEnrollmentTransferByAdmin(eid, confirmOpts);
+    if (!result.ok && !result.idempotent) {
+      return { ok: false, status: result.status || 500, error: result.error || "Không xác nhận được ghi danh trong giỏ." };
+    }
+  }
+
+  payment.status = "success";
+  payment.paidAt = new Date();
+  await payment.save();
+
+  return { ok: true, payment, enrollmentIds };
+}
+
 /**
  * User bấm “Tôi đã chuyển khoản” → lưu metadata vào payment transfer pending.
  * (Không đổi status; admin sẽ xác nhận sau.)
@@ -762,6 +981,38 @@ export async function listPaymentHistory(userId, limit = 50) {
   };
 }
 
+export async function getPaymentForUser(userId, paymentId) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  if (!mongoose.isValidObjectId(userId) || !mongoose.isValidObjectId(paymentId)) {
+    return { ok: false, status: 400, error: "paymentId không hợp lệ." };
+  }
+  const row = await Payment.findOne({ _id: paymentId, userId }).lean();
+  if (!row) return { ok: false, status: 404, error: "Không tìm thấy giao dịch." };
+  return {
+    ok: true,
+    payment: {
+      id: String(row._id),
+      type: row.type,
+      referenceModel: row.referenceModel,
+      referenceId: String(row.referenceId),
+      amount: row.amount,
+      currency: row.currency,
+      provider: row.provider,
+      status: row.status,
+      providerRef: row.providerRef,
+      createdAt: row.createdAt,
+      paidAt: row.paidAt,
+    },
+  };
+}
+
+export async function getPaymentMobileReturnUrl(paymentId) {
+  if (!isMongoReady() || !mongoose.isValidObjectId(paymentId)) return "";
+  const row = await Payment.findById(paymentId).select("providerResponse").lean();
+  const url = row?.providerResponse?.mobileReturnUrl;
+  return typeof url === "string" && url.trim() ? url.trim() : "";
+}
+
 async function applySubscriptionPlanFromPayment(pay) {
   if (!pay || pay.type !== "subscription") return;
   const plan = planKeyFromSubscriptionMeta(pay.providerResponse?.plan) || "student";
@@ -825,9 +1076,14 @@ async function finalizePaymentSuccess(paymentId) {
     }
   }
   if (pay.type === "course" && pay.referenceModel === "Enrollment") {
-    await Enrollment.findByIdAndUpdate(pay.referenceId, {
-      $set: { paymentStatus: "paid", paidAt: new Date() },
-    });
+    const enrollment = await Enrollment.findByIdAndUpdate(
+      pay.referenceId,
+      { $set: { paymentStatus: "paid", paidAt: new Date(), paymentMethod: pay.provider || "vnpay" } },
+      { new: true },
+    ).lean();
+    if (enrollment?.courseId && !alreadySuccess) {
+      await incrementCourseEnrollmentCount(enrollment.courseId);
+    }
   }
   if (pay.type === "subscription") {
     await applySubscriptionPlanFromPayment(pay);
@@ -909,26 +1165,55 @@ export async function handleIpnVnpay(vnp_Params) {
 
   const pay = await Payment.findOne({ providerRef: txnRef });
   if (!pay) {
-    return { ok: true, data: { RspCode: "01", Message: "Order not found" } };
+    return {
+      ok: true,
+      transactionSuccessful: false,
+      paymentStatus: "error",
+      data: { RspCode: "01", Message: "Order not found" },
+    };
   }
 
   const expectedAmount = Math.round(Number(pay.amount) || 0);
   if (!Number.isFinite(amount) || amount !== expectedAmount) {
-    return { ok: true, data: { RspCode: "04", Message: "Invalid amount" } };
+    return {
+      ok: true,
+      transactionSuccessful: false,
+      paymentStatus: "error",
+      data: { RspCode: "04", Message: "Invalid amount" },
+    };
   }
 
   if (pay.status === "success") {
-    return { ok: true, data: { RspCode: "02", Message: "Order already confirmed" } };
+    return {
+      ok: true,
+      transactionSuccessful: true,
+      paymentStatus: "success",
+      paymentId: String(pay._id),
+      data: { RspCode: "02", Message: "Order already confirmed" },
+    };
   }
 
   if (rspCode === "00" && (txnStatus == null || txnStatus === "00")) {
     await finalizePaymentSuccess(pay._id);
-    return { ok: true, data: { RspCode: "00", Message: "Success" } };
+    return {
+      ok: true,
+      transactionSuccessful: true,
+      paymentStatus: "success",
+      paymentId: String(pay._id),
+      data: { RspCode: "00", Message: "Success" },
+    };
   }
 
   await finalizePaymentFailure(
     pay._id,
     `VNPay failed with responseCode=${rspCode || "unknown"}, transactionStatus=${txnStatus || "unknown"}`,
   );
-  return { ok: true, data: { RspCode: "00", Message: "Confirm Success (Transaction Failed)" } };
+  return {
+    ok: true,
+    transactionSuccessful: false,
+    paymentStatus: "failed",
+    paymentId: String(pay._id),
+    responseCode: rspCode || "99",
+    data: { RspCode: "00", Message: "Confirm Success (Transaction Failed)" },
+  };
 }

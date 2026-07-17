@@ -31,6 +31,7 @@ import { interviewsRouter } from "./routes/interviews.js";
 import { uploadRouter } from "./routes/upload.js";
 import { mockCoursesRouter } from "./routes/mockCourses.js";
 import { aiProvidersRouter } from "./routes/aiProviders.js";
+import cartRouter from "./routes/cart.js";
 import { notFoundHandler, globalErrorHandler } from "./middleware/errorHandler.js";
 
 export function createApp() {
@@ -45,7 +46,14 @@ export function createApp() {
   const configuredOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean)
     : [];
-  const defaultDevOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
+  const defaultDevOrigins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "http://localhost:19006",
+    "http://127.0.0.1:19006",
+  ];
   const defaultProdOrigins = ["https://pro-interview-mu.vercel.app"];
   const allowOrigins =
     configuredOrigins.length > 0
@@ -148,7 +156,7 @@ export function createApp() {
       notifications: "/api/notifications",
       admin: "/api/admin",
       enrollments: "/api/enrollments",
-
+      cart: "/api/cart",
       cv: "/api/cv",
       interviews: "/api/interviews",
       upload: "/api/upload",
@@ -191,6 +199,7 @@ export function createApp() {
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/enrollments", enrollmentsRouter);
+  app.use("/api/cart", cartRouter);
   app.use("/api/cv", cvRouter);
   app.use("/api/cv", cvMatchRouter);
   app.use("/api/interviews", interviewsRouter);

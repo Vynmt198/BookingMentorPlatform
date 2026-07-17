@@ -19,6 +19,10 @@ import {
 const SALT_ROUNDS = 10;
 const DEFAULT_PASSWORD = "Dev123456";
 const SAMPLE_PREFIX = "COMMISSION_SAMPLE";
+const SAMPLE_LESSON_VIDEOS = [
+  "https://res.cloudinary.com/dee4bvivu/video/upload/v1774336640/Female_delxmy.mp4",
+  "https://res.cloudinary.com/dee4bvivu/video/upload/v1774336646/Male_jioqsx.mp4",
+];
 
 function addDays(base, days) {
   const d = new Date(base);
@@ -181,8 +185,32 @@ async function seedCourseSampleForMentor({ mentor, customer, code }) {
         title: "Module mẫu",
         order: 1,
         lessons: [
-          { title: "Bài 1", type: "video", durationMinutes: 20, order: 1, isFree: true },
-          { title: "Bài 2", type: "video", durationMinutes: 25, order: 2, isFree: false },
+          {
+            title: "Bài 1 — Xây dựng nền tảng phỏng vấn",
+            type: "video",
+            videoUrl: SAMPLE_LESSON_VIDEOS[0],
+            durationMinutes: 20,
+            description: "Nắm cấu trúc một buổi phỏng vấn thực tế, cách chuẩn bị câu chuyện nghề nghiệp và xác định điểm mạnh nổi bật.",
+            transcript: "Bài học giới thiệu khung chuẩn bị phỏng vấn theo ba bước: hiểu vị trí, hệ thống hóa kinh nghiệm và luyện cách trình bày ngắn gọn, có dẫn chứng.",
+            resources: [
+              { name: "Checklist chuẩn bị phỏng vấn", url: "https://developer.mozilla.org/en-US/docs/Learn_web_development" },
+            ],
+            order: 1,
+            isFree: true,
+          },
+          {
+            title: "Bài 2 — Thực hành trả lời có cấu trúc",
+            type: "video",
+            videoUrl: SAMPLE_LESSON_VIDEOS[1],
+            durationMinutes: 25,
+            description: "Thực hành trả lời câu hỏi bằng cấu trúc rõ ràng, tập trung vào hành động, kết quả và bài học rút ra.",
+            transcript: "Áp dụng mô hình Situation, Task, Action, Result. Mỗi câu trả lời nên có bối cảnh ngắn, hành động cụ thể và kết quả có thể đo lường.",
+            resources: [
+              { name: "Tài liệu luyện tập STAR", url: "https://en.wikipedia.org/wiki/Situation,_task,_action,_result" },
+            ],
+            order: 2,
+            isFree: false,
+          },
         ],
       },
     ],

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, 
-  SafeAreaView, 
   View, 
   Text, 
   ScrollView, 
@@ -14,34 +13,93 @@ import {
   Animated,
   TextInput,
   Modal,
+  Pressable,
   NativeModules,
   Alert,
-  Linking
+  Linking,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as SystemUI from 'expo-system-ui';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import {
+  Manrope_400Regular,
+  Manrope_500Medium,
+  Manrope_600SemiBold,
+  Manrope_700Bold,
+  Manrope_800ExtraBold,
+  useFonts,
+} from '@expo-google-fonts/manrope';
+import { getCourseDisplayTitle } from './src/utils/courseDisplay';
 import WebView from 'react-native-webview';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import { useGoogleBrowserAuth } from './src/hooks/useGoogleBrowserAuth';
-
+import {
+  fetchPublicCatalog,
+  loadAuthenticatedUserData,
+  analyzeAndSaveCv,
+  markAllNotificationsRead,
+  ensureApiBase,
+  getApiBaseUrl,
+} from './src/services/proInterviewApi';
+import { BACKEND_DEV_HINT } from './src/utils/backendErrors';
+import { loadAdminPortalData, loadMentorPortalData } from './src/services/roleApi';
+import RolePortal from './src/components/RolePortal';
+import GoogleSignInButton from './src/components/GoogleSignInButton';
+import CartModal from './src/components/CartModal';
+import CheckoutScreen from './src/components/CheckoutScreen';
+import PaymentResultScreen from './src/components/PaymentResultScreen';
+import CourseLearningScreen from './src/components/CourseLearningScreen';
+import CourseDetailScreen from './src/components/CourseDetailScreen';
+import ProfileScreen from './src/components/ProfileScreen';
+import CvAnalysisHubScreen from './src/components/CvAnalysisHubScreen';
+import MentorsScreen from './src/components/MentorsScreen';
+import MentorBookingScreen from './src/components/MentorBookingScreen';
+import {
+  fetchCart,
+  addToCart,
+  removeFromCart,
+  calcCartSummary,
+} from './src/services/cartApi';
+import { enrollCourse, verifyVnpayReturn, fetchPaymentStatus } from './src/services/paymentApi';
+import {
+  loginWithEmail,
+  registerAccount,
+  logoutSession,
+  patchCurrentUser,
+  getAccessToken,
+  fetchCurrentUser,
+  loginWithGoogleCredential,
+} from './src/utils/mobileAuth';
+import { resolveMediaUrl } from './src/utils/mediaUrl';
+import * as DocumentPicker from 'expo-document-picker';
 const { width, height } = Dimensions.get('window');
+const AUTH_CARD_MAX_WIDTH = Math.min(292, Math.round(width * 0.74));
+const AUTH_MASCOT_SIZE = Math.min(96, Math.round(width * 0.24));
+const HOME_NAV_CLEARANCE = Platform.OS === 'ios' ? 90 : 80;
+const HOME_SIDE_PAD = 16;
+const HOME_GRID_GAP = 10;
+const HOME_MENTOR_CARD_WIDTH = Math.floor((width - HOME_SIDE_PAD * 2 - HOME_GRID_GAP) / 2);
+const HOME_MENTOR_CARD_HEIGHT = Math.round(
+  Math.min(164, Math.max(112, HOME_MENTOR_CARD_WIDTH * 1.16)),
+);
+const HOME_NEWS_CARD_WIDTH = Math.round(Math.min(width - HOME_SIDE_PAD * 2 - 6, width * 0.78));
+const HOME_NEWS_HEIGHT = Math.round(Math.min(128, Math.max(108, HOME_NEWS_CARD_WIDTH * 0.38)));
 
-// Tự động nhận diện IP của máy tính chạy Expo để kết nối với Backend trong mạng cục bộ.
-const BACKEND_HOST = (() => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return window.location.hostname;
-  }
-  if (Platform.OS === 'android') {
-    return 'localhost';
-  }
-  const scriptURL = NativeModules.SourceCode?.scriptURL;
-  if (scriptURL) {
-    const match = scriptURL.match(/^https?:\/\/([^:/]+)/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return 'localhost';
-})();
+/** Màu nền ProInterview web (`app-shell-ambient--home`) */
+const PI_SHELL_BG = '#f5f0fc';
+const PI_SHELL_GRADIENT = ['#e8ddf5', '#efe6fa', '#f5f0fc', '#f5f0fc', '#f2edf9', '#efe6fa'];
+
+const AppShellBackground = () => (
+  <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <LinearGradient
+      colors={PI_SHELL_GRADIENT}
+      locations={[0, 0.14, 0.28, 0.62, 0.82, 1]}
+      style={StyleSheet.absoluteFill}
+    />
+  </View>
+);
 
 const MOBILE_SCHEME = (() => {
   const scriptURL = NativeModules.SourceCode?.scriptURL;
@@ -53,56 +111,6 @@ const MOBILE_SCHEME = (() => {
   }
   return 'exp://localhost:8081';
 })();
-
-// Dữ liệu Mock dự phòng
-const FALLBACK_MENTORS = [
-  { id: 'u6a521ef97d243982c05967c8', name: 'Nguyễn Minh An', role: 'Senior Frontend Engineer', rating: 4.9, avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80', company: 'Grab', category: 'Frontend', reviews: 42 },
-  { id: 'u6a521ef97d243982c05967ca', name: 'Trần Thị Hương', role: 'Technical Product Manager', rating: 4.8, avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80', company: 'Shopee', category: 'Product', reviews: 29 },
-  { id: 'u6a521ef97d243982c05967cc', name: 'Lê Quốc Bảo', role: 'Engineering Manager', rating: 5.0, avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80', company: 'VNG', category: 'Backend', reviews: 35 }
-];
-
-const FALLBACK_COURSES = [
-  { id: 1, title: 'React & TypeScript — Chuẩn bị phỏng vấn Frontend', price: '499.000đ', duration: '12 bài học', image: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=300&auto=format&fit=crop&q=80', category: 'Frontend', rating: 4.8 },
-  { id: 2, title: 'Product Manager — Case Interview & Metrics', price: '799.000đ', duration: '18 bài học', image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=300&auto=format&fit=crop&q=80', category: 'Backend', rating: 4.9 }
-];
-
-const NEWS_DATA = [
-  {
-    id: 1,
-    image: "https://images.unsplash.com/photo-1542744173-8e7e53415bb0?auto=format&fit=crop&q=80&w=800",
-    date: "11 THÁNG 6, 2026",
-    title: "Dự án ProInterview tiến vào Bán kết “Ra Khơi 2026”",
-    author: "ProInterview Team",
-    authorWebsite: "prointerview.vn"
-  }
-];
-
-const API_PORTS = ['5001', '5000'];
-
-const RICH_FALLBACK_PROFILE = {
-  id: "65cb1a3b5f92d718b2c45def",
-  name: "Nguyễn Văn Phong",
-  email: "mentor@dev.local",
-  role: "customer",
-  avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-  phone: "0987 654 321",
-  position: "Senior React Native Developer",
-  currentCompany: "VNG Corporation",
-  school: "Đại học FPT",
-  experience: "5",
-  expertise: ["React Native", "JavaScript", "TypeScript", "Redux", "CI/CD", "Docker", "NodeJS"],
-  bio: "Đam mê xây dựng ứng dụng di động chất lượng cao, tối ưu hiệu năng và trải nghiệm người dùng đầu cuối.",
-  profileWorkExperience: "3 năm Senior Mobile Engineer tại VNG, 2 năm React Native Developer tại FPT Software.",
-  profileEducation: "Cử nhân Kỹ thuật Phần mềm - Đại học FPT Hồ Chí Minh (2018 - 2022)",
-  profileAwards: "Lập trình viên xuất sắc nhất năm 2024 tại ZaloPay Division",
-  plan: "professional",
-  quota: {
-    cvAnalysisUsed: 1,
-    cvAnalysisLimit: 5,
-    mentorSessionUsed: 2,
-    mentorSessionLimit: 3
-  }
-};
 
 const BackgroundVideo = ({ uri }) => {
   if (Platform.OS === 'web') {
@@ -188,23 +196,388 @@ const HeroAtmosphere = () => {
 
 function AppInner() {
   const { loginWithGoogle, error: authContextError, isLoading: authContextLoading, logout: authContextLogout } = useAuth();
-  const { promptAsync: promptGoogleBrowser, isReady: isGoogleBrowserReady } = useGoogleBrowserAuth();
+  const insets = useSafeAreaInsets();
+  const safeTopInset = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
+  );
+  const shellTopPad = safeTopInset + 14;
+  const authTopPad = safeTopInset + 10;
+  const authBottomPad = Math.max(insets.bottom, 14);
+  const homeTopPad = shellTopPad;
+  const homeBottomPad = Math.max(insets.bottom, 12) + HOME_NAV_CLEARANCE;
   const [currentUser, setCurrentUser] = useState(null); 
+  const [loginSession, setLoginSession] = useState(null);
+  const [authRenderTick, setAuthRenderTick] = useState(0);
   const [userToken, setUserToken] = useState(null);
   const [activeTab, setActiveTab] = useState('home'); 
   const [mentors, setMentors] = useState([]);
   const [courses, setCourses] = useState([]);
   const [bookings, setBookings] = useState([]);
+  const [enrollments, setEnrollments] = useState([]);
+  const [payments, setPayments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [cvAnalyses, setCvAnalyses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [isUsingMock, setIsUsingMock] = useState(false);
-  const [activePort, setActivePort] = useState(null);
+  const [apiConnected, setApiConnected] = useState(false);
   const [justLoggedOut, setJustLoggedOut] = useState(false);
+  const [rolePortalData, setRolePortalData] = useState(null);
+  const [roleDataLoading, setRoleDataLoading] = useState(false);
+  const [profileSubTab, setProfileSubTab] = useState('profile');
+  const homeEntrance = useRef(new Animated.Value(0)).current;
+  const profileEntrance = useRef(new Animated.Value(0)).current;
+  const profileTabEntrance = useRef(new Animated.Value(1)).current;
+  /** Tăng khi login tay để hủy restore phiên cũ (tránh clear session vừa login). */
+  const sessionEpochRef = useRef(0);
+
+  const appUser = currentUser || loginSession?.user || null;
+  const appToken = userToken || loginSession?.token || null;
+  const userRole = appUser?.role || 'customer';
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void SystemUI.setBackgroundColorAsync(appUser ? PI_SHELL_BG : '#f5f0fc');
+  }, [appUser]);
+
+  useEffect(() => {
+    if (appUser) return;
+    let cancelled = false;
+    (async () => {
+      const base = await ensureApiBase();
+      if (cancelled) return;
+      setApiConnected(Boolean(base));
+      if (!base && __DEV__) {
+        console.warn('[API] Không tìm thấy backend. Thử EXPO_PUBLIC_DEV_API_HOST trong .env');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [appUser]);
+
+  useEffect(() => {
+    if (activeTab !== 'home') return;
+    homeEntrance.setValue(0);
+    Animated.timing(homeEntrance, {
+      toValue: 1,
+      duration: 420,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab, homeEntrance]);
+
+  useEffect(() => {
+    if (activeTab !== 'profile') return;
+    profileEntrance.setValue(0);
+    Animated.timing(profileEntrance, {
+      toValue: 1,
+      duration: 320,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab, profileEntrance]);
+
+  useEffect(() => {
+    if (activeTab !== 'profile') return;
+    profileTabEntrance.setValue(0);
+    Animated.timing(profileTabEntrance, {
+      toValue: 1,
+      duration: 240,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab, profileSubTab, profileTabEntrance]);
+
+  const getDefaultTabForRole = (role) => {
+    if (role === 'admin') return 'admin_home';
+    if (role === 'mentor') return 'mentor_home';
+    return 'home';
+  };
+
+  const clearLocalSession = () => {
+    setCurrentUser(null);
+    setLoginSession(null);
+    setUserToken(null);
+    setBookings([]);
+    setEnrollments([]);
+    setPayments([]);
+    setNotifications([]);
+    setCvAnalyses([]);
+    setRolePortalData(null);
+    setLearningEnrollment(null);
+    setActiveTab('home');
+    setCart(null);
+  };
+
+  const applyLoggedInUser = (user, token) => {
+    const role = user?.role || 'customer';
+    const safeUser = user && typeof user === 'object'
+      ? { ...user, role }
+      : { name: 'Bạn học', role: 'customer' };
+    sessionEpochRef.current += 1;
+    setLoginSession({ user: safeUser, token: token || null, at: Date.now() });
+    setCurrentUser(safeUser);
+    setUserToken(token || null);
+    setJustLoggedOut(false);
+    setActiveTab(getDefaultTabForRole(role));
+    setAuthRenderTick((tick) => tick + 1);
+    setTimeout(() => {
+      setLoginSession((prev) => prev || { user: safeUser, token: token || null, at: Date.now() });
+      setAuthRenderTick((tick) => tick + 1);
+    }, 0);
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => setAuthRenderTick((tick) => tick + 1));
+    }
+  };
+
+  const handleInvalidSession = async () => {
+    await logoutSession();
+    clearLocalSession();
+    setJustLoggedOut(true);
+  };
+
+  const loadRolePortalData = async (role) => {
+    if (role !== 'admin' && role !== 'mentor') {
+      setRolePortalData(null);
+      return;
+    }
+    setRoleDataLoading(true);
+    try {
+      const data =
+        role === 'admin' ? await loadAdminPortalData() : await loadMentorPortalData();
+      if (data.sessionValid === false) {
+        await handleInvalidSession();
+        return;
+      }
+      setRolePortalData(data);
+    } catch (e) {
+      console.warn('loadRolePortalData:', e);
+    }
+    setRoleDataLoading(false);
+  };
+
+  const showCartToast = (message) => {
+    setCartToast(message);
+    setTimeout(() => setCartToast(''), 2500);
+  };
+
+  const notifyUser = (title, message) => {
+    const text = message ? `${title}: ${message}` : title;
+    if (Platform.OS === 'web') {
+      showCartToast(text);
+      return;
+    }
+    Alert.alert(title, message || title);
+  };
+
+  /** available | pending | owned */
+  const getCoursePurchaseState = (courseId) => {
+    const id = String(courseId || '').trim();
+    if (!id) return 'available';
+    const row = enrollments.find((e) => {
+      const cid = e.courseId?._id || e.courseId?.id || e.courseId;
+      return String(cid) === id;
+    });
+    if (!row) return 'available';
+    if (row.paymentStatus === 'pending') return 'pending';
+    if (row.paymentStatus === 'paid' || row.paymentStatus == null) return 'owned';
+    return 'available';
+  };
+
+  const refreshCart = async () => {
+    const token = await getAccessToken();
+    if (!token) {
+      setCart(null);
+      return;
+    }
+    setCartLoading(true);
+    try {
+      const res = await fetchCart();
+      if (res.success) setCart(res.cart);
+    } catch (e) {
+      console.warn('refreshCart:', e);
+    }
+    setCartLoading(false);
+  };
+
+  const handleAddCourseToCart = async (course) => {
+    if (!appUser) {
+      Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để thêm vào giỏ hàng.');
+      return;
+    }
+    if (!course?.id) {
+      Alert.alert('Lỗi', 'Khóa học thiếu mã ID. Kéo xuống để tải lại danh sách.');
+      return;
+    }
+    if (course.isFree || !course.priceNum) {
+      goToCheckout({ mode: 'course', course, fromTab: 'courses' });
+      return;
+    }
+
+    setAddingCourseId(course.id);
+    try {
+      const base = await ensureApiBase();
+      if (!base) {
+        Alert.alert('Backend', `Không kết nối backend. ${BACKEND_DEV_HINT}`);
+        return;
+      }
+
+      const res = await addToCart({
+        itemType: 'Course',
+        itemId: course.id,
+        title: course.title,
+        price: course.priceNum,
+        quantity: 1,
+        thumbnail: course.image || '',
+      });
+
+      if (res.success) {
+        setCart(res.cart);
+        setCartModalVisible(true);
+        showCartToast(`Đã thêm "${course.title}" vào giỏ (${calcCartSummary(res.cart).count} món)`);
+      } else {
+        Alert.alert('Không thêm được', res.error || 'Lỗi giỏ hàng.');
+      }
+    } finally {
+      setAddingCourseId(null);
+    }
+  };
+
+  const handleRemoveCartItem = async (itemId) => {
+    const res = await removeFromCart(itemId);
+    if (res.success) setCart(res.cart);
+    else Alert.alert('Lỗi', res.error || 'Không xóa được sản phẩm.');
+  };
+
+  const goToCheckout = ({ mode, course, booking, fromTab }) => {
+    setTabBeforeCheckout(fromTab || activeTab);
+    setCheckoutMode(mode);
+    setCheckoutCourse(course || null);
+    setCheckoutBooking(booking || null);
+    setActiveTab('checkout');
+  };
+
+  const handleStartCartCheckout = () => {
+    if (!cartSummary.count) {
+      Alert.alert('Giỏ hàng trống', 'Hãy thêm khóa học trước khi thanh toán.');
+      return;
+    }
+    setCartModalVisible(false);
+    goToCheckout({ mode: 'cart', fromTab: activeTab });
+  };
+
+  const handleBuyCourseNow = (course) => {
+    if (!appUser) {
+      notifyUser('Đăng nhập', 'Vui lòng đăng nhập để mua khóa học.');
+      return;
+    }
+    if (!course?.id) {
+      notifyUser('Lỗi', 'Khóa học thiếu mã ID. Kéo xuống để tải lại danh sách.');
+      return;
+    }
+
+    const purchaseState = getCoursePurchaseState(course.id);
+    if (purchaseState === 'owned') {
+      const ownedEnrollment = findEnrollmentForCourse(course.id);
+      if (ownedEnrollment) {
+        openCourseLearning(ownedEnrollment, 'courses');
+        return;
+      }
+    }
+
+    goToCheckout({ mode: 'course', course, fromTab: activeTab });
+  };
+
+  const handlePaymentSuccess = async () => {
+    await refreshCart();
+    loadUserData();
+  };
+
+  const openCourseLearning = (enrollment, returnTab = activeTab) => {
+    if (!enrollment) {
+      notifyUser('Khóa học', 'Không tìm thấy dữ liệu ghi danh.');
+      return;
+    }
+    const paid = enrollment.paymentStatus === 'paid' || enrollment.paymentStatus == null;
+    if (!paid) {
+      notifyUser('Chưa thanh toán', 'Hoàn tất thanh toán để xem nội dung khóa học.');
+      return;
+    }
+    setTabBeforeLearning(returnTab || activeTab);
+    setLearningEnrollment(enrollment);
+    setActiveTab('course_learning');
+  };
+
+  const findEnrollmentForCourse = (courseId) => {
+    const id = String(courseId || '').trim();
+    if (!id) return null;
+    return enrollments.find((item) => {
+      const enrolledCourseId = item.courseId?._id || item.courseId?.id || item.courseId;
+      return String(enrolledCourseId) === id;
+    }) || null;
+  };
+
+  const openCourseDetail = (course) => {
+    const courseId = String(course?.id || course?._id || '').trim();
+    if (!courseId) {
+      notifyUser('Lỗi', 'Khóa học thiếu mã ID.');
+      return;
+    }
+    setTabBeforeCourseDetail(activeTab);
+    setDetailCourseId(courseId);
+    setActiveTab('course_detail');
+  };
+
+  const handleFreeEnroll = async (course) => {
+    if (!appUser) {
+      notifyUser('Đăng nhập', 'Vui lòng đăng nhập để đăng ký khóa học.');
+      return;
+    }
+    const courseId = String(course?.id || '').trim();
+    if (!courseId) return;
+    const res = await enrollCourse(courseId);
+    if (res.success) {
+      await loadUserData();
+      notifyUser('Thành công', 'Đăng ký khóa học thành công!');
+    } else {
+      notifyUser('Lỗi', res.error || 'Không đăng ký được khóa học.');
+    }
+  };
+
+  const toCheckoutCourse = (course) => ({
+    id: course.id,
+    title: course.title,
+    priceNum: course.priceNum ?? 0,
+    isFree: course.isFree ?? course.priceNum <= 0,
+    price: course.price || (course.priceNum > 0 ? `${course.priceNum.toLocaleString('vi-VN')}đ` : 'Miễn phí'),
+    image: course.image || course.thumbnail,
+  });
+
+  const handleLearningProgressUpdated = (updated) => {
+    if (!updated?._id) return;
+    setEnrollments((rows) =>
+      rows.map((row) =>
+        String(row._id) === String(updated._id)
+          ? { ...row, ...updated, courseId: row.courseId }
+          : row,
+      ),
+    );
+    setLearningEnrollment((row) =>
+      row && String(row._id) === String(updated._id)
+        ? { ...row, ...updated, courseId: row.courseId }
+        : row,
+    );
+  };
+
+  const openCartModal = () => {
+    if (!appUser) {
+      Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để xem giỏ hàng.');
+      return;
+    }
+    refreshCart();
+    setCartModalVisible(true);
+  };
 
   // Form Đăng Nhập
-  const [email, setEmail] = useState('customer@dev.local'); 
-  const [password, setPassword] = useState('Dev123456'); 
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
@@ -218,31 +591,56 @@ function AppInner() {
   const [registering, setRegistering] = useState(false);
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
 
-  // Modal chọn tài khoản Google (OAuth simulation)
-  const [googleModalVisible, setGoogleModalVisible] = useState(false);
-  const [googleWebViewVisible, setGoogleWebViewVisible] = useState(false);
   const [loggingInGoogle, setLoggingInGoogle] = useState(false);
+
+  // Giỏ hàng & thanh toán
+  const [cart, setCart] = useState(null);
+  const [cartLoading, setCartLoading] = useState(false);
+  const [cartModalVisible, setCartModalVisible] = useState(false);
+  const [checkoutMode, setCheckoutMode] = useState('course');
+  const [checkoutCourse, setCheckoutCourse] = useState(null);
+  const [checkoutBooking, setCheckoutBooking] = useState(null);
+  const [learningEnrollment, setLearningEnrollment] = useState(null);
+  const [tabBeforeCheckout, setTabBeforeCheckout] = useState('courses');
+  const [tabBeforeLearning, setTabBeforeLearning] = useState('courses');
+  const [detailCourseId, setDetailCourseId] = useState(null);
+  const [tabBeforeCourseDetail, setTabBeforeCourseDetail] = useState('courses');
+  const [tabBeforeBooking, setTabBeforeBooking] = useState('mentors');
+  const [addingCourseId, setAddingCourseId] = useState(null);
+  const [cartToast, setCartToast] = useState('');
+  const [paymentResult, setPaymentResult] = useState(null);
+  const cartSummary = calcCartSummary(cart);
+
+  const [showPass, setShowPass] = useState(false);
 
   // Modal danh sách thông báo
   const [notifModalVisible, setNotifModalVisible] = useState(false);
+  const notifBellRef = useRef(null);
+  const notifOverlayAnim = useRef(new Animated.Value(0)).current;
+  const notifPanelAnim = useRef(new Animated.Value(0)).current;
+  const notifClosingRef = useRef(false);
+  const NOTIF_PANEL_WIDTH = Math.min(width - 20, 320);
+  const [notifAnchor, setNotifAnchor] = useState({
+    top: Platform.OS === 'ios' ? 56 : 48,
+    right: 12,
+    caretRight: 22,
+  });
 
   // Bộ lọc tìm kiếm cho Mentors & Courses
   const [searchMentorQuery, setSearchMentorQuery] = useState('');
   const [selectedMentorCategory, setSelectedMentorCategory] = useState('Tất cả');
   const [searchCourseQuery, setSearchCourseQuery] = useState('');
   const [selectedCourseCategory, setSelectedCourseCategory] = useState('Tất cả');
+  const [homeSection, setHomeSection] = useState('all');
 
   // Trạng thái Mô phỏng Phân tích CV
   const [cvFile, setCvFile] = useState(null);
   const [analyzingStatus, setAnalyzingStatus] = useState(''); 
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
-  // Modal thông báo đặt lịch thành công
-  const [bookingSuccessModal, setBookingSuccessModal] = useState(false);
   const [bookedMentor, setBookedMentor] = useState(null);
 
   // Trạng thái Tab con của Trang cá nhân
-  const [profileSubTab, setProfileSubTab] = useState('info');
 
   // Trạng thái Đổi mật khẩu
   const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
@@ -251,6 +649,10 @@ function AppInner() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changePasswordError, setChangePasswordError] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  // Dialog xác nhận sáng (thông báo / đăng xuất)
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const closeConfirmDialog = () => setConfirmDialog(null);
 
   const handleChangePassword = async () => {
     setChangePasswordError('');
@@ -268,7 +670,7 @@ function AppInner() {
       const body = {
         newPassword: newPassword.trim(),
       };
-      if (!currentUser?.hasGoogleLogin) {
+      if (!appUser?.hasGoogleLogin) {
         if (!currentPassword) {
           setChangePasswordError('Vui lòng nhập mật khẩu hiện tại.');
           setUpdatingPassword(false);
@@ -277,28 +679,15 @@ function AppInner() {
         body.currentPassword = currentPassword.trim();
       }
 
-      const response = await fetch(`http://${BACKEND_HOST}:${activePort}/api/auth/me`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userToken}`
-        },
-        body: JSON.stringify(body)
-      });
-
-      const resData = await response.json();
-      if (response.ok && resData.success) {
-        if (Platform.OS === 'web') {
-          window.alert('Thay đổi mật khẩu thành công!');
-        } else {
-          Alert.alert('Thành công', 'Thay đổi mật khẩu thành công!');
-        }
+      const result = await patchCurrentUser(body);
+      if (result.success) {
+        showCartToast('Thay đổi mật khẩu thành công!');
         setChangePasswordModalVisible(false);
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
       } else {
-        setChangePasswordError(resData.error || 'Thay đổi mật khẩu thất bại.');
+        setChangePasswordError(result.error || 'Thay đổi mật khẩu thất bại.');
       }
     } catch (e) {
       setChangePasswordError('Không thể kết nối đến máy chủ.');
@@ -307,115 +696,62 @@ function AppInner() {
   };
 
   const handleToggleInAppNotifications = () => {
-    const isCurrentlyOn = currentUser?.notificationPrefs?.customer?.mentor_feedback !== false;
-    
+    const isCurrentlyOn = appUser?.notificationPrefs?.customer?.mentor_feedback !== false;
+
     const performToggle = async () => {
-      if (userToken && activePort) {
+      if (userToken && apiConnected) {
         try {
-          const response = await fetch(`http://${BACKEND_HOST}:${activePort}/api/auth/me`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${userToken}`
-            },
-            body: JSON.stringify({
-              notificationPrefs: {
-                customer: {
-                  interview_reminder: !isCurrentlyOn,
-                  mentor_feedback: !isCurrentlyOn,
-                  streak_reminder: !isCurrentlyOn
-                }
+          const result = await patchCurrentUser({
+            notificationPrefs: {
+              customer: {
+                interview_reminder: !isCurrentlyOn,
+                mentor_feedback: !isCurrentlyOn,
+                streak_reminder: !isCurrentlyOn
               }
-            })
+            }
           });
-          if (response.ok) {
-            if (Platform.OS === 'web') {
-              window.alert(`Đã ${!isCurrentlyOn ? "bật" : "tắt"} thông báo đẩy thành công!`);
-            } else {
-              Alert.alert("Thành công", `Đã ${!isCurrentlyOn ? "bật" : "tắt"} thông báo đẩy thành công!`);
-            }
-            loadUserData(userToken, activePort);
+          if (result.success) {
+            showCartToast(`Đã ${!isCurrentlyOn ? 'bật' : 'tắt'} thông báo đẩy`);
+            loadUserData();
           } else {
-            if (Platform.OS === 'web') {
-              window.alert("Không thể cập nhật cấu hình thông báo.");
-            } else {
-              Alert.alert("Lỗi", "Không thể cập nhật cấu hình thông báo.");
-            }
+            showCartToast('Không thể cập nhật cấu hình thông báo.');
           }
         } catch (e) {
-          if (Platform.OS === 'web') {
-            window.alert("Không thể kết nối tới server.");
-          } else {
-            Alert.alert("Lỗi", "Không thể kết nối tới server.");
-          }
+          showCartToast('Không thể kết nối tới server.');
         }
       }
     };
 
-    if (Platform.OS === 'web') {
-      const confirmToggle = window.confirm(`Hiện tại thông báo đang: ${isCurrentlyOn ? "BẬT" : "TẮT"}.\nBạn có muốn ${isCurrentlyOn ? "Tắt" : "Bật"} toàn bộ thông báo đẩy không?`);
-      if (confirmToggle) {
-        performToggle();
-      }
-    } else {
-      Alert.alert(
-        "Thông báo đẩy (In-app)",
-        `Hiện tại thông báo đang: ${isCurrentlyOn ? "BẬT" : "TẮT"}.\nBạn có muốn ${isCurrentlyOn ? "Tắt" : "Bật"} toàn bộ thông báo đẩy không?`,
-        [
-          { text: "Hủy", style: "cancel" },
-          { 
-            text: "Xác nhận", 
-            onPress: performToggle
-          }
-        ]
-      );
-    }
+    setConfirmDialog({
+      icon: 'notifications-outline',
+      title: 'Thông báo đẩy (In-app)',
+      message: `Hiện tại thông báo đang: ${isCurrentlyOn ? 'BẬT' : 'TẮT'}. Bạn có muốn ${isCurrentlyOn ? 'Tắt' : 'Bật'} toàn bộ thông báo đẩy không?`,
+      cancelText: 'Hủy',
+      confirmText: 'Xác nhận',
+      confirmTone: 'primary',
+      onConfirm: performToggle,
+    });
   };
 
   const handleRealLogout = async () => {
     const performLogout = async () => {
-      if (userToken && activePort) {
-        try {
-          await fetch(`http://${BACKEND_HOST}:${activePort}/api/auth/logout`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${userToken}`
-            }
-          });
-        } catch (e) {}
-      }
       try {
-        const { clearAuthData } = require('./src/services/authService');
-        await clearAuthData();
+        await logoutSession();
         await authContextLogout();
-      } catch (err) {}
-      setCurrentUser(null);
-      setUserToken(null);
-      setBookings([]);
-      setNotifications([]);
-      setCvAnalyses([]);
+      } catch (e) {}
+      clearLocalSession();
       setJustLoggedOut(true);
     };
 
-    if (Platform.OS === 'web') {
-      const confirmLogout = window.confirm("Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?");
-      if (confirmLogout) {
-        performLogout();
-      }
-    } else {
-      Alert.alert(
-        "Đăng xuất",
-        "Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?",
-        [
-          { text: "Hủy", style: "cancel" },
-          {
-            text: "Đăng xuất",
-            style: "destructive",
-            onPress: performLogout
-          }
-        ]
-      );
-    }
+    setConfirmDialog({
+      icon: 'log-out-outline',
+      title: 'Đăng xuất',
+      message: 'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?',
+      cancelText: 'Hủy',
+      confirmText: 'Đăng xuất',
+      confirmTone: 'danger',
+      onConfirm: performLogout,
+    });
   };
 
   // Hiệu ứng sparkles & quét CV
@@ -462,127 +798,175 @@ function AppInner() {
 
   const loadData = async () => {
     setLoading(true);
-    let success = false;
+    const catalog = await fetchPublicCatalog();
 
-    for (const port of API_PORTS) {
-      try {
-        const mentorsUrl = `http://${BACKEND_HOST}:${port}/api/mentors`;
-        const coursesUrl = `http://${BACKEND_HOST}:${port}/api/courses`;
-
-        const mentorsRes = await fetch(mentorsUrl, { headers: { Accept: 'application/json' } });
-        if (mentorsRes.ok) {
-          const rawMentors = await mentorsRes.json();
-          const mentorsList = Array.isArray(rawMentors) ? rawMentors : (rawMentors?.mentors || []);
-          const mappedMentors = mentorsList.map((m) => {
-            const roleStr = m.role || m.title || m.headline || '';
-            return {
-              id: m._id || m.id,
-              name: m.name || m.fullName || 'Mentor',
-              role: roleStr || 'Chuyên gia công nghệ',
-              company: m.company || m.currentCompany || 'Đang cập nhật',
-              rating: m.rating || m.averageRating || 5.0,
-              avatar: m.avatar || m.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-              category: roleStr.toLowerCase().includes('frontend') ? 'Frontend' : 
-                        roleStr.toLowerCase().includes('backend') ? 'Backend' : 
-                        roleStr.toLowerCase().includes('qa') ? 'QA/QC' : 'AI/ML',
-              reviews: m.reviewsCount || Math.floor(Math.random() * 30) + 10
-            };
-          });
-          setMentors(mappedMentors);
-
-          try {
-            const coursesRes = await fetch(coursesUrl, { headers: { Accept: 'application/json' } });
-            if (coursesRes.ok) {
-              const rawCourses = await coursesRes.json();
-              const coursesList = Array.isArray(rawCourses) ? rawCourses : (rawCourses?.courses || []);
-              const mappedCourses = coursesList.map((c) => {
-                const titleStr = c.title || '';
-                return {
-                  id: c._id || c.id,
-                  title: titleStr || 'Khóa học',
-                  price: typeof c.price === 'number' ? `${c.price.toLocaleString('vi-VN')}đ` : 'Miễn phí',
-                  duration: c.duration || (c.lessonsCount ? `${c.lessonsCount} bài học` : 'Đang cập nhật'),
-                  image: c.image || c.thumbnail || c.coverImage || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=300&auto=format&fit=crop&q=80',
-                  category: titleStr.toLowerCase().includes('frontend') ? 'Frontend' : 
-                            titleStr.toLowerCase().includes('backend') ? 'Backend' : 'AI/ML',
-                  rating: c.rating || 4.8
-                };
-              });
-              setCourses(mappedCourses);
-            } else {
-              setCourses(FALLBACK_COURSES);
-            }
-          } catch (e) {
-            setCourses(FALLBACK_COURSES);
-          }
-
-          setActivePort(port);
-          setIsUsingMock(false);
-          success = true;
-          break;
-        }
-      } catch (e) {
-        // Thử cổng tiếp theo
-      }
-    }
-
-    if (!success) {
-      setMentors(FALLBACK_MENTORS);
-      setCourses(FALLBACK_COURSES);
-      setIsUsingMock(true);
-      setActivePort(null);
+    if (catalog.success) {
+      setMentors(catalog.mentors || []);
+      setCourses(catalog.courses || []);
+      setApiConnected(true);
+    } else {
+      setMentors([]);
+      setCourses([]);
+      setApiConnected(false);
     }
     setLoading(false);
   };
 
   useEffect(() => {
     const checkSavedSession = async () => {
+      const epochAtStart = sessionEpochRef.current;
       try {
-        const { getStoredToken, getStoredUser } = require('./src/services/authService');
-        const token = await getStoredToken();
-        const user = await getStoredUser();
-        
-        if (token && user) {
-          const fullUserProfile = {
-            ...RICH_FALLBACK_PROFILE,
-            id: user.id,
-            name: user.fullName,
-            email: user.email,
-            avatar: user.avatar || RICH_FALLBACK_PROFILE.avatar,
-            hasGoogleLogin: true,
-            quota: {
-              ...RICH_FALLBACK_PROFILE.quota,
-              ...(user.quota || {})
-            }
-          };
-          setCurrentUser(fullUserProfile);
-          setUserToken(token);
-          setJustLoggedOut(false);
-          
-          let activeP = null;
-          for (const port of API_PORTS) {
-            try {
-              const res = await fetch(`http://${BACKEND_HOST}:${port}/api/health`);
-              if (res.ok) {
-                activeP = port;
-                break;
-              }
-            } catch (e) {}
+        const token = await getAccessToken();
+        if (!token) return;
+        // Đã login tay trong lúc restore → bỏ qua
+        if (epochAtStart !== sessionEpochRef.current) return;
+
+        const base = await ensureApiBase();
+        if (epochAtStart !== sessionEpochRef.current) return;
+        setApiConnected(Boolean(base));
+
+        const profile = await fetchCurrentUser();
+        if (epochAtStart !== sessionEpochRef.current) return;
+
+        if (!profile.success || !profile.user) {
+          // Chỉ clear nếu chưa có user mới từ login form
+          if (epochAtStart === sessionEpochRef.current) {
+            await handleInvalidSession();
           }
-          const port = activeP || '5001';
-          loadUserData(token, port);
+          return;
         }
+
+        applyLoggedInUser(profile.user, token);
+        void loadData();
+        void loadUserData(profile.user.role, profile.user);
       } catch (err) {
         console.warn("Restore saved session exception:", err);
+        if (epochAtStart === sessionEpochRef.current) {
+          await handleInvalidSession();
+        }
       }
     };
     checkSavedSession();
     loadData();
 
-    const handleDeepLink = (event) => {
+    const handleVnpayReturn = async () => {
+      if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+      const search = window.location.search || '';
+      if (!search.includes('vnp_ResponseCode')) return;
+      const params = new URLSearchParams(search);
+      const responseCode = params.get('vnp_ResponseCode') || '';
+      const pendingType = sessionStorage.getItem('vnpayPendingType') || 'course';
+      const details = {
+        amount: Math.round(Number(params.get('vnp_Amount') || 0) / 100),
+        transactionNo: params.get('vnp_TransactionNo') || '',
+        txnRef: params.get('vnp_TxnRef') || '',
+        bankCode: params.get('vnp_BankCode') || '',
+        payDate: params.get('vnp_PayDate') || '',
+        responseCode,
+      };
+      setPaymentResult({ status: 'processing', message: '', details, type: pendingType });
+      try {
+        const verify = await verifyVnpayReturn(search.slice(1));
+        window.history.replaceState({}, '', window.location.pathname || '/');
+        const pendingId = sessionStorage.getItem('vnpayPendingPaymentId');
+        sessionStorage.removeItem('vnpayPendingPaymentId');
+        sessionStorage.removeItem('vnpayPendingType');
+        if (verify.success) {
+          await loadUserData();
+          setPaymentResult({
+            status: 'success',
+            message: pendingType === 'booking'
+              ? 'Lịch hẹn đã được thanh toán và lưu vào tài khoản.'
+              : 'Thanh toán đã được xác nhận và lưu vào tài khoản.',
+            details,
+            type: pendingType,
+          });
+          return;
+        }
+        if (pendingId) {
+          const status = await fetchPaymentStatus(pendingId);
+          if (status.success && status.payment?.status === 'success') {
+            await loadUserData();
+            setPaymentResult({
+              status: 'success',
+              message: pendingType === 'booking'
+                ? 'Lịch hẹn đã được thanh toán và lưu vào tài khoản.'
+                : 'Thanh toán đã được xác nhận và lưu vào tài khoản.',
+              details,
+              type: pendingType,
+            });
+            return;
+          }
+        }
+        if (verify.status === 'failed' || (responseCode && responseCode !== '00')) {
+          setPaymentResult({
+            status: 'failed',
+            message: verify.error || 'VNPay thông báo giao dịch không thành công.',
+            details,
+            type: pendingType,
+          });
+          return;
+        }
+        setPaymentResult({
+          status: 'error',
+          message: verify.error || 'Không thể xác thực kết quả thanh toán.',
+          details,
+          type: pendingType,
+        });
+      } catch (e) {
+        console.warn('VNPay return:', e);
+        window.history.replaceState({}, '', window.location.pathname || '/');
+        setPaymentResult({
+          status: 'error',
+          message: 'Mất kết nối khi xác nhận giao dịch. Vui lòng kiểm tra lại.',
+          details,
+          type: pendingType,
+        });
+      }
+    };
+    void handleVnpayReturn();
+
+    const handleDeepLink = async (event) => {
       if (event.url) {
         try {
           const url = event.url;
+          if (url.includes('vnp_ResponseCode')) {
+            const query = url.split('?')[1] || '';
+            const params = new URLSearchParams(query);
+            const responseCode = params.get('vnp_ResponseCode') || '';
+            const details = {
+              amount: Math.round(Number(params.get('vnp_Amount') || 0) / 100),
+              transactionNo: params.get('vnp_TransactionNo') || '',
+              txnRef: params.get('vnp_TxnRef') || '',
+              bankCode: params.get('vnp_BankCode') || '',
+              payDate: params.get('vnp_PayDate') || '',
+              responseCode,
+            };
+            setPaymentResult({ status: 'processing', message: '', details, type: 'course' });
+            const verify = await verifyVnpayReturn(query);
+            const paymentId = verify.paymentId;
+            const paymentStatus = paymentId ? await fetchPaymentStatus(paymentId) : null;
+            const type = paymentStatus?.payment?.type || 'course';
+            if (verify.success || paymentStatus?.payment?.status === 'success') {
+              await loadUserData();
+              setPaymentResult({
+                status: 'success',
+                message: type === 'booking'
+                  ? 'Lịch hẹn đã được thanh toán và lưu vào tài khoản.'
+                  : 'Thanh toán đã được xác nhận và lưu vào tài khoản.',
+                details,
+                type,
+              });
+              return;
+            }
+            setPaymentResult({
+              status: responseCode && responseCode !== '00' ? 'failed' : 'error',
+              message: verify.error || 'Không thể xác thực kết quả thanh toán.',
+              details,
+              type,
+            });
+            return;
+          }
           if (url.includes('/auth')) {
             const query = url.split('?')[1];
             if (query) {
@@ -596,20 +980,15 @@ function AppInner() {
               if (params.token && params.user) {
                 const parsedUser = JSON.parse(params.user);
                 const fullUserProfile = {
-                  ...RICH_FALLBACK_PROFILE,
                   ...parsedUser,
                   hasGoogleLogin: true,
-                  quota: {
-                    ...RICH_FALLBACK_PROFILE.quota,
-                    ...(parsedUser?.quota || {})
-                  }
+                  quota: { ...(parsedUser?.quota || {}) },
                 };
                 setCurrentUser(fullUserProfile);
                 setUserToken(params.token);
                 setJustLoggedOut(false);
                 loadData();
-                const port = activePort || '5001';
-                loadUserData(params.token, port);
+                loadUserData();
               }
             }
           }
@@ -630,131 +1009,126 @@ function AppInner() {
     };
   }, []);
 
-  // LOAD TOÀN BỘ CÁC TRƯỜNG DỮ LIỆU TỪ BACKEND DATABASE
-  const loadUserData = async (token, port) => {
-    if (!token || !port) return;
-    
-    // 0. Lấy thông tin user thực tế (Profile & Quota) từ DB
-    try {
-      const profileRes = await fetch(`http://${BACKEND_HOST}:${port}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      });
-      if (profileRes.ok) {
-        const resData = await profileRes.json();
-        if (resData.success && resData.user) {
-          setCurrentUser(resData.user);
+  useEffect(() => {
+    if (appUser) {
+      refreshCart();
+    } else {
+      setCart(null);
+    }
+  }, [appUser?.id]);
+
+  const loadUserData = async (roleOverride, knownUser = null) => {
+    const role = roleOverride || knownUser?.role || appUser?.role || 'customer';
+
+    if (role === 'admin' || role === 'mentor') {
+      await loadRolePortalData(role);
+      if (!knownUser) {
+        const profile = await fetchCurrentUser();
+        if (profile.success && profile.user) {
+          setCurrentUser(profile.user);
         }
       }
-    } catch (e) {
-      console.warn("Lỗi load profile thực tế:", e);
+      return;
     }
 
-    // 1. Lấy danh sách Bookings
-    try {
-      const bookingsRes = await fetch(`http://${BACKEND_HOST}:${port}/api/bookings`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
+    const data = await loadAuthenticatedUserData(knownUser);
+    if (data.sessionValid === false) {
+      await handleInvalidSession();
+      return;
+    }
+    if (data.user && !knownUser) {
+      setCurrentUser(data.user);
+    }
+    setBookings(data.bookings);
+    setEnrollments(data.enrollments || []);
+    setPayments(data.payments || []);
+    setNotifications(data.notifications);
+    setCvAnalyses(data.cvAnalyses);
+  };
+
+  const finalizeLogin = async (token, userFromLogin) => {
+    // Vào app ngay — không await network sau bước này.
+    const user =
+      userFromLogin && typeof userFromLogin === 'object'
+        ? userFromLogin
+        : null;
+
+    if (user) {
+      applyLoggedInUser(user, token);
+      setLoggingIn(false);
+      setLoggingInGoogle(false);
+      setApiConnected(Boolean(getApiBaseUrl()));
+      void (async () => {
+        try {
+          const base = getApiBaseUrl() || (await ensureApiBase());
+          setApiConnected(Boolean(base));
+          void loadData();
+          void loadUserData(user.role || 'customer', user);
+        } catch (err) {
+          console.warn('Post-login data load:', err);
         }
-      });
-      if (bookingsRes.ok) {
-        const resData = await bookingsRes.json();
-        if (resData.success && Array.isArray(resData.bookings)) {
-          setBookings(resData.bookings);
-        }
-      }
-    } catch (e) {
-      console.warn("Lỗi load bookings:", e);
+      })();
+      return true;
     }
 
-    // 2. Lấy danh sách Notifications
+    // Fallback hiếm: login không trả user → lấy /me rồi mới vào.
     try {
-      const notifRes = await fetch(`http://${BACKEND_HOST}:${port}/api/notifications`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      });
-      if (notifRes.ok) {
-        const resData = await notifRes.json();
-        if (resData.success && Array.isArray(resData.notifications)) {
-          setNotifications(resData.notifications);
-        }
+      const profile = await fetchCurrentUser();
+      if (!profile.success || !profile.user) {
+        await handleInvalidSession();
+        return false;
       }
-    } catch (e) {
-      console.warn("Lỗi load notifications:", e);
-    }
-
-    // 3. Lấy danh sách CV Analyses
-    try {
-      const cvRes = await fetch(`http://${BACKEND_HOST}:${port}/api/cv/analyses`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      });
-      if (cvRes.ok) {
-        const resData = await cvRes.json();
-        if (resData.success && Array.isArray(resData.list)) {
-          setCvAnalyses(resData.list);
-        }
-      }
-    } catch (e) {
-      console.warn("Lỗi load cv analyses:", e);
+      applyLoggedInUser(profile.user, token);
+      setApiConnected(Boolean(getApiBaseUrl()));
+      void loadData();
+      void loadUserData(profile.user.role, profile.user);
+      return true;
+    } catch (err) {
+      console.warn('finalizeLogin fallback:', err);
+      return false;
     }
   };
 
   const handleAuthLogin = async () => {
     setAuthError('');
     setLoggingIn(true);
-    let success = false;
 
-    for (const port of API_PORTS) {
-      try {
-        const loginUrl = `http://${BACKEND_HOST}:${port}/api/auth/login`;
-        const response = await fetch(loginUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ email, password })
-        });
+    try {
+      const result = await Promise.race([
+        loginWithEmail(email, password),
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({
+              success: false,
+              error: 'Đăng nhập quá lâu. Kiểm tra backend port 5001, Wi-Fi và reload Expo.',
+            });
+          }, 9000);
+        }),
+      ]);
 
-        const resData = await response.json();
-
-        if (response.ok && resData.success) {
-          const fullUserProfile = {
-            ...RICH_FALLBACK_PROFILE,
-            ...resData.user,
-            quota: {
-              ...RICH_FALLBACK_PROFILE.quota,
-              ...(resData.user?.quota || {})
-            }
-          };
-          setCurrentUser(fullUserProfile);
-          setUserToken(resData.token);
-          success = true;
-          loadData();
-          loadUserData(resData.token, port);
-          break;
+      if (result.success && result.token) {
+        // Set user ngay trong handler để thoát màn login trong cùng tick.
+        // Dữ liệu phụ và lưu storage chạy nền, tránh kẹt spinner trên Expo Go.
+        if (result.user && typeof result.user === 'object') {
+          applyLoggedInUser(result.user, result.token);
+          setAuthError('');
+          setLoggingIn(false);
+          void finalizeLogin(result.token, result.user);
         } else {
-          setAuthError(resData.error || 'Email hoặc mật khẩu không hợp lệ.');
-          success = true; 
-          break;
+          const ok = await finalizeLogin(result.token, result.user);
+          if (!ok) {
+            setAuthError('Phiên đăng nhập không hợp lệ. Vui lòng thử lại.');
+          }
         }
-      } catch (e) {
-        // Thử cổng tiếp theo
+      } else {
+        setAuthError(result.error || 'Email hoặc mật khẩu không hợp lệ.');
       }
+    } catch (err) {
+      console.warn('handleAuthLogin:', err);
+      setAuthError('Không thể đăng nhập. Kiểm tra kết nối và thử lại.');
+    } finally {
+      setLoggingIn(false);
     }
-
-    if (!success) {
-      setAuthError('Không thể kết nối tới server Backend. Hãy chắc chắn bạn đã chạy Express Server!');
-    }
-    setLoggingIn(false);
   };
 
   const handleAuthRegister = async () => {
@@ -774,167 +1148,49 @@ function AppInner() {
     }
 
     setRegistering(true);
-    let success = false;
-    for (const port of API_PORTS) {
-      try {
-        const response = await fetch(`http://${BACKEND_HOST}:${port}/api/auth/register`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({
-            name: regName.trim(),
-            email: regEmail.trim(),
-            password: regPassword,
-            role: 'customer'
-          })
-        });
 
-        const resData = await response.json();
-        if (response.ok && resData.success) {
-          setRegSuccessMessage(resData.message || 'Đăng ký thành công! Hãy đăng nhập.');
-          setEmail(regEmail.trim());
-          setPassword(regPassword);
-          setRegName('');
-          setRegEmail('');
-          setRegPassword('');
-          setRegConfirmPassword('');
-          
-          setTimeout(() => {
-            setAuthScreen('login');
-            setRegSuccessMessage('');
-          }, 2000);
-          success = true;
-          break;
-        } else {
-          setRegError(resData.error || 'Đăng ký thất bại. Vui lòng thử lại.');
-          success = true;
-          break;
-        }
-      } catch (e) {
-        // Thử cổng tiếp theo
-      }
+    const result = await registerAccount({
+      name: regName.trim(),
+      email: regEmail.trim(),
+      password: regPassword,
+      role: 'customer'
+    });
+
+    if (result.success) {
+      setRegSuccessMessage(result.message || 'Đăng ký thành công! Hãy đăng nhập.');
+      setEmail(regEmail.trim());
+      setPassword(regPassword);
+      setRegName('');
+      setRegEmail('');
+      setRegPassword('');
+      setRegConfirmPassword('');
+
+      setTimeout(() => {
+        setAuthScreen('login');
+        setRegSuccessMessage('');
+      }, 2000);
+    } else {
+      setRegError(result.error || 'Đăng ký thất bại. Vui lòng thử lại.');
     }
 
-    if (!success) {
-      setRegError('Không thể kết nối đến máy chủ Backend.');
-    }
     setRegistering(false);
   };
 
-  const handleGoogleAccountSelect = async (selectedEmail, selectedName, role) => {
-    setGoogleModalVisible(false);
-    setLoggingInGoogle(true);
-    
-    let success = false;
-    for (const port of API_PORTS) {
-      try {
-        const googleLoginUrl = `http://${BACKEND_HOST}:${port}/api/auth/google`;
-        const response = await fetch(googleLoginUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ credential: `mock_google_token_${selectedEmail}` })
-        });
-
-        const resData = await response.json();
-
-        if (response.ok && resData.success) {
-          const fullUserProfile = {
-            ...RICH_FALLBACK_PROFILE,
-            ...resData.user,
-            name: selectedName, 
-            hasGoogleLogin: true,
-            quota: {
-              ...RICH_FALLBACK_PROFILE.quota,
-              ...(resData.user?.quota || {})
-            }
-          };
-          setCurrentUser(fullUserProfile);
-          setUserToken(resData.token);
-          success = true;
-          loadData();
-          loadUserData(resData.token, port);
-          break;
-        }
-      } catch (e) {
-        // Thử cổng tiếp theo
-      }
-    }
-
-    if (!success) {
-      setCurrentUser({
-        ...RICH_FALLBACK_PROFILE,
-        name: selectedName,
-        email: selectedEmail,
-        role: role,
-        hasGoogleLogin: true
-      });
-      loadData();
-    }
-    setLoggingInGoogle(false);
-  };
-
-  const handleRealGoogleLogin = async () => {
+  const handleGoogleCredential = async (credential) => {
     setAuthError('');
     setLoggingInGoogle(true);
-    
-    const port = activePort || '5001';
-    const host = `http://${BACKEND_HOST}:${port}`;
-    
     try {
-      // Mở trình duyệt hệ thống đến trang đăng nhập Google
-      const browserResult = await promptGoogleBrowser();
-
-      if (browserResult.cancelled) {
-        return;
-      }
-
-      if (!browserResult.success) {
-        setAuthError(browserResult.error || 'Đăng nhập Google thất bại.');
-        return;
-      }
-
-      console.log('browserResult:', browserResult);
-
-      // Gửi token nhận được lên Backend xác thực
-      const { sendGoogleTokenToBackend } = require('./src/services/authService');
-      const authResult = await sendGoogleTokenToBackend({
-        idToken: browserResult.idToken,
-        accessToken: browserResult.accessToken,
-        backendHost: host,
-      });
-
-      if (!authResult.success) {
-        setAuthError(authResult.error || 'Backend từ chối xác thực.');
-        return;
-      }
-
-      const user = authResult.user;
-      if (user) {
-        const fullUserProfile = {
-          ...RICH_FALLBACK_PROFILE,
-          id: user.id,
-          name: user.fullName,
-          email: user.email,
-          avatar: user.avatar || RICH_FALLBACK_PROFILE.avatar,
-          hasGoogleLogin: true,
-          quota: {
-            ...RICH_FALLBACK_PROFILE.quota,
-          }
-        };
-        setCurrentUser(fullUserProfile);
-        setUserToken(authResult.token);
-        setJustLoggedOut(false);
-        loadData();
-        loadUserData(authResult.token, port);
+      const result = await loginWithGoogleCredential(credential);
+      if (result.success && result.token) {
+        const ok = await finalizeLogin(result.token, result.user);
+        if (!ok) {
+          setAuthError('Không lấy được thông tin tài khoản sau Google login.');
+        }
+      } else {
+        setAuthError(result.error || 'Đăng nhập Google thất bại.');
       }
     } catch (err) {
-      console.warn("Google Browser Login exception:", err);
-      setAuthError('Đăng nhập Google thất bại. Vui lòng thử lại.');
+      setAuthError('Lỗi kết nối khi đăng nhập Google.');
     } finally {
       setLoggingInGoogle(false);
     }
@@ -943,144 +1199,84 @@ function AppInner() {
   const handleWebViewMessage = (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      if (data && data.type === 'TRIGGER_MOCK_GOOGLE_LOGIN') {
-        setGoogleModalVisible(true);
-        return;
-      }
-      if (data && data.type === 'AUTH_SUCCESS') {
-        const fullUserProfile = {
-          ...RICH_FALLBACK_PROFILE,
-          ...data.user,
-          hasGoogleLogin: true,
-          quota: {
-            ...RICH_FALLBACK_PROFILE.quota,
-            ...(data.user?.quota || {})
-          }
-        };
-        setCurrentUser(fullUserProfile);
-        setUserToken(data.token);
-        setJustLoggedOut(false);
-        setGoogleWebViewVisible(false);
-        loadData();
-        
-        const port = activePort || '5001';
-        loadUserData(data.token, port);
+      if (data?.type === 'AUTH_SUCCESS' && data.token) {
+        void finalizeLogin(data.token);
       }
     } catch (e) {
       console.warn("Lỗi xử lý phản hồi đăng nhập từ WebView:", e);
     }
   };
 
-  // ĐẶT LỊCH GHI DANH LÊN MONGODB DATABASE QUA API
-  const handleBookMentor = async (mentor) => {
+  const handleBookMentor = (mentor) => {
     setBookedMentor(mentor);
-    setBookingSuccessModal(true);
+    setTabBeforeBooking(activeTab);
+    setActiveTab('mentor_booking');
+  };
 
-    if (userToken && activePort) {
-      try {
-        const response = await fetch(`http://${BACKEND_HOST}:${activePort}/api/bookings`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${userToken}`
-          },
-          body: JSON.stringify({
-            mentorId: mentor.id,
-            timeSlot: "20:00",
-            date: "16/07/2026",
-            sessionType: "mock_interview",
-            durationMinutes: 60,
-            notes: `Luyện tập phỏng vấn 1-1 về chuyên môn với ${mentor.name}`
-          })
-        });
-
-        if (response.ok) {
-          // Refresh bookings
-          loadUserData(userToken, activePort);
-        }
-      } catch (e) {
-        console.warn("Lỗi khi ghi danh booking lên database:", e);
-      }
+  const handleMentorBookingConfirm = (bookingDraft) => {
+    if (!userToken) {
+      Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để đặt lịch với mentor.');
+      return;
     }
+    goToCheckout({ mode: 'booking', booking: bookingDraft, fromTab: 'mentor_booking' });
   };
 
-  // KÍCH HOẠT PHÂN TÍCH CV VÀ LƯU KẾT QUẢ VÀO MONGODB
-  const triggerCvAnalysis = () => {
-    setCvFile({ name: 'CV_Software_Engineer_Phong.pdf', size: '1.4 MB' });
-    setAnalyzingStatus('loading');
-    setAnalysisProgress(0);
-
-    const interval = setInterval(async () => {
-      setAnalysisProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setAnalyzingStatus('success');
-
-          // Lưu kết quả phân tích CV vào MongoDB qua API
-          if (userToken && activePort) {
-            saveCvAnalysisResult();
-          }
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 250);
-  };
-
-  const saveCvAnalysisResult = async () => {
+  // Phân tích CV thật qua /api/cv/analyze/field rồi lưu MongoDB
+  const triggerCvAnalysis = async () => {
     try {
-      const response = await fetch(`http://${BACKEND_HOST}:${activePort}/api/cv/analyses`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userToken}`
-        },
-        body: JSON.stringify({
-          cvFileName: "CV_Software_Engineer_Phong.pdf",
-          cvFileId: "65cb1a3b5f92d718b2c45dee",
-          cvFileUrl: `http://${BACKEND_HOST}:${activePort}/public/mock-cv.pdf`,
-          result: {
-            matchScore: 73,
-            matchedKeywords: ["React", "CSS", "Docker", "Git", "HTML", "JavaScript"],
-            missingKeywords: ["GraphQL", "Kubernetes"],
-            skills: {
-              cv: ["React", "JavaScript", "TypeScript"],
-              jd: ["React", "TypeScript", "GraphQL"],
-              matched: ["React", "TypeScript"],
-              missing: ["GraphQL"]
-            },
-            scores: {
-              clarity: 8,
-              structure: 7,
-              relevance: 6.5
-            },
-            suggestions: [
-              "Bổ sung dự án thực tế về React Native để chứng minh kinh nghiệm 5 năm.",
-              "Làm nổi bật kỹ năng tối ưu hiệu năng Bundle size."
-            ]
-          }
-        })
+      if (!userToken) {
+        Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để phân tích CV.');
+        return;
+      }
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        copyToCacheDirectory: true,
       });
 
-      if (response.ok) {
-        // Refresh CV analyses list
-        loadUserData(userToken, activePort);
+      if (result.canceled) return;
+
+      const file = result.assets[0];
+      const fileSizeInMB = file.size != null ? (file.size / (1024 * 1024)).toFixed(2) : '?';
+      setCvFile({ name: file.name, size: `${fileSizeInMB} MB` });
+      setAnalyzingStatus('loading');
+      setAnalysisProgress(5);
+
+      const out = await analyzeAndSaveCv(
+        {
+          uri: file.uri,
+          name: file.name || 'cv.pdf',
+          mimeType: file.mimeType || 'application/pdf',
+        },
+        {
+          field: 'IT / Công nghệ',
+          onProgress: (n) => setAnalysisProgress(Math.min(100, Math.max(0, Number(n) || 0))),
+        },
+      );
+
+      if (!out.success) {
+        setAnalyzingStatus('idle');
+        setAnalysisProgress(0);
+        Alert.alert('Phân tích CV', out.error || 'Không phân tích được CV.');
+        return;
       }
-    } catch (e) {
-      console.warn("Lỗi khi lưu kết quả CV lên database:", e);
+
+      setAnalysisProgress(100);
+      setAnalyzingStatus('success');
+      await loadUserData();
+    } catch (error) {
+      console.error('Lỗi khi phân tích CV:', error);
+      setAnalyzingStatus('idle');
+      setAnalysisProgress(0);
+      Alert.alert('Phân tích CV', 'Có lỗi khi tải hoặc phân tích file.');
     }
   };
 
   const handleMarkAllRead = async () => {
-    if (userToken && activePort) {
+    if (userToken && apiConnected) {
       try {
-        const res = await fetch(`http://${BACKEND_HOST}:${activePort}/api/notifications/read-all`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${userToken}`
-          }
-        });
-        if (res.ok) {
+        const ok = await markAllNotificationsRead();
+        if (ok) {
           setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
         }
       } catch (e) {
@@ -1089,242 +1285,423 @@ function AppInner() {
     }
   };
 
+  const computeNotifAnchor = (bellX, bellY, bellW, bellH) => {
+    const panelRight = 12;
+    const panelLeft = width - panelRight - NOTIF_PANEL_WIDTH;
+    const bellCenterX = bellX + bellW / 2;
+    const caretRight = Math.max(
+      16,
+      Math.min(NOTIF_PANEL_WIDTH - 16, NOTIF_PANEL_WIDTH - (bellCenterX - panelLeft) - 5),
+    );
+
+    return {
+      top: bellY + bellH + 10,
+      right: panelRight,
+      caretRight,
+    };
+  };
+
+  const runNotifOpenAnimation = () => {
+    notifOverlayAnim.setValue(0);
+    notifPanelAnim.setValue(0);
+    Animated.parallel([
+      Animated.timing(notifOverlayAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(notifPanelAnim, {
+        toValue: 1,
+        friction: 7,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const runNotifCloseAnimation = (onDone) => {
+    Animated.parallel([
+      Animated.timing(notifOverlayAnim, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+      Animated.timing(notifPanelAnim, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished && onDone) onDone();
+    });
+  };
+
+  const openNotifDropdown = () => {
+    const showPanel = (anchor) => {
+      setNotifAnchor(anchor);
+      setNotifModalVisible(true);
+    };
+
+    if (notifBellRef.current?.measureInWindow) {
+      notifBellRef.current.measureInWindow((bellX, bellY, bellW, bellH) => {
+        if (bellW > 0 && bellH > 0) {
+          showPanel(computeNotifAnchor(bellX, bellY, bellW, bellH));
+          return;
+        }
+        showPanel({
+          top: Platform.OS === 'ios' ? 56 : 48,
+          right: 12,
+          caretRight: 22,
+        });
+      });
+      return;
+    }
+
+    showPanel({
+      top: Platform.OS === 'ios' ? 56 : 48,
+      right: 12,
+      caretRight: 22,
+    });
+  };
+
+  const closeNotifDropdown = () => {
+    if (notifClosingRef.current) return;
+    notifClosingRef.current = true;
+    runNotifCloseAnimation(() => {
+      setNotifModalVisible(false);
+      notifClosingRef.current = false;
+    });
+  };
+
+  const toggleNotifDropdown = () => {
+    if (notifModalVisible) {
+      closeNotifDropdown();
+      return;
+    }
+    openNotifDropdown();
+  };
+
+  useEffect(() => {
+    if (!notifModalVisible) return;
+    runNotifOpenAnimation();
+  }, [notifModalVisible]);
+
   const unreadNotifCount = notifications.filter(n => !n.isRead).length;
 
   // SCREEN LOGIN SYSTEM
   const renderLoginScreen = () => (
-    <View style={styles.loginWrapper}>
-      <BackgroundVideo uri="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_115001_bcdaa3b4-03de-47e7-ad63-ae3e392c32d4.mp4" />
-      <View style={styles.loginOverlay}>
-        <ScrollView contentContainerStyle={styles.loginScrollContainer} showsVerticalScrollIndicator={false}>
-          
-          <View style={styles.loginHeader}>
-            <Image source={require('./assets/Logo.png')} style={styles.loginLogoImage} resizeMode="contain" />
-            <Text style={styles.loginTagline}>Luyện phỏng vấn thông minh cùng Mentor & AI</Text>
-          </View>
+    <View style={styles.authPageBg}>
+      <View
+        style={[
+          styles.authPageBleed,
+          { top: -insets.top, bottom: -insets.bottom },
+        ]}
+        pointerEvents="none"
+      >
+        <LinearGradient
+          colors={['#f5f0fc', '#efe6fa', '#f7f3fd', '#fdfcff']}
+          locations={[0, 0.35, 0.7, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.authBlobTop} />
+        <View style={styles.authBlobBottom} />
+      </View>
 
-          <View style={styles.loginCard}>
-            <Text style={styles.loginTitle}>Chào mừng quay lại</Text>
-            <Text style={styles.loginSubtitle}>Đăng nhập tài khoản ProInterview của bạn</Text>
+      <KeyboardAvoidingView
+        style={styles.authKeyboardWrap}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={authTopPad}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.authScrollContainer,
+            { paddingTop: authTopPad, paddingBottom: authBottomPad },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+        <View style={styles.authTopBar}>
+          <Image source={require('./assets/Logo.png')} style={styles.authLogoImg} resizeMode="contain" />
+        </View>
 
-            <View style={styles.loginInputWrapper}>
-              <Ionicons name="mail" size={18} color="#93f72b" style={styles.loginInputIcon} />
-              <TextInput
-                style={styles.loginTextInput}
-                placeholder="Email của bạn"
-                placeholderTextColor="#64748b"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
+        <View style={[styles.authCardArea, { maxWidth: AUTH_CARD_MAX_WIDTH }]}>
+          <Image
+            source={require('./assets/mascot-auth-login.png')}
+            style={[styles.authMascot, { width: AUTH_MASCOT_SIZE, height: AUTH_MASCOT_SIZE }]}
+            resizeMode="contain"
+          />
 
-            <View style={styles.loginInputWrapper}>
-              <Ionicons name="lock-closed" size={18} color="#93f72b" style={styles.loginInputIcon} />
-              <TextInput
-                style={styles.loginTextInput}
-                placeholder="Mật khẩu"
-                placeholderTextColor="#64748b"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-                autoCapitalize="none"
-              />
-            </View>
+          <View style={styles.authCard}>
+            <Text style={styles.authCardTitle}>Đăng nhập</Text>
+            <Text style={styles.authCardSubtitle}>Chào bạn trở lại! Tiếp tục luyện cùng ProInterview nhé.</Text>
 
-            {authError || authContextError ? (
+            {/* Error */}
+            {(authError || authContextError) ? (
               <View style={styles.authErrorBox}>
-                <Ionicons name="alert-circle" size={16} color="#ef4444" style={{ marginRight: 6 }} />
+                <Ionicons name="alert-circle" size={15} color="#fca5a5" style={{ marginRight: 6 }} />
                 <Text style={styles.authErrorText}>{authError || authContextError}</Text>
               </View>
             ) : null}
 
-            <TouchableOpacity 
-              style={styles.loginSubmitBtn} 
+            {/* Email */}
+            <Text style={styles.authLabel}>Email</Text>
+            <TextInput
+              style={styles.authInput}
+              placeholder="email@example.com"
+              placeholderTextColor="#9ca3af"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            {/* Password */}
+            <View style={styles.authLabelRow}>
+              <Text style={styles.authLabel}>Mật khẩu</Text>
+              <Text style={styles.authForgot}>Quên mật khẩu?</Text>
+            </View>
+            <View style={styles.authInputWrap}>
+              <TextInput
+                style={[styles.authInput, { flex: 1, marginBottom: 0 }]}
+                placeholder="••••••••"
+                placeholderTextColor="#9ca3af"
+                secureTextEntry={!showPass}
+                value={password}
+                onChangeText={setPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity style={styles.authEyeBtn} onPress={() => setShowPass(v => !v)}>
+                <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color="#9ca3af" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Submit */}
+            <TouchableOpacity
+              style={styles.authSubmitBtn}
               onPress={handleAuthLogin}
               disabled={loggingIn || loggingInGoogle || authContextLoading}
+              activeOpacity={0.88}
             >
               {loggingIn ? (
                 <ActivityIndicator color="#0f172a" />
               ) : (
-                <>
-                  <Text style={styles.loginSubmitBtnText}>Đăng nhập bằng Mật khẩu</Text>
-                  <Ionicons name="arrow-forward" size={18} color="#0f172a" />
-                </>
+                <Text style={styles.authSubmitBtnText}>Đăng nhập</Text>
               )}
             </TouchableOpacity>
 
-            <View style={styles.orDividerContainer}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.orDividerText}>HOẶC KẾT NỐI</Text>
-              <View style={styles.dividerLine} />
+            {/* Divider */}
+            <View style={styles.authDivider}>
+              <View style={styles.authDividerLine} />
+              <Text style={styles.authDividerText}>hoặc</Text>
+              <View style={styles.authDividerLine} />
             </View>
 
-            <TouchableOpacity 
-              style={styles.googleLoginSubmitBtn} 
-              onPress={handleRealGoogleLogin}
-              disabled={loggingIn || loggingInGoogle || authContextLoading}
-            >
-              {loggingInGoogle || authContextLoading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <>
-                  <Image 
-                    source={{ uri: 'https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=60&auto=format&fit=crop&q=80' }} 
-                    style={styles.googleIconMini} 
-                  />
-                  <Text style={styles.googleLoginSubmitBtnText}>Tiếp tục với Google</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {/* Google */}
+            <GoogleSignInButton
+              onCredential={handleGoogleCredential}
+              onError={setAuthError}
+              disabled={loggingIn || authContextLoading}
+              loading={loggingInGoogle || authContextLoading}
+            />
 
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>
-              <Text style={{ color: '#94a3b8', fontSize: 13 }}>Chưa có tài khoản? </Text>
+            {/* Register link */}
+            <View style={styles.authFooterRow}>
+              <Text style={styles.authFooterText}>Chưa có tài khoản? </Text>
               <TouchableOpacity onPress={() => setAuthScreen('register')}>
-                <Text style={{ color: '#a78bfa', fontSize: 13, fontWeight: 'bold' }}>Đăng ký ngay</Text>
+                <Text style={styles.authFooterLink}>Đăng ký ngay</Text>
               </TouchableOpacity>
             </View>
-
-            <TouchableOpacity style={styles.loginGuestBtn} onPress={() => setCurrentUser(RICH_FALLBACK_PROFILE)}>
-              <Text style={styles.loginGuestBtnText}>Trải nghiệm nhanh (Khách)</Text>
-            </TouchableOpacity>
           </View>
-
+        </View>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 
   const renderRegisterScreen = () => (
-    <View style={styles.loginWrapper}>
-      <BackgroundVideo uri="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_115001_bcdaa3b4-03de-47e7-ad63-ae3e392c32d4.mp4" />
-      <View style={styles.loginOverlay}>
-        <ScrollView contentContainerStyle={styles.loginScrollContainer} showsVerticalScrollIndicator={false}>
-          
-          <View style={styles.loginHeader}>
-            <Image source={require('./assets/Logo.png')} style={styles.loginLogoImage} resizeMode="contain" />
-            <Text style={styles.loginTagline}>Luyện phỏng vấn thông minh cùng Mentor & AI</Text>
-          </View>
+    <View style={styles.authPageBg}>
+      <View
+        style={[
+          styles.authPageBleed,
+          { top: -insets.top, bottom: -insets.bottom },
+        ]}
+        pointerEvents="none"
+      >
+        <LinearGradient
+          colors={['#f5f0fc', '#efe6fa', '#f7f3fd', '#fdfcff']}
+          locations={[0, 0.35, 0.7, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.authBlobTop} />
+        <View style={styles.authBlobBottom} />
+      </View>
 
-          <View style={styles.loginCard}>
-            <Text style={styles.loginTitle}>Đăng ký Tài khoản</Text>
-            <Text style={styles.loginSubtitle}>Bắt đầu hành trình phỏng vấn chuyên nghiệp</Text>
+      <KeyboardAvoidingView
+        style={styles.authKeyboardWrap}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={authTopPad}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.authScrollContainer,
+            { paddingTop: authTopPad, paddingBottom: authBottomPad },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+        <View style={styles.authTopBar}>
+          <Image source={require('./assets/Logo.png')} style={styles.authLogoImg} resizeMode="contain" />
+        </View>
 
-            <View style={styles.loginInputWrapper}>
-              <Ionicons name="person-outline" size={18} color="#93f72b" style={styles.loginInputIcon} />
-              <TextInput
-                style={styles.loginTextInput}
-                placeholder="Họ và tên của bạn"
-                placeholderTextColor="#64748b"
-                value={regName}
-                onChangeText={setRegName}
-                autoCapitalize="words"
-              />
-            </View>
+        <View style={[styles.authCardArea, { maxWidth: AUTH_CARD_MAX_WIDTH }]}>
+          <Image
+            source={require('./assets/mascot-noeyes.png')}
+            style={[styles.authMascotSmall, { width: AUTH_MASCOT_SIZE * 0.82, height: AUTH_MASCOT_SIZE * 0.82 }]}
+            resizeMode="contain"
+          />
 
-            <View style={styles.loginInputWrapper}>
-              <Ionicons name="mail-outline" size={18} color="#93f72b" style={styles.loginInputIcon} />
-              <TextInput
-                style={styles.loginTextInput}
-                placeholder="Địa chỉ Email"
-                placeholderTextColor="#64748b"
-                value={regEmail}
-                onChangeText={setRegEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-
-            <View style={styles.loginInputWrapper}>
-              <Ionicons name="lock-closed-outline" size={18} color="#93f72b" style={styles.loginInputIcon} />
-              <TextInput
-                style={styles.loginTextInput}
-                placeholder="Mật khẩu (tối thiểu 6 ký tự)"
-                placeholderTextColor="#64748b"
-                secureTextEntry
-                value={regPassword}
-                onChangeText={setRegPassword}
-                autoCapitalize="none"
-              />
-            </View>
-
-            <View style={styles.loginInputWrapper}>
-              <Ionicons name="shield-checkmark-outline" size={18} color="#93f72b" style={styles.loginInputIcon} />
-              <TextInput
-                style={styles.loginTextInput}
-                placeholder="Xác nhận mật khẩu"
-                placeholderTextColor="#64748b"
-                secureTextEntry
-                value={regConfirmPassword}
-                onChangeText={setRegConfirmPassword}
-                autoCapitalize="none"
-              />
-            </View>
+          <View style={styles.authCard}>
+            <Text style={styles.authCardTitle}>Đăng ký</Text>
+            <Text style={styles.authCardSubtitle}>Bắt đầu hành trình phỏng vấn chuyên nghiệp</Text>
 
             {regError ? (
               <View style={styles.authErrorBox}>
-                <Ionicons name="alert-circle" size={16} color="#ef4444" style={{ marginRight: 6 }} />
+                <Ionicons name="alert-circle" size={15} color="#fca5a5" style={{ marginRight: 6 }} />
                 <Text style={styles.authErrorText}>{regError}</Text>
               </View>
             ) : null}
 
             {regSuccessMessage ? (
-              <View style={[styles.authErrorBox, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderColor: 'rgba(16, 185, 129, 0.2)' }]}>
-                <Ionicons name="checkmark-circle" size={16} color="#10b981" style={{ marginRight: 6 }} />
-                <Text style={[styles.authErrorText, { color: '#a7f3d0' }]}>{regSuccessMessage}</Text>
+              <View style={[styles.authErrorBox, { backgroundColor: 'rgba(147,247,43,0.12)', borderColor: 'rgba(147,247,43,0.3)' }]}>
+                <Ionicons name="checkmark-circle" size={15} color="#93f72b" style={{ marginRight: 6 }} />
+                <Text style={[styles.authErrorText, { color: '#d4ffb2' }]}>{regSuccessMessage}</Text>
               </View>
             ) : null}
 
-            <TouchableOpacity 
-              style={styles.loginSubmitBtn} 
+            <Text style={styles.authLabel}>Họ và tên</Text>
+            <TextInput
+              style={styles.authInput}
+              placeholder="Nguyễn Văn A"
+              placeholderTextColor="#9ca3af"
+              value={regName}
+              onChangeText={setRegName}
+              autoCapitalize="words"
+            />
+
+            <Text style={styles.authLabel}>Email</Text>
+            <TextInput
+              style={styles.authInput}
+              placeholder="email@example.com"
+              placeholderTextColor="#9ca3af"
+              value={regEmail}
+              onChangeText={setRegEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <Text style={styles.authLabel}>Mật khẩu</Text>
+            <TextInput
+              style={styles.authInput}
+              placeholder="Tối thiểu 6 ký tự"
+              placeholderTextColor="#9ca3af"
+              secureTextEntry
+              value={regPassword}
+              onChangeText={setRegPassword}
+              autoCapitalize="none"
+            />
+
+            <Text style={styles.authLabel}>Xác nhận mật khẩu</Text>
+            <TextInput
+              style={styles.authInput}
+              placeholder="Nhập lại mật khẩu"
+              placeholderTextColor="#9ca3af"
+              secureTextEntry
+              value={regConfirmPassword}
+              onChangeText={setRegConfirmPassword}
+              autoCapitalize="none"
+            />
+
+            <TouchableOpacity
+              style={styles.authSubmitBtn}
               onPress={handleAuthRegister}
               disabled={registering}
+              activeOpacity={0.88}
             >
               {registering ? (
                 <ActivityIndicator color="#0f172a" />
               ) : (
-                <>
-                  <Text style={styles.loginSubmitBtnText}>Tạo tài khoản mới</Text>
-                  <Ionicons name="checkmark" size={18} color="#0f172a" />
-                </>
+                <Text style={styles.authSubmitBtnText}>Tạo tài khoản</Text>
               )}
             </TouchableOpacity>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>
-              <Text style={{ color: '#94a3b8', fontSize: 13 }}>Đã có tài khoản? </Text>
+            <View style={styles.authFooterRow}>
+              <Text style={styles.authFooterText}>Đã có tài khoản? </Text>
               <TouchableOpacity onPress={() => setAuthScreen('login')}>
-                <Text style={{ color: '#a78bfa', fontSize: 13, fontWeight: 'bold' }}>Đăng nhập ngay</Text>
+                <Text style={styles.authFooterLink}>Đăng nhập ngay</Text>
               </TouchableOpacity>
             </View>
           </View>
-
+        </View>
         </ScrollView>
-      </View>
+      </KeyboardAvoidingView>
     </View>
   );
 
   // 1. MÀN HÌNH CHÍNH (DASHBOARD)
-  const renderHomeTab = () => {
-    // Tìm lịch học gần nhất lấy từ database
-    const upcomingDbBooking = bookings.find(b => b.status === 'confirmed' || b.status === 'pending');
+  const renderLegacyHomeTab = () => {
+    const parseBookingTime = (booking) => {
+      const [day, month, year = new Date().getFullYear()] = String(booking?.date || '').split('/').map(Number);
+      const [hour = 0, minute = 0] = String(booking?.timeSlot || '').split(':').map(Number);
+      const value = new Date(year, month - 1, day, hour, minute).getTime();
+      return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER;
+    };
+    const upcomingDbBooking = bookings
+      .filter(
+        (booking) =>
+          ['confirmed', 'pending'].includes(booking.status)
+          && parseBookingTime(booking) > Date.now() - 60 * 60 * 1000,
+      )
+      .sort((a, b) => parseBookingTime(a) - parseBookingTime(b))[0];
+    const paidEnrollments = enrollments.filter(
+      (item) => item.paymentStatus === 'paid' || item.paymentStatus == null,
+    );
+    const continueEnrollment =
+      paidEnrollments.find((item) => Number(item.progressPercent) > 0 && Number(item.progressPercent) < 100)
+      || paidEnrollments[0];
+    const continueCourse = continueEnrollment?.courseId || {};
+    const continueProgress = Math.min(100, Math.max(0, Number(continueEnrollment?.progressPercent) || 0));
+    const displayMentors = mentors.slice(0, 5);
+    const displayCourses = courses.slice(0, 5);
 
     return (
       <View style={styles.homeScrollWrapper}>
         <HeroAtmosphere />
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-          
-          <View style={[styles.heroWrapperCompact, { backgroundColor: '#0c081e' }]}>
-            <View style={styles.heroOverlayWashCompact}>
-              
-              <View style={styles.topHeaderCompact}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.homeModernScroll}>
+          <LinearGradient
+            colors={['rgba(43, 19, 82, 0.98)', 'rgba(15, 10, 31, 0.98)']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.homeHeroModern}
+          >
+            <View style={styles.homeHeroGlow} />
+            <View style={styles.topHeaderCompact}>
                 <View style={styles.headerWelcomeBox}>
-                  <Text style={styles.headerWelcomeText}>Xin chào,</Text>
-                  <Text style={styles.headerUserName}>{currentUser?.name || 'Bạn học'} 👋</Text>
+                <Text style={styles.headerWelcomeText}>CHÀO BUỔI TỐI</Text>
+                <Text style={styles.headerUserName} numberOfLines={1}>{appUser?.name || 'Bạn học'}</Text>
                 </View>
                 <View style={styles.headerRightActions}>
-                  <TouchableOpacity style={styles.headerIconBtn} onPress={() => setNotifModalVisible(true)}>
-                    <Ionicons name="notifications-outline" size={24} color="#ffffff" />
+                  <TouchableOpacity style={styles.headerIconBtn} onPress={openCartModal}>
+                  <Ionicons name="bag-handle-outline" size={19} color="#ffffff" />
+                    {cartSummary.count > 0 ? (
+                      <View style={styles.unreadNotifBadge}>
+                        <Text style={styles.unreadNotifBadgeText}>{cartSummary.count > 9 ? '9+' : cartSummary.count}</Text>
+                      </View>
+                    ) : null}
+                  </TouchableOpacity>
+                  <TouchableOpacity ref={notifBellRef} style={styles.headerIconBtn} onPress={toggleNotifDropdown}>
+                  <Ionicons name="notifications-outline" size={19} color="#ffffff" />
                     {unreadNotifCount > 0 ? (
                       <View style={styles.unreadNotifBadge}>
                         <Text style={styles.unreadNotifBadgeText}>{unreadNotifCount}</Text>
@@ -1332,125 +1709,234 @@ function AppInner() {
                     ) : null}
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.avatarProfile} onPress={() => setActiveTab('profile')}>
-                    <Text style={styles.avatarText}>{currentUser?.name ? currentUser.name.substring(0,2).toUpperCase() : 'VP'}</Text>
+                    {appUser?.avatar ? (
+                      <Image source={{ uri: resolveMediaUrl(appUser.avatar) }} style={styles.avatarImageCompact} />
+                    ) : (
+                      <Text style={styles.avatarText}>{appUser?.name ? appUser.name.substring(0,2).toUpperCase() : 'VP'}</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
 
-              <View style={styles.heroMiddleCompact}>
-                <Image source={require('./assets/Logo.png')} style={styles.heroLogoCompact} resizeMode="contain" />
-                <Text style={styles.heroHeadlineCompact}>Luyện phỏng vấn cùng Mentor thật</Text>
-                
-                <View style={styles.actionButtonContainerCompact}>
-                  <TouchableOpacity style={styles.primaryLimeBtnCompact} onPress={() => setActiveTab('cv')}>
-                    <Ionicons name="flash" size={16} color="#0f172a" />
-                    <Text style={styles.primaryLimeBtnTextCompact}>Phân tích CV</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.secondaryOutlineBtnCompact} onPress={() => setActiveTab('mentors')}>
-                    <Ionicons name="people" size={16} color="#0f172a" />
-                    <Text style={styles.secondaryOutlineBtnTextCompact}>Tìm Mentor</Text>
-                  </TouchableOpacity>
+            <View style={styles.homeHeroCopy}>
+              <View style={styles.homeHeroEyebrow}>
+                <View style={styles.homeHeroEyebrowDot} />
+                <Text style={styles.homeHeroEyebrowText}>CAREER PERFORMANCE</Text>
+              </View>
+              <Text style={styles.homeHeroTitle}>
+                Nâng cấp sự nghiệp,{'\n'}<Text style={styles.homeHeroTitleAccent}>bắt đầu từ hôm nay.</Text>
+              </Text>
+              <Text style={styles.homeHeroSubtitle}>Luyện tập có chiến lược cùng mentor và dữ liệu cá nhân hóa.</Text>
+
+              <View style={styles.homeHeroActions}>
+                <TouchableOpacity style={styles.homeHeroPrimary} onPress={() => setActiveTab('cv')}>
+                  <Text style={styles.homeHeroPrimaryText}>Phân tích CV</Text>
+                  <Ionicons name="arrow-forward" size={15} color="#0d1410" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.homeHeroSecondary} onPress={() => setActiveTab('mentors')}>
+                  <Ionicons name="people-outline" size={15} color="#ffffff" />
+                  <Text style={styles.homeHeroSecondaryText}>Tìm mentor</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.homeStatsRow}>
+              <View style={styles.homeStatItem}>
+                <Text style={styles.homeStatValue}>{cvAnalyses.length}</Text>
+                <Text style={styles.homeStatLabel}>CV đã phân tích</Text>
+              </View>
+              <View style={styles.homeStatDivider} />
+              <View style={styles.homeStatItem}>
+                <Text style={styles.homeStatValue}>{bookings.length}</Text>
+                <Text style={styles.homeStatLabel}>Buổi luyện tập</Text>
+              </View>
+              <View style={styles.homeStatDivider} />
+              <View style={styles.homeStatItem}>
+                <Text style={styles.homeStatValue}>{paidEnrollments.length}</Text>
+                <Text style={styles.homeStatLabel}>Khóa sở hữu</Text>
+              </View>
+            </View>
+          </LinearGradient>
+
+          <View style={styles.homeModernSection}>
+            <View style={styles.homeSectionHeader}>
+              <View>
+                <Text style={styles.homeSectionEyebrow}>LỊCH TRÌNH</Text>
+                <Text style={styles.homeSectionTitle}>Tiếp theo của bạn</Text>
+              </View>
+              <View style={styles.homeLiveBadge}>
+                <View style={styles.homeLiveDot} />
+                <Text style={styles.homeLiveText}>Đồng bộ API</Text>
+              </View>
+            </View>
+
+            <LinearGradient
+              colors={['#19182a', '#11131f']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.homeNextCard}
+            >
+              <View style={styles.homeNextIcon}>
+                <Ionicons name={upcomingDbBooking ? 'calendar' : 'calendar-outline'} size={22} color="#93f72b" />
+              </View>
+              <View style={styles.homeNextBody}>
+                {upcomingDbBooking ? (
+                  <>
+                    <Text style={styles.homeNextLabel}>BUỔI HẸN SẮP TỚI</Text>
+                    <Text style={styles.homeNextTitle}>
+                      {upcomingDbBooking.sessionType === 'mock_interview' ? 'Phỏng vấn thử 1-1' : 'Review hồ sơ cùng Mentor'}
+                    </Text>
+                    <Text style={styles.homeNextMeta}>
+                      {upcomingDbBooking.date} · {upcomingDbBooking.timeSlot}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.homeNextLabel}>CHƯA CÓ LỊCH HẸN</Text>
+                    <Text style={styles.homeNextTitle}>Sẵn sàng luyện cùng chuyên gia?</Text>
+                    <Text style={styles.homeNextMeta}>Chọn mentor phù hợp và đặt khung giờ của bạn.</Text>
+                  </>
+                )}
+              </View>
+              <TouchableOpacity
+                style={styles.homeNextAction}
+                onPress={() => {
+                  if (upcomingDbBooking?.meetingLink) Linking.openURL(upcomingDbBooking.meetingLink);
+                  else setActiveTab('mentors');
+                }}
+              >
+                <Ionicons name={upcomingDbBooking?.meetingLink ? 'videocam' : 'arrow-forward'} size={17} color="#0d1410" />
+              </TouchableOpacity>
+            </LinearGradient>
+          </View>
+
+          {continueEnrollment ? (
+            <View style={styles.homeModernSection}>
+              <View style={styles.homeSectionHeader}>
+                <View>
+                  <Text style={styles.homeSectionEyebrow}>HỌC TẬP</Text>
+                  <Text style={styles.homeSectionTitle}>Tiếp tục hành trình</Text>
                 </View>
               </View>
-
-            </View>
-          </View>
-
-          {/* LỊCH HẸN DATABASE THỜI GIAN THỰC */}
-          <View style={styles.widgetSection}>
-            <View style={styles.upcomingMeetingWidget}>
-              <View style={styles.widgetHeaderRow}>
-                <View style={styles.liveIndicatorRow}>
-                  <View style={styles.liveDot} />
-                  <Text style={styles.liveText}>Lịch hẹn tiếp theo</Text>
-                </View>
-                <Text style={styles.widgetRoomCode}>Zoom Meeting</Text>
-              </View>
-              {upcomingDbBooking ? (
-                <>
-                  <Text style={styles.widgetTitle}>{upcomingDbBooking.sessionType === 'mock_interview' ? 'Luyện Phỏng Vấn Thử' : 'Đánh giá review CV'}</Text>
-                  <Text style={styles.widgetMetaText}>⏱ Lịch hẹn: {upcomingDbBooking.date} lúc {upcomingDbBooking.timeSlot} · Trạng thái: {upcomingDbBooking.status.toUpperCase()}</Text>
-                  <TouchableOpacity style={styles.widgetActionBtn} onPress={() => alert('Đang kết nối Zoom...')}>
-                    <Text style={styles.widgetActionBtnText}>Vào lớp Zoom</Text>
-                    <Ionicons name="videocam" size={16} color="#0f172a" />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.widgetTitle}>Luyện Phỏng Vấn Frontend Senior</Text>
-                  <Text style={styles.widgetMetaText}>⏱ Thứ 5 tuần này · 20:00 - 21:00 với Mentor Nguyễn Yến Nhi</Text>
-                  <TouchableOpacity style={styles.widgetActionBtn} onPress={() => alert('Đang mở ứng dụng Zoom để vào học...')}>
-                    <Text style={styles.widgetActionBtnText}>Vào lớp Zoom ngay</Text>
-                    <Ionicons name="videocam" size={16} color="#0f172a" />
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-          </View>
-
-          <View style={styles.mobileSection}>
-            <Text style={styles.mobileSectionTitle}>Lộ trình luyện phỏng vấn</Text>
-            <View style={styles.stepFlowBar}>
-              <TouchableOpacity style={styles.stepFlowPill} onPress={() => setActiveTab('cv')}>
-                <Text style={styles.stepFlowNum}>01</Text>
-                <Text style={styles.stepFlowName}>Phân tích CV</Text>
-              </TouchableOpacity>
-              <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.2)" />
-              <TouchableOpacity style={styles.stepFlowPill} onPress={() => setActiveTab('mentors')}>
-                <Text style={styles.stepFlowNum}>02</Text>
-                <Text style={styles.stepFlowName}>Gặp Mentor</Text>
-              </TouchableOpacity>
-              <Ionicons name="chevron-forward" size={14} color="rgba(255,255,255,0.2)" />
-              <TouchableOpacity style={styles.stepFlowPill} onPress={() => setActiveTab('courses')}>
-                <Text style={styles.stepFlowNum}>03</Text>
-                <Text style={styles.stepFlowName}>Học khóa học</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.mobileSection}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.mobileSectionTitle}>Đội ngũ Mentor tiêu biểu</Text>
-              <TouchableOpacity style={styles.viewAllRow} onPress={() => setActiveTab('mentors')}>
-                <Text style={styles.viewAllText}>Xem tất cả</Text>
-                <Ionicons name="chevron-forward" size={12} color="#93f72b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCarouselContainer}>
-              {mentors.length > 0 ? mentors.map(mentor => (
-                <TouchableOpacity key={mentor.id} style={styles.mentorMiniCardMobile} onPress={() => handleBookMentor(mentor)}>
-                  <View style={styles.avatarGlowContainer}>
-                    <Image source={{ uri: mentor.avatar }} style={styles.mentorMiniAvatar} />
-                    <View style={styles.onlineDotIndicator} />
+              <TouchableOpacity style={styles.homeLearningCard} onPress={() => openCourseLearning(continueEnrollment)}>
+                {continueCourse.image || continueCourse.thumbnail ? (
+                  <Image
+                    source={{ uri: continueCourse.image || continueCourse.thumbnail }}
+                    style={styles.homeLearningImage}
+                  />
+                ) : (
+                  <LinearGradient colors={['#6d28d9', '#312e81']} style={styles.homeLearningImage}>
+                    <Ionicons name="school" size={25} color="#fff" />
+                  </LinearGradient>
+                )}
+                <View style={styles.homeLearningBody}>
+                  <Text style={styles.homeLearningTitle} numberOfLines={2}>
+                    {getCourseDisplayTitle(continueCourse.title || 'Khóa học của bạn')}
+                  </Text>
+                  <View style={styles.homeLearningProgressHeader}>
+                    <Text style={styles.homeLearningProgressLabel}>Tiến độ</Text>
+                    <Text style={styles.homeLearningProgressValue}>{continueProgress}%</Text>
                   </View>
-                  <Text style={styles.mentorMiniName}>{mentor.name}</Text>
-                  <Text style={styles.mentorMiniRole} numberOfLines={1}>{mentor.role}</Text>
-                  <View style={styles.mentorMiniMeta}>
-                    <View style={styles.miniCompanyBadge}>
-                      <Text style={styles.mentorMiniCompany}>{mentor.company}</Text>
+                  <View style={styles.homeLearningTrack}>
+                    <LinearGradient
+                      colors={['#93f72b', '#22c55e']}
+                      style={[styles.homeLearningFill, { width: `${continueProgress}%` }]}
+                    />
+                  </View>
+                  <Text style={styles.homeLearningCta}>{continueProgress > 0 ? 'Học tiếp' : 'Bắt đầu học'}  →</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          <View style={styles.homeModernSection}>
+            <View style={styles.homeSectionHeader}>
+              <View>
+                <Text style={styles.homeSectionEyebrow}>CHUYÊN GIA</Text>
+                <Text style={styles.homeSectionTitle}>Mentor dành cho bạn</Text>
+              </View>
+              <TouchableOpacity onPress={() => setActiveTab('mentors')}>
+                <Text style={styles.homeViewAll}>Xem tất cả</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.homeCarousel}>
+              {displayMentors.map((mentor) => (
+                <TouchableOpacity key={mentor.id} style={styles.homeMentorCard} onPress={() => handleBookMentor(mentor)}>
+                  <View style={styles.homeMentorTop}>
+                    {mentor.avatar ? (
+                      <Image source={{ uri: mentor.avatar }} style={styles.homeMentorAvatar} />
+                    ) : (
+                      <View style={[styles.homeMentorAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#e9e0f7' }]}>
+                        <Ionicons name="person" size={20} color="#7c6a9a" />
+                      </View>
+                    )}
+                    {mentor.isVerified === true ? (
+                      <View style={styles.homeMentorVerified}>
+                        <Ionicons name="checkmark" size={9} color="#10131e" />
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.homeMentorName} numberOfLines={1}>{mentor.name}</Text>
+                  <Text style={styles.homeMentorRole} numberOfLines={1}>{mentor.role}</Text>
+                  <View style={styles.homeMentorBottom}>
+                    <View style={styles.homeMentorRating}>
+                      <Ionicons name="star" size={11} color="#f4c96b" />
+                      <Text style={styles.homeMentorRatingText}>
+                        {mentor.rating != null && Number(mentor.rating) > 0
+                          ? Number(mentor.rating).toFixed(1)
+                          : '—'}
+                      </Text>
                     </View>
-                    <View style={styles.mentorMiniRating}>
-                      <Ionicons name="star" size={10} color="#f59e0b" />
-                      <Text style={styles.mentorMiniRatingText}>{mentor.rating}</Text>
-                    </View>
+                    <Text style={styles.homeMentorPrice}>
+                      {mentor.price ? `${Math.round(mentor.price / 1000)}K` : 'Liên hệ'}
+                    </Text>
                   </View>
                 </TouchableOpacity>
-              )) : FALLBACK_MENTORS.map(mentor => (
-                <TouchableOpacity key={mentor.id} style={styles.mentorMiniCardMobile} onPress={() => handleBookMentor(mentor)}>
-                  <View style={styles.avatarGlowContainer}>
-                    <Image source={{ uri: mentor.avatar }} style={styles.mentorMiniAvatar} />
-                    <View style={styles.onlineDotIndicator} />
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={styles.homeModernSection}>
+            <View style={styles.homeSectionHeader}>
+              <View>
+                <Text style={styles.homeSectionEyebrow}>HỌC VIỆN</Text>
+                <Text style={styles.homeSectionTitle}>Khóa học nổi bật</Text>
+              </View>
+              <TouchableOpacity onPress={() => setActiveTab('courses')}>
+                <Text style={styles.homeViewAll}>Khám phá</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.homeCarousel}>
+              {displayCourses.map((course) => (
+                <TouchableOpacity
+                  key={course.id}
+                  style={styles.homeCourseCard}
+                  onPress={() => apiConnected ? handleBuyCourseNow(course) : setActiveTab('courses')}
+                >
+                  {course.image ? (
+                    <Image source={{ uri: course.image }} style={styles.homeCourseImage} />
+                  ) : (
+                    <View style={[styles.homeCourseImage, { backgroundColor: '#2D1B69' }]} />
+                  )}
+                  <LinearGradient
+                    colors={['transparent', 'rgba(8,6,17,0.96)']}
+                    style={styles.homeCourseShade}
+                  />
+                  <View style={styles.homeCourseBadge}>
+                    <Text style={styles.homeCourseBadgeText}>{course.price}</Text>
                   </View>
-                  <Text style={styles.mentorMiniName}>{mentor.name}</Text>
-                  <Text style={styles.mentorMiniRole} numberOfLines={1}>{mentor.role}</Text>
-                  <View style={styles.mentorMiniMeta}>
-                    <View style={styles.miniCompanyBadge}>
-                      <Text style={styles.mentorMiniCompany}>{mentor.company}</Text>
-                    </View>
-                    <View style={styles.mentorMiniRating}>
-                      <Ionicons name="star" size={10} color="#f59e0b" />
-                      <Text style={styles.mentorMiniRatingText}>{mentor.rating}</Text>
+                  <View style={styles.homeCourseContent}>
+                    <Text style={styles.homeCourseTitle} numberOfLines={2}>{course.title}</Text>
+                    <View style={styles.homeCourseMeta}>
+                      <Text style={styles.homeCourseDuration}>{course.duration || '—'}</Text>
+                      <View style={styles.homeMentorRating}>
+                        <Ionicons name="star" size={10} color="#f4c96b" />
+                        <Text style={styles.homeMentorRatingText}>
+                          {course.rating != null && Number(course.rating) > 0
+                            ? Number(course.rating).toFixed(1)
+                            : '—'}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                 </TouchableOpacity>
@@ -1458,191 +1944,743 @@ function AppInner() {
             </ScrollView>
           </View>
 
-          <View style={styles.mobileSection}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.mobileSectionTitle}>Khóa học bán chạy</Text>
-              <TouchableOpacity style={styles.viewAllRow} onPress={() => setActiveTab('courses')}>
-                <Text style={styles.viewAllText}>Xem tất cả</Text>
-                <Ionicons name="chevron-forward" size={12} color="#93f72b" />
-              </TouchableOpacity>
+          <View style={styles.homeModernSection}>
+            <View style={styles.homeSectionHeader}>
+              <View>
+                <Text style={styles.homeSectionEyebrow}>LỘ TRÌNH</Text>
+                <Text style={styles.homeSectionTitle}>Ba bước để tiến xa hơn</Text>
+              </View>
             </View>
-
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalCarouselContainer}>
-              {courses.length > 0 ? courses.map(course => (
-                <TouchableOpacity key={course.id} style={styles.courseMiniCardMobile} onPress={() => setActiveTab('courses')}>
-                  <View style={{ position: 'relative' }}>
-                    <Image source={{ uri: course.image }} style={styles.courseMiniImage} />
-                    <View style={styles.courseMiniPriceBadge}>
-                      <Text style={styles.courseMiniPriceText}>{course.price}</Text>
-                    </View>
+            <View style={styles.homeJourneyGrid}>
+              {[
+                { icon: 'document-text-outline', title: 'Hiểu hồ sơ', done: cvAnalyses.length > 0, tab: 'cv' },
+                { icon: 'people-outline', title: 'Luyện 1-1', done: bookings.length > 0, tab: 'mentors' },
+                { icon: 'school-outline', title: 'Bổ sung kỹ năng', done: paidEnrollments.length > 0, tab: 'courses' },
+              ].map((step, index) => (
+                <TouchableOpacity key={step.title} style={styles.homeJourneyItem} onPress={() => setActiveTab(step.tab)}>
+                  <View style={[styles.homeJourneyIcon, step.done && styles.homeJourneyIconDone]}>
+                    <Ionicons name={step.done ? 'checkmark' : step.icon} size={17} color={step.done ? '#0d1410' : '#a78bfa'} />
                   </View>
-                  <View style={styles.courseMiniContent}>
-                    <Text style={styles.courseMiniTitle} numberOfLines={1}>{course.title}</Text>
-                    <View style={styles.courseMiniMetaRow}>
-                      <Text style={styles.courseMiniDuration}>⏱ {course.duration}</Text>
-                      <View style={styles.courseMiniRatingRow}>
-                        <Ionicons name="star" size={10} color="#f59e0b" />
-                        <Text style={styles.courseMiniRatingVal}>{course.rating}</Text>
-                      </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              )) : FALLBACK_COURSES.map(course => (
-                <TouchableOpacity key={course.id} style={styles.courseMiniCardMobile} onPress={() => setActiveTab('courses')}>
-                  <View style={{ position: 'relative' }}>
-                    <Image source={{ uri: course.image }} style={styles.courseMiniImage} />
-                    <View style={styles.courseMiniPriceBadge}>
-                      <Text style={styles.courseMiniPriceText}>{course.price}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.courseMiniContent}>
-                    <Text style={styles.courseMiniTitle} numberOfLines={1}>{course.title}</Text>
-                    <View style={styles.courseMiniMetaRow}>
-                      <Text style={styles.courseMiniDuration}>⏱ {course.duration}</Text>
-                      <View style={styles.courseMiniRatingRow}>
-                        <Ionicons name="star" size={10} color="#f59e0b" />
-                        <Text style={styles.courseMiniRatingVal}>{course.rating}</Text>
-                      </View>
-                    </View>
-                  </View>
+                  <Text style={styles.homeJourneyNumber}>0{index + 1}</Text>
+                  <Text style={styles.homeJourneyTitle}>{step.title}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
-          </View>
-
-          <View style={styles.mobileSection}>
-            <Text style={styles.mobileSectionTitle}>Tin tức & Hoạt động</Text>
-            <View style={styles.newsSpotlightCard}>
-              <Image source={{ uri: NEWS_DATA[0].image }} style={styles.newsSpotlightImage} />
-              <View style={styles.newsSpotlightContent}>
-                <Text style={styles.newsSpotlightDate}>{NEWS_DATA[0].date}</Text>
-                <Text style={styles.newsSpotlightTitle}>{NEWS_DATA[0].title}</Text>
-                <TouchableOpacity style={styles.newsSpotlightLink} onPress={() => alert('Đang mở trang tin tức chi tiết...')}>
-                  <Text style={styles.newsSpotlightLinkText}>Đọc tiếp bài viết</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#93f72b" />
-                </TouchableOpacity>
-              </View>
             </View>
           </View>
 
           <View style={styles.footerMinimalContainer}>
-            <Image source={require('./assets/Logo.png')} style={styles.footerMinimalLogo} resizeMode="contain" />
-            <Text style={styles.footerMinimalCopyright}>© 2026 ProInterview. All rights reserved.</Text>
-            <View style={styles.footerMinimalHeartRow}>
-              <Text style={styles.footerMinimalHeartText}>Made with </Text>
-              <Ionicons name="heart" size={10} color="#ef4444" />
-              <Text style={styles.footerMinimalHeartText}> by ProInterview Team</Text>
-            </View>
+            <Text style={styles.footerMinimalCopyright}>PROINTERVIEW · GROW WITH PURPOSE</Text>
           </View>
-
         </ScrollView>
       </View>
     );
   };
 
-  // 2. MÀN HÌNH MENTORS
-  const renderMentorsTab = () => {
-    const filteredMentors = mentors.filter(mentor => {
-      const matchSearch = mentor.name.toLowerCase().includes(searchMentorQuery.toLowerCase()) || 
-                          mentor.role.toLowerCase().includes(searchMentorQuery.toLowerCase()) ||
-                          mentor.company.toLowerCase().includes(searchMentorQuery.toLowerCase());
-      const matchCategory = selectedMentorCategory === 'Tất cả' || mentor.category === selectedMentorCategory;
-      return matchSearch && matchCategory;
-    });
-
-    const categories = ['Tất cả', 'Frontend', 'Backend', 'AI/ML', 'QA/QC'];
+  const renderEditorialHomeTab = () => {
+    const activeBookings = bookings.filter((item) => ['confirmed', 'pending'].includes(item.status));
+    const nextBooking = activeBookings[0];
+    const ownedEnrollments = enrollments.filter(
+      (item) => item.paymentStatus === 'paid' || item.paymentStatus == null,
+    );
+    const learningEnrollment =
+      ownedEnrollments.find((item) => Number(item.progressPercent) > 0 && Number(item.progressPercent) < 100)
+      || ownedEnrollments[0];
+    const learningCourse = learningEnrollment?.courseId || {};
+    const learningProgress = Math.min(100, Math.max(0, Number(learningEnrollment?.progressPercent) || 0));
+    const editorialMentors = mentors.slice(0, 4);
+    const featuredMentor = editorialMentors[0];
+    const editorialCourses = courses.slice(0, 3);
 
     return (
-      <View style={styles.tabContentContainer}>
-        <Text style={styles.tabTitle}>Đội ngũ Mentor</Text>
-        <Text style={styles.tabSubtitle}>Đặt lịch ôn luyện 1-1 cùng các chuyên gia hàng đầu</Text>
-
-        <View style={styles.searchBarWrapper}>
-          <Ionicons name="search" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
-          <TextInput
-            style={styles.searchTextInput}
-            placeholder="Tìm kiếm Mentor..."
-            placeholderTextColor="#64748b"
-            value={searchMentorQuery}
-            onChangeText={setSearchMentorQuery}
-          />
-          {searchMentorQuery ? (
-            <TouchableOpacity onPress={() => setSearchMentorQuery('')}>
-              <Ionicons name="close-circle" size={18} color="#94a3b8" />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        <View style={styles.filterPillsRowWrapper}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 10 }}>
-            {categories.map(cat => (
-              <TouchableOpacity 
-                key={cat} 
-                style={[
-                  styles.filterPillBtn, 
-                  selectedMentorCategory === cat ? styles.filterPillBtnActive : null
-                ]}
-                onPress={() => setSelectedMentorCategory(cat)}
-              >
-                <Text 
-                  style={[
-                    styles.filterPillBtnText, 
-                    selectedMentorCategory === cat ? styles.filterPillBtnTextActive : null
-                  ]}
-                >
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-        
-        {loading ? (
-          <View style={styles.tabLoading}>
-            <ActivityIndicator color="#7000ff" size="large" />
-            <Text style={styles.loadingText}>Đang tải danh sách từ API...</Text>
-          </View>
-        ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.mentorsVerticalScroll}>
-            {filteredMentors.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="sad-outline" size={44} color="#94a3b8" />
-                <Text style={styles.emptyText}>Không tìm thấy Mentor phù hợp.</Text>
+      <View style={styles.homeScrollWrapper}>
+        <HeroAtmosphere />
+        <Animated.ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.editorialScroll}
+          style={{
+            opacity: homeEntrance,
+            transform: [{
+              translateY: homeEntrance.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }),
+            }],
+          }}
+        >
+          <View style={styles.editorialHeader}>
+            <TouchableOpacity style={styles.editorialIdentity} onPress={() => setActiveTab('profile')}>
+              <View style={styles.editorialAvatar}>
+                {appUser?.avatar ? (
+                  <Image source={{ uri: resolveMediaUrl(appUser.avatar) }} style={styles.avatarImageCompact} />
+                ) : (
+                  <Text style={styles.avatarText}>{appUser?.name?.slice(0, 2).toUpperCase() || 'PI'}</Text>
+                )}
               </View>
-            ) : (
-              filteredMentors.map(mentor => (
-                <View key={mentor.id} style={styles.mentorPremiumCard}>
-                  <View style={styles.mentorCardTopRow}>
-                    <View style={styles.avatarGlowContainer}>
-                      <Image source={{ uri: mentor.avatar }} style={styles.mentorFullAvatar} />
-                      <View style={styles.onlineDotIndicator} />
+              <View>
+                <Text style={styles.editorialHello}>XIN CHÀO</Text>
+                <Text style={styles.editorialUserName} numberOfLines={1}>{appUser?.name || 'Bạn học'}</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={styles.editorialHeaderActions}>
+              <TouchableOpacity style={styles.editorialHeaderButton} onPress={openCartModal}>
+                <Ionicons name="bag-handle-outline" size={18} color="#e8eaf0" />
+                {cartSummary.count > 0 ? <View style={styles.editorialAlertDot} /> : null}
+              </TouchableOpacity>
+              <TouchableOpacity ref={notifBellRef} style={styles.editorialHeaderButton} onPress={toggleNotifDropdown}>
+                <Ionicons name="notifications-outline" size={18} color="#e8eaf0" />
+                {unreadNotifCount > 0 ? <View style={styles.editorialAlertDot} /> : null}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.editorialIntro}>
+            <Text style={styles.editorialMonogram}>PI</Text>
+            <View style={styles.editorialIntroTop}>
+              <Text style={styles.editorialKicker}>PROINTERVIEW / CAREER LAB</Text>
+              <View style={styles.editorialIssueBadge}>
+                <Text style={styles.editorialIssueText}>ISSUE 07</Text>
+              </View>
+            </View>
+            <Text style={styles.editorialHeadline}>Tập đúng.{'\n'}Hiểu sâu. <Text style={styles.editorialHeadlineAccent}>Bứt phá.</Text></Text>
+            <View style={styles.editorialIntroBottom}>
+              <View style={styles.editorialIntroRule} />
+              <Text style={styles.editorialLead}>Một chiến lược rõ ràng, phản hồi thật và người đồng hành phù hợp.</Text>
+            </View>
+          </View>
+
+          <LinearGradient
+            colors={['#5520a5', '#24113f']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.editorialFeature}
+          >
+            <View style={styles.editorialFeatureOrb} />
+            {featuredMentor?.avatar ? (
+              <Image source={{ uri: featuredMentor.avatar }} style={styles.editorialFeaturePortrait} />
+            ) : null}
+            <View style={styles.editorialFeatureMetric}>
+              <Text style={styles.editorialFeatureMetricValue}>
+                {featuredMentor?.rating != null && Number(featuredMentor.rating) > 0
+                  ? Number(featuredMentor.rating).toFixed(1)
+                  : '—'}
+              </Text>
+              <Text style={styles.editorialFeatureMetricLabel}>MENTOR RATING</Text>
+            </View>
+            <Text style={styles.editorialFeatureVertical}>PRACTICE / PERFORM / PROGRESS</Text>
+            <View style={styles.editorialFeatureCopy}>
+              <Text style={styles.editorialFeatureTag}>LUYỆN TẬP 1-1</Text>
+              <Text style={styles.editorialFeatureTitle}>Đừng đoán mình thiếu gì.{'\n'}Hãy hỏi người đã biết.</Text>
+              <TouchableOpacity style={styles.editorialFeatureButton} onPress={() => setActiveTab('mentors')}>
+                <Text style={styles.editorialFeatureButtonText}>Chọn mentor</Text>
+                <Ionicons name="arrow-up-outline" size={14} color="#0d1410" style={{ transform: [{ rotate: '45deg' }] }} />
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+
+          <View style={styles.editorialTicker}>
+            {['CV REVIEW', 'MOCK INTERVIEW', 'MENTOR 1-1'].map((item) => (
+              <React.Fragment key={item}>
+                <Text style={styles.editorialTickerText}>{item}</Text>
+                <View style={styles.editorialTickerDot} />
+              </React.Fragment>
+            ))}
+          </View>
+
+          <View style={styles.editorialQuickGrid}>
+            <TouchableOpacity style={styles.editorialQuickPrimary} onPress={() => setActiveTab('cv')}>
+              <View style={styles.editorialQuickIcon}>
+                <Ionicons name="scan-outline" size={20} color="#0d1410" />
+              </View>
+              <Text style={styles.editorialQuickCount}>{cvAnalyses.length.toString().padStart(2, '0')}</Text>
+              <Text style={styles.editorialQuickTitle}>Hiểu rõ{'\n'}CV của bạn</Text>
+              <Text style={styles.editorialQuickLink}>Phân tích ngay →</Text>
+            </TouchableOpacity>
+            <View style={styles.editorialQuickStack}>
+              <TouchableOpacity style={styles.editorialQuickSmall} onPress={() => setActiveTab('mentors')}>
+                <Ionicons name="people-outline" size={18} color="#a78bfa" />
+                <Text style={styles.editorialQuickSmallValue}>{mentors.length}</Text>
+                <Text style={styles.editorialQuickSmallLabel}>Mentor xác minh</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.editorialQuickSmall} onPress={() => setActiveTab('courses')}>
+                <Ionicons name="library-outline" size={18} color="#93f72b" />
+                <Text style={styles.editorialQuickSmallValue}>{ownedEnrollments.length}</Text>
+                <Text style={styles.editorialQuickSmallLabel}>Khóa đã sở hữu</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {(nextBooking || learningEnrollment) ? (
+            <View style={styles.editorialSection}>
+              <Text style={styles.editorialSectionIndex}>01</Text>
+              <View style={styles.editorialSectionHeadingRow}>
+                <Text style={styles.editorialSectionTitle}>Nhịp độ của bạn</Text>
+                <View style={styles.editorialSectionLine} />
+              </View>
+
+              {nextBooking ? (
+                <TouchableOpacity
+                  style={styles.editorialActivityRow}
+                  onPress={() => {
+                    if (nextBooking.meetingLink) {
+                      Linking.openURL(nextBooking.meetingLink);
+                    } else {
+                      setProfileSubTab('history');
+                      setActiveTab('profile');
+                    }
+                  }}
+                >
+                  <View style={styles.editorialActivityDate}>
+                    <Text style={styles.editorialActivityDay}>{String(nextBooking.date || '').split('/')[0] || '--'}</Text>
+                    <Text style={styles.editorialActivityMonth}>THÁNG {String(nextBooking.date || '').split('/')[1] || '--'}</Text>
+                  </View>
+                  <View style={styles.editorialActivityBody}>
+                    <Text style={styles.editorialActivityType}>LỊCH HẸN MENTOR</Text>
+                    <Text style={styles.editorialActivityTitle}>Phỏng vấn thử 1-1</Text>
+                    <Text style={styles.editorialActivityMeta}>{nextBooking.timeSlot} · {nextBooking.status}</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={18} color="#93f72b" />
+                </TouchableOpacity>
+              ) : null}
+
+              {learningEnrollment ? (
+                <TouchableOpacity style={styles.editorialLearningRow} onPress={() => openCourseLearning(learningEnrollment)}>
+                  <View style={styles.editorialLearningTop}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.editorialActivityType}>ĐANG HỌC</Text>
+                      <Text style={styles.editorialActivityTitle} numberOfLines={1}>
+                        {getCourseDisplayTitle(learningCourse.title || 'Khóa học của bạn')}
+                      </Text>
                     </View>
-                    <View style={styles.mentorMainDetails}>
-                      <Text style={styles.mentorFullName}>{mentor.name}</Text>
-                      <Text style={styles.mentorFullRole} numberOfLines={1}>{mentor.role}</Text>
-                      <View style={styles.mentorFullBadgeRow}>
-                        <View style={styles.companyFullBadge}>
-                          <Text style={styles.companyFullBadgeText}>{mentor.company}</Text>
-                        </View>
-                        <View style={styles.ratingFullRow}>
-                          <Ionicons name="star" size={12} color="#f59e0b" />
-                          <Text style={styles.ratingFullText}>{mentor.rating} ({mentor.reviews || 20} đánh giá)</Text>
-                        </View>
-                      </View>
+                    <Text style={styles.editorialLearningPercent}>{learningProgress}%</Text>
+                  </View>
+                  <View style={styles.editorialLearningTrack}>
+                    <LinearGradient
+                      colors={['#93f72b', '#22c55e']}
+                      style={[styles.editorialLearningFill, { width: `${learningProgress}%` }]}
+                    />
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : null}
+
+          {featuredMentor ? (
+            <View style={styles.editorialSection}>
+              <Text style={styles.editorialSectionIndex}>02</Text>
+              <View style={styles.editorialSectionHeadingRow}>
+                <Text style={styles.editorialSectionTitle}>Gương mặt được chọn</Text>
+                <TouchableOpacity onPress={() => setActiveTab('mentors')}>
+                  <Text style={styles.editorialSectionLink}>Tất cả</Text>
+                </TouchableOpacity>
+              </View>
+              <TouchableOpacity style={styles.editorialMentorFeature} onPress={() => handleBookMentor(featuredMentor)}>
+                {featuredMentor.avatar ? (
+                  <Image source={{ uri: featuredMentor.avatar }} style={styles.editorialMentorImage} />
+                ) : (
+                  <View style={[styles.editorialMentorImage, { backgroundColor: '#2D1B69', alignItems: 'center', justifyContent: 'center' }]}>
+                    <Ionicons name="person" size={40} color="#c4b5e0" />
+                  </View>
+                )}
+                <View style={styles.editorialMentorCopy}>
+                  <Text style={styles.editorialMentorRole}>{featuredMentor.role}</Text>
+                  <Text style={styles.editorialMentorName}>{featuredMentor.name}</Text>
+                  <Text style={styles.editorialMentorBio} numberOfLines={3}>
+                    {featuredMentor.bio ||
+                      [featuredMentor.experience ? `${featuredMentor.experience}+ năm kinh nghiệm` : null, featuredMentor.company]
+                        .filter(Boolean)
+                        .join(' · ') ||
+                      'Mentor ProInterview'}
+                  </Text>
+                  <View style={styles.editorialMentorFooter}>
+                    <Text style={styles.editorialMentorRating}>
+                      ★{' '}
+                      {featuredMentor.rating != null && Number(featuredMentor.rating) > 0
+                        ? Number(featuredMentor.rating).toFixed(1)
+                        : '—'}
+                    </Text>
+                    <View style={styles.editorialRoundArrow}>
+                      <Ionicons name="arrow-forward" size={14} color="#0d1410" />
                     </View>
                   </View>
-                  <TouchableOpacity style={styles.bookPremiumBtn} onPress={() => handleBookMentor(mentor)}>
-                    <Text style={styles.bookPremiumBtnText}>Đặt lịch phỏng vấn thử 1-1</Text>
-                    <Ionicons name="calendar-outline" size={14} color="#0f172a" />
-                  </TouchableOpacity>
                 </View>
-              ))
-            )}
-          </ScrollView>
-        )}
+              </TouchableOpacity>
+              <View style={styles.editorialMentorRail}>
+                {editorialMentors.slice(1).map((mentor) => (
+                  <TouchableOpacity key={mentor.id} onPress={() => handleBookMentor(mentor)}>
+                    {mentor.avatar ? (
+                      <Image source={{ uri: mentor.avatar }} style={styles.editorialMentorThumb} />
+                    ) : (
+                      <View style={[styles.editorialMentorThumb, { backgroundColor: '#e9e0f7', alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="person" size={16} color="#7c6a9a" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+                <Text style={styles.editorialMentorRailText}>Chạm để xem thêm chuyên gia</Text>
+              </View>
+            </View>
+          ) : null}
+
+          <View style={styles.editorialSection}>
+            <Text style={styles.editorialSectionIndex}>03</Text>
+            <View style={styles.editorialSectionHeadingRow}>
+              <Text style={styles.editorialSectionTitle}>Đọc · học · tiến bộ</Text>
+              <TouchableOpacity onPress={() => setActiveTab('courses')}>
+                <Text style={styles.editorialSectionLink}>Khám phá</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.editorialCourseList}>
+              {editorialCourses.map((course, index) => (
+                <TouchableOpacity
+                  key={course.id}
+                  style={styles.editorialCourseRow}
+                  onPress={() => apiConnected ? handleBuyCourseNow(course) : setActiveTab('courses')}
+                >
+                  <Text style={styles.editorialCourseNumber}>0{index + 1}</Text>
+                  {course.image ? (
+                    <Image source={{ uri: course.image }} style={styles.editorialCourseImage} />
+                  ) : (
+                    <View style={[styles.editorialCourseImage, { backgroundColor: '#2D1B69' }]} />
+                  )}
+                  <View style={styles.editorialCourseBody}>
+                    <Text style={styles.editorialCourseTitle} numberOfLines={2}>{course.title}</Text>
+                    <Text style={styles.editorialCourseMeta}>
+                      {[
+                        course.duration || null,
+                        course.rating != null && Number(course.rating) > 0
+                          ? `★ ${Number(course.rating).toFixed(1)}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ') || '—'}
+                    </Text>
+                  </View>
+                  <Text style={styles.editorialCoursePrice}>{course.price}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.editorialFooter}>
+            <View style={styles.editorialFooterDot} />
+            <Text style={styles.editorialFooterText}>PROINTERVIEW · PRACTICE WITH PURPOSE</Text>
+          </View>
+        </Animated.ScrollView>
       </View>
     );
   };
+
+  const renderHomeTab = () => {
+    const homeMentors = mentors.slice(0, 4);
+    const homeCourses = courses.slice(0, 4);
+    const homeNews = [
+      homeCourses[0]
+        ? {
+            id: `course-${homeCourses[0].id}`,
+            tag: 'KHÓA HỌC',
+            title: homeCourses[0].title,
+            subtitle: homeCourses[0].description
+              ? String(homeCourses[0].description).slice(0, 90)
+              : homeCourses[0].mentorName
+                ? `Mentor: ${homeCourses[0].mentorName}`
+                : 'Khóa học từ catalog.',
+            image: homeCourses[0].image || homeCourses[0].thumbnail || '',
+            action: () => setActiveTab('courses'),
+          }
+        : null,
+      homeMentors[0]
+        ? {
+            id: `mentor-${homeMentors[0].id}`,
+            tag: 'MENTOR',
+            title: `${homeMentors[0].name} đang nhận lịch`,
+            subtitle: [homeMentors[0].role, homeMentors[0].company].filter(Boolean).join(' · ') || 'Luyện phỏng vấn 1-1.',
+            image: homeMentors[0].avatar || '',
+            action: () => handleBookMentor(homeMentors[0]),
+          }
+        : null,
+      homeCourses[1]
+        ? {
+            id: `course-${homeCourses[1].id}`,
+            tag: 'KHÓA HỌC',
+            title: homeCourses[1].title,
+            subtitle: homeCourses[1].mentorName
+              ? `Mentor: ${homeCourses[1].mentorName}`
+              : 'Khóa học từ catalog.',
+            image: homeCourses[1].image || homeCourses[1].thumbnail || '',
+            action: () => setActiveTab('courses'),
+          }
+        : null,
+      homeMentors[1]
+        ? {
+            id: `mentor-${homeMentors[1].id}`,
+            tag: 'MENTOR',
+            title: `${homeMentors[1].name} sẵn sàng đồng hành`,
+            subtitle: [homeMentors[1].role, homeMentors[1].company].filter(Boolean).join(' · ') || 'Luyện phỏng vấn 1-1.',
+            image: homeMentors[1].avatar || '',
+            action: () => handleBookMentor(homeMentors[1]),
+          }
+        : null,
+    ].filter(Boolean);
+    const recommendedJourney = [
+      {
+        id: 'cv',
+        number: '01',
+        icon: 'document-text-outline',
+        title: 'Tối ưu CV',
+        desc: 'Phân tích điểm mạnh, điểm yếu trước khi ứng tuyển.',
+        color: '#8037f4',
+        action: () => setActiveTab('cv'),
+      },
+      {
+        id: 'courses',
+        number: '02',
+        icon: 'school-outline',
+        title: 'Học kỹ năng',
+        desc: 'Bổ sung kiến thức qua khóa học thực chiến.',
+        color: '#93f72b',
+        action: () => setActiveTab('courses'),
+      },
+      {
+        id: 'mentors',
+        number: '03',
+        icon: 'people-outline',
+        title: 'Đặt Mentor',
+        desc: 'Luyện phỏng vấn 1:1 và nhận feedback rõ ràng.',
+        color: '#f59e0b',
+        action: () => setActiveTab('mentors'),
+      },
+    ];
+    const featureTools = [
+      {
+        id: 'cv-review',
+        icon: 'scan-outline',
+        title: 'AI CV Review',
+        desc: `${cvAnalyses.length || 0} hồ sơ đã phân tích`,
+        action: () => setActiveTab('cv'),
+      },
+      {
+        id: 'course-plan',
+        icon: 'library-outline',
+        title: 'Lộ trình khóa học',
+        desc: `${courses.length} khóa sẵn sàng`,
+        action: () => setActiveTab('courses'),
+      },
+    ];
+    const quickStats = [
+      { label: 'Mentor', value: mentors.length },
+      { label: 'Khóa học', value: courses.length },
+      { label: 'CV quota', value: appUser?.quota?.cvAnalysisLimit ?? 2 },
+    ];
+    const cvPreviewCards = [
+      {
+        id: 'score',
+        icon: 'analytics-outline',
+        title: 'Điểm phù hợp JD',
+        desc: 'Chấm nhanh kỹ năng, keyword và mức độ khớp vị trí.',
+      },
+      {
+        id: 'fix',
+        icon: 'create-outline',
+        title: 'Gợi ý chỉnh CV',
+        desc: 'Tóm tắt các phần nên sửa để CV rõ và thuyết phục hơn.',
+      },
+    ];
+
+    return (
+      <View style={styles.homeScrollWrapper}>
+        <Animated.ScrollView
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          nestedScrollEnabled
+          contentContainerStyle={[
+            styles.cleanHomeScrollFit,
+            { paddingTop: homeTopPad, paddingBottom: homeBottomPad },
+          ]}
+          style={[
+            styles.homeTabScroll,
+            { opacity: homeEntrance },
+          ]}
+        >
+          <Animated.View
+            style={{
+              transform: [{
+                translateY: homeEntrance.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }),
+              }],
+            }}
+          >
+          <View style={styles.cleanHomeHeader}>
+            <TouchableOpacity style={styles.cleanHomeProfile} onPress={() => setActiveTab('profile')}>
+              <View style={styles.cleanHomeAvatar}>
+                {appUser?.avatar ? (
+                  <Image source={{ uri: resolveMediaUrl(appUser.avatar) }} style={styles.cleanHomeAvatarImage} />
+                ) : (
+                  <Ionicons name="person" size={20} color="#8037f4" />
+                )}
+              </View>
+              <View style={styles.cleanHomeProfileText}>
+                <Text style={styles.cleanHomeHello}>Xin chào</Text>
+                <Text style={styles.cleanHomeName} numberOfLines={1}>{appUser?.name || 'Bạn học'}</Text>
+              </View>
+            </TouchableOpacity>
+            <View style={styles.cleanHomeHeaderActions}>
+              <TouchableOpacity style={styles.cleanHomeHeaderIcon} onPress={openCartModal}>
+                <Ionicons name="bag-handle-outline" size={21} color="#475569" />
+                {cartSummary.count > 0 ? <View style={styles.cleanHomeRedDot} /> : null}
+              </TouchableOpacity>
+              <View ref={notifBellRef} collapsable={false}>
+                <TouchableOpacity style={styles.cleanHomeHeaderIcon} onPress={toggleNotifDropdown}>
+                  <Ionicons name="notifications-outline" size={21} color="#475569" />
+                  {unreadNotifCount > 0 ? <View style={styles.cleanHomeRedDot} /> : null}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.cleanHomeSearch}>
+            <Ionicons name="search" size={20} color="#93f72b" />
+            <TextInput
+              value={searchMentorQuery}
+              onChangeText={setSearchMentorQuery}
+              onSubmitEditing={() => setActiveTab('mentors')}
+              placeholder="Tìm mentor, kỹ năng, khóa học..."
+              placeholderTextColor="#676d7e"
+              style={styles.cleanHomeSearchInput}
+            />
+            {searchMentorQuery ? (
+              <TouchableOpacity onPress={() => setSearchMentorQuery('')}>
+                <Ionicons name="close-circle" size={17} color="#73798a" />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {homeNews.length > 0 ? (
+            <>
+              <View style={styles.cleanNewsHeader}>
+                <Text style={styles.cleanNewsHeading}>Tin mới nhất</Text>
+                <Text style={styles.cleanNewsCount}>
+                  {String(homeNews.length).padStart(2, '0')} mục
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                decelerationRate="fast"
+                snapToInterval={HOME_NEWS_CARD_WIDTH + 10}
+                contentContainerStyle={styles.cleanNewsRail}
+              >
+                {homeNews.map((item, index) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    activeOpacity={0.88}
+                    style={[
+                      styles.cleanNewsCard,
+                      { width: HOME_NEWS_CARD_WIDTH, height: HOME_NEWS_HEIGHT },
+                    ]}
+                    onPress={item.action}
+                  >
+                    {item.image ? (
+                      <Image source={{ uri: item.image }} style={styles.cleanNewsImage} />
+                    ) : (
+                      <View style={[styles.cleanNewsImage, { backgroundColor: '#2D1B69' }]} />
+                    )}
+                    <LinearGradient
+                      colors={['rgba(8,6,16,0.05)', 'rgba(8,6,16,0.96)']}
+                      style={styles.cleanNewsShade}
+                    />
+                    <View style={styles.cleanNewsIndex}>
+                      <Text style={styles.cleanNewsIndexText}>0{index + 1}</Text>
+                    </View>
+                    <View style={styles.cleanNewsContent}>
+                      <Text style={styles.cleanNewsTag}>{item.tag}</Text>
+                      <Text style={styles.cleanNewsTitle} numberOfLines={2}>{item.title}</Text>
+                      <Text style={styles.cleanNewsSubtitle} numberOfLines={1}>{item.subtitle}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
+
+          <View style={styles.homeJourneyCard}>
+            <View style={styles.homeJourneyHeader}>
+              <View>
+                <Text style={styles.homeJourneyEyebrow}>LỘ TRÌNH GỢI Ý</Text>
+                <Text style={styles.homeJourneyTitle}>Luồng được khuyên dùng</Text>
+              </View>
+              <View style={styles.homeJourneySpark}>
+                <Ionicons name="flash" size={16} color="#2D1B69" />
+              </View>
+            </View>
+            {recommendedJourney.map((step) => (
+              <TouchableOpacity
+                key={step.id}
+                style={styles.homeJourneyStep}
+                onPress={step.action}
+                activeOpacity={0.86}
+              >
+                <View style={[styles.homeJourneyNumber, { backgroundColor: `${step.color}22` }]}>
+                  <Text style={[styles.homeJourneyNumberText, { color: step.color }]}>{step.number}</Text>
+                </View>
+                <View style={[styles.homeJourneyIcon, { borderColor: `${step.color}55` }]}>
+                  <Ionicons name={step.icon} size={17} color={step.color} />
+                </View>
+                <View style={styles.homeJourneyBody}>
+                  <Text style={styles.homeJourneyStepTitle}>{step.title}</Text>
+                  <Text style={styles.homeJourneyStepDesc} numberOfLines={1}>{step.desc}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={15} color="rgba(45,27,105,0.26)" />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.homeStatsRow}>
+            {quickStats.map((stat) => (
+              <View key={stat.label} style={styles.homeStatPill}>
+                <Text style={styles.homeStatValue}>{stat.value}</Text>
+                <Text style={styles.homeStatLabel}>{stat.label}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.homeToolsRow}>
+            {featureTools.map((tool) => (
+              <TouchableOpacity
+                key={tool.id}
+                style={styles.homeToolCard}
+                onPress={tool.action}
+                activeOpacity={0.88}
+              >
+                <View style={styles.homeToolIcon}>
+                  <Ionicons name={tool.icon} size={20} color="#8037f4" />
+                </View>
+                <Text style={styles.homeToolTitle}>{tool.title}</Text>
+                <Text style={styles.homeToolDesc} numberOfLines={2}>{tool.desc}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={styles.cleanHomeTitleBlock}>
+            <Text style={styles.cleanHomeTitle}>Khám phá Mentor</Text>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cleanHomeChips}>
+            <TouchableOpacity
+              style={[styles.cleanHomeChip, homeSection === 'all' && styles.cleanHomeChipActive]}
+              onPress={() => setHomeSection('all')}
+            >
+              <Text style={[styles.cleanHomeChipText, homeSection === 'all' && styles.cleanHomeChipTextActive]}>Tất cả</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.cleanHomeChip, homeSection === 'mentors' && styles.cleanHomeChipActive]}
+              onPress={() => setHomeSection('mentors')}
+            >
+              <Text style={[styles.cleanHomeChipText, homeSection === 'mentors' && styles.cleanHomeChipTextActive]}>Mentor</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.cleanHomeChip, homeSection === 'courses' && styles.cleanHomeChipActive]}
+              onPress={() => setHomeSection('courses')}
+            >
+              <Text style={[styles.cleanHomeChipText, homeSection === 'courses' && styles.cleanHomeChipTextActive]}>Khóa học</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.cleanHomeChip, homeSection === 'cv' && styles.cleanHomeChipActive]}
+              onPress={() => setHomeSection('cv')}
+            >
+              <Text style={[styles.cleanHomeChipText, homeSection === 'cv' && styles.cleanHomeChipTextActive]}>Phân tích CV</Text>
+            </TouchableOpacity>
+          </ScrollView>
+
+          {(homeSection === 'all' || homeSection === 'mentors') ? (
+          <View style={[styles.cleanCardGrid, { columnGap: HOME_GRID_GAP, rowGap: HOME_GRID_GAP }]}>
+            {homeMentors.map((mentor) => (
+              <TouchableOpacity
+                key={mentor.id}
+                style={[styles.cleanMentorCard, { width: HOME_MENTOR_CARD_WIDTH }]}
+                onPress={() => handleBookMentor(mentor)}
+                activeOpacity={0.92}
+              >
+                <View style={[styles.cleanMentorImageWrap, { height: HOME_MENTOR_CARD_HEIGHT }]}>
+                  <Image source={{ uri: mentor.avatar }} style={styles.cleanMentorImage} />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(8, 8, 14, 0.92)']}
+                    style={styles.cleanMentorImageFade}
+                  />
+                  {mentor.price ? (
+                    <View style={styles.cleanMentorPriceChip}>
+                      <Text style={styles.cleanMentorPriceChipText}>
+                        {Math.round(mentor.price / 1000)}K
+                      </Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.cleanMentorImageCaption}>
+                    <Text style={styles.cleanCardTitle} numberOfLines={1}>{mentor.name}</Text>
+                    {mentor.rating ? (
+                      <View style={styles.cleanMentorRatingMini}>
+                        <Ionicons name="star" size={9} color="#93f72b" />
+                        <Text style={styles.cleanMentorRatingMiniText}>
+                          {Number(mentor.rating).toFixed(1)}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+          ) : null}
+
+          {homeSection === 'courses' ? (
+            <View style={[styles.cleanCardGrid, { columnGap: HOME_GRID_GAP, rowGap: HOME_GRID_GAP }]}>
+              {homeCourses.map((course) => (
+                <TouchableOpacity
+                  key={course.id}
+                  style={[styles.homeCoursePreviewCard, { width: HOME_MENTOR_CARD_WIDTH }]}
+                  onPress={() => openCourseDetail(course)}
+                  activeOpacity={0.9}
+                >
+                  <Image source={{ uri: course.image || course.thumbnail }} style={styles.homeCoursePreviewImage} />
+                  <Text style={styles.homeCoursePreviewTitle} numberOfLines={2}>{course.title}</Text>
+                  <Text style={styles.homeCoursePreviewMeta} numberOfLines={1}>{course.duration || course.category || 'ProInterview'}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
+
+          {homeSection === 'cv' ? (
+            <View style={styles.homeCvPreviewWrap}>
+              {cvPreviewCards.map((card) => (
+                <TouchableOpacity key={card.id} style={styles.homeCvPreviewCard} onPress={() => setActiveTab('cv')} activeOpacity={0.9}>
+                  <View style={styles.homeCvPreviewIcon}>
+                    <Ionicons name={card.icon} size={20} color="#8037f4" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.homeCvPreviewTitle}>{card.title}</Text>
+                    <Text style={styles.homeCvPreviewDesc}>{card.desc}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={styles.homeCvPreviewCta} onPress={() => setActiveTab('cv')}>
+                <Text style={styles.homeCvPreviewCtaText}>Phân tích CV ngay</Text>
+                <Ionicons name="arrow-forward" size={15} color="#2D1B69" />
+              </TouchableOpacity>
+            </View>
+          ) : null}
+          </Animated.View>
+        </Animated.ScrollView>
+      </View>
+    );
+  };
+
+  // 2. MÀN HÌNH MENTORS
+  const renderMentorsTab = () => (
+    <MentorsScreen
+      mentors={mentors}
+      loading={loading}
+      searchQuery={searchMentorQuery}
+      onSearchChange={setSearchMentorQuery}
+      selectedCategory={selectedMentorCategory}
+      onCategoryChange={setSelectedMentorCategory}
+      onMentorPress={handleBookMentor}
+      topInset={shellTopPad}
+    />
+  );
 
   // 3. MÀN HÌNH KHÓC HỌC
   const renderCoursesTab = () => {
@@ -1652,12 +2690,32 @@ function AppInner() {
       return matchSearch && matchCategory;
     });
 
-    const categories = ['Tất cả', 'Frontend', 'Backend', 'AI/ML'];
+    const categorySet = new Set(courses.map((course) => course.category).filter(Boolean));
+    const categories = ['Tất cả', ...Array.from(categorySet)];
+
+    const levelBadgeStyle = (level) => {
+      if (level === 'Intermediate') return { bg: 'rgba(128,55,244,0.92)', text: '#ffffff' };
+      if (level === 'Advanced') return { bg: 'rgba(147,247,43,0.92)', text: '#1a3300' };
+      return { bg: 'rgba(255,140,66,0.92)', text: '#1F1F1F' };
+    };
 
     return (
-      <View style={styles.tabContentContainer}>
-        <Text style={styles.tabTitle}>Khóa học tối ưu</Text>
-        <Text style={styles.tabSubtitle}>Biên soạn bởi chuyên gia, học thử bài giảng chuẩn</Text>
+      <View style={[styles.tabContentContainer, styles.coursesTabContainer, { paddingTop: shellTopPad }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={styles.coursesEyebrow}>KHÓA HỌC KỸ NĂNG</Text>
+            <Text style={styles.tabTitle}>Khóa học tối ưu</Text>
+            <Text style={styles.tabSubtitle}>Biên soạn bởi chuyên gia, học thử bài giảng chuẩn</Text>
+          </View>
+          <TouchableOpacity style={styles.headerIconBtn} onPress={openCartModal}>
+            <Ionicons name="cart-outline" size={24} color="#93f72b" />
+            {cartSummary.count > 0 ? (
+              <View style={styles.unreadNotifBadge}>
+                <Text style={styles.unreadNotifBadgeText}>{cartSummary.count > 9 ? '9+' : cartSummary.count}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        </View>
 
         <View style={styles.searchBarWrapper}>
           <Ionicons name="search" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
@@ -1701,41 +2759,107 @@ function AppInner() {
         
         {loading ? (
           <View style={styles.tabLoading}>
-            <ActivityIndicator color="#7000ff" size="large" />
+            <ActivityIndicator color="#8037f4" size="large" />
             <Text style={styles.loadingText}>Đang tải danh sách khóa học...</Text>
           </View>
         ) : (
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.coursesVerticalScroll}>
+          <ScrollView
+            style={styles.tabBodyScroll}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.coursesVerticalScroll}
+          >
             {filteredCourses.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Ionicons name="sad-outline" size={44} color="#94a3b8" />
                 <Text style={styles.emptyText}>Không tìm thấy khóa học phù hợp.</Text>
               </View>
             ) : (
-              filteredCourses.map(course => (
-                <View key={course.id} style={styles.coursePremiumCard}>
-                  <Image source={{ uri: course.image }} style={styles.coursePremiumImage} />
-                  <View style={styles.coursePremiumBody}>
-                    <Text style={styles.coursePremiumTitle}>{course.title}</Text>
-                    <View style={styles.coursePremiumDetailsRow}>
-                      <View style={styles.courseMetaIconRow}>
-                        <Ionicons name="time-outline" size={14} color="#94a3b8" />
-                        <Text style={styles.courseMetaText}>{course.duration}</Text>
+              filteredCourses.map(course => {
+                const purchaseState = getCoursePurchaseState(course.id);
+                const isOwned = purchaseState === 'owned';
+                const levelStyle = levelBadgeStyle(course.level);
+
+                return (
+                  <TouchableOpacity
+                    key={course.id}
+                    style={styles.piCourseCard}
+                    activeOpacity={0.92}
+                    onPress={() => openCourseDetail(course)}
+                  >
+                    <View style={styles.piCourseImageWrap}>
+                      <Image source={{ uri: course.image || course.thumbnail }} style={styles.piCourseImage} />
+                      <View style={styles.piCourseImageOverlay} />
+                      <View style={[styles.piCourseLevelBadge, { backgroundColor: levelStyle.bg }]}>
+                        <Text style={[styles.piCourseLevelText, { color: levelStyle.text }]}>
+                          {course.levelLabel || 'Người mới'}
+                        </Text>
                       </View>
-                      <View style={styles.courseMetaIconRow}>
-                        <Ionicons name="star" size={14} color="#f59e0b" />
-                        <Text style={styles.courseMetaText}>{course.rating} / 5.0</Text>
+                      <View style={styles.piCoursePriceBadge}>
+                        <Text style={styles.piCoursePriceBadgeText}>{course.price}</Text>
+                      </View>
+                      <View style={styles.piCourseMentorRow}>
+                        {course.mentorAvatar ? (
+                          <Image source={{ uri: course.mentorAvatar }} style={styles.piCourseMentorAvatar} />
+                        ) : (
+                          <View style={styles.piCourseMentorAvatarFallback}>
+                            <Text style={styles.piCourseMentorInitial}>
+                              {(course.mentorName || 'M').slice(0, 1)}
+                            </Text>
+                          </View>
+                        )}
+                        <Text style={styles.piCourseMentorName} numberOfLines={1}>
+                          {course.mentorName}
+                        </Text>
                       </View>
                     </View>
-                    <View style={styles.coursePremiumFooter}>
-                      <Text style={styles.coursePremiumPrice}>{course.price}</Text>
-                      <TouchableOpacity style={styles.courseBuyBtn} onPress={() => alert(`Đã ghi danh: ${course.title}`)}>
-                        <Text style={styles.courseBuyBtnText}>Đăng ký ngay</Text>
+
+                    <View style={styles.piCourseBody}>
+                      <Text style={styles.piCourseTitle} numberOfLines={2}>{course.title}</Text>
+                      {course.description ? (
+                        <Text style={styles.piCourseDescription} numberOfLines={2}>
+                          {course.description}
+                        </Text>
+                      ) : null}
+                      {isOwned ? (
+                        <View style={styles.piCourseOwnedBadge}>
+                          <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                          <Text style={styles.piCourseOwnedText}>Đã mua</Text>
+                        </View>
+                      ) : null}
+                      <View style={styles.piCourseMetaRow}>
+                        <View style={styles.piCourseMetaItem}>
+                          <Ionicons name="star" size={13} color="#f59e0b" />
+                          <Text style={styles.piCourseMetaText}>
+                            {course.rating != null ? Number(course.rating).toFixed(1) : '—'}
+                          </Text>
+                        </View>
+                        <View style={styles.piCourseMetaItem}>
+                          <Ionicons name="time-outline" size={13} color="#64748b" />
+                          <Text style={styles.piCourseMetaText}>{course.duration}</Text>
+                        </View>
+                        {course.mentorTitle ? (
+                          <Text style={styles.piCourseMentorTitle} numberOfLines={1}>
+                            {course.mentorTitle}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <TouchableOpacity
+                        style={styles.piCourseCta}
+                        onPress={(event) => {
+                          event?.stopPropagation?.();
+                          openCourseDetail(course);
+                        }}
+                        activeOpacity={0.9}
+                      >
+                        <Ionicons name="play-circle" size={15} color="#1a3300" />
+                        <Text style={styles.piCourseCtaText}>Xem khóa học</Text>
                       </TouchableOpacity>
                     </View>
-                  </View>
-                </View>
-              ))
+                  </TouchableOpacity>
+                );
+              })
             )}
           </ScrollView>
         )}
@@ -1743,344 +2867,326 @@ function AppInner() {
     );
   };
 
-  // 4. MÀN HÌNH PHÂN TÍCH CV (CÓ LỊCH SỬ TỪ DATABASE)
+  // 4. MÀN HÌNH PHÂN TÍCH CV (GIỐNG WEB /cv-analysis)
   const renderCvTab = () => (
-    <View style={styles.tabContentContainer}>
-      <Text style={styles.tabTitle}>Phân tích CV chuyên sâu</Text>
-      <Text style={styles.tabSubtitle}>Đối chiếu hồ sơ của bạn với bản mô tả công việc (JD)</Text>
-      
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
-        
-        <View style={styles.cvMockCard}>
-          {analyzingStatus === 'loading' ? (
-            <View style={styles.cvScanningConsole}>
-              <View style={styles.cvScanningCircle}>
-                <Ionicons name="document-text" size={40} color="#7000ff" />
-                <Animated.View style={[styles.scanningBeam, { transform: [{ translateY: scanAnim }] }]} />
-              </View>
-              <Text style={styles.cvProgressText}>Đang quét cấu trúc CV... {analysisProgress}%</Text>
-              <View style={styles.cvProgressBarOutline}>
-                <View style={[styles.cvProgressBarInner, { width: `${analysisProgress}%` }]} />
-              </View>
-            </View>
-          ) : analyzingStatus === 'success' ? (
-            <View style={styles.cvSuccessBox}>
-              <View style={styles.cvSuccessBadge}>
-                <Ionicons name="checkmark-circle" size={32} color="#93f72b" />
-              </View>
-              <Text style={styles.cvSuccessText}>Phân tích hoàn tất!</Text>
-              <Text style={styles.cvSuccessFileName}>{cvFile?.name} ({cvFile?.size})</Text>
-              <TouchableOpacity style={styles.reUploadBtn} onPress={triggerCvAnalysis}>
-                <Text style={styles.reUploadBtnText}>Phân tích lại CV khác</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.cvUploadBoxContent}>
-              <View style={styles.uploadIconCircle}>
-                <Ionicons name="cloud-upload" size={34} color="#93f72b" />
-              </View>
-              <Text style={styles.cvMockTitle}>Chọn tệp tin CV của bạn</Text>
-              <Text style={styles.cvMockDesc}>Hỗ trợ các định dạng PDF, DOCX (Tối đa 5MB)</Text>
-              <TouchableOpacity style={styles.uploadMockBtn} onPress={triggerCvAnalysis}>
-                <Text style={styles.uploadMockBtnText}>Tải lên & Phân tích ngay</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        {analyzingStatus === 'success' && (
-          <View style={{ marginTop: 32 }}>
-            <Text style={styles.cvResultSectionTitle}>Kết quả phân tích độ tương thích</Text>
-            
-            <View style={styles.overlappingCardsContainer}>
-              <View style={[styles.cvDeckCard, styles.cvDeckCard1]}>
-                <Text style={styles.cvCard1Title}>Độ khớp CV–JD</Text>
-                <View style={styles.cvBadgeGreen}>
-                  <Text style={styles.cvBadgeGreenText}>73% Khá tốt</Text>
-                </View>
-              </View>
-
-              <View style={[styles.cvDeckCard, styles.cvDeckCard2]}>
-                <View style={styles.cvCard2Header}>
-                  <Ionicons name="document-text" size={16} color="#7000ff" style={{ marginRight: 6 }} />
-                  <Text style={styles.cvCard2Title}>Từ khóa khớp với JD</Text>
-                </View>
-                <View style={styles.keywordsGrid}>
-                  <View style={styles.keywordPill}><Text style={styles.keywordText}>ci/cd ✓</Text></View>
-                  <View style={styles.keywordPill}><Text style={styles.keywordText}>css ✓</Text></View>
-                  <View style={styles.keywordPill}><Text style={styles.keywordText}>docker ✓</Text></View>
-                  <View style={styles.keywordPill}><Text style={styles.keywordText}>git ✓</Text></View>
-                  <View style={styles.keywordPill}><Text style={styles.keywordText}>html ✓</Text></View>
-                  <View style={styles.keywordPill}><Text style={styles.keywordText}>javascript ✓</Text></View>
-                </View>
-              </View>
-
-              <View style={[styles.cvDeckCard, styles.cvDeckCard3]}>
-                <View style={styles.gaugeContainer}>
-                  <View style={styles.circularProgressMock}>
-                    <Text style={styles.circularScoreText}>73</Text>
-                    <Text style={styles.circularScoreSub}>/ 100</Text>
-                  </View>
-                  <Text style={styles.gaugeTitle}>Điểm AI</Text>
-                  <Text style={styles.gaugeSubtitle}>Clarity • Structure • Relevance • Credibility</Text>
-                </View>
-
-                <View style={styles.progressBarList}>
-                  <View style={styles.progressBarItem}>
-                    <View style={styles.progressLabelRow}>
-                      <Text style={styles.progressLabelName}>Clarity (Rõ ràng)</Text>
-                      <Text style={styles.progressLabelValue}>8/10</Text>
-                    </View>
-                    <View style={styles.progressBarTrack}>
-                      <View style={[styles.progressBarFill, { width: '80%', backgroundColor: '#93f72b' }]} />
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* LỊCH SỬ PHÂN TÍCH CV MONGODB */}
-        {cvAnalyses.length > 0 && (
-          <View style={{ marginTop: 24 }}>
-            <Text style={styles.cvResultSectionTitle}>Lịch sử CV đã phân tích</Text>
-            {cvAnalyses.map((item, idx) => (
-              <View key={item._id || idx} style={styles.cvHistoryCard}>
-                <View style={styles.cvHistoryLeft}>
-                  <Ionicons name="document-attach" size={24} color="#7000ff" />
-                  <View style={{ marginLeft: 12 }}>
-                    <Text style={styles.cvHistoryName} numberOfLines={1}>{item.cvFileName}</Text>
-                    <Text style={styles.cvHistoryDate}>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</Text>
-                  </View>
-                </View>
-                <View style={styles.cvHistoryScore}>
-                  <Text style={styles.cvHistoryScoreTxt}>{item.result?.match?.score || 70}%</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-      </ScrollView>
+    <View style={[styles.tabContentContainer, styles.cvTabContainer, { paddingTop: shellTopPad }]}>
+      <CvAnalysisHubScreen
+        analyzingStatus={analyzingStatus}
+        analysisProgress={analysisProgress}
+        cvFile={cvFile}
+        cvAnalyses={cvAnalyses}
+        bottomPadding={HOME_NAV_CLEARANCE + 16}
+        onAnalyzeJd={triggerCvAnalysis}
+        onAnalyzeField={triggerCvAnalysis}
+      />
     </View>
   );
 
   // 5. MÀN HÌNH TÀI KHOẢN (ĐỒNG BỘ MONGODB)
   const renderProfileTab = () => {
     const profile = {
-      ...RICH_FALLBACK_PROFILE,
-      ...currentUser,
-      quota: {
-        ...RICH_FALLBACK_PROFILE.quota,
-        ...(currentUser?.quota || {})
-      }
+      ...(appUser || {}),
+      quota: { ...(appUser?.quota || {}) },
     };
+    const ownedEnrollments = enrollments.filter(
+      (item) => item.paymentStatus === 'paid' || item.paymentStatus == null,
+    );
+    const paidCourses = ownedEnrollments.length;
+    const averageProgress = paidCourses
+      ? Math.round(
+          ownedEnrollments.reduce(
+            (sum, item) => sum + (Number(item.progressPercent) || 0),
+            0,
+          ) / paidCourses,
+        )
+      : 0;
+    const completedBookings = bookings.filter(
+      (item) => item.status === 'completed' || item.status === 'confirmed',
+    ).length;
+    const successfulPayments = payments.filter((item) => item.status === 'success');
+    const totalSpent = successfulPayments.reduce(
+      (sum, item) => sum + (Number(item.amount) || 0),
+      0,
+    );
 
     return (
-      <View style={styles.tabContentContainer}>
-        <Text style={styles.tabTitle}>Hồ sơ cá nhân</Text>
-        <Text style={styles.tabSubtitle}>Quản lý thông tin ứng viên đồng bộ dữ liệu MongoDB</Text>
-
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
-          
-          <View style={styles.profileCard}>
-            <View style={styles.profileHeaderRow}>
-              <View style={styles.profileAvatarLarge}>
-                {profile.avatar ? (
-                  <Image source={{ uri: profile.avatar }} style={styles.profileAvatarImage} />
-                ) : (
-                  <Text style={styles.profileAvatarLargeText}>
-                    {profile.name ? profile.name.substring(0,2).toUpperCase() : 'VP'}
-                  </Text>
-                )}
-                <View style={styles.verifiedBadge}>
-                  <Ionicons name="checkmark-circle" size={14} color="#93f72b" />
-                </View>
-              </View>
-              <View style={styles.profileInfoDetails}>
-                <Text style={styles.profileNameText}>{profile.name || 'Họ và tên'}</Text>
-                <Text style={styles.profileEmailText}>{profile.email || 'email@domain.com'}</Text>
-                
-                {profile.position ? (
-                  <Text style={styles.profileCompanyRoleText}>
-                    💻 {profile.position} {profile.currentCompany ? `tại ${profile.currentCompany}` : ''}
-                  </Text>
-                ) : null}
-
-                <View style={[
-                  styles.profilePlanBadge, 
-                  profile.plan === 'premium' || profile.plan === 'professional' ? { backgroundColor: 'rgba(112,0,255,0.2)', borderColor: '#7000ff', borderWidth: 1 } : null
-                ]}>
-                  <Text style={[styles.profilePlanBadgeText, { color: '#93f72b' }]}>
-                    {profile.plan ? `MEMBER: ${profile.plan.toUpperCase()}` : 'MEMBER: FREE'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.quotaBox}>
-              <View style={styles.quotaHeaderRow}>
-                <Ionicons name="speedometer" size={14} color="#93f72b" />
-                <Text style={styles.quotaTitle}>Hạn mức tài nguyên đã dùng (Quota limit):</Text>
-              </View>
-              <View style={styles.quotaBody}>
-                <View style={styles.quotaItem}>
-                  <View style={styles.quotaLabelRow}>
-                    <Text style={styles.quotaLabel}>Lượt Phân Tích CV: {profile.quota?.cvAnalysisUsed || 0}/{profile.quota?.cvAnalysisLimit || 2}</Text>
-                  </View>
-                  <View style={styles.quotaTrack}>
-                    <View style={[
-                      styles.quotaFill, 
-                      { width: `${((profile.quota?.cvAnalysisUsed || 0) / (profile.quota?.cvAnalysisLimit || 2)) * 100}%`, backgroundColor: '#93f72b' }
-                    ]} />
-                  </View>
-                </View>
-
-                <View style={styles.quotaItem}>
-                  <View style={styles.quotaLabelRow}>
-                    <Text style={styles.quotaLabel}>Lượt Mentor Session: {profile.quota?.mentorSessionUsed || 0}/{profile.quota?.mentorSessionLimit || 1}</Text>
-                  </View>
-                  <View style={styles.quotaTrack}>
-                    <View style={[
-                      styles.quotaFill, 
-                      { width: `${((profile.quota?.mentorSessionUsed || 0) / (profile.quota?.mentorSessionLimit || 1)) * 100}%`, backgroundColor: '#7000ff' }
-                    ]} />
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.subTabContainer}>
-            <TouchableOpacity 
-              style={[styles.subTabBtn, profileSubTab === 'info' ? styles.subTabBtnActive : null]}
-              onPress={() => setProfileSubTab('info')}
+      <Animated.View
+        style={[
+          styles.tabContentContainer,
+          { paddingTop: shellTopPad, opacity: profileEntrance },
+        ]}
+      >
+        <View style={styles.profilePageHeading}>
+          {profileSubTab !== 'profile' ? (
+            <TouchableOpacity
+              style={styles.profileHeadingBack}
+              onPress={() => setProfileSubTab('profile')}
             >
-              <Text style={[styles.subTabBtnText, profileSubTab === 'info' ? styles.subTabBtnTextActive : null]}>Thông tin</Text>
+              <Ionicons name="arrow-back" size={20} color="#2D1B69" />
+              <View>
+                <Text style={styles.profilePageEyebrow}>
+                  {profileSubTab === 'learning'
+                    ? 'THƯ VIỆN'
+                    : profileSubTab === 'history'
+                      ? 'HOẠT ĐỘNG'
+                      : 'CÀI ĐẶT'}
+                </Text>
+                <Text style={[styles.tabTitle, styles.profilePageTitle]}>
+                  {profileSubTab === 'learning'
+                    ? 'Khóa đã mua'
+                    : profileSubTab === 'history'
+                      ? 'Lịch sử'
+                      : 'Cài đặt'}
+                </Text>
+              </View>
             </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.subTabBtn, profileSubTab === 'resume' ? styles.subTabBtnActive : null]}
-              onPress={() => setProfileSubTab('resume')}
-            >
-              <Text style={[styles.subTabBtnText, profileSubTab === 'resume' ? styles.subTabBtnTextActive : null]}>Hồ sơ CV</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.subTabBtn, profileSubTab === 'settings' ? styles.subTabBtnActive : null]}
-              onPress={() => setProfileSubTab('settings')}
-            >
-              <Text style={[styles.subTabBtnText, profileSubTab === 'settings' ? styles.subTabBtnTextActive : null]}>Cài đặt</Text>
-            </TouchableOpacity>
-          </View>
-
-          {profileSubTab === 'info' && (
-            <View style={styles.subTabContentCard}>
-              <View style={styles.infoFieldRow}>
-                <Ionicons name="mail-outline" size={16} color="#94a3b8" />
-                <View style={styles.infoFieldRight}>
-                  <Text style={styles.infoFieldLabel}>Địa chỉ Email</Text>
-                  <Text style={styles.infoFieldValue}>{profile.email}</Text>
-                </View>
-              </View>
-
-              <View style={styles.infoFieldRow}>
-                <Ionicons name="call-outline" size={16} color="#94a3b8" />
-                <View style={styles.infoFieldRight}>
-                  <Text style={styles.infoFieldLabel}>Số điện thoại</Text>
-                  <Text style={styles.infoFieldValue}>{profile.phone || 'Chưa cập nhật'}</Text>
-                </View>
-              </View>
-
-              <View style={styles.infoFieldRow}>
-                <Ionicons name="school-outline" size={16} color="#94a3b8" />
-                <View style={styles.infoFieldRight}>
-                  <Text style={styles.infoFieldLabel}>Học vấn / Trường học</Text>
-                  <Text style={styles.infoFieldValue}>{profile.school || 'Chưa cập nhật'}</Text>
-                </View>
-              </View>
-
-              <View style={styles.infoFieldRow}>
-                <Ionicons name="ribbon-outline" size={16} color="#94a3b8" />
-                <View style={styles.infoFieldRight}>
-                  <Text style={styles.infoFieldLabel}>Kinh nghiệm làm việc</Text>
-                  <Text style={styles.infoFieldValue}>
-                    {profile.experience ? `${profile.experience} năm kinh nghiệm` : 'Chưa cập nhật'}
-                  </Text>
-                </View>
-              </View>
+          ) : (
+            <View>
+              <Text style={styles.profilePageEyebrow}>
+                {userRole === 'admin'
+                  ? 'QUẢN TRỊ'
+                  : userRole === 'mentor'
+                    ? 'CỐ VẤN'
+                    : 'HỒ SƠ CÁ NHÂN'}
+              </Text>
+              <Text style={[styles.tabTitle, styles.profilePageTitle]}>Cá nhân</Text>
             </View>
           )}
+          {profileSubTab === 'profile' ? (
+            <TouchableOpacity style={styles.profileEditButton} onPress={() => setProfileSubTab('settings')}>
+              <Ionicons name="settings-outline" size={18} color="#8037f4" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
-          {profileSubTab === 'resume' && (
-            <View style={styles.subTabContentCard}>
-              <View style={styles.resumeFieldBlock}>
-                <Text style={styles.resumeBlockLabel}>Giới thiệu bản thân (Bio)</Text>
-                <Text style={styles.resumeBlockValue}>{profile.bio || 'Chưa cập nhật tiểu sử bản thân.'}</Text>
-              </View>
+        <Animated.View style={[styles.profileTabBody, { opacity: profileTabEntrance }]}>
+        {profileSubTab !== 'learning' && profileSubTab !== 'history' && profileSubTab !== 'settings' && (
+          <ProfileScreen
+            user={profile}
+            ownedCourseCount={userRole === 'customer' ? paidCourses : 0}
+            onOpenLearning={
+              userRole === 'customer' ? () => setProfileSubTab('learning') : undefined
+            }
+            onOpenHistory={
+              userRole === 'customer' ? () => setProfileSubTab('history') : undefined
+            }
+            onOpenRoleSessions={
+              userRole === 'mentor'
+                ? () => setActiveTab('mentor_sessions')
+                : userRole === 'admin'
+                  ? () => setActiveTab('admin_ops')
+                  : undefined
+            }
+            onOpenRoleCourses={
+              userRole === 'mentor' ? () => setActiveTab('mentor_courses') : undefined
+            }
+            onOpenRoleFinance={
+              userRole === 'mentor'
+                ? () => setActiveTab('mentor_finance')
+                : userRole === 'admin'
+                  ? () => setActiveTab('admin_finance')
+                  : undefined
+            }
+            onLogout={handleRealLogout}
+            onUserUpdated={(updatedUser) => {
+              if (updatedUser) setCurrentUser(updatedUser);
+            }}
+          />
+        )}
 
-              <View style={styles.resumeFieldBlock}>
-                <Text style={styles.resumeBlockLabel}>Kỹ năng & Chuyên môn (Skills)</Text>
-                {profile.expertise && profile.expertise.length > 0 ? (
-                  <View style={styles.profileSkillsGrid}>
-                    {profile.expertise.map((skill, index) => (
-                      <View key={index} style={styles.profileSkillPill}>
-                        <Text style={styles.profileSkillPillText}>{skill}</Text>
+        {(profileSubTab === 'learning' || profileSubTab === 'history' || profileSubTab === 'settings') && (
+            <ScrollView
+              style={styles.tabBodyScroll}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: HOME_NAV_CLEARANCE + 16 }}
+            >
+          {profileSubTab === 'learning' && (
+            <View style={styles.learningTab}>
+              <LinearGradient
+                colors={['rgba(233,207,139,0.18)', 'rgba(109,40,217,0.24)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.learningOverview}
+              >
+                <View>
+                  <Text style={styles.learningOverviewEyebrow}>THƯ VIỆN CỦA BẠN</Text>
+                  <Text style={styles.learningOverviewTitle}>{paidCourses} khóa học đã sở hữu</Text>
+                  <Text style={styles.learningOverviewSub}>Tiến độ trung bình {averageProgress}%</Text>
+                </View>
+                <View style={styles.learningRing}>
+                  <Text style={styles.learningRingValue}>{averageProgress}%</Text>
+                </View>
+              </LinearGradient>
+
+              {enrollments.length > 0 ? enrollments.map((enrollment, idx) => {
+                const course = enrollment.courseId || {};
+                const paid = enrollment.paymentStatus === 'paid' || enrollment.paymentStatus == null;
+                const progress = Math.min(100, Math.max(0, Number(enrollment.progressPercent) || 0));
+                const purchasedAt = enrollment.paidAt || enrollment.updatedAt || enrollment.createdAt;
+                const image = course.image || course.thumbnail || course.coverImage;
+                return (
+                  <View key={enrollment._id || idx} style={styles.ownedCourseCard}>
+                    <View style={styles.ownedCourseTop}>
+                      {image ? (
+                        <Image source={{ uri: image }} style={styles.ownedCourseImage} />
+                      ) : (
+                        <LinearGradient colors={['#6d28d9', '#312e81']} style={styles.ownedCourseImageFallback}>
+                          <Ionicons name="school" size={25} color="#fff" />
+                        </LinearGradient>
+                      )}
+                      <View style={styles.ownedCourseInfo}>
+                        <View style={styles.ownedCourseBadgeRow}>
+                          <View style={[
+                            styles.ownedCourseStatus,
+                            { backgroundColor: paid ? 'rgba(147,247,43,0.12)' : 'rgba(251,191,36,0.12)' },
+                          ]}>
+                            <View style={[styles.ownedCourseStatusDot, { backgroundColor: paid ? '#93f72b' : '#fbbf24' }]} />
+                            <Text style={[styles.ownedCourseStatusText, { color: paid ? '#93f72b' : '#fbbf24' }]}>
+                              {paid ? 'ĐÃ SỞ HỮU' : 'CHỜ THANH TOÁN'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.ownedCourseTitle} numberOfLines={2}>{getCourseDisplayTitle(course.title)}</Text>
+                        <Text style={styles.ownedCourseMeta} numberOfLines={1}>
+                          {course.category || 'ProInterview'} · {course.duration || `${course.totalLessons || 0} bài học`}
+                        </Text>
                       </View>
-                    ))}
+                    </View>
+
+                    <View style={styles.ownedCourseProgressHeader}>
+                      <Text style={styles.ownedCourseProgressLabel}>Tiến độ học tập</Text>
+                      <Text style={styles.ownedCourseProgressValue}>{progress}%</Text>
+                    </View>
+                    <View style={styles.ownedCourseProgressTrack}>
+                      <LinearGradient
+                        colors={['#93f72b', '#22c55e']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={[styles.ownedCourseProgressFill, { width: `${progress}%` }]}
+                      />
+                    </View>
+
+                    <View style={styles.ownedCourseFooter}>
+                      <View>
+                        <Text style={styles.ownedCoursePurchaseLabel}>Ngày mua</Text>
+                        <Text style={styles.ownedCoursePurchaseValue}>
+                          {purchasedAt ? new Date(purchasedAt).toLocaleDateString('vi-VN') : '—'}
+                          {Number(enrollment.pricePaid) > 0
+                            ? ` · ${Number(enrollment.pricePaid).toLocaleString('vi-VN')}đ`
+                            : ''}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.continueLearningButton, !paid && styles.continueLearningButtonDisabled]}
+                        disabled={!paid}
+                        onPress={() => openCourseLearning(enrollment)}
+                      >
+                        <Text style={styles.continueLearningText}>{progress > 0 ? 'Học tiếp' : 'Bắt đầu học'}</Text>
+                        <Ionicons name="arrow-forward" size={14} color="#0c081e" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                ) : (
-                  <Text style={styles.resumeBlockValue}>Chưa cập nhật kỹ năng.</Text>
-                )}
-              </View>
-
-              <View style={styles.resumeFieldBlock}>
-                <Text style={styles.resumeBlockLabel}>Kinh nghiệm làm việc chi tiết</Text>
-                <Text style={styles.resumeBlockValue}>{profile.profileWorkExperience || 'Chưa cập nhật mô tả.'}</Text>
-              </View>
-
-              <View style={styles.resumeFieldBlock}>
-                <Text style={styles.resumeBlockLabel}>Học vấn chi tiết</Text>
-                <Text style={styles.resumeBlockValue}>{profile.profileEducation || 'Chưa cập nhật thông tin học vị.'}</Text>
-              </View>
-
-              <View style={[styles.resumeFieldBlock, { borderBottomWidth: 0, paddingBottom: 0 }]}>
-                <Text style={styles.resumeBlockLabel}>Giải thưởng đạt được</Text>
-                <Text style={styles.resumeBlockValue}>{profile.profileAwards || 'Chưa có thông tin giải thưởng.'}</Text>
-              </View>
+                );
+              }) : (
+                <View style={styles.learningEmpty}>
+                  <View style={styles.learningEmptyIcon}>
+                    <Ionicons name="library-outline" size={30} color="#a78bfa" />
+                  </View>
+                  <Text style={styles.learningEmptyTitle}>Thư viện đang trống</Text>
+                  <Text style={styles.learningEmptyText}>Khám phá khóa học phù hợp với lộ trình của bạn.</Text>
+                  <TouchableOpacity style={styles.learningExploreButton} onPress={() => setActiveTab('courses')}>
+                    <Text style={styles.learningExploreText}>Khám phá khóa học</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
 
           {profileSubTab === 'settings' && (
+            <View style={styles.profileSettingsWrap}>
             <View style={styles.profileOptionsList}>
               <TouchableOpacity style={styles.profileOptionRow} onPress={handleToggleInAppNotifications}>
                 <View style={styles.profileOptionLeft}>
-                  <Ionicons name="notifications-outline" size={18} color="#93f72b" />
+                  <Ionicons name="notifications-outline" size={18} color="#8037f4" />
                   <Text style={styles.profileOptionLabel}>Thông báo đẩy (In-app)</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
               </TouchableOpacity>
 
               <TouchableOpacity style={styles.profileOptionRow} onPress={() => setChangePasswordModalVisible(true)}>
                 <View style={styles.profileOptionLeft}>
-                  <Ionicons name="lock-closed-outline" size={18} color="#93f72b" />
+                  <Ionicons name="lock-closed-outline" size={18} color="#8037f4" />
                   <Text style={styles.profileOptionLabel}>Thay đổi mật khẩu</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.3)" />
+                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
               </TouchableOpacity>
 
-              <TouchableOpacity style={[styles.profileOptionRow, { borderBottomWidth: 0 }]} onPress={handleRealLogout}>
-                <View style={styles.profileOptionLeft}>
-                  <Ionicons name="log-out-outline" size={18} color="#ef4444" />
-                  <Text style={[styles.profileOptionLabel, { color: '#fca5a5' }]}>Đăng xuất khỏi tài khoản</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(239, 68, 68, 0.3)" />
-              </TouchableOpacity>
+            </View>
             </View>
           )}
 
-          {/* HIỂN THỊ DANH SÁCH LỊCH HẸN TỪ MONGODB */}
-          {bookings.length > 0 && (
-            <View style={{ marginTop: 24 }}>
+          {profileSubTab === 'history' && (
+            <View style={styles.profileHistoryContent}>
+              <View style={styles.historySummaryCard}>
+                <View>
+                  <Text style={styles.historySummaryLabel}>Tổng chi tiêu thành công</Text>
+                  <Text style={styles.historySummaryValue}>{totalSpent.toLocaleString('vi-VN')}đ</Text>
+                </View>
+                <View style={styles.historySummaryIcon}>
+                  <Ionicons name="wallet-outline" size={24} color="#93f72b" />
+                </View>
+              </View>
+
+              <View style={styles.historySectionHeader}>
+                <Text style={styles.cvResultSectionTitle}>Giao dịch gần đây</Text>
+                <Text style={styles.historyCount}>{payments.length}</Text>
+              </View>
+              {payments.length > 0 ? payments.map((payment, idx) => {
+                const succeeded = payment.status === 'success';
+                const pending = payment.status === 'pending';
+                const statusLabel = succeeded ? 'Thành công' : pending ? 'Đang chờ' : 'Thất bại';
+                const statusColor = succeeded ? '#93f72b' : pending ? '#fbbf24' : '#fb7185';
+                const typeLabel =
+                  payment.type === 'course'
+                    ? 'Thanh toán khóa học'
+                    : payment.type === 'booking'
+                      ? 'Thanh toán lịch hẹn'
+                      : 'Thanh toán gói thành viên';
+                return (
+                  <View key={payment.id || idx} style={styles.paymentHistoryRow}>
+                    <View style={[styles.historyItemIcon, { backgroundColor: `${statusColor}18` }]}>
+                      <Ionicons
+                        name={payment.type === 'course' ? 'school-outline' : payment.type === 'booking' ? 'calendar-outline' : 'diamond-outline'}
+                        size={18}
+                        color={statusColor}
+                      />
+                    </View>
+                    <View style={styles.paymentHistoryMain}>
+                      <Text style={styles.paymentHistoryTitle}>{typeLabel}</Text>
+                      <Text style={styles.paymentHistoryMeta}>
+                        {payment.provider?.toUpperCase()} · {new Date(payment.createdAt).toLocaleDateString('vi-VN')}
+                      </Text>
+                    </View>
+                    <View style={styles.paymentHistoryRight}>
+                      <Text style={styles.paymentHistoryAmount}>
+                        {(Number(payment.amount) || 0).toLocaleString('vi-VN')}đ
+                      </Text>
+                      <Text style={[styles.paymentHistoryStatus, { color: statusColor }]}>{statusLabel}</Text>
+                    </View>
+                  </View>
+                );
+              }) : (
+                <View style={styles.historyEmpty}>
+                  <Ionicons name="receipt-outline" size={26} color="#64748b" />
+                  <Text style={styles.historyEmptyText}>Chưa có giao dịch</Text>
+                </View>
+              )}
+
+              {/* HIỂN THỊ DANH SÁCH LỊCH HẸN TỪ MONGODB */}
+              {bookings.length > 0 && (
+                <View style={styles.historySection}>
               <Text style={styles.cvResultSectionTitle}>Lịch hẹn phỏng vấn đã đặt</Text>
               {bookings.map((booking, idx) => (
                 <View key={booking._id || idx} style={styles.bookingHistoryCard}>
@@ -2107,200 +3213,466 @@ function AppInner() {
                   ) : null}
                 </View>
               ))}
+                </View>
+              )}
+
+              {enrollments.length > 0 && (
+                <View style={styles.historySection}>
+              <Text style={styles.cvResultSectionTitle}>Khóa học của tôi</Text>
+              {enrollments.map((enrollment, idx) => {
+                const course = enrollment.courseId || {};
+                const title = getCourseDisplayTitle(course.title);
+                const paid = enrollment.paymentStatus === 'paid' || !enrollment.paymentStatus;
+                const pending = enrollment.paymentStatus === 'pending';
+                return (
+                  <View key={enrollment._id || idx} style={styles.bookingHistoryCard}>
+                    <View style={styles.bookingHistoryTop}>
+                      <Text style={styles.bookingSessionType} numberOfLines={2}>{title}</Text>
+                      <View style={[
+                        styles.bookingStatusBadge,
+                        paid
+                          ? { backgroundColor: 'rgba(16,185,129,0.1)', borderColor: '#10b981' }
+                          : { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: '#f59e0b' },
+                      ]}>
+                        <Text style={[
+                          styles.bookingStatusBadgeText,
+                          paid ? { color: '#10b981' } : { color: '#f59e0b' },
+                        ]}>
+                          {paid ? 'ĐÃ MUA' : 'CHỜ TT'}
+                        </Text>
+                      </View>
+                    </View>
+                    {pending && enrollment.paymentRef ? (
+                      <Text style={styles.bookingTimeText}>Mã CK: {enrollment.paymentRef}</Text>
+                    ) : null}
+                    {paid && enrollment.progressPercent != null ? (
+                      <Text style={styles.bookingTimeText}>Tiến độ: {enrollment.progressPercent}%</Text>
+                    ) : null}
+                  </View>
+                );
+              })}
+                </View>
+              )}
+
+              {cvAnalyses.length > 0 && (
+                <View style={styles.historySection}>
+                  <Text style={styles.cvResultSectionTitle}>CV đã phân tích</Text>
+                  {cvAnalyses.map((item, idx) => (
+                    <View key={item._id || idx} style={styles.cvHistoryCard}>
+                      <View style={styles.cvHistoryLeft}>
+                        <View style={styles.historyItemIcon}>
+                          <Ionicons name="document-text-outline" size={18} color="#a78bfa" />
+                        </View>
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text style={styles.cvHistoryName} numberOfLines={1}>{item.cvFileName || 'Hồ sơ CV'}</Text>
+                          <Text style={styles.cvHistoryDate}>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.cvHistoryScore}>
+                        <Text style={styles.cvHistoryScoreTxt}>{item.result?.match?.score || 70}%</Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           )}
-
-        </ScrollView>
-      </View>
+            </ScrollView>
+          )}
+        </Animated.View>
+      </Animated.View>
     );
   };
 
+  const renderRoleBottomNav = () => {
+    const goToProfile = () => {
+      if (activeTab === 'profile') {
+        setProfileSubTab('profile');
+        return;
+      }
+      setActiveTab('profile');
+    };
+    const inactiveIconColor = '#8a7da8';
+    const TabBtn = ({ tab, icon, label, center = false, alsoActiveFor = [] }) => {
+      const isActive = activeTab === tab || alsoActiveFor.includes(activeTab);
+      return (
+        <TouchableOpacity
+          style={[styles.navItemFloating, center && styles.navItemCenter]}
+          activeOpacity={0.82}
+          onPress={() => (tab === 'profile' ? goToProfile() : setActiveTab(tab))}
+        >
+          <View
+            style={[
+              styles.navIconWrap,
+              isActive && styles.navIconWrapActive,
+              center && styles.navCenterOuter,
+              center && isActive && styles.navCenterOuterActive,
+            ]}
+          >
+            <View style={center ? styles.navCenterInner : null}>
+              <Ionicons
+                name={icon}
+                size={center ? 24 : 20}
+                color={isActive ? '#93f72b' : inactiveIconColor}
+              />
+            </View>
+          </View>
+          {!center ? (
+            <Text style={[styles.navTextFloating, isActive && styles.navTextFloatingActive]}>{label}</Text>
+          ) : null}
+        </TouchableOpacity>
+      );
+    };
+
+    const BottomNavShell = ({ children }) => (
+      <View style={styles.bottomNavFloating}>
+        <View style={styles.bottomNavBackgroundClip} pointerEvents="none">
+          {Platform.OS === 'web' ? (
+            <View style={styles.bottomNavGlassWeb} />
+          ) : (
+            <BlurView
+              intensity={Platform.OS === 'ios' ? 78 : 56}
+              tint="light"
+              style={styles.bottomNavBlur}
+              experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
+            />
+          )}
+          <View style={styles.bottomNavGlassTint} />
+        </View>
+        {children}
+      </View>
+    );
+
+    if (userRole === 'admin') {
+      // Cùng bố cục / tên tab với khách (và mentor): Mentors · Quét CV · Trang chủ · Khóa học · Cá nhân
+      return (
+        <BottomNavShell>
+          <TabBtn tab="admin_mentors" icon="people" label="Mentors" />
+          <TabBtn tab="admin_ops" icon="scan-outline" label="Quét CV" />
+          <TabBtn
+            tab="admin_home"
+            icon="home"
+            label="Trang chủ"
+            center
+            alsoActiveFor={['admin_finance']}
+          />
+          <TabBtn tab="admin_content" icon="school" label="Khóa học" />
+          <TabBtn tab="profile" icon="person" label="Cá nhân" />
+        </BottomNavShell>
+      );
+    }
+
+    if (userRole === 'mentor') {
+      // Cùng bố cục / tên tab với khách: Mentors · Quét CV · Trang chủ · Khóa học · Cá nhân
+      return (
+        <BottomNavShell>
+          <TabBtn tab="mentor_sessions" icon="people" label="Mentors" />
+          <TabBtn tab="mentor_schedule" icon="scan-outline" label="Quét CV" />
+          <TabBtn
+            tab="mentor_home"
+            icon="home"
+            label="Trang chủ"
+            center
+            alsoActiveFor={['mentor_finance']}
+          />
+          <TabBtn tab="mentor_courses" icon="school" label="Khóa học" />
+          <TabBtn tab="profile" icon="person" label="Cá nhân" />
+        </BottomNavShell>
+      );
+    }
+
+    return (
+      <BottomNavShell>
+        <TabBtn tab="mentors" icon="people" label="Mentors" />
+        <TabBtn tab="cv" icon="scan-outline" label="Quét CV" />
+        <TabBtn tab="home" icon="home" label="Trang chủ" center />
+        <TabBtn tab="courses" icon="school" label="Khóa học" />
+        <TabBtn tab="profile" icon="person" label="Cá nhân" />
+      </BottomNavShell>
+    );
+  };
+
+  const renderActiveTab = () => {
+    if (userRole === 'admin' || userRole === 'mentor') {
+      if (activeTab === 'profile') return renderProfileTab();
+      return (
+        <RolePortal
+          role={userRole}
+          activeTab={activeTab}
+          data={rolePortalData}
+          loading={roleDataLoading}
+          user={appUser}
+          onNavigate={setActiveTab}
+          onRefresh={() => loadRolePortalData(userRole)}
+        />
+      );
+    }
+
+    if (activeTab === 'home') return renderHomeTab();
+    if (activeTab === 'mentors') return renderMentorsTab();
+    if (activeTab === 'courses') return renderCoursesTab();
+    if (activeTab === 'cv') return renderCvTab();
+    if (activeTab === 'profile') return renderProfileTab();
+    if (activeTab === 'course_detail' && detailCourseId) {
+      const detailEnrollment = findEnrollmentForCourse(detailCourseId);
+      return (
+        <CourseDetailScreen
+          courseId={detailCourseId}
+          enrollment={detailEnrollment}
+          purchaseState={getCoursePurchaseState(detailCourseId)}
+          topInset={shellTopPad}
+          bottomPadding={HOME_NAV_CLEARANCE + 16}
+          onBack={() => {
+            setDetailCourseId(null);
+            setActiveTab(tabBeforeCourseDetail || 'courses');
+          }}
+          onContinueLearn={(enrollment) => openCourseLearning(enrollment, 'course_detail')}
+          onBuy={(course) => goToCheckout({ mode: 'course', course: toCheckoutCourse(course), fromTab: 'course_detail' })}
+          onAddToCart={(course) => handleAddCourseToCart(toCheckoutCourse(course))}
+          onFreeEnroll={handleFreeEnroll}
+          addingToCart={addingCourseId === detailCourseId}
+        />
+      );
+    }
+    if (activeTab === 'course_learning' && learningEnrollment) {
+      return (
+        <CourseLearningScreen
+          enrollment={learningEnrollment}
+          onBack={() => setActiveTab(tabBeforeLearning || 'courses')}
+          onProgressUpdated={handleLearningProgressUpdated}
+        />
+      );
+    }
+    if (activeTab === 'mentor_booking' && bookedMentor) {
+      return (
+        <MentorBookingScreen
+          mentor={bookedMentor}
+          onBack={() => {
+            setBookedMentor(null);
+            setActiveTab(tabBeforeBooking || 'mentors');
+          }}
+          onConfirm={handleMentorBookingConfirm}
+        />
+      );
+    }
+    if (activeTab === 'checkout') {
+      return (
+        <CheckoutScreen
+          mode={checkoutMode}
+          course={checkoutCourse}
+          booking={checkoutBooking}
+          cart={cart}
+          onBack={() => setActiveTab(tabBeforeCheckout || 'courses')}
+          onSuccess={handlePaymentSuccess}
+        />
+      );
+    }
+    return null;
+  };
+
+  const renderMainContent = () => (
+    <View style={styles.mainTabHost}>
+      {renderActiveTab()}
+    </View>
+  );
+
   return (
-    <SafeAreaView style={styles.rootContainer}>
-      <StatusBar barStyle="light-content" translucent={true} backgroundColor="transparent" />
+    <View
+      key={appUser ? `app-${loginSession?.at || 'restored'}` : `auth-${authRenderTick}`}
+      style={[
+        styles.rootContainer,
+        appUser ? styles.rootContainerLight : styles.rootContainerAuth,
+      ]}
+    >
+      {appUser ? <AppShellBackground /> : null}
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
       
-      {currentUser == null ? (
+      {paymentResult ? (
+        <PaymentResultScreen
+          status={paymentResult.status}
+          message={paymentResult.message}
+          details={paymentResult.details}
+          paymentType={paymentResult.type}
+          onContinue={() => {
+            const nextTab = paymentResult.status === 'success' ? 'profile' : 'home';
+            if (paymentResult.status === 'success') {
+              setProfileSubTab(paymentResult.type === 'booking' ? 'history' : 'learning');
+            }
+            setPaymentResult(null);
+            setActiveTab(nextTab);
+          }}
+          onRetry={() => {
+            setPaymentResult(null);
+            setActiveTab('courses');
+          }}
+        />
+      ) : appUser == null ? (
         authScreen === 'login' ? renderLoginScreen() : renderRegisterScreen()
       ) : (
-        <>
-          {activeTab === 'home' && renderHomeTab()}
-          {activeTab === 'mentors' && renderMentorsTab()}
-          {activeTab === 'courses' && renderCoursesTab()}
-          {activeTab === 'cv' && renderCvTab()}
-          {activeTab === 'profile' && renderProfileTab()}
-
-          <View style={styles.bottomNavFloating}>
-            <TouchableOpacity style={styles.navItemFloating} onPress={() => setActiveTab('home')}>
-              <Ionicons name="home" size={20} color={activeTab === 'home' ? '#93f72b' : '#94a3b8'} />
-              <Text style={[styles.navTextFloating, { color: activeTab === 'home' ? '#93f72b' : '#94a3b8' }]}>Trang chủ</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItemFloating} onPress={() => setActiveTab('mentors')}>
-              <Ionicons name="people" size={20} color={activeTab === 'mentors' ? '#93f72b' : '#94a3b8'} />
-              <Text style={[styles.navTextFloating, { color: activeTab === 'mentors' ? '#93f72b' : '#94a3b8' }]}>Mentors</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItemFloating} onPress={() => setActiveTab('cv')}>
-              <Ionicons name="document-text" size={20} color={activeTab === 'cv' ? '#93f72b' : '#94a3b8'} />
-              <Text style={[styles.navTextFloating, { color: activeTab === 'cv' ? '#93f72b' : '#94a3b8' }]}>Quét CV</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItemFloating} onPress={() => setActiveTab('courses')}>
-              <Ionicons name="school" size={20} color={activeTab === 'courses' ? '#93f72b' : '#94a3b8'} />
-              <Text style={[styles.navTextFloating, { color: activeTab === 'courses' ? '#93f72b' : '#94a3b8' }]}>Khóa học</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItemFloating} onPress={() => setActiveTab('profile')}>
-              <Ionicons name="person" size={20} color={activeTab === 'profile' ? '#93f72b' : '#94a3b8'} />
-              <Text style={[styles.navTextFloating, { color: activeTab === 'profile' ? '#93f72b' : '#94a3b8' }]}>Cá nhân</Text>
-            </TouchableOpacity>
+        <View style={styles.appShell}>
+          <View style={styles.appShellContent}>
+            {renderMainContent()}
           </View>
-        </>
+          {activeTab !== 'checkout' && activeTab !== 'course_learning' && activeTab !== 'course_detail' && activeTab !== 'mentor_booking' ? (
+            <View style={styles.bottomNavDock} pointerEvents="box-none">
+              {renderRoleBottomNav()}
+            </View>
+          ) : null}
+        </View>
       )}
 
-      {/* MODAL DANH SÁCH THÔNG BÁO TỪ BACKEND DATABASE */}
-      <Modal visible={notifModalVisible} transparent animationType="slide" onRequestClose={() => setNotifModalVisible(false)}>
-        <View style={styles.googleModalOverlay}>
-          <View style={styles.googleAccountSheet}>
-            <View style={styles.notifSheetHeader}>
-              <Text style={styles.notifSheetTitle}>Hộp thư thông báo ({notifications.length})</Text>
-              {unreadNotifCount > 0 ? (
-                <TouchableOpacity onPress={handleMarkAllRead}>
-                  <Text style={styles.markAllReadText}>Đọc tất cả</Text>
-                </TouchableOpacity>
-              ) : null}
-            </View>
+      {/* DROPDOWN THÔNG BÁO TỪ ICON CHUÔNG (GÓC TRÊN PHẢI) */}
+      <Modal visible={notifModalVisible} transparent animationType="none" onRequestClose={closeNotifDropdown}>
+        <View style={styles.notifDropdownOverlay}>
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              styles.notifDropdownBackdrop,
+              { opacity: notifOverlayAnim },
+            ]}
+          />
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeNotifDropdown} />
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.notifsScrollList}>
-              {notifications.length === 0 ? (
-                <View style={styles.emptyNotifs}>
-                  <Ionicons name="mail-open-outline" size={40} color="#cbd5e1" />
-                  <Text style={styles.emptyNotifsTxt}>Hộp thư thông báo của bạn trống.</Text>
+          <Animated.View
+            style={[
+              styles.notifDropdownAnchor,
+              {
+                top: notifAnchor.top,
+                right: notifAnchor.right,
+                width: NOTIF_PANEL_WIDTH,
+                opacity: notifPanelAnim,
+                transform: [
+                  {
+                    translateY: notifPanelAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-10, 0],
+                    }),
+                  },
+                  {
+                    scale: notifPanelAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.94, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={[styles.notifDropdownCaret, { right: notifAnchor.caretRight }]} />
+            <View style={styles.notifDropdownPanel}>
+              <LinearGradient
+                colors={['rgba(128, 55, 244, 0.18)', 'rgba(20, 16, 31, 0.98)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.notifDropdownHeader}
+              >
+                <View>
+                  <Text style={styles.notifDropdownTitle}>Thông báo</Text>
+                  {unreadNotifCount > 0 ? (
+                    <Text style={styles.notifDropdownSubtitle}>{unreadNotifCount} chưa đọc</Text>
+                  ) : null}
                 </View>
-              ) : (
-                notifications.map((item, index) => (
-                  <View key={item._id || index} style={[styles.notifItemRow, !item.isRead ? styles.notifUnreadBg : null]}>
-                    <View style={styles.notifIconCircle}>
-                      <Ionicons name="notifications" size={16} color="#7000ff" />
-                    </View>
-                    <View style={styles.notifBodyTextWrapper}>
-                      <Text style={styles.notifBodyTitle}>{item.title}</Text>
-                      <Text style={styles.notifBodyMsg}>{item.message}</Text>
-                      <Text style={styles.notifBodyDate}>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</Text>
-                    </View>
+                <View style={styles.notifDropdownHeaderActions}>
+                  {unreadNotifCount > 0 ? (
+                    <TouchableOpacity onPress={handleMarkAllRead} style={styles.notifMarkAllBtn}>
+                      <Text style={styles.markAllReadText}>Đọc tất cả</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                  <TouchableOpacity style={styles.notifDropdownCloseBtn} onPress={closeNotifDropdown}>
+                    <Ionicons name="close" size={15} color="#cbd5e1" />
+                  </TouchableOpacity>
+                </View>
+              </LinearGradient>
+
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={styles.notifDropdownScroll}
+                contentContainerStyle={styles.notifsScrollList}
+                bounces={false}
+              >
+                {notifications.length === 0 ? (
+                  <View style={styles.emptyNotifs}>
+                    <Ionicons name="notifications-off-outline" size={28} color="#64748b" />
+                    <Text style={styles.emptyNotifsTxt}>Không có thông báo mới</Text>
                   </View>
-                ))
-              )}
-            </ScrollView>
-
-            <TouchableOpacity style={styles.googleSheetCloseBtn} onPress={() => setNotifModalVisible(false)}>
-              <Text style={styles.googleSheetCloseBtnText}>Đóng</Text>
-            </TouchableOpacity>
-          </View>
+                ) : (
+                  notifications.map((item, index) => (
+                    <View
+                      key={item._id || index}
+                      style={[
+                        styles.notifItemRow,
+                        index < notifications.length - 1 ? styles.notifItemDivider : null,
+                        !item.isRead ? styles.notifUnreadRow : null,
+                      ]}
+                    >
+                      <View style={styles.notifBodyTextWrapper}>
+                        <View style={styles.notifTitleRow}>
+                          <Text style={[styles.notifBodyTitle, !item.isRead ? styles.notifBodyTitleUnread : null]} numberOfLines={1}>
+                            {item.title}
+                          </Text>
+                          {!item.isRead ? <View style={styles.notifUnreadDot} /> : null}
+                        </View>
+                        <Text style={styles.notifBodyMsg} numberOfLines={2}>{item.body || item.message}</Text>
+                        <Text style={styles.notifBodyDate}>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </Animated.View>
         </View>
       </Modal>
 
-      {/* MODAL ĐẶT LỊCH MENTOR THÀNH CÔNG */}
-      <Modal visible={bookingSuccessModal} transparent animationType="fade" onRequestClose={() => setBookingSuccessModal(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalCheckCircle}>
-              <Ionicons name="checkmark" size={30} color="#93f72b" />
-            </View>
-            <Text style={styles.modalTitle}>Đặt lịch thành công!</Text>
-            <Text style={styles.modalDesc}>
-              Lịch hẹn luyện phỏng vấn 1-1 với Mentor{' '}
-              <Text style={{ fontWeight: 'bold', color: '#7000ff' }}>{bookedMentor?.name}</Text> đã được ghi nhận trực tiếp vào Database!
-            </Text>
-            <View style={styles.modalTimeBox}>
-              <Text style={styles.modalTimeText}>⏱ Thứ 5 tuần này · 20:00 - 21:00</Text>
-            </View>
-            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setBookingSuccessModal(false)}>
-              <Text style={styles.modalCloseBtnText}>Đóng</Text>
-            </TouchableOpacity>
-          </View>
+      <CartModal
+        visible={cartModalVisible}
+        onClose={() => setCartModalVisible(false)}
+        cart={cart}
+        loading={cartLoading}
+        onRemove={handleRemoveCartItem}
+        onCheckout={handleStartCartCheckout}
+        onRefresh={refreshCart}
+      />
+
+      {cartToast ? (
+        <View style={styles.cartToast} pointerEvents="none">
+          <Ionicons name="checkmark-circle" size={18} color="#93f72b" />
+          <Text style={styles.cartToastText}>{cartToast}</Text>
         </View>
-      </Modal>
+      ) : null}
 
-
-
-      {/* GOOGLE ACCOUNTS SELECTOR SHEET (OAUTH SIMULATOR DIALOG) */}
-      <Modal visible={googleModalVisible} transparent animationType="slide" onRequestClose={() => setGoogleModalVisible(false)}>
-        <View style={styles.googleModalOverlay}>
-          <View style={styles.googleAccountSheet}>
-            <View style={styles.googleSheetHeader}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=60&auto=format&fit=crop&q=80' }} 
-                style={styles.googleIconLarge} 
-              />
-              <Text style={styles.googleSheetTitle}>Chọn tài khoản Google</Text>
-              <Text style={styles.googleSheetDesc}>để tiếp tục đăng nhập ProInterview</Text>
-            </View>
-
-            <View style={styles.googleAccountsList}>
-              <TouchableOpacity 
-                style={styles.googleAccountItem} 
-                onPress={() => handleGoogleAccountSelect('customer@dev.local', 'Khách hàng Dev', 'customer')}
-              >
-                <View style={styles.googleAvatarCircle}><Text style={styles.googleAvatarTxt}>C</Text></View>
-                <View style={styles.googleAccountInfo}>
-                  <Text style={styles.googleAccountName}>Khách hàng Dev</Text>
-                  <Text style={styles.googleAccountEmail}>customer@dev.local</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.googleAccountItem} 
-                onPress={() => handleGoogleAccountSelect('mentor@dev.local', 'Mentor Dev', 'mentor')}
-              >
-                <View style={styles.googleAvatarCircle}><Text style={styles.googleAvatarTxt}>M</Text></View>
-                <View style={styles.googleAccountInfo}>
-                  <Text style={styles.googleAccountName}>Mentor Dev</Text>
-                  <Text style={styles.googleAccountEmail}>mentor@dev.local</Text>
-                </View>
-              </TouchableOpacity>
-
-              <TouchableOpacity 
-                style={styles.googleAccountItem} 
-                onPress={() => handleGoogleAccountSelect('admin@dev.local', 'Admin Dev', 'admin')}
-              >
-                <View style={styles.googleAvatarCircle}><Text style={styles.googleAvatarTxt}>A</Text></View>
-                <View style={styles.googleAccountInfo}>
-                  <Text style={styles.googleAccountName}>Admin Dev</Text>
-                  <Text style={styles.googleAccountEmail}>admin@dev.local</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity style={styles.googleSheetCloseBtn} onPress={() => setGoogleModalVisible(false)}>
-              <Text style={styles.googleSheetCloseBtnText}>Hủy bỏ</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL THAY ĐỔI MẬT KHẨU TỪ DATABASE */}
+      {/* MODAL THAY ĐỔI MẬT KHẨU — nền sáng đồng bộ */}
       <Modal visible={changePasswordModalVisible} transparent animationType="fade" onRequestClose={() => setChangePasswordModalVisible(false)}>
-        <View style={styles.googleModalOverlay}>
-          <View style={[styles.googleAccountSheet, { paddingVertical: 24 }]}>
-            <View style={{ marginBottom: 16, alignItems: 'center' }}>
-              <Ionicons name="lock-closed" size={36} color="#7000ff" />
-              <Text style={[styles.notifSheetTitle, { marginTop: 8 }]}>Thay đổi mật khẩu</Text>
-              <Text style={{ fontSize: 12, color: '#64748b', textAlign: 'center', marginTop: 4 }}>
-                {currentUser?.hasGoogleLogin 
-                  ? "Tài khoản Google: Bạn có thể đặt mật khẩu trực tiếp." 
-                  : "Vui lòng nhập mật khẩu hiện tại và mật khẩu mới."}
+        <View style={styles.elegantModalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setChangePasswordModalVisible(false)} />
+          <View style={styles.elegantSheet}>
+            <View style={styles.elegantSheetHandle} />
+            <View style={styles.elegantSheetHeader}>
+              <View style={styles.elegantIconBadge}>
+                <Ionicons name="lock-closed" size={22} color="#2D1B69" />
+              </View>
+              <Text style={styles.elegantSheetTitle}>Thay đổi mật khẩu</Text>
+              <Text style={styles.elegantSheetSubtitle}>
+                {appUser?.hasGoogleLogin
+                  ? 'Tài khoản Google: Bạn có thể đặt mật khẩu trực tiếp.'
+                  : 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.'}
               </Text>
             </View>
 
             {changePasswordError ? (
-              <Text style={{ color: '#ef4444', fontSize: 12, textAlign: 'center', marginBottom: 12, fontWeight: 'bold' }}>
-                {changePasswordError}
-              </Text>
+              <Text style={styles.elegantErrorText}>{changePasswordError}</Text>
             ) : null}
 
-            <View style={{ gap: 12, marginBottom: 20 }}>
-              {!currentUser?.hasGoogleLogin ? (
+            <View style={styles.elegantFieldGroup}>
+              {!appUser?.hasGoogleLogin ? (
                 <View>
-                  <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#64748b', marginBottom: 4 }}>Mật khẩu hiện tại</Text>
+                  <Text style={styles.elegantFieldLabel}>Mật khẩu hiện tại</Text>
                   <TextInput
-                    style={[styles.searchTextInput, { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 12, height: 44, color: '#0f172a' }]}
+                    style={styles.elegantInput}
                     placeholder="Mật khẩu hiện tại"
                     placeholderTextColor="#94a3b8"
                     secureTextEntry
@@ -2311,9 +3683,9 @@ function AppInner() {
               ) : null}
 
               <View>
-                <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#64748b', marginBottom: 4 }}>Mật khẩu mới (ít nhất 6 ký tự)</Text>
+                <Text style={styles.elegantFieldLabel}>Mật khẩu mới (ít nhất 6 ký tự)</Text>
                 <TextInput
-                  style={[styles.searchTextInput, { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 12, height: 44, color: '#0f172a' }]}
+                  style={styles.elegantInput}
                   placeholder="Mật khẩu mới"
                   placeholderTextColor="#94a3b8"
                   secureTextEntry
@@ -2323,9 +3695,9 @@ function AppInner() {
               </View>
 
               <View>
-                <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#64748b', marginBottom: 4 }}>Xác nhận mật khẩu mới</Text>
+                <Text style={styles.elegantFieldLabel}>Xác nhận mật khẩu mới</Text>
                 <TextInput
-                  style={[styles.searchTextInput, { borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 10, paddingHorizontal: 12, height: 44, color: '#0f172a' }]}
+                  style={styles.elegantInput}
                   placeholder="Xác nhận mật khẩu mới"
                   placeholderTextColor="#94a3b8"
                   secureTextEntry
@@ -2335,9 +3707,9 @@ function AppInner() {
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity 
-                style={[styles.googleSheetCloseBtn, { flex: 1, marginTop: 0, height: 44, backgroundColor: '#f1f5f9' }]} 
+            <View style={styles.elegantBtnRow}>
+              <TouchableOpacity
+                style={styles.elegantBtnGhost}
                 onPress={() => {
                   setChangePasswordModalVisible(false);
                   setCurrentPassword('');
@@ -2345,16 +3717,18 @@ function AppInner() {
                   setConfirmPassword('');
                   setChangePasswordError('');
                 }}
+                activeOpacity={0.88}
               >
-                <Text style={[styles.googleSheetCloseBtnText, { color: '#64748b' }]}>Hủy</Text>
+                <Text style={styles.elegantBtnGhostText}>Hủy</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.googleSheetCloseBtn, { flex: 1, marginTop: 0, height: 44, backgroundColor: '#7000ff' }]} 
+              <TouchableOpacity
+                style={styles.elegantBtnPrimary}
                 onPress={handleChangePassword}
                 disabled={updatingPassword}
+                activeOpacity={0.88}
               >
-                <Text style={[styles.googleSheetCloseBtnText, { color: '#ffffff' }]}>
-                  {updatingPassword ? "Đang xử lý..." : "Cập nhật"}
+                <Text style={styles.elegantBtnPrimaryText}>
+                  {updatingPassword ? 'Đang xử lý...' : 'Cập nhật'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -2362,7 +3736,69 @@ function AppInner() {
         </View>
       </Modal>
 
-    </SafeAreaView>
+      {/* Dialog xác nhận sáng (thông báo / đăng xuất) */}
+      <Modal
+        visible={!!confirmDialog}
+        transparent
+        animationType="fade"
+        onRequestClose={closeConfirmDialog}
+      >
+        <View style={styles.elegantConfirmOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeConfirmDialog} />
+          <View style={styles.elegantConfirmCard}>
+            {confirmDialog?.icon ? (
+              <View
+                style={[
+                  styles.elegantConfirmIconWrap,
+                  confirmDialog.confirmTone === 'danger' && styles.elegantConfirmIconWrapDanger,
+                ]}
+              >
+                <Ionicons
+                  name={confirmDialog.icon}
+                  size={22}
+                  color={confirmDialog.confirmTone === 'danger' ? '#dc2626' : '#2D1B69'}
+                />
+              </View>
+            ) : null}
+            <Text style={styles.elegantConfirmTitle}>{confirmDialog?.title}</Text>
+            <Text style={styles.elegantConfirmMessage}>{confirmDialog?.message}</Text>
+            <View style={styles.elegantConfirmBtnRow}>
+              <TouchableOpacity
+                style={styles.elegantConfirmBtnCancel}
+                onPress={closeConfirmDialog}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.elegantConfirmBtnCancelText}>
+                  {confirmDialog?.cancelText || 'Hủy'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.elegantConfirmBtnOk,
+                  confirmDialog?.confirmTone === 'danger' && styles.elegantConfirmBtnDanger,
+                ]}
+                onPress={() => {
+                  const action = confirmDialog?.onConfirm;
+                  closeConfirmDialog();
+                  if (typeof action === 'function') action();
+                }}
+                activeOpacity={0.88}
+              >
+                <Text
+                  style={[
+                    styles.elegantConfirmBtnOkText,
+                    confirmDialog?.confirmTone === 'danger' && styles.elegantConfirmBtnDangerText,
+                  ]}
+                >
+                  {confirmDialog?.confirmText || 'Xác nhận'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+    </View>
   );
 }
 
@@ -2396,12 +3832,81 @@ const createShadow = (color, offsetX, offsetY, opacity, radius, elevation = 0) =
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#06040b',
+    backgroundColor: PI_SHELL_BG,
+    ...Platform.select({
+      web: { height: '100vh', maxHeight: '100vh', overflow: 'hidden' },
+      default: {},
+    }),
+  },
+  rootContainerAuth: {
+    backgroundColor: '#f5f0fc',
+  },
+  rootContainerLight: {
+    backgroundColor: PI_SHELL_BG,
+  },
+  appShell: {
+    flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+    minHeight: 0,
+    ...Platform.select({
+      web: { height: '100%', maxHeight: '100%' },
+      default: {},
+    }),
+  },
+  appShellContent: {
+    flex: 1,
+    overflow: 'hidden',
+    minHeight: 0,
+  },
+  mainTabHost: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+  },
+  bottomNavDock: Platform.select({
+    web: {
+      position: 'fixed',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 1000,
+      pointerEvents: 'box-none',
+      overflow: 'visible',
+    },
+    default: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 100,
+      elevation: 100,
+      pointerEvents: 'box-none',
+      overflow: 'visible',
+    },
+  }),
+  homeTabScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  tabBodyScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  profileTabBody: {
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+  },
+  tabPageHeader: {
+    flexShrink: 0,
   },
   homeScrollWrapper: {
     flex: 1,
-    backgroundColor: '#090514',
+    minHeight: 0,
+    backgroundColor: 'transparent',
     position: 'relative',
+    overflow: 'hidden',
   },
   glowSphere: {
     position: 'absolute',
@@ -2410,121 +3915,1849 @@ const styles = StyleSheet.create({
     borderRadius: 150,
     opacity: 0.15,
   },
-
-  // LOGIN SCREEN STYLE (COSMOS BRANDED GLASSMORPHISM)
-  loginWrapper: {
-    flex: 1,
-    backgroundColor: '#06040b',
+  homeModernScroll: {
+    paddingHorizontal: 16,
+    paddingTop: Platform.OS === 'android' ? 42 : 18,
+    paddingBottom: 118,
   },
-  loginOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(6, 4, 11, 0.78)',
-    paddingHorizontal: 24,
+  homeHeroModern: {
+    minHeight: 410,
+    borderRadius: 30,
+    padding: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(137, 72, 236, 0.32)',
+    ...createShadow('#000000', 0, 14, 0.34, 28, 7),
   },
-  loginScrollContainer: {
-    flexGrow: 1,
+  homeHeroGlow: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    right: -72,
+    top: 54,
+    backgroundColor: 'rgba(112, 0, 255, 0.18)',
+  },
+  homeHeroCopy: {
+    flex: 1,
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingTop: 28,
   },
-  loginHeader: {
-    alignItems: 'center',
-    marginBottom: 36,
-  },
-  loginLogoImage: {
-    width: 190,
-    height: 52,
-    marginBottom: 10,
-  },
-  loginTagline: {
-    fontSize: 13,
-    color: '#94a3b8',
-    textAlign: 'center',
-  },
-  loginCard: {
-    backgroundColor: 'rgba(22, 17, 41, 0.85)',
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1.5,
-    borderColor: 'rgba(128, 55, 244, 0.25)', 
-    ...createShadow('#7000ff', 0, 10, 0.15, 24, 8),
-  },
-  loginTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  loginSubtitle: {
-    fontSize: 13,
-    color: '#94a3b8',
-    marginBottom: 24,
-  },
-  loginInputWrapper: {
+  homeHeroEyebrow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 16,
-    height: 52,
+    gap: 7,
+    marginBottom: 11,
   },
-  loginInputIcon: {
-    marginRight: 12,
+  homeHeroEyebrowDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#93f72b',
   },
-  loginTextInput: {
-    flex: 1,
+  homeHeroEyebrowText: {
+    color: '#b7a0dd',
+    fontSize: 9,
+    letterSpacing: 1.55,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeHeroTitle: {
     color: '#ffffff',
+    fontSize: 28,
+    lineHeight: 36,
+    letterSpacing: -0.9,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  homeHeroTitleAccent: {
+    color: '#93f72b',
+  },
+  homeHeroSubtitle: {
+    maxWidth: 315,
+    color: '#aba6ba',
+    fontSize: 12,
+    lineHeight: 19,
+    marginTop: 10,
+    fontFamily: 'Manrope_400Regular',
+  },
+  homeHeroActions: {
+    flexDirection: 'row',
+    gap: 9,
+    marginTop: 21,
+  },
+  homeHeroPrimary: {
+    height: 43,
+    borderRadius: 15,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#93f72b',
+  },
+  homeHeroPrimaryText: {
+    color: '#0d1410',
+    fontSize: 11,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeHeroSecondary: {
+    height: 43,
+    borderRadius: 15,
+    paddingHorizontal: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  homeHeroSecondaryText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  homeStatsRow: {
+    height: 66,
+    borderRadius: 19,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(5, 5, 12, 0.34)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    paddingHorizontal: 7,
+  },
+  homeStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  homeStatValue: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  homeStatLabel: {
+    color: '#8e899b',
+    fontSize: 8,
+    marginTop: 2,
+    fontFamily: 'Manrope_500Medium',
+  },
+  homeStatDivider: {
+    width: 1,
+    height: 27,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  homeModernSection: {
+    marginTop: 28,
+  },
+  homeSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: 13,
+  },
+  homeSectionEyebrow: {
+    color: '#7f8496',
+    fontSize: 8,
+    letterSpacing: 1.45,
+    marginBottom: 4,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeSectionTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    letterSpacing: -0.35,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeViewAll: {
+    color: '#93f72b',
+    fontSize: 10,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  homeLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(147,247,43,0.07)',
+  },
+  homeLiveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#71d99d',
+  },
+  homeLiveText: {
+    color: '#8da39a',
+    fontSize: 8,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  homeNextCard: {
+    minHeight: 112,
+    borderRadius: 23,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(112,0,255,0.25)',
+  },
+  homeNextIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(147,247,43,0.09)',
+  },
+  homeNextBody: {
+    flex: 1,
+    paddingHorizontal: 12,
+  },
+  homeNextLabel: {
+    color: '#93f72b',
+    fontSize: 7,
+    letterSpacing: 1,
+    marginBottom: 4,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeNextTitle: {
+    color: '#f7f7fa',
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeNextMeta: {
+    color: '#858a9d',
+    fontSize: 9,
+    lineHeight: 14,
+    marginTop: 3,
+    fontFamily: 'Manrope_500Medium',
+  },
+  homeNextAction: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#93f72b',
+  },
+  homeLearningCard: {
+    minHeight: 122,
+    borderRadius: 23,
+    flexDirection: 'row',
+    padding: 12,
+    backgroundColor: '#151624',
+    borderWidth: 1,
+    borderColor: 'rgba(112,0,255,0.22)',
+  },
+  homeLearningImage: {
+    width: 96,
+    height: 96,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  homeLearningBody: {
+    flex: 1,
+    paddingLeft: 13,
+    justifyContent: 'center',
+  },
+  homeLearningTitle: {
+    color: '#ffffff',
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeLearningProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  homeLearningProgressLabel: {
+    color: '#777d90',
+    fontSize: 8,
+    fontFamily: 'Manrope_500Medium',
+  },
+  homeLearningProgressValue: {
+    color: '#93f72b',
+    fontSize: 8,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeLearningTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  homeLearningFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  homeLearningCta: {
+    color: '#b9a6df',
+    fontSize: 9,
+    marginTop: 8,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  homeCarousel: {
+    gap: 11,
+    paddingRight: 15,
+  },
+  homeMentorCard: {
+    width: 142,
+    minHeight: 174,
+    borderRadius: 22,
+    padding: 13,
+    backgroundColor: '#151624',
+    borderWidth: 1,
+    borderColor: 'rgba(112,0,255,0.22)',
+  },
+  homeMentorTop: {
+    alignSelf: 'flex-start',
+    position: 'relative',
+    marginBottom: 10,
+  },
+  homeMentorAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(112,0,255,0.65)',
+  },
+  homeMentorVerified: {
+    position: 'absolute',
+    right: -3,
+    bottom: -3,
+    width: 17,
+    height: 17,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#93f72b',
+    borderWidth: 2,
+    borderColor: '#151624',
+  },
+  homeMentorName: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeMentorRole: {
+    color: '#818698',
+    fontSize: 9,
+    marginTop: 3,
+    fontFamily: 'Manrope_500Medium',
+  },
+  homeMentorBottom: {
+    marginTop: 'auto',
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  homeMentorRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  homeMentorRatingText: {
+    color: '#dfe1e8',
+    fontSize: 9,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeMentorPrice: {
+    color: '#93f72b',
+    fontSize: 9,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeCourseCard: {
+    width: 226,
+    height: 176,
+    borderRadius: 23,
+    overflow: 'hidden',
+    backgroundColor: '#151624',
+    borderWidth: 1,
+    borderColor: 'rgba(112,0,255,0.24)',
+  },
+  homeCourseImage: {
+    width: '100%',
+    height: '100%',
+  },
+  homeCourseShade: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  homeCourseBadge: {
+    position: 'absolute',
+    top: 11,
+    right: 11,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(10,11,16,0.82)',
+  },
+  homeCourseBadgeText: {
+    color: '#93f72b',
+    fontSize: 9,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeCourseContent: {
+    position: 'absolute',
+    left: 14,
+    right: 14,
+    bottom: 13,
+  },
+  homeCourseTitle: {
+    color: '#ffffff',
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeCourseMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 7,
+  },
+  homeCourseDuration: {
+    color: '#a7abba',
+    fontSize: 9,
+    fontFamily: 'Manrope_500Medium',
+  },
+  homeJourneyGrid: {
+    flexDirection: 'row',
+    gap: 9,
+  },
+  homeJourneyItem: {
+    flex: 1,
+    minHeight: 122,
+    borderRadius: 20,
+    padding: 12,
+    backgroundColor: '#141521',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.065)',
+  },
+  homeJourneyIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(112,0,255,0.14)',
+  },
+  homeJourneyIconDone: {
+    backgroundColor: '#93f72b',
+  },
+  homeJourneyNumber: {
+    color: '#686d7f',
+    fontSize: 8,
+    marginTop: 12,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeJourneyTitle: {
+    color: '#e8e9ee',
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: 3,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  editorialScroll: {
+    paddingHorizontal: 19,
+    paddingTop: Platform.OS === 'android' ? 42 : 20,
+    paddingBottom: 116,
+  },
+  editorialHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  editorialIdentity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  editorialAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#5420a5',
+    borderWidth: 1,
+    borderColor: 'rgba(147,247,43,0.45)',
+  },
+  editorialHello: {
+    color: '#717789',
+    fontSize: 7,
+    letterSpacing: 1.25,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialUserName: {
+    maxWidth: 155,
+    color: '#f3f4f7',
+    fontSize: 13,
+    marginTop: 2,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialHeaderActions: {
+    flexDirection: 'row',
+    gap: 7,
+  },
+  editorialHeaderButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  editorialAlertDot: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    right: 7,
+    top: 7,
+    backgroundColor: '#93f72b',
+  },
+  editorialIntro: {
+    position: 'relative',
+    overflow: 'hidden',
+    paddingTop: 48,
+    paddingBottom: 31,
+  },
+  editorialMonogram: {
+    position: 'absolute',
+    right: -8,
+    top: 22,
+    color: 'rgba(112,0,255,0.1)',
+    fontSize: 112,
+    lineHeight: 120,
+    letterSpacing: -12,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  editorialIntroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  editorialKicker: {
+    color: '#93f72b',
+    fontSize: 8,
+    letterSpacing: 1.7,
+    marginBottom: 14,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialIssueBadge: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: 'rgba(112,0,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(151,96,235,0.25)',
+    marginBottom: 14,
+  },
+  editorialIssueText: {
+    color: '#a888db',
+    fontSize: 6,
+    letterSpacing: 1,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialHeadline: {
+    color: '#f9f9fb',
+    fontSize: 35,
+    lineHeight: 42,
+    letterSpacing: -1.5,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  editorialHeadlineAccent: {
+    color: '#9b6ee8',
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  editorialLead: {
+    flex: 1,
+    maxWidth: 282,
+    color: '#858a9d',
+    fontSize: 11,
+    lineHeight: 18,
+    fontFamily: 'Manrope_400Regular',
+  },
+  editorialIntroBottom: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 11,
+    marginTop: 16,
+  },
+  editorialIntroRule: {
+    width: 31,
+    height: 1,
+    backgroundColor: '#93f72b',
+    marginTop: 8,
+  },
+  editorialFeature: {
+    height: 258,
+    borderRadius: 29,
+    overflow: 'hidden',
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(180,135,255,0.22)',
+    ...createShadow('#000000', 0, 12, 0.32, 24, 7),
+  },
+  editorialFeatureOrb: {
+    position: 'absolute',
+    right: -42,
+    top: -45,
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: 'rgba(147,247,43,0.08)',
+  },
+  editorialFeaturePortrait: {
+    position: 'absolute',
+    width: 152,
+    height: 205,
+    right: -9,
+    bottom: -8,
+    borderTopLeftRadius: 82,
+    opacity: 0.58,
+  },
+  editorialFeatureMetric: {
+    position: 'absolute',
+    right: 14,
+    top: 14,
+    width: 60,
+    height: 55,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(8,7,14,0.48)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    zIndex: 3,
+  },
+  editorialFeatureMetricValue: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  editorialFeatureMetricLabel: {
+    color: '#93f72b',
+    fontSize: 5,
+    letterSpacing: 0.65,
+    marginTop: 1,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialFeatureVertical: {
+    position: 'absolute',
+    right: -68,
+    top: 128,
+    width: 175,
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: 6,
+    letterSpacing: 1.2,
+    transform: [{ rotate: '90deg' }],
+    fontFamily: 'Manrope_700Bold',
+    zIndex: 3,
+  },
+  editorialFeatureCopy: {
+    flex: 1,
+    zIndex: 2,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  editorialFeatureTag: {
+    color: '#c1a6ea',
+    fontSize: 8,
+    letterSpacing: 1.3,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialFeatureTitle: {
+    maxWidth: 238,
+    color: '#ffffff',
+    fontSize: 21,
+    lineHeight: 28,
+    letterSpacing: -0.55,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialFeatureButton: {
+    height: 40,
+    borderRadius: 14,
+    paddingLeft: 14,
+    paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#93f72b',
+  },
+  editorialFeatureButtonText: {
+    color: '#0d1410',
+    fontSize: 10,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialTicker: {
+    height: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 11,
+    marginTop: 9,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  editorialTickerText: {
+    color: '#74798a',
+    fontSize: 6,
+    letterSpacing: 0.75,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialTickerDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#6f2bc4',
+  },
+  editorialQuickGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  editorialQuickPrimary: {
+    flex: 1.12,
+    minHeight: 204,
+    borderRadius: 26,
+    padding: 16,
+    backgroundColor: '#93f72b',
+  },
+  editorialQuickIcon: {
+    width: 39,
+    height: 39,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(13,20,16,0.1)',
+  },
+  editorialQuickCount: {
+    position: 'absolute',
+    top: 17,
+    right: 16,
+    color: 'rgba(13,20,16,0.42)',
+    fontSize: 12,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialQuickTitle: {
+    color: '#0d1410',
+    fontSize: 18,
+    lineHeight: 23,
+    marginTop: 28,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  editorialQuickLink: {
+    color: '#24301f',
+    fontSize: 9,
+    marginTop: 'auto',
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialQuickStack: {
+    flex: 0.88,
+    gap: 10,
+  },
+  editorialQuickSmall: {
+    flex: 1,
+    borderRadius: 23,
+    padding: 14,
+    backgroundColor: '#151520',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  editorialQuickSmallValue: {
+    position: 'absolute',
+    right: 14,
+    top: 13,
+    color: '#ffffff',
+    fontSize: 16,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  editorialQuickSmallLabel: {
+    color: '#9a9fb0',
+    fontSize: 9,
+    marginTop: 'auto',
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  editorialSection: {
+    marginTop: 48,
+  },
+  editorialSectionIndex: {
+    color: '#93f72b',
+    fontSize: 8,
+    letterSpacing: 1.2,
+    marginBottom: 7,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialSectionHeadingRow: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 17,
+  },
+  editorialSectionTitle: {
+    color: '#ffffff',
+    fontSize: 20,
+    letterSpacing: -0.5,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialSectionLine: {
+    width: 76,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  editorialSectionLink: {
+    color: '#9b75dc',
+    fontSize: 9,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialActivityRow: {
+    minHeight: 101,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(255,255,255,0.09)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+  },
+  editorialActivityDate: {
+    width: 58,
+    alignItems: 'flex-start',
+  },
+  editorialActivityDay: {
+    color: '#ffffff',
+    fontSize: 25,
+    lineHeight: 28,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  editorialActivityMonth: {
+    color: '#717789',
+    fontSize: 7,
+    letterSpacing: 0.6,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialActivityBody: {
+    flex: 1,
+    paddingHorizontal: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255,255,255,0.09)',
+  },
+  editorialActivityType: {
+    color: '#8a65ca',
+    fontSize: 7,
+    letterSpacing: 1,
+    marginBottom: 4,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialActivityTitle: {
+    color: '#f4f4f7',
+    fontSize: 12,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialActivityMeta: {
+    color: '#777d8f',
+    fontSize: 9,
+    marginTop: 4,
+    textTransform: 'capitalize',
+    fontFamily: 'Manrope_500Medium',
+  },
+  editorialLearningRow: {
+    marginTop: 9,
+    borderRadius: 21,
+    padding: 15,
+    backgroundColor: '#14151f',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.065)',
+  },
+  editorialLearningTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  editorialLearningPercent: {
+    color: '#93f72b',
     fontSize: 15,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  editorialLearningTrack: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginTop: 12,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  editorialLearningFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  editorialMentorFeature: {
+    minHeight: 224,
+    borderRadius: 27,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    backgroundColor: '#171721',
+    borderWidth: 1,
+    borderColor: 'rgba(112,0,255,0.2)',
+  },
+  editorialMentorImage: {
+    width: '43%',
+    height: 224,
+  },
+  editorialMentorCopy: {
+    flex: 1,
+    padding: 17,
+  },
+  editorialMentorRole: {
+    color: '#8e68d0',
+    fontSize: 7,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialMentorName: {
+    color: '#ffffff',
+    fontSize: 18,
+    lineHeight: 23,
+    marginTop: 6,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  editorialMentorBio: {
+    color: '#878c9d',
+    fontSize: 9,
+    lineHeight: 15,
+    marginTop: 9,
+    fontFamily: 'Manrope_400Regular',
+  },
+  editorialMentorFooter: {
+    marginTop: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  editorialMentorRating: {
+    color: '#f2c96c',
+    fontSize: 10,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialRoundArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#93f72b',
+  },
+  editorialMentorRail: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingLeft: 4,
+  },
+  editorialMentorThumb: {
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    marginLeft: -4,
+    borderWidth: 2,
+    borderColor: '#090514',
+  },
+  editorialMentorRailText: {
+    color: '#6f7485',
+    fontSize: 8,
+    marginLeft: 9,
+    fontFamily: 'Manrope_500Medium',
+  },
+  editorialCourseList: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.09)',
+  },
+  editorialCourseRow: {
+    minHeight: 94,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.09)',
+    paddingVertical: 12,
+  },
+  editorialCourseNumber: {
+    width: 27,
+    color: '#676c7d',
+    fontSize: 8,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialCourseImage: {
+    width: 66,
+    height: 66,
+    borderRadius: 17,
+  },
+  editorialCourseBody: {
+    flex: 1,
+    paddingHorizontal: 11,
+  },
+  editorialCourseTitle: {
+    color: '#f2f3f6',
+    fontSize: 11,
+    lineHeight: 16,
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialCourseMeta: {
+    color: '#73798a',
+    fontSize: 8,
+    marginTop: 5,
+    fontFamily: 'Manrope_500Medium',
+  },
+  editorialCoursePrice: {
+    maxWidth: 65,
+    color: '#93f72b',
+    fontSize: 9,
+    textAlign: 'right',
+    fontFamily: 'Manrope_700Bold',
+  },
+  editorialFooter: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 7,
+    paddingTop: 55,
+    paddingBottom: 12,
+  },
+  editorialFooterDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#93f72b',
+  },
+  editorialFooterText: {
+    color: '#555a6b',
+    fontSize: 7,
+    letterSpacing: 1.2,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanHomeScroll: {
+    paddingHorizontal: 18,
+    paddingTop: Platform.OS === 'android' ? 42 : 20,
+    paddingBottom: 116,
+  },
+  cleanHomeScrollFit: {
+    paddingHorizontal: HOME_SIDE_PAD,
+    flexGrow: 1,
+  },
+  cleanHomeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+    marginTop: 4,
+    minHeight: 48,
+  },
+  cleanHomeProfile: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minWidth: 0,
+    paddingRight: 8,
+  },
+  cleanHomeProfileText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cleanHomeAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8f5ff',
+    borderWidth: 2,
+    borderColor: '#8037f4',
+  },
+  cleanHomeAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
+  },
+  cleanHomeHello: {
+    color: '#64748b',
+    fontSize: 11,
+    fontFamily: 'Manrope_500Medium',
+  },
+  cleanHomeName: {
+    color: '#1e1b2e',
+    fontSize: 16,
+    marginTop: 2,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanHomeHeaderActions: {
+    flexDirection: 'row',
+    gap: 8,
+    flexShrink: 0,
+  },
+  cleanHomeHeaderIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+  },
+  cleanHomeRedDot: {
+    position: 'absolute',
+    right: 7,
+    top: 7,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ef4444',
+    borderWidth: 1,
+    borderColor: '#ffffff',
+  },
+  cleanHomeSearch: {
+    height: 48,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+  },
+  cleanHomeSearchInput: {
+    flex: 1,
+    color: '#1e1b2e',
+    fontSize: 13,
+    fontFamily: 'Manrope_500Medium',
+  },
+  cleanNewsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  cleanNewsHeading: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanNewsCount: {
+    color: '#94a3b8',
+    fontSize: 7,
+    letterSpacing: 1,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanNewsRail: {
+    gap: 10,
+    paddingRight: 10,
+  },
+  cleanNewsCard: {
+    borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: '#171821',
+    borderWidth: 1,
+    borderColor: 'rgba(112,0,255,0.24)',
+  },
+  cleanNewsImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cleanNewsShade: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  cleanNewsIndex: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(9,7,17,0.62)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  cleanNewsIndexText: {
+    color: '#ffffff',
+    fontSize: 8,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanNewsContent: {
+    position: 'absolute',
+    left: 15,
+    right: 15,
+    bottom: 14,
+  },
+  cleanNewsTag: {
+    color: '#93f72b',
+    fontSize: 7,
+    letterSpacing: 1,
+    marginBottom: 5,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanNewsTitle: {
+    color: '#ffffff',
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanNewsSubtitle: {
+    color: '#adb1bd',
+    fontSize: 8,
+    marginTop: 4,
+    fontFamily: 'Manrope_500Medium',
+  },
+  homeJourneyCard: {
+    marginTop: 14,
+    borderRadius: 24,
+    padding: 14,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.14)',
+    shadowColor: '#8037f4',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  homeJourneyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  homeJourneyEyebrow: {
+    color: '#8037f4',
+    fontSize: 8,
+    letterSpacing: 1,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeJourneyTitle: {
+    color: '#2D1B69',
+    fontSize: 16,
+    marginTop: 2,
+    letterSpacing: -0.3,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  homeJourneySpark: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#93f72b',
+  },
+  homeJourneyStep: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(128, 55, 244, 0.08)',
+  },
+  homeJourneyNumber: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  homeJourneyNumberText: {
+    fontSize: 9,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  homeJourneyIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(128, 55, 244, 0.04)',
+  },
+  homeJourneyBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  homeJourneyStepTitle: {
+    color: '#2D1B69',
+    fontSize: 12,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeJourneyStepDesc: {
+    color: 'rgba(45,27,105,0.55)',
+    fontSize: 9,
+    marginTop: 2,
+    fontFamily: 'Manrope_500Medium',
+  },
+  homeStatsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  homeStatPill: {
+    flex: 1,
+    minHeight: 58,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.1)',
+  },
+  homeStatValue: {
+    color: '#2D1B69',
+    fontSize: 17,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  homeStatLabel: {
+    color: '#7b6f96',
+    fontSize: 8,
+    marginTop: 2,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  homeToolsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  homeToolCard: {
+    flex: 1,
+    minHeight: 118,
+    borderRadius: 22,
+    padding: 13,
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+  },
+  homeToolIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(128, 55, 244, 0.08)',
+    marginBottom: 10,
+  },
+  homeToolTitle: {
+    color: '#2D1B69',
+    fontSize: 12,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  homeToolDesc: {
+    color: 'rgba(45,27,105,0.55)',
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: 4,
+    fontFamily: 'Manrope_500Medium',
+  },
+  cleanHomeTitleBlock: {
+    marginTop: 18,
+  },
+  cleanHomeTitle: {
+    color: '#0f172a',
+    fontSize: 17,
+    letterSpacing: -0.4,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  cleanHomeChips: {
+    gap: 8,
+    paddingTop: 6,
+    paddingBottom: 8,
+    paddingRight: 8,
+  },
+  cleanHomeChip: {
+    height: 30,
+    borderRadius: 17,
+    paddingHorizontal: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.14)',
+  },
+  cleanHomeChipActive: {
+    backgroundColor: '#93f72b',
+    borderColor: '#93f72b',
+  },
+  cleanHomeChipText: {
+    color: '#64748b',
+    fontSize: 9,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  cleanHomeChipTextActive: {
+    color: '#0d1410',
+    fontSize: 9,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanBookingStrip: {
+    minHeight: 82,
+    borderRadius: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 13,
+    marginBottom: 25,
+    backgroundColor: '#171522',
+    borderWidth: 1,
+    borderColor: 'rgba(112,0,255,0.2)',
+  },
+  cleanBookingIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(147,247,43,0.08)',
+  },
+  cleanBookingBody: {
+    flex: 1,
+    paddingHorizontal: 11,
+  },
+  cleanBookingLabel: {
+    color: '#8f6bcc',
+    fontSize: 7,
+    letterSpacing: 0.9,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanBookingTitle: {
+    color: '#f3f4f6',
+    fontSize: 11,
+    marginTop: 3,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanBookingMeta: {
+    color: '#777d8e',
+    fontSize: 8,
+    marginTop: 3,
+    fontFamily: 'Manrope_500Medium',
+  },
+  cleanSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  cleanSectionTitle: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanSectionLink: {
+    color: '#93f72b',
+    fontSize: 9,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  cleanCardGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignContent: 'flex-start',
+  },
+  cleanMentorCard: {
+    marginBottom: 0,
+  },
+  cleanMentorImageWrap: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#171821',
+  },
+  cleanMentorImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cleanMentorImageFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '58%',
+  },
+  cleanMentorPriceChip: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(147, 247, 43, 0.92)',
+  },
+  cleanMentorPriceChipText: {
+    color: '#0d1410',
+    fontSize: 9,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  cleanMentorImageCaption: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 11,
+  },
+  cleanMentorRatingMini: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 3,
+  },
+  cleanMentorRatingMiniText: {
+    color: '#d5d8e0',
+    fontSize: 9,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  cleanCardTitle: {
+    color: '#ffffff',
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: 'Manrope_700Bold',
+  },
+  homeCoursePreviewCard: {
+    borderRadius: 18,
+    padding: 9,
+    backgroundColor: 'rgba(255,255,255,0.86)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+  },
+  homeCoursePreviewImage: {
+    width: '100%',
+    height: 88,
+    borderRadius: 14,
+    backgroundColor: '#efe6fa',
+    marginBottom: 9,
+  },
+  homeCoursePreviewTitle: {
+    color: '#2D1B69',
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  homeCoursePreviewMeta: {
+    color: '#7b6f96',
+    fontSize: 8,
+    marginTop: 4,
+    fontFamily: 'Manrope_500Medium',
+  },
+  homeCvPreviewWrap: {
+    gap: 10,
+  },
+  homeCvPreviewCard: {
+    minHeight: 72,
+    borderRadius: 20,
+    padding: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+  },
+  homeCvPreviewIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(128, 55, 244, 0.08)',
+  },
+  homeCvPreviewTitle: {
+    color: '#2D1B69',
+    fontSize: 12,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  homeCvPreviewDesc: {
+    color: 'rgba(45,27,105,0.58)',
+    fontSize: 9,
+    lineHeight: 13,
+    marginTop: 3,
+    fontFamily: 'Manrope_500Medium',
+  },
+  homeCvPreviewCta: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    backgroundColor: '#93f72b',
+  },
+  homeCvPreviewCtaText: {
+    color: '#2D1B69',
+    fontSize: 11,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  cleanCvBanner: {
+    minHeight: 92,
+    borderRadius: 23,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginVertical: 31,
+    padding: 14,
+    backgroundColor: '#21153a',
+    borderWidth: 1,
+    borderColor: 'rgba(139,82,224,0.25)',
+  },
+  cleanCvIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(147,247,43,0.08)',
+  },
+  cleanCvLabel: {
+    color: '#9870da',
+    fontSize: 7,
+    letterSpacing: 1,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanCvTitle: {
+    color: '#ffffff',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 4,
+    fontFamily: 'Manrope_700Bold',
+  },
+  cleanCvArrow: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6f2bc4',
+  },
+  cleanCourseCard: {
+    width: '48%',
+    marginBottom: 5,
+  },
+  cleanCourseImageWrap: {
+    height: 118,
+    borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: '#171821',
+    marginBottom: 10,
+  },
+  cleanCourseImage: {
+    width: '100%',
+    height: '100%',
+  },
+
+  // AUTH SCREEN (ProInterview style — light purple bg + purple card + mascot)
+  authPageBg: {
+    flex: 1,
+    backgroundColor: '#f5f0fc',
+    overflow: 'hidden',
+  },
+  authPageBleed: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  authKeyboardWrap: {
+    flex: 1,
+  },
+  authBlobTop: {
+    position: 'absolute',
+    top: -100,
+    left: -70,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(128, 55, 244, 0.12)',
+  },
+  authBlobBottom: {
+    position: 'absolute',
+    bottom: -80,
+    right: -50,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(147, 247, 43, 0.08)',
+  },
+  authScrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  authTopBar: {
+    width: '100%',
+    maxWidth: AUTH_CARD_MAX_WIDTH,
+    alignSelf: 'center',
+    paddingBottom: 6,
+  },
+  authLogoImg: {
+    width: Math.min(148, width * 0.38),
+    height: 38,
+  },
+  authCardArea: {
+    width: '100%',
+    alignSelf: 'center',
+    alignItems: 'center',
+  },
+  authMascot: {
+    marginBottom: -18,
+    zIndex: 2,
+    alignSelf: 'flex-start',
+    marginLeft: 4,
+  },
+  authMascotSmall: {
+    marginBottom: -14,
+    zIndex: 2,
+    alignSelf: 'flex-start',
+    marginLeft: 4,
+  },
+  authCard: {
+    width: '100%',
+    backgroundColor: '#8037f4',
+    borderRadius: 28,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    ...createShadow('#8037f4', 0, 12, 0.24, 32, 6),
+    zIndex: 1,
+  },
+  authCardTitle: {
+    fontSize: 20,
+    fontWeight: '750',
+    color: '#ffffff',
+    letterSpacing: -0.5,
+    fontFamily: 'Manrope_800ExtraBold',
+    marginBottom: 4,
+  },
+  authCardSubtitle: {
+    fontSize: 11,
+    lineHeight: 16,
+    color: 'rgba(255,255,255,0.78)',
+    marginBottom: 16,
+    fontFamily: 'Manrope_400Regular',
+  },
+  authLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+    marginBottom: 5,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  authLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  authForgot: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#93f72b',
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  authInput: {
+    width: '100%',
+    height: 44,
+    borderRadius: 12,
+    paddingHorizontal: 13,
+    backgroundColor: '#ffffff',
+    color: '#111827',
+    fontSize: 13,
+    fontFamily: 'Manrope_500Medium',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+    marginBottom: 12,
+  },
+  authInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+    marginBottom: 12,
+    paddingRight: 10,
+    height: 44,
+    overflow: 'hidden',
+  },
+  authEyeBtn: {
+    padding: 4,
   },
   authErrorBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderRadius: 10,
     padding: 10,
-    marginBottom: 16,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.2)',
+    borderColor: 'rgba(239, 68, 68, 0.3)',
   },
   authErrorText: {
     color: '#fca5a5',
     fontSize: 12,
     flex: 1,
+    fontFamily: 'Manrope_500Medium',
   },
-  loginSubmitBtn: {
+  authSubmitBtn: {
     backgroundColor: '#93f72b',
-    borderRadius: 12,
-    height: 52,
-    flexDirection: 'row',
+    borderRadius: 999,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 8,
-    ...createShadow('#93f72b', 0, 4, 0.3, 8, 3),
+    marginTop: 2,
+    marginBottom: 2,
+    ...createShadow('#93f72b', 0, 6, 0.28, 14, 3),
   },
-  loginSubmitBtnText: {
+  authSubmitBtnText: {
     color: '#0f172a',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 'bold',
+    fontFamily: 'Manrope_700Bold',
   },
-  orDividerContainer: {
+  authDivider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 18,
+    marginVertical: 12,
   },
-  dividerLine: {
+  authDividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: 'rgba(255,255,255,0.25)',
   },
-  orDividerText: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 10,
-    fontWeight: 'bold',
+  authDividerText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 11,
+    fontFamily: 'Manrope_500Medium',
     marginHorizontal: 10,
-    letterSpacing: 1,
+  },
+  authFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 14,
+  },
+  authFooterText: {
+    color: 'rgba(255,255,255,0.78)',
+    fontSize: 12,
+    fontFamily: 'Manrope_500Medium',
+  },
+  authFooterLink: {
+    color: '#93f72b',
+    fontSize: 13,
+    fontWeight: 'bold',
+    fontFamily: 'Manrope_700Bold',
   },
   googleLoginSubmitBtn: {
     flexDirection: 'row',
@@ -2582,25 +5815,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerWelcomeBox: {
+    flex: 1,
+    marginRight: 10,
     gap: 2,
   },
   headerWelcomeText: {
-    fontSize: 12,
-    color: '#94a3b8',
+    fontSize: 8,
+    letterSpacing: 1.2,
+    color: '#8d879b',
+    fontFamily: 'Manrope_700Bold',
   },
   headerUserName: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
     color: '#ffffff',
+    fontFamily: 'Manrope_700Bold',
   },
   headerRightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 7,
     position: 'relative',
   },
   headerIconBtn: {
-    padding: 2,
+    width: 34,
+    height: 34,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.055)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
     position: 'relative',
   },
   unreadNotifBadge: {
@@ -2628,11 +5872,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: '#93f72b',
+    overflow: 'hidden',
   },
   avatarText: {
     fontSize: 11,
     fontWeight: 'bold',
     color: '#ffffff',
+  },
+  avatarImageCompact: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 17,
   },
   heroMiddleCompact: {
     alignItems: 'center',
@@ -2959,58 +6209,158 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
-  // MENTOR PREMIUM LIST
+  // MENTOR LIST
+  mentorPageHeader: {
+    marginBottom: 14,
+  },
+  mentorPageTitle: {
+    color: '#0f172a',
+    fontSize: 22,
+    letterSpacing: -0.5,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  mentorCompactCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.88)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+    marginBottom: 10,
+    ...createShadow('#8037f4', 0, 4, 0.06, 12, 2),
+  },
+  mentorCompactAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#1f2130',
+  },
+  mentorCompactBody: {
+    flex: 1,
+    marginLeft: 12,
+    marginRight: 8,
+  },
+  mentorCompactName: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontFamily: 'Manrope_700Bold',
+  },
+  mentorCompactRole: {
+    color: '#64748b',
+    fontSize: 11,
+    marginTop: 2,
+    fontFamily: 'Manrope_500Medium',
+  },
+  mentorCompactMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 5,
+  },
+  mentorCompactRating: {
+    color: '#d5d8e0',
+    fontSize: 11,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  mentorCompactAction: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  mentorCompactPrice: {
+    color: '#93f72b',
+    fontSize: 12,
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  mentorSearchIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(147, 247, 43, 0.1)',
+    marginRight: 9,
+  },
+  mentorResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 2,
+  },
+  mentorResultText: {
+    color: '#aeb3c4',
+    fontSize: 11,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  mentorApiBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  mentorApiDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#71d99d',
+  },
+  mentorApiText: {
+    color: '#7e8497',
+    fontSize: 10,
+    fontFamily: 'Manrope_500Medium',
+  },
   mentorPremiumCard: {
-    backgroundColor: 'rgba(22, 17, 41, 0.8)',
-    borderRadius: 24,
+    borderRadius: 26,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.25)',
-    ...createShadow('#7000ff', 0, 6, 0.1, 12, 3),
-    marginBottom: 16,
+    borderColor: 'rgba(125, 48, 235, 0.34)',
+    ...createShadow('#080510', 0, 12, 0.34, 24, 5),
   },
   mentorCardTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 15,
   },
   mentorFullAvatar: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    borderWidth: 2,
-    borderColor: '#7000ff',
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(112, 0, 255, 0.72)',
+  },
+  mentorVerifiedDot: {
+    position: 'absolute',
+    right: -3,
+    bottom: -3,
+    width: 19,
+    height: 19,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#93f72b',
+    borderWidth: 3,
+    borderColor: '#1c1e2b',
   },
   mentorMainDetails: {
     flex: 1,
-    marginLeft: 14,
+    marginLeft: 15,
   },
-  mentorFullName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  mentorFullRole: {
-    fontSize: 12,
-    color: '#cbd5e1',
-    marginTop: 2,
-    marginBottom: 6,
-  },
-  mentorFullBadgeRow: {
+  mentorNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 6,
   },
-  companyFullBadge: {
-    backgroundColor: 'rgba(147, 247, 43, 0.1)',
-    borderRadius: 6,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
+  mentorFullName: {
+    flexShrink: 1,
+    fontSize: 15,
+    color: '#f8f6f0',
+    fontFamily: 'Manrope_700Bold',
   },
-  companyFullBadgeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#93f72b',
+  mentorFullRole: {
+    fontSize: 11,
+    color: '#989eaf',
+    marginTop: 3,
+    marginBottom: 7,
+    fontFamily: 'Manrope_500Medium',
   },
   ratingFullRow: {
     flexDirection: 'row',
@@ -3019,22 +6369,102 @@ const styles = StyleSheet.create({
   },
   ratingFullText: {
     fontSize: 11,
-    color: '#cbd5e1',
-    fontWeight: '500',
+    color: '#f0e8d6',
+    fontFamily: 'Manrope_700Bold',
+  },
+  mentorReviewText: {
+    color: '#777d90',
+    fontSize: 10,
+    fontFamily: 'Manrope_500Medium',
+  },
+  mentorCompanyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 36,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: 10,
+    marginBottom: 12,
+  },
+  mentorCompanyIcon: {
+    marginRight: 8,
+  },
+  mentorCompanyText: {
+    flex: 1,
+    color: '#d9dbe5',
+    fontSize: 11,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  mentorExperienceText: {
+    color: '#93f72b',
+    fontSize: 10,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  mentorSkillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 7,
+    marginBottom: 14,
+  },
+  mentorSkillPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 11,
+    backgroundColor: 'rgba(112, 0, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(112, 0, 255, 0.2)',
+  },
+  mentorSkillText: {
+    color: '#c9c3b6',
+    fontSize: 9,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  mentorCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.055)',
+    paddingTop: 13,
+  },
+  mentorPriceLabel: {
+    color: '#767c8e',
+    fontSize: 9,
+    marginBottom: 2,
+    fontFamily: 'Manrope_500Medium',
+  },
+  mentorPriceValue: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontFamily: 'Manrope_700Bold',
+  },
+  mentorPriceUnit: {
+    color: '#858b9c',
+    fontSize: 9,
+    fontFamily: 'Manrope_500Medium',
   },
   bookPremiumBtn: {
-    backgroundColor: '#93f72b',
-    borderRadius: 14,
-    height: 44,
+    borderRadius: 15,
+    height: 42,
+    paddingLeft: 15,
+    paddingRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   bookPremiumBtnText: {
-    color: '#0f172a',
-    fontSize: 13,
-    fontWeight: 'bold',
+    color: '#ffffff',
+    fontSize: 11,
+    fontFamily: 'Manrope_700Bold',
+  },
+  bookPremiumArrow: {
+    width: 27,
+    height: 27,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#93f72b',
   },
 
   // COURSE PREMIUM LIST
@@ -3093,6 +6523,64 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 16,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  courseActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexShrink: 0,
+  },
+  courseOwnedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8,
+  },
+  courseOwnedBadgeText: {
+    color: '#10b981',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  courseOwnedBtn: {
+    backgroundColor: 'rgba(16,185,129,0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.45)',
+  },
+  courseOwnedBtnText: {
+    color: '#10b981',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  coursePendingBtn: {
+    backgroundColor: '#f59e0b',
+  },
+  courseCartBtn: {
+    backgroundColor: 'rgba(147,247,43,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(147,247,43,0.45)',
+    paddingHorizontal: 12,
+  },
+  cartToast: {
+    position: 'absolute',
+    bottom: 100,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(15,23,42,0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(147,247,43,0.4)',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    zIndex: 9999,
+  },
+  cartToastText: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
   courseBuyBtnText: {
     color: '#0f172a',
@@ -3169,15 +6657,115 @@ const styles = StyleSheet.create({
   },
 
   // MÀN HÌNH TÀI KHOẢN
-  profileCard: {
-    backgroundColor: 'rgba(22, 17, 41, 0.8)',
-    borderRadius: 24,
-    padding: 20,
+  profilePageEyebrow: {
+    color: 'rgba(45, 27, 105, 0.58)',
+    fontSize: 8,
+    fontFamily: 'Manrope_600SemiBold',
+    letterSpacing: 1.3,
+    marginBottom: 5,
+  },
+  profilePageTitle: {
+    color: '#2D1B69',
+    fontSize: 24,
+    fontFamily: 'Manrope_700Bold',
+    letterSpacing: -0.7,
+    lineHeight: 30,
+  },
+  profilePageSubtitle: {
+    color: '#9690a8',
+    fontFamily: 'Manrope_400Regular',
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 2,
+  },
+  profilePageHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 56,
+    paddingTop: 4,
+    paddingBottom: 10,
+    zIndex: 2,
+  },
+  profileHeadingBack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  profileEditButton: {
+    height: 40,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(128, 55, 244, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.25)',
-    ...createShadow('#7000ff', 0, 8, 0.1, 16, 3),
-    marginBottom: 20,
+    borderColor: 'rgba(128, 55, 244, 0.18)',
+  },
+  profileEditButtonText: {
+    color: '#c4b5fd',
+    fontSize: 9,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  profileCard: {
+    borderRadius: 30,
+    padding: 19,
+    borderWidth: 1,
+    borderColor: 'rgba(196,181,253,0.16)',
+    ...createShadow('#5b21b6', 0, 14, 0.18, 28, 5),
+    marginBottom: 18,
     marginTop: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  profileHeroGlow: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    top: -100,
+    right: -45,
+    backgroundColor: 'rgba(233,207,139,0.08)',
+  },
+  profileHeroTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+    paddingBottom: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(233,207,139,0.12)',
+  },
+  profilePremiumMark: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  profilePremiumMarkText: {
+    color: '#e9cf8b',
+    fontSize: 9,
+    fontFamily: 'Manrope_700Bold',
+    letterSpacing: 0.5,
+  },
+  profileVerifiedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 7,
+    borderRadius: 999,
+    backgroundColor: 'rgba(147,247,43,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(147,247,43,0.14)',
+  },
+  profileVerifiedChipText: {
+    color: '#b7ff68',
+    fontSize: 8,
+    fontFamily: 'Manrope_600SemiBold',
   },
   profileAvatarImage: {
     width: '100%',
@@ -3195,17 +6783,17 @@ const styles = StyleSheet.create({
   profileHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 14,
   },
   profileAvatarLarge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: '#7000ff',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2.5,
-    borderColor: '#93f72b',
+    borderColor: '#a3ff4f',
     position: 'relative',
   },
   profileAvatarLargeText: {
@@ -3214,43 +6802,86 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   profileInfoDetails: {
-    marginLeft: 16,
+    marginLeft: 14,
     flex: 1,
-    gap: 3,
+    gap: 2,
+  },
+  profileIdentityTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 2,
+  },
+  profileOnlineDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#93f72b',
+  },
+  profileIdentityEyebrow: {
+    color: '#a78bfa',
+    fontSize: 9,
+    fontFamily: 'Manrope_600SemiBold',
+    letterSpacing: 0.2,
   },
   profileNameText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 19,
+    fontFamily: 'Manrope_700Bold',
     color: '#ffffff',
+    letterSpacing: -0.25,
   },
   profileEmailText: {
-    fontSize: 12,
-    color: '#cbd5e1',
+    fontSize: 11,
+    color: '#94a3b8',
+    fontFamily: 'Manrope_400Regular',
   },
   profileCompanyRoleText: {
     fontSize: 11,
-    color: '#cbd5e1',
-    marginTop: 2,
+    color: '#e2e8f0',
+    fontFamily: 'Manrope_500Medium',
+    marginTop: 3,
+  },
+  profileBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 7,
+  },
+  profileRoleBadge: {
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(147,247,43,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(147,247,43,0.2)',
+  },
+  profileRoleBadgeText: {
+    color: '#b7ff68',
+    fontSize: 8,
+    fontFamily: 'Manrope_600SemiBold',
   },
   profilePlanBadge: {
-    backgroundColor: 'rgba(147, 247, 43, 0.12)',
-    borderRadius: 6,
-    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(247,215,116,0.1)',
+    borderRadius: 999,
+    paddingVertical: 3,
     paddingHorizontal: 8,
-    alignSelf: 'flex-start',
-    marginTop: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(247,215,116,0.22)',
   },
   profilePlanBadgeText: {
-    color: '#93f72b',
-    fontSize: 9,
-    fontWeight: 'bold',
+    color: '#f7d774',
+    fontSize: 8,
+    fontFamily: 'Manrope_600SemiBold',
     letterSpacing: 0.5,
   },
  
   quotaBox: {
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.06)',
-    paddingTop: 16,
+    paddingTop: 12,
   },
   quotaHeaderRow: {
     flexDirection: 'row',
@@ -3260,13 +6891,15 @@ const styles = StyleSheet.create({
   },
   quotaTitle: {
     fontSize: 11,
-    fontWeight: 'bold',
+    fontFamily: 'Manrope_600SemiBold',
     color: '#94a3b8',
   },
   quotaBody: {
-    gap: 10,
+    flexDirection: 'row',
+    gap: 14,
   },
   quotaItem: {
+    flex: 1,
     gap: 4,
   },
   quotaLabelRow: {
@@ -3274,12 +6907,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   quotaLabel: {
-    fontSize: 10,
-    color: '#cbd5e1',
-    fontWeight: '500',
+    fontSize: 9,
+    color: '#94a3b8',
+    fontFamily: 'Manrope_400Regular',
+  },
+  quotaValue: {
+    color: '#f8fafc',
+    fontSize: 9,
+    fontFamily: 'Manrope_700Bold',
   },
   quotaTrack: {
-    height: 4,
+    height: 5,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderRadius: 2,
     overflow: 'hidden',
@@ -3288,65 +6926,111 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 2,
   },
+  profileStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  profileStatItem: { flex: 1, alignItems: 'center', gap: 3 },
+  profileStatValue: { color: '#fff', fontSize: 17, fontFamily: 'Manrope_700Bold' },
+  profileStatLabel: { color: '#94a3b8', fontSize: 9, fontFamily: 'Manrope_500Medium' },
+  profileStatDivider: {
+    width: 1,
+    height: 25,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
  
   subTabContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-    padding: 4,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 23,
+    padding: 5,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    marginBottom: 16,
+    borderColor: 'rgba(128, 55, 244, 0.14)',
+    marginBottom: 17,
+    ...createShadow('#8037f4', 0, 8, 0.08, 16),
   },
   subTabBtn: {
     flex: 1,
-    height: 36,
-    borderRadius: 8,
+    minHeight: 46,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 2,
   },
   subTabBtnActive: {
-    backgroundColor: '#7000ff',
+    backgroundColor: 'rgba(128, 55, 244, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.22)',
+    ...createShadow('#8037f4', 0, 4, 0.12, 10),
   },
   subTabBtnText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#cbd5e1',
+    fontSize: 8,
+    fontFamily: 'Manrope_600SemiBold',
+    color: '#64748b',
   },
   subTabBtnTextActive: {
-    color: '#ffffff',
+    color: '#2D1B69',
   },
 
   subTabContentCard: {
-    backgroundColor: 'rgba(22, 17, 41, 0.8)',
-    borderRadius: 20,
-    padding: 16,
+    backgroundColor: 'rgba(22,17,41,0.72)',
+    borderRadius: 24,
+    padding: 17,
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.25)',
-    gap: 16,
+    borderColor: 'rgba(196,181,253,0.12)',
+    gap: 14,
+  },
+  profileInfoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    borderRadius: 0,
+    padding: 0,
+    gap: 12,
   },
   infoFieldRow: {
+    width: '48%',
+    minHeight: 86,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-    paddingBottom: 12,
+    gap: 9,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderWidth: 1,
+    borderColor: 'rgba(196,181,253,0.09)',
+    borderRadius: 28,
+    backgroundColor: 'rgba(25,19,44,0.76)',
+    ...createShadow('#000', 0, 7, 0.12, 14),
+  },
+  profileInfoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.045)',
+    borderWidth: 1,
+    borderColor: 'rgba(233,207,139,0.10)',
   },
   infoFieldRight: {
     flex: 1,
     gap: 2,
   },
   infoFieldLabel: {
-    fontSize: 10,
-    color: '#cbd5e1',
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
+    fontSize: 8,
+    color: '#94a3b8',
+    fontFamily: 'Manrope_500Medium',
   },
   infoFieldValue: {
-    fontSize: 14,
+    fontSize: 11,
     color: '#ffffff',
-    fontWeight: '500',
+    fontFamily: 'Manrope_600SemiBold',
   },
 
   resumeFieldBlock: {
@@ -3386,13 +7070,29 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
+  profileSettingsWrap: {
+    gap: 12,
+  },
+  profileSettingsBack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  profileSettingsBackText: {
+    color: '#8037f4',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   profileOptionsList: {
-    backgroundColor: 'rgba(22, 17, 41, 0.8)',
-    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.2)',
+    borderColor: 'rgba(128, 55, 244, 0.18)',
     overflow: 'hidden',
     marginBottom: 32,
+    ...createShadow('#8037f4', 0, 8, 0.08, 16),
   },
   profileOptionRow: {
     flexDirection: 'row',
@@ -3401,7 +7101,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     height: 52,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    borderBottomColor: 'rgba(128, 55, 244, 0.08)',
   },
   profileOptionLeft: {
     flexDirection: 'row',
@@ -3410,18 +7110,226 @@ const styles = StyleSheet.create({
   },
   profileOptionLabel: {
     fontSize: 14,
-    color: '#ffffff',
+    color: '#2D1B69',
     fontWeight: '500',
   },
+
+  learningTab: { gap: 12 },
+  learningOverview: {
+    minHeight: 104,
+    borderRadius: 26,
+    padding: 17,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: 'rgba(196,181,253,0.18)',
+  },
+  learningOverviewEyebrow: {
+    color: '#c4b5fd',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  learningOverviewTitle: { color: '#fff', fontSize: 17, fontWeight: '900', marginTop: 5 },
+  learningOverviewSub: { color: '#94a3b8', fontSize: 10, marginTop: 4 },
+  learningRing: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(12,8,30,0.56)',
+    borderWidth: 5,
+    borderColor: '#93f72b',
+  },
+  learningRingValue: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  ownedCourseCard: {
+    borderRadius: 24,
+    padding: 14,
+    backgroundColor: 'rgba(22,17,41,0.84)',
+    borderWidth: 1,
+    borderColor: 'rgba(196,181,253,0.14)',
+    ...createShadow('#4c1d95', 0, 9, 0.14, 19),
+  },
+  ownedCourseTop: { flexDirection: 'row', gap: 12 },
+  ownedCourseImage: { width: 82, height: 70, borderRadius: 18, backgroundColor: '#21183b' },
+  ownedCourseImageFallback: {
+    width: 82,
+    height: 70,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ownedCourseInfo: { flex: 1, minWidth: 0 },
+  ownedCourseBadgeRow: { flexDirection: 'row', marginBottom: 5 },
+  ownedCourseStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    borderRadius: 999,
+  },
+  ownedCourseStatusDot: { width: 5, height: 5, borderRadius: 3 },
+  ownedCourseStatusText: { fontSize: 7, fontWeight: '900', letterSpacing: 0.5 },
+  ownedCourseTitle: { color: '#fff', fontSize: 13, lineHeight: 17, fontWeight: '900' },
+  ownedCourseMeta: { color: '#64748b', fontSize: 9, marginTop: 4 },
+  ownedCourseProgressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 13,
+    marginBottom: 5,
+  },
+  ownedCourseProgressLabel: { color: '#94a3b8', fontSize: 9, fontWeight: '600' },
+  ownedCourseProgressValue: { color: '#b7ff68', fontSize: 9, fontWeight: '900' },
+  ownedCourseProgressTrack: {
+    height: 5,
+    borderRadius: 3,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  ownedCourseProgressFill: { height: '100%', borderRadius: 3 },
+  ownedCourseFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 13,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  ownedCoursePurchaseLabel: { color: '#64748b', fontSize: 8, fontWeight: '600' },
+  ownedCoursePurchaseValue: { color: '#cbd5e1', fontSize: 9, fontWeight: '700', marginTop: 2 },
+  continueLearningButton: {
+    minHeight: 34,
+    paddingHorizontal: 13,
+    borderRadius: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: '#93f72b',
+  },
+  continueLearningButtonDisabled: { opacity: 0.4 },
+  continueLearningText: { color: '#0c081e', fontSize: 10, fontWeight: '900' },
+  learningEmpty: {
+    minHeight: 230,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    borderRadius: 20,
+    backgroundColor: 'rgba(22,17,41,0.7)',
+    borderWidth: 1,
+    borderColor: 'rgba(196,181,253,0.12)',
+  },
+  learningEmptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(112,0,255,0.14)',
+    marginBottom: 14,
+  },
+  learningEmptyTitle: { color: '#fff', fontSize: 16, fontWeight: '900' },
+  learningEmptyText: { color: '#94a3b8', fontSize: 11, textAlign: 'center', marginTop: 6 },
+  learningExploreButton: {
+    marginTop: 18,
+    minHeight: 38,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#6d28d9',
+  },
+  learningExploreText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+
+  profileHistoryContent: { gap: 12 },
+  historySummaryCard: {
+    minHeight: 82,
+    borderRadius: 25,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(147,247,43,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(147,247,43,0.22)',
+  },
+  historySummaryLabel: { color: '#94a3b8', fontSize: 11, fontWeight: '600' },
+  historySummaryValue: { color: '#93f72b', fontSize: 22, fontWeight: '900', marginTop: 3 },
+  historySummaryIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(147,247,43,0.12)',
+  },
+  historySectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  historyCount: {
+    minWidth: 25,
+    height: 22,
+    borderRadius: 11,
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    paddingTop: Platform.OS === 'web' ? 3 : 0,
+    color: '#c4b5fd',
+    backgroundColor: 'rgba(112,0,255,0.18)',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  historySection: { marginTop: 8 },
+  paymentHistoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    padding: 12,
+    borderRadius: 20,
+    backgroundColor: 'rgba(22,17,41,0.82)',
+    borderWidth: 1,
+    borderColor: 'rgba(128,55,244,0.18)',
+    marginBottom: 9,
+  },
+  historyItemIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(112,0,255,0.13)',
+  },
+  paymentHistoryMain: { flex: 1, minWidth: 0 },
+  paymentHistoryTitle: { color: '#f8fafc', fontSize: 12, fontWeight: '800' },
+  paymentHistoryMeta: { color: '#64748b', fontSize: 9, marginTop: 3 },
+  paymentHistoryRight: { alignItems: 'flex-end' },
+  paymentHistoryAmount: { color: '#fff', fontSize: 12, fontWeight: '900' },
+  paymentHistoryStatus: { fontSize: 9, fontWeight: '800', marginTop: 3 },
+  historyEmpty: {
+    minHeight: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 15,
+    backgroundColor: 'rgba(22,17,41,0.55)',
+  },
+  historyEmptyText: { color: '#64748b', fontSize: 12 },
 
   // BOOKING HISTORY CARDS
   bookingHistoryCard: {
     backgroundColor: 'rgba(22, 17, 41, 0.8)',
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 21,
+    padding: 13,
     borderWidth: 1,
     borderColor: 'rgba(128, 55, 244, 0.25)',
-    marginBottom: 14,
+    marginBottom: 9,
     ...createShadow('#7000ff', 0, 4, 0.08, 8),
   },
   bookingHistoryTop: {
@@ -3510,7 +7418,87 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
-  // NOTIFICATION SHEET STYLES
+  // NOTIFICATION DROPDOWN (FROM BELL ICON)
+  notifDropdownOverlay: {
+    flex: 1,
+  },
+  notifDropdownBackdrop: {
+    backgroundColor: 'rgba(4, 3, 10, 0.55)',
+  },
+  notifDropdownAnchor: {
+    position: 'absolute',
+    maxHeight: height * 0.52,
+    zIndex: 20,
+  },
+  notifDropdownCaret: {
+    position: 'absolute',
+    top: -5,
+    width: 10,
+    height: 10,
+    backgroundColor: '#171322',
+    transform: [{ rotate: '45deg' }],
+    borderLeftWidth: 1,
+    borderTopWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.28)',
+    zIndex: 2,
+  },
+  notifDropdownPanel: {
+    backgroundColor: '#14101f',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.28)',
+    overflow: 'hidden',
+    maxHeight: height * 0.52,
+    shadowColor: '#8037f4',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.22,
+    shadowRadius: 24,
+    elevation: 18,
+  },
+  notifDropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  notifDropdownTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  notifDropdownSubtitle: {
+    marginTop: 2,
+    fontSize: 10,
+    color: '#93f72b',
+    fontWeight: '600',
+  },
+  notifDropdownHeaderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  notifMarkAllBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(147, 247, 43, 0.1)',
+  },
+  notifDropdownCloseBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  notifDropdownScroll: {
+    maxHeight: height * 0.42,
+  },
+
+  // NOTIFICATION SHEET STYLES (legacy helpers)
   notifSheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -3532,30 +7520,46 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   notifsScrollList: {
-    gap: 12,
-    paddingBottom: 16,
+    paddingVertical: 4,
   },
   emptyNotifs: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 48,
-    gap: 12,
+    paddingVertical: 24,
+    gap: 6,
   },
   emptyNotifsTxt: {
     color: '#cbd5e1',
     fontSize: 13,
   },
   notifItemRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+  },
+  notifItemDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  notifUnreadRow: {
+    backgroundColor: 'rgba(128, 55, 244, 0.08)',
+  },
+  notifTitleRow: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    alignItems: 'center',
+    gap: 6,
+  },
+  notifUnreadDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#93f72b',
+    flexShrink: 0,
   },
   notifUnreadBg: {
-    backgroundColor: 'rgba(112, 0, 255, 0.15)',
-    borderColor: 'rgba(112, 0, 255, 0.3)',
+    backgroundColor: 'rgba(128, 55, 244, 0.08)',
+  },
+  notifBodyTitleUnread: {
+    color: '#ffffff',
   },
   notifIconCircle: {
     width: 32,
@@ -3571,18 +7575,20 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   notifBodyTitle: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#ffffff',
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#d7dce8',
   },
   notifBodyMsg: {
-    fontSize: 12,
-    color: '#cbd5e1',
-    lineHeight: 16,
+    fontSize: 11,
+    color: '#9aa3b7',
+    lineHeight: 15,
+    marginTop: 2,
   },
   notifBodyDate: {
     fontSize: 9,
-    color: '#94a3b8',
+    color: '#6b7288',
     marginTop: 4,
   },
 
@@ -3590,7 +7596,7 @@ const styles = StyleSheet.create({
   overlappingCardsContainer: {
     position: 'relative',
     marginTop: 10,
-    minHeight: 520,
+    gap: 16,
     zIndex: 1,
   },
   cvDeckCard: {
@@ -3602,14 +7608,11 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   cvDeckCard1: {
-    width: '90%',
-    alignSelf: 'center',
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    zIndex: 1,
     height: 60,
-    transform: [{ rotate: '1.25deg' }, { scale: 0.97 }, { translateX: 15 }],
   },
   cvCard1Title: {
     fontSize: 14,
@@ -3630,11 +7633,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   cvDeckCard2: {
-    width: '94%',
-    alignSelf: 'center',
-    marginTop: -16, 
-    zIndex: 2,
-    transform: [{ rotate: '-1.1deg' }, { scale: 1.0 }, { translateX: -10 }],
+    width: '100%',
   },
   cvCard2Header: {
     flexDirection: 'row',
@@ -3665,13 +7664,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   cvDeckCard3: {
-    width: '98%',
-    alignSelf: 'center',
-    marginTop: -2, 
-    zIndex: 3,
+    width: '100%',
     borderRadius: 20,
     padding: 20,
-    transform: [{ rotate: '0.85deg' }, { scale: 1.02 }],
   },
   gaugeContainer: {
     alignItems: 'center',
@@ -3746,19 +7741,20 @@ const styles = StyleSheet.create({
   searchBarWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    height: 48,
+    backgroundColor: 'rgba(255, 255, 255, 0.035)',
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    height: 52,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(112, 0, 255, 0.2)',
     marginBottom: 16,
-    ...createShadow('#000000', 0, 4, 0.2, 6),
+    ...createShadow('#000000', 0, 8, 0.2, 16),
   },
   searchTextInput: {
     flex: 1,
-    color: '#ffffff',
-    fontSize: 14,
+    color: '#f6f2e9',
+    fontSize: 12,
+    fontFamily: 'Manrope_500Medium',
   },
   filterPillsRowWrapper: {
     maxHeight: 40,
@@ -3937,31 +7933,92 @@ const styles = StyleSheet.create({
 
   // FLOATING BOTTOM PILL TAB BAR
   bottomNavFloating: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 28 : 16,
-    left: 16,
-    right: 16,
-    backgroundColor: 'rgba(12, 8, 30, 0.85)', 
-    height: 64,
-    borderRadius: 32,
+    marginHorizontal: Math.max(12, Math.round(width * 0.04)),
+    marginBottom: Platform.OS === 'ios' ? 22 : 12,
+    height: 62,
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    overflow: 'visible',
+    paddingHorizontal: 11,
+  },
+  bottomNavBackgroundClip: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 31,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(112, 0, 255, 0.25)', 
-    ...createShadow('#7000ff', 0, 8, 0.2, 16, 6),
-    paddingHorizontal: 10,
+    borderColor: 'rgba(255, 255, 255, 0.72)',
+    ...createShadow('#8037f4', 0, 10, 0.14, 22, 8),
+  },
+  bottomNavBlur: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 31,
+  },
+  bottomNavGlassWeb: Platform.select({
+    web: {
+      ...StyleSheet.absoluteFillObject,
+      borderRadius: 31,
+      backgroundColor: 'rgba(255, 255, 255, 0.62)',
+      backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
+    },
+    default: StyleSheet.absoluteFillObject,
+  }),
+  bottomNavGlassTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.42)',
   },
   navItemFloating: {
     alignItems: 'center',
     flex: 1,
     justifyContent: 'center',
     height: '100%',
+    zIndex: 2,
+  },
+  navItemCenter: {
+    zIndex: 3,
+  },
+  navIconWrap: {
+    width: 34,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navIconWrapActive: {
+    backgroundColor: 'rgba(128, 55, 244, 0.1)',
+  },
+  navCenterOuter: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    padding: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    borderWidth: 3,
+    borderColor: PI_SHELL_BG,
+    transform: [{ translateY: -12 }],
+    ...createShadow('#000000', 0, 6, 0.08, 14, 6),
+  },
+  navCenterOuterActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderColor: PI_SHELL_BG,
+  },
+  navCenterInner: {
+    flex: 1,
+    width: '100%',
+    borderRadius: 26,
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   navTextFloating: {
-    fontSize: 9,
-    fontWeight: 'bold',
-    marginTop: 3,
+    color: '#7b6f96',
+    fontSize: width < 380 ? 8 : 9,
+    fontFamily: 'Manrope_600SemiBold',
+    marginTop: 2,
+  },
+  navTextFloatingActive: {
+    color: '#93f72b',
   },
 
   // MODAL STYLES
@@ -4037,21 +8094,26 @@ const styles = StyleSheet.create({
   // TAB CONTENT GENERAL STYLES
   tabContentContainer: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    minHeight: 0,
+    backgroundColor: 'transparent',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 50 : 24,
+    paddingTop: 0,
+    overflow: 'hidden',
+  },
+  cvTabContainer: {
+    paddingHorizontal: 16,
   },
   tabTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#0f172a',
     marginBottom: 4,
   },
   tabSubtitle: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748b',
-    marginBottom: 20,
-    lineHeight: 18,
+    marginBottom: 14,
+    lineHeight: 17,
   },
   tabLoading: {
     flex: 1,
@@ -4067,13 +8129,178 @@ const styles = StyleSheet.create({
   // MENTORS TAB
   mentorsVerticalScroll: {
     gap: 16,
-    paddingBottom: 120,
+    paddingTop: 14,
+    paddingBottom: HOME_NAV_CLEARANCE + 16,
   },
 
   // COURSES TAB
   coursesVerticalScroll: {
-    gap: 20,
-    paddingBottom: 120,
+    gap: 14,
+    paddingBottom: HOME_NAV_CLEARANCE + 16,
+  },
+  coursesTabContainer: {
+    backgroundColor: '#f5f0fc',
+  },
+  coursesEyebrow: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#8037f4',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  piCourseCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(128,55,244,0.12)',
+    shadowColor: '#8037f4',
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  piCourseImageWrap: {
+    height: 168,
+    backgroundColor: '#ede9fe',
+    position: 'relative',
+  },
+  piCourseImage: {
+    width: '100%',
+    height: '100%',
+  },
+  piCourseImageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(15,23,42,0.18)',
+  },
+  piCourseLevelBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  piCourseLevelText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  piCoursePriceBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: '#93f72b',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  piCoursePriceBadgeText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#2e1065',
+  },
+  piCourseMentorRow: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  piCourseMentorAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  piCourseMentorAvatarFallback: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    backgroundColor: '#ede9fe',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  piCourseMentorInitial: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#6d28d9',
+  },
+  piCourseMentorName: {
+    flex: 1,
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  piCourseBody: {
+    padding: 14,
+  },
+  piCourseTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0f172a',
+    lineHeight: 21,
+    marginBottom: 6,
+  },
+  piCourseDescription: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  piCourseOwnedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 8,
+  },
+  piCourseOwnedText: {
+    color: '#059669',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  piCourseMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  piCourseMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  piCourseMetaText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  piCourseMentorTitle: {
+    flex: 1,
+    minWidth: '40%',
+    fontSize: 11,
+    color: '#94a3b8',
+  },
+  piCourseCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#a3e635',
+    borderRadius: 16,
+    paddingVertical: 11,
+  },
+  piCourseCtaText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#1a3300',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 
   // GOOGLE MODAL SHEET STYLES
@@ -4165,13 +8392,245 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: '#ffffff',
-  }
+  },
+
+  // Elegant light dialogs / sheets (settings)
+  elegantModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(45, 27, 105, 0.28)',
+    justifyContent: 'flex-end',
+  },
+  elegantSheet: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 22,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 240, 252, 0.95)',
+    ...createShadow('#8037f4', 0, -8, 0.1, 24, 12),
+  },
+  elegantSheetHandle: {
+    alignSelf: 'center',
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(128, 55, 244, 0.16)',
+    marginBottom: 14,
+  },
+  elegantSheetHeader: {
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  elegantIconBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#f5f0fc',
+    borderWidth: 2,
+    borderColor: 'rgba(147, 247, 43, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  elegantSheetTitle: {
+    fontSize: 18,
+    fontFamily: 'Manrope_800ExtraBold',
+    color: '#2D1B69',
+  },
+  elegantSheetSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+    color: '#7b6f96',
+    fontFamily: 'Manrope_500Medium',
+    paddingHorizontal: 8,
+  },
+  elegantErrorText: {
+    color: '#dc2626',
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+    fontFamily: 'Manrope_700Bold',
+  },
+  elegantFieldGroup: {
+    gap: 12,
+    marginBottom: 18,
+  },
+  elegantFieldLabel: {
+    fontSize: 11,
+    fontFamily: 'Manrope_700Bold',
+    color: '#7b6f96',
+    marginBottom: 6,
+  },
+  elegantInput: {
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.14)',
+    backgroundColor: '#faf8ff',
+    paddingHorizontal: 14,
+    color: '#2D1B69',
+    fontSize: 14,
+    fontFamily: 'Manrope_500Medium',
+  },
+  elegantBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  elegantBtnGhost: {
+    flex: 1,
+    height: 46,
+    borderRadius: 999,
+    backgroundColor: '#f5f0fc',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+  },
+  elegantBtnGhostText: {
+    fontSize: 13,
+    fontFamily: 'Manrope_700Bold',
+    color: '#5c4d7a',
+  },
+  elegantBtnPrimary: {
+    flex: 1,
+    height: 46,
+    borderRadius: 999,
+    backgroundColor: '#93f72b',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...createShadow('#93f72b', 0, 6, 0.28, 12, 3),
+  },
+  elegantBtnPrimaryText: {
+    fontSize: 13,
+    fontFamily: 'Manrope_800ExtraBold',
+    color: '#2D1B69',
+  },
+  elegantConfirmOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(45, 27, 105, 0.32)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+  },
+  elegantConfirmCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 18,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 240, 252, 0.98)',
+    ...createShadow('#8037f4', 0, 16, 0.14, 28, 10),
+  },
+  elegantConfirmIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f5f0fc',
+    borderWidth: 2,
+    borderColor: 'rgba(147, 247, 43, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  elegantConfirmIconWrapDanger: {
+    backgroundColor: 'rgba(220, 38, 38, 0.08)',
+    borderColor: 'rgba(220, 38, 38, 0.28)',
+  },
+  elegantConfirmTitle: {
+    fontSize: 17,
+    fontFamily: 'Manrope_800ExtraBold',
+    color: '#2D1B69',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  elegantConfirmMessage: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#7b6f96',
+    textAlign: 'center',
+    fontFamily: 'Manrope_500Medium',
+    marginBottom: 18,
+  },
+  elegantConfirmBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+  },
+  elegantConfirmBtnCancel: {
+    flex: 1,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: '#f5f0fc',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.1)',
+  },
+  elegantConfirmBtnCancelText: {
+    fontSize: 13,
+    fontFamily: 'Manrope_700Bold',
+    color: '#5c4d7a',
+  },
+  elegantConfirmBtnOk: {
+    flex: 1,
+    height: 44,
+    borderRadius: 999,
+    backgroundColor: '#93f72b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  elegantConfirmBtnOkText: {
+    fontSize: 13,
+    fontFamily: 'Manrope_800ExtraBold',
+    color: '#2D1B69',
+  },
+  elegantConfirmBtnDanger: {
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.35)',
+  },
+  elegantConfirmBtnDangerText: {
+    color: '#dc2626',
+  },
+
+  fontLoadingScreen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f5f0fc',
+  },
 });
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    Manrope_400Regular,
+    Manrope_500Medium,
+    Manrope_600SemiBold,
+    Manrope_700Bold,
+    Manrope_800ExtraBold,
+  });
+
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.fontLoadingScreen}>
+        <ActivityIndicator size="small" color="#c4b5fd" />
+      </View>
+    );
+  }
+
   return (
-    <AuthProvider>
-      <AppInner />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <AppInner />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

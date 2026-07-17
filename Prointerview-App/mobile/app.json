@@ -4,7 +4,8 @@
     "slug": "prointerview-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#f5f0fc",
     "platforms": [
       "android",
       "ios",
@@ -12,18 +13,34 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.prointerview.app"
+      "bundleIdentifier": "com.prointerview.app",
+      "backgroundColor": "#f5f0fc"
     },
     "android": {
       "packageName": "com.prointerview.app",
-      "package": "com.prointerview.app"
+      "package": "com.prointerview.app",
+      "backgroundColor": "#f5f0fc",
+      "usesCleartextTraffic": true,
+      "navigationBar": {
+        "backgroundColor": "#f5f0fc",
+        "barStyle": "dark-content"
+      }
     },
     "scheme": "prointerview",
+    "owner": "vietvan",
     "plugins": [
       [
         "@react-native-google-signin/google-signin"
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cho phép ProInterview truy cập ảnh để đổi avatar.",
+          "cameraPermission": "Cho phép ProInterview dùng camera để chụp ảnh đại diện."
+        }
+      ]
     ]
   }
 }

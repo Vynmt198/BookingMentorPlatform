@@ -33,6 +33,7 @@ import { analyticsRouter } from "./routes/analytics.js";
 import { uploadRouter } from "./routes/upload.js";
 import { mockCoursesRouter } from "./routes/mockCourses.js";
 import { aiProvidersRouter } from "./routes/aiProviders.js";
+import cartRouter from "./routes/cart.js";
 import { notFoundHandler, globalErrorHandler } from "./middleware/errorHandler.js";
 
 export function createApp() {
@@ -47,7 +48,14 @@ export function createApp() {
   const configuredOrigins = process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean)
     : [];
-  const defaultDevOrigins = ["http://localhost:5173", "http://127.0.0.1:5173"];
+  const defaultDevOrigins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8081",
+    "http://127.0.0.1:8081",
+    "http://localhost:19006",
+    "http://127.0.0.1:19006",
+  ];
   const defaultProdOrigins = ["https://pro-interview-mu.vercel.app"];
   const allowOrigins =
     configuredOrigins.length > 0
@@ -84,6 +92,13 @@ export function createApp() {
         if (!origin) return callback(null, true);
         if (allowOrigins.includes(origin)) return callback(null, true);
         if (isProd && /\.vercel\.app$/i.test(origin)) return callback(null, true);
+        // Expo web / thiết bị LAN dev (8081, 19006, IP:port)
+        if (
+          !isProd &&
+          /^https?:\/\/(localhost|127\.0\.0\.1|\d{1,3}(\.\d{1,3}){3})(:\d+)?$/i.test(origin)
+        ) {
+          return callback(null, true);
+        }
         return callback(null, false);
       },
       credentials: false,
@@ -148,6 +163,7 @@ export function createApp() {
       admin: "/api/admin",
       analytics: "/api/analytics",
       enrollments: "/api/enrollments",
+      cart: "/api/cart",
 
       cv: "/api/cv",
       interviews: "/api/interviews",
@@ -192,6 +208,7 @@ export function createApp() {
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/enrollments", enrollmentsRouter);
+  app.use("/api/cart", cartRouter);
   app.use("/api/cv", cvRouter);
   app.use("/api/cv", cvMatchRouter);
   app.use("/api/interviews", interviewsRouter);

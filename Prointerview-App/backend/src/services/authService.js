@@ -4,6 +4,7 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { OAuth2Client } from "google-auth-library";
 import { User, toPublicUser } from "../models/User.js";
+import { Mentor } from "../models/Mentor.js";
 import { sanitizeNotificationPrefsPatch } from "../constants/notificationPrefs.js";
 import * as emailService from "./emailService.js";
 import {
@@ -840,7 +841,16 @@ export async function patchMeUser(userId, body, req, options = {}) {
   }
   if (typeof body.avatar === "string") {
     const av = body.avatar.trim();
-    if (av) user.avatar = av;
+    if (av) {
+      user.avatar = av;
+      if (user.role === "mentor") {
+        const mentor = await Mentor.findOne({ userId: user._id });
+        if (mentor) {
+          mentor.avatar = av;
+          await mentor.save();
+        }
+      }
+    }
   }
   if (Array.isArray(body.expertise)) {
     user.expertise = body.expertise;

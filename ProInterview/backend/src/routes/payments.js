@@ -19,3 +19,4 @@ paymentsRouter.post("/webhook/sepay", asyncHandler(PaymentsController.webhookSep
 paymentsRouter.get("/transfer-status", authJwt, asyncHandler(PaymentsController.transferStatus));
 paymentsRouter.get("/vnpay/ipn", asyncHandler(PaymentsController.vnpayIpn));
 paymentsRouter.get("/vnpay/vnpay-return", asyncHandler(PaymentsController.vnpayReturn));
+paymentsRouter.get("/:paymentId", authJwt, asyncHandler(PaymentsController.getById));
