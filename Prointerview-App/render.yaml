@@ -1,0 +1,32 @@
+# Render Blueprint — backend API (monorepo).
+# Dashboard: New → Blueprint → chọn repo; sau lần đầu điền biến bí mật (MONGO_URI, JWT_SECRET, ...).
+# Hoặc: New → Web Service → Root Directory = backend (bỏ qua file này).
+#
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: prointerview-backend
+    runtime: node
+    plan: free
+    # Phải giữ trùng region với service đã tạo trên Render — KHÔNG đổi region qua Blueprint (lỗi: changing region not supported).
+    # Muốn đổi region: xóa web service cũ trên Dashboard rồi tạo lại, hoặc tạo service mới tên khác.
+    region: singapore
+    branch: main
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: FRONTEND_URL
+        sync: false

@@ -1,0 +1,13 @@
+# MongoDB riêng cho BookingMentorPlatform — KHÔNG dùng chung với ProInterview.
+services:
+  mongodb:
+    image: mongo:7
+    container_name: bookingmentor-mongo
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    volumes:
+      - bookingmentor_mongo_data:/data/db
+
+volumes:
+  bookingmentor_mongo_data:
