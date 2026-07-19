@@ -47,7 +47,7 @@ import { BACKEND_DEV_HINT } from './src/utils/backendErrors';
 import { loadAdminPortalData, loadMentorPortalData } from './src/services/roleApi';
 import RolePortal from './src/components/RolePortal';
 import GoogleSignInButton from './src/components/GoogleSignInButton';
-import CartModal from './src/components/CartModal';
+import CartScreen from './src/components/CartScreen';
 import CheckoutScreen from './src/components/CheckoutScreen';
 import PaymentResultScreen from './src/components/PaymentResultScreen';
 import CourseLearningScreen from './src/components/CourseLearningScreen';
@@ -72,7 +72,7 @@ import {
   fetchCurrentUser,
   loginWithGoogleCredential,
 } from './src/utils/mobileAuth';
-import { resolveMediaUrl } from './src/utils/mediaUrl';
+import { resolveMediaUrl, DEFAULT_COURSE_THUMB, mentorAvatarFallback } from './src/utils/mediaUrl';
 import * as DocumentPicker from 'expo-document-picker';
 const { width, height } = Dimensions.get('window');
 const AUTH_CARD_MAX_WIDTH = Math.min(292, Math.round(width * 0.74));
@@ -430,7 +430,8 @@ function AppInner() {
 
       if (res.success) {
         setCart(res.cart);
-        setCartModalVisible(true);
+        setTabBeforeCart(activeTab);
+        setActiveTab('cart');
         showCartToast(`Đã thêm "${course.title}" vào giỏ (${calcCartSummary(res.cart).count} món)`);
       } else {
         Alert.alert('Không thêm được', res.error || 'Lỗi giỏ hàng.');
@@ -459,8 +460,7 @@ function AppInner() {
       Alert.alert('Giỏ hàng trống', 'Hãy thêm khóa học trước khi thanh toán.');
       return;
     }
-    setCartModalVisible(false);
-    goToCheckout({ mode: 'cart', fromTab: activeTab });
+    goToCheckout({ mode: 'cart', fromTab: 'cart' });
   };
 
   const handleBuyCourseNow = (course) => {
@@ -566,13 +566,14 @@ function AppInner() {
     );
   };
 
-  const openCartModal = () => {
+  const openCartPage = () => {
     if (!appUser) {
       Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để xem giỏ hàng.');
       return;
     }
+    setTabBeforeCart(activeTab === 'cart' ? tabBeforeCart : activeTab);
     refreshCart();
-    setCartModalVisible(true);
+    setActiveTab('cart');
   };
 
   // Form Đăng Nhập
@@ -596,13 +597,13 @@ function AppInner() {
   // Giỏ hàng & thanh toán
   const [cart, setCart] = useState(null);
   const [cartLoading, setCartLoading] = useState(false);
-  const [cartModalVisible, setCartModalVisible] = useState(false);
   const [checkoutMode, setCheckoutMode] = useState('course');
   const [checkoutCourse, setCheckoutCourse] = useState(null);
   const [checkoutBooking, setCheckoutBooking] = useState(null);
   const [learningEnrollment, setLearningEnrollment] = useState(null);
   const [tabBeforeCheckout, setTabBeforeCheckout] = useState('courses');
   const [tabBeforeLearning, setTabBeforeLearning] = useState('courses');
+  const [tabBeforeCart, setTabBeforeCart] = useState('courses');
   const [detailCourseId, setDetailCourseId] = useState(null);
   const [tabBeforeCourseDetail, setTabBeforeCourseDetail] = useState('courses');
   const [tabBeforeBooking, setTabBeforeBooking] = useState('mentors');
@@ -1692,7 +1693,7 @@ function AppInner() {
                 <Text style={styles.headerUserName} numberOfLines={1}>{appUser?.name || 'Bạn học'}</Text>
                 </View>
                 <View style={styles.headerRightActions}>
-                  <TouchableOpacity style={styles.headerIconBtn} onPress={openCartModal}>
+                  <TouchableOpacity style={styles.headerIconBtn} onPress={openCartPage}>
                   <Ionicons name="bag-handle-outline" size={19} color="#ffffff" />
                     {cartSummary.count > 0 ? (
                       <View style={styles.unreadNotifBadge}>
@@ -1864,7 +1865,7 @@ function AppInner() {
                 <TouchableOpacity key={mentor.id} style={styles.homeMentorCard} onPress={() => handleBookMentor(mentor)}>
                   <View style={styles.homeMentorTop}>
                     {mentor.avatar ? (
-                      <Image source={{ uri: mentor.avatar }} style={styles.homeMentorAvatar} />
+                      <Image source={{ uri: resolveMediaUrl(mentor.avatar) || mentorAvatarFallback(mentor.name) }} style={styles.homeMentorAvatar} />
                     ) : (
                       <View style={[styles.homeMentorAvatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#e9e0f7' }]}>
                         <Ionicons name="person" size={20} color="#7c6a9a" />
@@ -1914,7 +1915,7 @@ function AppInner() {
                   onPress={() => apiConnected ? handleBuyCourseNow(course) : setActiveTab('courses')}
                 >
                   {course.image ? (
-                    <Image source={{ uri: course.image }} style={styles.homeCourseImage} />
+                    <Image source={{ uri: resolveMediaUrl(course.image) || DEFAULT_COURSE_THUMB }} style={styles.homeCourseImage} />
                   ) : (
                     <View style={[styles.homeCourseImage, { backgroundColor: '#2D1B69' }]} />
                   )}
@@ -2019,7 +2020,7 @@ function AppInner() {
               </View>
             </TouchableOpacity>
             <View style={styles.editorialHeaderActions}>
-              <TouchableOpacity style={styles.editorialHeaderButton} onPress={openCartModal}>
+              <TouchableOpacity style={styles.editorialHeaderButton} onPress={openCartPage}>
                 <Ionicons name="bag-handle-outline" size={18} color="#e8eaf0" />
                 {cartSummary.count > 0 ? <View style={styles.editorialAlertDot} /> : null}
               </TouchableOpacity>
@@ -2205,7 +2206,7 @@ function AppInner() {
                 {editorialMentors.slice(1).map((mentor) => (
                   <TouchableOpacity key={mentor.id} onPress={() => handleBookMentor(mentor)}>
                     {mentor.avatar ? (
-                      <Image source={{ uri: mentor.avatar }} style={styles.editorialMentorThumb} />
+                      <Image source={{ uri: resolveMediaUrl(mentor.avatar) || mentorAvatarFallback(mentor.name) }} style={styles.editorialMentorThumb} />
                     ) : (
                       <View style={[styles.editorialMentorThumb, { backgroundColor: '#e9e0f7', alignItems: 'center', justifyContent: 'center' }]}>
                         <Ionicons name="person" size={16} color="#7c6a9a" />
@@ -2235,7 +2236,7 @@ function AppInner() {
                 >
                   <Text style={styles.editorialCourseNumber}>0{index + 1}</Text>
                   {course.image ? (
-                    <Image source={{ uri: course.image }} style={styles.editorialCourseImage} />
+                    <Image source={{ uri: resolveMediaUrl(course.image) || DEFAULT_COURSE_THUMB }} style={styles.editorialCourseImage} />
                   ) : (
                     <View style={[styles.editorialCourseImage, { backgroundColor: '#2D1B69' }]} />
                   )}
@@ -2411,7 +2412,7 @@ function AppInner() {
                 {appUser?.avatar ? (
                   <Image source={{ uri: resolveMediaUrl(appUser.avatar) }} style={styles.cleanHomeAvatarImage} />
                 ) : (
-                  <Ionicons name="person" size={20} color="#8037f4" />
+                  <Ionicons name="person" size={20} color="#2D1B69" />
                 )}
               </View>
               <View style={styles.cleanHomeProfileText}>
@@ -2420,13 +2421,13 @@ function AppInner() {
               </View>
             </TouchableOpacity>
             <View style={styles.cleanHomeHeaderActions}>
-              <TouchableOpacity style={styles.cleanHomeHeaderIcon} onPress={openCartModal}>
-                <Ionicons name="bag-handle-outline" size={21} color="#475569" />
+              <TouchableOpacity style={styles.cleanHomeHeaderIcon} onPress={openCartPage}>
+                <Ionicons name="bag-handle-outline" size={20} color="#2D1B69" />
                 {cartSummary.count > 0 ? <View style={styles.cleanHomeRedDot} /> : null}
               </TouchableOpacity>
               <View ref={notifBellRef} collapsable={false}>
                 <TouchableOpacity style={styles.cleanHomeHeaderIcon} onPress={toggleNotifDropdown}>
-                  <Ionicons name="notifications-outline" size={21} color="#475569" />
+                  <Ionicons name="notifications-outline" size={20} color="#2D1B69" />
                   {unreadNotifCount > 0 ? <View style={styles.cleanHomeRedDot} /> : null}
                 </TouchableOpacity>
               </View>
@@ -2434,7 +2435,9 @@ function AppInner() {
           </View>
 
           <View style={styles.cleanHomeSearch}>
-            <Ionicons name="search" size={20} color="#93f72b" />
+            <View style={styles.cleanHomeSearchIcon}>
+              <Ionicons name="search" size={16} color="#2D1B69" />
+            </View>
             <TextInput
               value={searchMentorQuery}
               onChangeText={setSearchMentorQuery}
@@ -2488,7 +2491,9 @@ function AppInner() {
                       <Text style={styles.cleanNewsIndexText}>0{index + 1}</Text>
                     </View>
                     <View style={styles.cleanNewsContent}>
-                      <Text style={styles.cleanNewsTag}>{item.tag}</Text>
+                      <View style={styles.cleanNewsTagPill}>
+                        <Text style={styles.cleanNewsTag}>{item.tag}</Text>
+                      </View>
                       <Text style={styles.cleanNewsTitle} numberOfLines={2}>{item.title}</Text>
                       <Text style={styles.cleanNewsSubtitle} numberOfLines={1}>{item.subtitle}</Text>
                     </View>
@@ -2500,32 +2505,37 @@ function AppInner() {
 
           <View style={styles.homeJourneyCard}>
             <View style={styles.homeJourneyHeader}>
-              <View>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.homeJourneyEyebrow}>LỘ TRÌNH GỢI Ý</Text>
                 <Text style={styles.homeJourneyTitle}>Luồng được khuyên dùng</Text>
               </View>
               <View style={styles.homeJourneySpark}>
-                <Ionicons name="flash" size={16} color="#2D1B69" />
+                <Ionicons name="flash" size={15} color="#2D1B69" />
               </View>
             </View>
-            {recommendedJourney.map((step) => (
+            {recommendedJourney.map((step, stepIndex) => (
               <TouchableOpacity
                 key={step.id}
-                style={styles.homeJourneyStep}
+                style={[
+                  styles.homeJourneyStep,
+                  stepIndex === recommendedJourney.length - 1 && styles.homeJourneyStepLast,
+                ]}
                 onPress={step.action}
                 activeOpacity={0.86}
               >
-                <View style={[styles.homeJourneyNumber, { backgroundColor: `${step.color}22` }]}>
+                <View style={[styles.homeJourneyNumber, { backgroundColor: `${step.color}18` }]}>
                   <Text style={[styles.homeJourneyNumberText, { color: step.color }]}>{step.number}</Text>
                 </View>
-                <View style={[styles.homeJourneyIcon, { borderColor: `${step.color}55` }]}>
-                  <Ionicons name={step.icon} size={17} color={step.color} />
+                <View style={[styles.homeJourneyIcon, { backgroundColor: `${step.color}12` }]}>
+                  <Ionicons name={step.icon} size={16} color={step.color} />
                 </View>
                 <View style={styles.homeJourneyBody}>
                   <Text style={styles.homeJourneyStepTitle}>{step.title}</Text>
                   <Text style={styles.homeJourneyStepDesc} numberOfLines={1}>{step.desc}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={15} color="rgba(45,27,105,0.26)" />
+                <View style={styles.homeJourneyChevron}>
+                  <Ionicons name="chevron-forward" size={14} color="rgba(45,27,105,0.35)" />
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -2548,7 +2558,7 @@ function AppInner() {
                 activeOpacity={0.88}
               >
                 <View style={styles.homeToolIcon}>
-                  <Ionicons name={tool.icon} size={20} color="#8037f4" />
+                  <Ionicons name={tool.icon} size={18} color="#2D1B69" />
                 </View>
                 <Text style={styles.homeToolTitle}>{tool.title}</Text>
                 <Text style={styles.homeToolDesc} numberOfLines={2}>{tool.desc}</Text>
@@ -2558,6 +2568,7 @@ function AppInner() {
 
           <View style={styles.cleanHomeTitleBlock}>
             <Text style={styles.cleanHomeTitle}>Khám phá Mentor</Text>
+            <Text style={styles.cleanHomeTitleHint}>Mentor, khóa học và CV trong một luồng</Text>
           </View>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cleanHomeChips}>
@@ -2597,7 +2608,7 @@ function AppInner() {
                 activeOpacity={0.92}
               >
                 <View style={[styles.cleanMentorImageWrap, { height: HOME_MENTOR_CARD_HEIGHT }]}>
-                  <Image source={{ uri: mentor.avatar }} style={styles.cleanMentorImage} />
+                  <Image source={{ uri: resolveMediaUrl(mentor.avatar) || mentorAvatarFallback(mentor.name) }} style={styles.cleanMentorImage} />
                   <LinearGradient
                     colors={['transparent', 'rgba(8, 8, 14, 0.92)']}
                     style={styles.cleanMentorImageFade}
@@ -2635,7 +2646,7 @@ function AppInner() {
                   onPress={() => openCourseDetail(course)}
                   activeOpacity={0.9}
                 >
-                  <Image source={{ uri: course.image || course.thumbnail }} style={styles.homeCoursePreviewImage} />
+                  <Image source={{ uri: resolveMediaUrl(course.image || course.thumbnail) || DEFAULT_COURSE_THUMB }} style={styles.homeCoursePreviewImage} />
                   <Text style={styles.homeCoursePreviewTitle} numberOfLines={2}>{course.title}</Text>
                   <Text style={styles.homeCoursePreviewMeta} numberOfLines={1}>{course.duration || course.category || 'ProInterview'}</Text>
                 </TouchableOpacity>
@@ -2648,7 +2659,7 @@ function AppInner() {
               {cvPreviewCards.map((card) => (
                 <TouchableOpacity key={card.id} style={styles.homeCvPreviewCard} onPress={() => setActiveTab('cv')} activeOpacity={0.9}>
                   <View style={styles.homeCvPreviewIcon}>
-                    <Ionicons name={card.icon} size={20} color="#8037f4" />
+                    <Ionicons name={card.icon} size={18} color="#2D1B69" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.homeCvPreviewTitle}>{card.title}</Text>
@@ -2693,12 +2704,6 @@ function AppInner() {
     const categorySet = new Set(courses.map((course) => course.category).filter(Boolean));
     const categories = ['Tất cả', ...Array.from(categorySet)];
 
-    const levelBadgeStyle = (level) => {
-      if (level === 'Intermediate') return { bg: 'rgba(128,55,244,0.92)', text: '#ffffff' };
-      if (level === 'Advanced') return { bg: 'rgba(147,247,43,0.92)', text: '#1a3300' };
-      return { bg: 'rgba(255,140,66,0.92)', text: '#1F1F1F' };
-    };
-
     return (
       <View style={[styles.tabContentContainer, styles.coursesTabContainer, { paddingTop: shellTopPad }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -2707,8 +2712,8 @@ function AppInner() {
             <Text style={styles.tabTitle}>Khóa học tối ưu</Text>
             <Text style={styles.tabSubtitle}>Biên soạn bởi chuyên gia, học thử bài giảng chuẩn</Text>
           </View>
-          <TouchableOpacity style={styles.headerIconBtn} onPress={openCartModal}>
-            <Ionicons name="cart-outline" size={24} color="#93f72b" />
+          <TouchableOpacity style={styles.cleanHomeHeaderIcon} onPress={openCartPage}>
+            <Ionicons name="cart-outline" size={20} color="#8037f4" />
             {cartSummary.count > 0 ? (
               <View style={styles.unreadNotifBadge}>
                 <Text style={styles.unreadNotifBadgeText}>{cartSummary.count > 9 ? '9+' : cartSummary.count}</Text>
@@ -2717,12 +2722,12 @@ function AppInner() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.searchBarWrapper}>
-          <Ionicons name="search" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
+        <View style={styles.coursesSearchBar}>
+          <Ionicons name="search" size={18} color="#8a7fa2" style={{ marginRight: 10 }} />
           <TextInput
-            style={styles.searchTextInput}
+            style={styles.coursesSearchInput}
             placeholder="Tìm kiếm khóa học..."
-            placeholderTextColor="#64748b"
+            placeholderTextColor="#94a3b8"
             value={searchCourseQuery}
             onChangeText={setSearchCourseQuery}
           />
@@ -2739,15 +2744,15 @@ function AppInner() {
               <TouchableOpacity 
                 key={cat} 
                 style={[
-                  styles.filterPillBtn, 
-                  selectedCourseCategory === cat ? styles.filterPillBtnActive : null
+                  styles.coursesFilterPill, 
+                  selectedCourseCategory === cat ? styles.coursesFilterPillActive : null
                 ]}
                 onPress={() => setSelectedCourseCategory(cat)}
               >
                 <Text 
                   style={[
-                    styles.filterPillBtnText, 
-                    selectedCourseCategory === cat ? styles.filterPillBtnTextActive : null
+                    styles.coursesFilterPillText, 
+                    selectedCourseCategory === cat ? styles.coursesFilterPillTextActive : null
                   ]}
                 >
                   {cat}
@@ -2779,83 +2784,62 @@ function AppInner() {
               filteredCourses.map(course => {
                 const purchaseState = getCoursePurchaseState(course.id);
                 const isOwned = purchaseState === 'owned';
-                const levelStyle = levelBadgeStyle(course.level);
+                const thumb =
+                  resolveMediaUrl(course.image || course.thumbnail) || DEFAULT_COURSE_THUMB;
 
                 return (
                   <TouchableOpacity
                     key={course.id}
-                    style={styles.piCourseCard}
+                    style={styles.courseLightCard}
                     activeOpacity={0.92}
                     onPress={() => openCourseDetail(course)}
                   >
-                    <View style={styles.piCourseImageWrap}>
-                      <Image source={{ uri: course.image || course.thumbnail }} style={styles.piCourseImage} />
-                      <View style={styles.piCourseImageOverlay} />
-                      <View style={[styles.piCourseLevelBadge, { backgroundColor: levelStyle.bg }]}>
-                        <Text style={[styles.piCourseLevelText, { color: levelStyle.text }]}>
-                          {course.levelLabel || 'Người mới'}
-                        </Text>
-                      </View>
-                      <View style={styles.piCoursePriceBadge}>
-                        <Text style={styles.piCoursePriceBadgeText}>{course.price}</Text>
-                      </View>
-                      <View style={styles.piCourseMentorRow}>
-                        {course.mentorAvatar ? (
-                          <Image source={{ uri: course.mentorAvatar }} style={styles.piCourseMentorAvatar} />
-                        ) : (
-                          <View style={styles.piCourseMentorAvatarFallback}>
-                            <Text style={styles.piCourseMentorInitial}>
-                              {(course.mentorName || 'M').slice(0, 1)}
-                            </Text>
+                    <Image source={{ uri: thumb }} style={styles.courseLightImage} />
+                    <View style={styles.courseLightBody}>
+                      <View style={styles.courseLightTitleRow}>
+                        <Text style={styles.courseLightTitle} numberOfLines={2}>{course.title}</Text>
+                        {isOwned ? (
+                          <View style={styles.courseLightOwnedBadge}>
+                            <Ionicons name="checkmark-circle" size={13} color="#059669" />
+                            <Text style={styles.courseLightOwnedText}>Đã mua</Text>
                           </View>
-                        )}
-                        <Text style={styles.piCourseMentorName} numberOfLines={1}>
-                          {course.mentorName}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.piCourseBody}>
-                      <Text style={styles.piCourseTitle} numberOfLines={2}>{course.title}</Text>
-                      {course.description ? (
-                        <Text style={styles.piCourseDescription} numberOfLines={2}>
-                          {course.description}
-                        </Text>
-                      ) : null}
-                      {isOwned ? (
-                        <View style={styles.piCourseOwnedBadge}>
-                          <Ionicons name="checkmark-circle" size={14} color="#059669" />
-                          <Text style={styles.piCourseOwnedText}>Đã mua</Text>
-                        </View>
-                      ) : null}
-                      <View style={styles.piCourseMetaRow}>
-                        <View style={styles.piCourseMetaItem}>
-                          <Ionicons name="star" size={13} color="#f59e0b" />
-                          <Text style={styles.piCourseMetaText}>
-                            {course.rating != null ? Number(course.rating).toFixed(1) : '—'}
-                          </Text>
-                        </View>
-                        <View style={styles.piCourseMetaItem}>
-                          <Ionicons name="time-outline" size={13} color="#64748b" />
-                          <Text style={styles.piCourseMetaText}>{course.duration}</Text>
-                        </View>
-                        {course.mentorTitle ? (
-                          <Text style={styles.piCourseMentorTitle} numberOfLines={1}>
-                            {course.mentorTitle}
-                          </Text>
                         ) : null}
                       </View>
-                      <TouchableOpacity
-                        style={styles.piCourseCta}
-                        onPress={(event) => {
-                          event?.stopPropagation?.();
-                          openCourseDetail(course);
-                        }}
-                        activeOpacity={0.9}
-                      >
-                        <Ionicons name="play-circle" size={15} color="#1a3300" />
-                        <Text style={styles.piCourseCtaText}>Xem khóa học</Text>
-                      </TouchableOpacity>
+                      {course.mentorName ? (
+                        <Text style={styles.courseLightMentor} numberOfLines={1}>
+                          {course.mentorName}
+                          {course.levelLabel ? ` · ${course.levelLabel}` : ''}
+                        </Text>
+                      ) : null}
+                      <View style={styles.courseLightMetaRow}>
+                        <View style={styles.courseMetaIconRow}>
+                          <Ionicons name="time-outline" size={14} color="#8a7fa2" />
+                          <Text style={styles.courseLightMetaText}>{course.duration || '—'}</Text>
+                        </View>
+                        <View style={styles.courseMetaIconRow}>
+                          <Ionicons name="star" size={14} color="#f59e0b" />
+                          <Text style={styles.courseLightMetaText}>
+                            {course.rating != null && Number(course.rating) > 0
+                              ? `${Number(course.rating).toFixed(1)}`
+                              : '—'}
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.courseLightFooter}>
+                        <Text style={styles.courseLightPrice}>{course.price}</Text>
+                        <TouchableOpacity
+                          style={styles.courseLightCta}
+                          onPress={(event) => {
+                            event?.stopPropagation?.();
+                            openCourseDetail(course);
+                          }}
+                          activeOpacity={0.9}
+                        >
+                          <Text style={styles.courseLightCtaText}>
+                            {isOwned ? 'Vào học' : 'Xem khóa học'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </TouchableOpacity>
                 );
@@ -3025,17 +3009,13 @@ function AppInner() {
                 const paid = enrollment.paymentStatus === 'paid' || enrollment.paymentStatus == null;
                 const progress = Math.min(100, Math.max(0, Number(enrollment.progressPercent) || 0));
                 const purchasedAt = enrollment.paidAt || enrollment.updatedAt || enrollment.createdAt;
-                const image = course.image || course.thumbnail || course.coverImage;
+                const image =
+                  resolveMediaUrl(course.image || course.thumbnail || course.coverImage) ||
+                  DEFAULT_COURSE_THUMB;
                 return (
                   <View key={enrollment._id || idx} style={styles.ownedCourseCard}>
                     <View style={styles.ownedCourseTop}>
-                      {image ? (
-                        <Image source={{ uri: image }} style={styles.ownedCourseImage} />
-                      ) : (
-                        <LinearGradient colors={['#6d28d9', '#312e81']} style={styles.ownedCourseImageFallback}>
-                          <Ionicons name="school" size={25} color="#fff" />
-                        </LinearGradient>
-                      )}
+                      <Image source={{ uri: image }} style={styles.ownedCourseImage} />
                       <View style={styles.ownedCourseInfo}>
                         <View style={styles.ownedCourseBadgeRow}>
                           <View style={[
@@ -3344,38 +3324,26 @@ function AppInner() {
     );
 
     if (userRole === 'admin') {
-      // Cùng bố cục / tên tab với khách (và mentor): Mentors · Quét CV · Trang chủ · Khóa học · Cá nhân
       return (
         <BottomNavShell>
-          <TabBtn tab="admin_mentors" icon="people" label="Mentors" />
-          <TabBtn tab="admin_ops" icon="scan-outline" label="Quét CV" />
-          <TabBtn
-            tab="admin_home"
-            icon="home"
-            label="Trang chủ"
-            center
-            alsoActiveFor={['admin_finance']}
-          />
-          <TabBtn tab="admin_content" icon="school" label="Khóa học" />
+          <TabBtn tab="admin_home" icon="grid" label="Home" />
+          <TabBtn tab="admin_ops" icon="construct" label="Vận hành" />
+          <TabBtn tab="admin_mentors" icon="school" label="Mentor" />
+          <TabBtn tab="admin_finance" icon="wallet" label="Tài chính" />
+          <TabBtn tab="admin_content" icon="documents" label="Quản lý" />
           <TabBtn tab="profile" icon="person" label="Cá nhân" />
         </BottomNavShell>
       );
     }
 
     if (userRole === 'mentor') {
-      // Cùng bố cục / tên tab với khách: Mentors · Quét CV · Trang chủ · Khóa học · Cá nhân
       return (
         <BottomNavShell>
-          <TabBtn tab="mentor_sessions" icon="people" label="Mentors" />
-          <TabBtn tab="mentor_schedule" icon="scan-outline" label="Quét CV" />
-          <TabBtn
-            tab="mentor_home"
-            icon="home"
-            label="Trang chủ"
-            center
-            alsoActiveFor={['mentor_finance']}
-          />
+          <TabBtn tab="mentor_home" icon="speedometer" label="Home" />
+          <TabBtn tab="mentor_sessions" icon="calendar" label="Lịch hẹn" />
+          <TabBtn tab="mentor_schedule" icon="time" label="Lịch trống" />
           <TabBtn tab="mentor_courses" icon="school" label="Khóa học" />
+          <TabBtn tab="mentor_finance" icon="wallet" label="Tài chính" />
           <TabBtn tab="profile" icon="person" label="Cá nhân" />
         </BottomNavShell>
       );
@@ -3440,6 +3408,21 @@ function AppInner() {
           enrollment={learningEnrollment}
           onBack={() => setActiveTab(tabBeforeLearning || 'courses')}
           onProgressUpdated={handleLearningProgressUpdated}
+        />
+      );
+    }
+    if (activeTab === 'cart') {
+      return (
+        <CartScreen
+          cart={cart}
+          loading={cartLoading}
+          topInset={shellTopPad}
+          bottomPadding={16}
+          onBack={() => setActiveTab(tabBeforeCart || 'courses')}
+          onRemove={handleRemoveCartItem}
+          onCheckout={handleStartCartCheckout}
+          onRefresh={refreshCart}
+          onContinueShopping={() => setActiveTab('courses')}
         />
       );
     }
@@ -3517,7 +3500,7 @@ function AppInner() {
           <View style={styles.appShellContent}>
             {renderMainContent()}
           </View>
-          {activeTab !== 'checkout' && activeTab !== 'course_learning' && activeTab !== 'course_detail' && activeTab !== 'mentor_booking' ? (
+          {activeTab !== 'checkout' && activeTab !== 'course_learning' && activeTab !== 'course_detail' && activeTab !== 'cart' && activeTab !== 'mentor_booking' ? (
             <View style={styles.bottomNavDock} pointerEvents="box-none">
               {renderRoleBottomNav()}
             </View>
@@ -3627,16 +3610,6 @@ function AppInner() {
           </Animated.View>
         </View>
       </Modal>
-
-      <CartModal
-        visible={cartModalVisible}
-        onClose={() => setCartModalVisible(false)}
-        cart={cart}
-        loading={cartLoading}
-        onRemove={handleRemoveCartItem}
-        onCheckout={handleStartCartCheckout}
-        onRefresh={refreshCart}
-      />
 
       {cartToast ? (
         <View style={styles.cartToast} pointerEvents="none">
@@ -4975,31 +4948,31 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   cleanHomeAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8f5ff',
-    borderWidth: 2,
-    borderColor: '#8037f4',
+    backgroundColor: '#ffffff',
+    borderWidth: 2.5,
+    borderColor: '#93f72b',
   },
   cleanHomeAvatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 22,
+    borderRadius: 23,
   },
   cleanHomeHello: {
-    color: '#64748b',
+    color: '#8a7da8',
     fontSize: 11,
     fontFamily: 'Manrope_500Medium',
   },
   cleanHomeName: {
-    color: '#1e1b2e',
+    color: '#2D1B69',
     fontSize: 16,
-    marginTop: 2,
-    fontFamily: 'Manrope_700Bold',
+    marginTop: 1,
+    fontFamily: 'Manrope_800ExtraBold',
   },
   cleanHomeHeaderActions: {
     flexDirection: 'row',
@@ -5009,39 +4982,50 @@ const styles = StyleSheet.create({
   cleanHomeHeaderIcon: {
     width: 42,
     height: 42,
-    borderRadius: 16,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.12)',
+    borderColor: 'rgba(147, 247, 43, 0.35)',
+    ...createShadow('#8037f4', 0, 4, 0.06, 10, 2),
   },
   cleanHomeRedDot: {
     position: 'absolute',
-    right: 7,
-    top: 7,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    right: 8,
+    top: 8,
+    width: 7,
+    height: 7,
+    borderRadius: 4,
     backgroundColor: '#ef4444',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#ffffff',
   },
   cleanHomeSearch: {
-    height: 48,
-    borderRadius: 18,
+    height: 50,
+    borderRadius: 999,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: 12,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    marginTop: 14,
+    paddingHorizontal: 8,
+    paddingRight: 16,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.12)',
+    borderColor: 'rgba(147, 247, 43, 0.4)',
+    ...createShadow('#8037f4', 0, 6, 0.06, 14, 2),
+  },
+  cleanHomeSearchIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#93f72b',
   },
   cleanHomeSearchInput: {
     flex: 1,
-    color: '#1e1b2e',
+    color: '#2D1B69',
     fontSize: 13,
     fontFamily: 'Manrope_500Medium',
   },
@@ -5049,30 +5033,32 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 10,
-    marginBottom: 6,
+    marginTop: 18,
+    marginBottom: 10,
   },
   cleanNewsHeading: {
-    color: '#0f172a',
-    fontSize: 14,
-    fontFamily: 'Manrope_700Bold',
+    color: '#2D1B69',
+    fontSize: 16,
+    letterSpacing: -0.3,
+    fontFamily: 'Manrope_800ExtraBold',
   },
   cleanNewsCount: {
-    color: '#94a3b8',
-    fontSize: 7,
-    letterSpacing: 1,
-    fontFamily: 'Manrope_700Bold',
+    color: '#8a7da8',
+    fontSize: 10,
+    letterSpacing: 0.4,
+    fontFamily: 'Manrope_600SemiBold',
   },
   cleanNewsRail: {
-    gap: 10,
+    gap: 12,
     paddingRight: 10,
+    paddingBottom: 2,
   },
   cleanNewsCard: {
-    borderRadius: 22,
+    borderRadius: 26,
     overflow: 'hidden',
-    backgroundColor: '#171821',
-    borderWidth: 1,
-    borderColor: 'rgba(112,0,255,0.24)',
+    backgroundColor: '#1a1530',
+    borderWidth: 0,
+    ...createShadow('#2D1B69', 0, 10, 0.18, 18, 5),
   },
   cleanNewsImage: {
     width: '100%',
@@ -5085,113 +5071,120 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(9,7,17,0.62)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(147, 247, 43, 0.45)',
   },
   cleanNewsIndexText: {
     color: '#ffffff',
-    fontSize: 8,
+    fontSize: 9,
     fontFamily: 'Manrope_700Bold',
   },
   cleanNewsContent: {
     position: 'absolute',
-    left: 15,
-    right: 15,
-    bottom: 14,
+    left: 16,
+    right: 16,
+    bottom: 15,
+  },
+  cleanNewsTagPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    marginBottom: 7,
+    backgroundColor: '#93f72b',
   },
   cleanNewsTag: {
-    color: '#93f72b',
-    fontSize: 7,
-    letterSpacing: 1,
-    marginBottom: 5,
-    fontFamily: 'Manrope_700Bold',
+    color: '#2D1B69',
+    fontSize: 8,
+    letterSpacing: 0.8,
+    fontFamily: 'Manrope_800ExtraBold',
   },
   cleanNewsTitle: {
     color: '#ffffff',
-    fontSize: 13,
-    lineHeight: 18,
-    fontFamily: 'Manrope_700Bold',
+    fontSize: 14,
+    lineHeight: 19,
+    fontFamily: 'Manrope_800ExtraBold',
   },
   cleanNewsSubtitle: {
-    color: '#adb1bd',
-    fontSize: 8,
-    marginTop: 4,
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 10,
+    marginTop: 5,
     fontFamily: 'Manrope_500Medium',
   },
   homeJourneyCard: {
-    marginTop: 14,
-    borderRadius: 24,
-    padding: 14,
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    marginTop: 16,
+    borderRadius: 28,
+    padding: 16,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.14)',
-    shadowColor: '#8037f4',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
-    elevation: 3,
+    borderColor: 'rgba(147, 247, 43, 0.28)',
+    ...createShadow('#8037f4', 0, 10, 0.08, 20, 3),
   },
   homeJourneyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   homeJourneyEyebrow: {
-    color: '#8037f4',
-    fontSize: 8,
-    letterSpacing: 1,
+    color: '#8a7da8',
+    fontSize: 9,
+    letterSpacing: 1.1,
     fontFamily: 'Manrope_700Bold',
   },
   homeJourneyTitle: {
     color: '#2D1B69',
     fontSize: 16,
-    marginTop: 2,
+    marginTop: 3,
     letterSpacing: -0.3,
     fontFamily: 'Manrope_800ExtraBold',
   },
   homeJourneySpark: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#93f72b',
+    ...createShadow('#93f72b', 0, 4, 0.3, 8, 2),
   },
   homeJourneyStep: {
-    minHeight: 58,
+    minHeight: 62,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 9,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(128, 55, 244, 0.08)',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    marginTop: 6,
+    borderRadius: 18,
+    backgroundColor: '#faf8ff',
+  },
+  homeJourneyStepLast: {
+    marginBottom: 2,
   },
   homeJourneyNumber: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   homeJourneyNumberText: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: 'Manrope_800ExtraBold',
   },
   homeJourneyIcon: {
     width: 36,
     height: 36,
-    borderRadius: 13,
-    borderWidth: 1,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(128, 55, 244, 0.04)',
   },
   homeJourneyBody: {
     flex: 1,
@@ -5199,114 +5192,133 @@ const styles = StyleSheet.create({
   },
   homeJourneyStepTitle: {
     color: '#2D1B69',
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'Manrope_700Bold',
   },
   homeJourneyStepDesc: {
-    color: 'rgba(45,27,105,0.55)',
-    fontSize: 9,
+    color: '#8a7da8',
+    fontSize: 10,
     marginTop: 2,
     fontFamily: 'Manrope_500Medium',
+  },
+  homeJourneyChevron: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(147, 247, 43, 0.2)',
   },
   homeStatsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginTop: 10,
+    marginTop: 12,
   },
   homeStatPill: {
     flex: 1,
-    minHeight: 58,
-    borderRadius: 18,
+    minHeight: 64,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.78)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.1)',
+    borderColor: 'rgba(147, 247, 43, 0.28)',
+    ...createShadow('#8037f4', 0, 4, 0.05, 10, 2),
   },
   homeStatValue: {
     color: '#2D1B69',
-    fontSize: 17,
+    fontSize: 18,
     fontFamily: 'Manrope_800ExtraBold',
   },
   homeStatLabel: {
-    color: '#7b6f96',
-    fontSize: 8,
-    marginTop: 2,
+    color: '#8a7da8',
+    fontSize: 9,
+    marginTop: 3,
     fontFamily: 'Manrope_600SemiBold',
   },
   homeToolsRow: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 10,
+    marginTop: 12,
   },
   homeToolCard: {
     flex: 1,
-    minHeight: 118,
-    borderRadius: 22,
-    padding: 13,
-    backgroundColor: 'rgba(255,255,255,0.86)',
+    minHeight: 122,
+    borderRadius: 24,
+    padding: 14,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.12)',
+    borderColor: 'rgba(147, 247, 43, 0.26)',
+    ...createShadow('#8037f4', 0, 6, 0.06, 14, 2),
   },
   homeToolIcon: {
-    width: 38,
-    height: 38,
+    width: 40,
+    height: 40,
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(128, 55, 244, 0.08)',
-    marginBottom: 10,
+    backgroundColor: '#f5f0fc',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 247, 43, 0.35)',
+    marginBottom: 12,
   },
   homeToolTitle: {
     color: '#2D1B69',
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'Manrope_800ExtraBold',
   },
   homeToolDesc: {
-    color: 'rgba(45,27,105,0.55)',
-    fontSize: 9,
-    lineHeight: 13,
-    marginTop: 4,
+    color: '#8a7da8',
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 5,
     fontFamily: 'Manrope_500Medium',
   },
   cleanHomeTitleBlock: {
-    marginTop: 18,
+    marginTop: 20,
+    marginBottom: 2,
   },
   cleanHomeTitle: {
-    color: '#0f172a',
+    color: '#2D1B69',
     fontSize: 17,
     letterSpacing: -0.4,
     fontFamily: 'Manrope_800ExtraBold',
   },
+  cleanHomeTitleHint: {
+    color: '#8a7da8',
+    fontSize: 11,
+    marginTop: 3,
+    fontFamily: 'Manrope_500Medium',
+  },
   cleanHomeChips: {
     gap: 8,
-    paddingTop: 6,
-    paddingBottom: 8,
+    paddingTop: 8,
+    paddingBottom: 10,
     paddingRight: 8,
   },
   cleanHomeChip: {
-    height: 30,
-    borderRadius: 17,
-    paddingHorizontal: 15,
+    height: 34,
+    borderRadius: 999,
+    paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.75)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.14)',
+    borderColor: 'rgba(147, 247, 43, 0.32)',
   },
   cleanHomeChipActive: {
     backgroundColor: '#93f72b',
     borderColor: '#93f72b',
   },
   cleanHomeChipText: {
-    color: '#64748b',
-    fontSize: 9,
+    color: '#5c4d7a',
+    fontSize: 11,
     fontFamily: 'Manrope_600SemiBold',
   },
   cleanHomeChipTextActive: {
-    color: '#0d1410',
-    fontSize: 9,
-    fontFamily: 'Manrope_700Bold',
+    color: '#2D1B69',
+    fontSize: 11,
+    fontFamily: 'Manrope_800ExtraBold',
   },
   cleanBookingStrip: {
     minHeight: 82,
@@ -5457,33 +5469,36 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   homeCvPreviewCard: {
-    minHeight: 72,
-    borderRadius: 20,
-    padding: 13,
+    minHeight: 76,
+    borderRadius: 22,
+    padding: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    gap: 12,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.12)',
+    borderColor: 'rgba(147, 247, 43, 0.28)',
+    ...createShadow('#8037f4', 0, 4, 0.05, 10, 2),
   },
   homeCvPreviewIcon: {
     width: 42,
     height: 42,
-    borderRadius: 15,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(128, 55, 244, 0.08)',
+    backgroundColor: '#f5f0fc',
+    borderWidth: 1,
+    borderColor: 'rgba(147, 247, 43, 0.35)',
   },
   homeCvPreviewTitle: {
     color: '#2D1B69',
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: 'Manrope_800ExtraBold',
   },
   homeCvPreviewDesc: {
-    color: 'rgba(45,27,105,0.58)',
-    fontSize: 9,
-    lineHeight: 13,
+    color: '#8a7da8',
+    fontSize: 10,
+    lineHeight: 14,
     marginTop: 3,
     fontFamily: 'Manrope_500Medium',
   },
@@ -5493,13 +5508,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
     backgroundColor: '#93f72b',
+    ...createShadow('#93f72b', 0, 4, 0.25, 8, 2),
   },
   homeCvPreviewCtaText: {
     color: '#2D1B69',
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: 'Manrope_800ExtraBold',
   },
   cleanCvBanner: {
@@ -6467,13 +6483,108 @@ const styles = StyleSheet.create({
     backgroundColor: '#93f72b',
   },
 
-  // COURSE PREMIUM LIST
+  // COURSE LIGHT LIST (tab Khóa học)
+  courseLightCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 22,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+    marginBottom: 14,
+    ...createShadow('#8037f4', 0, 6, 0.06, 14, 2),
+  },
+  courseLightImage: {
+    width: '100%',
+    height: 148,
+    backgroundColor: '#efe6fa',
+  },
+  courseLightImageFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  courseLightBody: {
+    padding: 14,
+  },
+  courseLightTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 6,
+  },
+  courseLightTitle: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#2D1B69',
+    lineHeight: 22,
+  },
+  courseLightOwnedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(5,150,105,0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  courseLightOwnedText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  courseLightMentor: {
+    fontSize: 12,
+    color: '#8a7fa2',
+    marginBottom: 10,
+    fontWeight: '600',
+  },
+  courseLightMetaRow: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 14,
+  },
+  courseMetaIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  courseLightMetaText: {
+    fontSize: 12,
+    color: '#6f6287',
+    fontWeight: '600',
+  },
+  courseLightFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(45,27,105,0.08)',
+    paddingTop: 12,
+  },
+  courseLightPrice: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#8037f4',
+  },
+  courseLightCta: {
+    backgroundColor: '#93f72b',
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+  },
+  courseLightCtaText: {
+    color: '#1a3300',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  // COURSE PREMIUM LIST (legacy aliases)
   coursePremiumCard: {
-    backgroundColor: 'rgba(22, 17, 41, 0.8)',
+    backgroundColor: '#ffffff',
     borderRadius: 24,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.25)',
+    borderColor: 'rgba(128, 55, 244, 0.12)',
     marginBottom: 16,
     ...createShadow('#7000ff', 0, 6, 0.1, 12, 3),
   },
@@ -6487,7 +6598,7 @@ const styles = StyleSheet.create({
   coursePremiumTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#2D1B69',
     lineHeight: 22,
     marginBottom: 8,
   },
@@ -6496,21 +6607,16 @@ const styles = StyleSheet.create({
     gap: 16,
     marginBottom: 16,
   },
-  courseMetaIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
   courseMetaText: {
     fontSize: 12,
-    color: '#cbd5e1',
+    color: '#6f6287',
   },
   coursePremiumFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderTopColor: 'rgba(45,27,105,0.08)',
     paddingTop: 14,
   },
   coursePremiumPrice: {
@@ -8147,6 +8253,45 @@ const styles = StyleSheet.create({
     color: '#8037f4',
     letterSpacing: 1.2,
     marginBottom: 4,
+  },
+  coursesSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    height: 48,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+    marginBottom: 14,
+  },
+  coursesSearchInput: {
+    flex: 1,
+    color: '#1e1b2e',
+    fontSize: 13,
+    fontFamily: 'Manrope_500Medium',
+  },
+  coursesFilterPill: {
+    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.14)',
+    height: 32,
+    justifyContent: 'center',
+  },
+  coursesFilterPillActive: {
+    backgroundColor: '#8037f4',
+    borderColor: '#8037f4',
+  },
+  coursesFilterPillText: {
+    color: '#6f6287',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  coursesFilterPillTextActive: {
+    color: '#ffffff',
   },
   piCourseCard: {
     backgroundColor: '#ffffff',

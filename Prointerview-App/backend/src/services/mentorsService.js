@@ -31,7 +31,7 @@ export async function listMentors() {
     console.log(`[listMentors] Đã tạo ${repair.created} hồ sơ mentor thiếu (user role mentor).`);
   }
   const mentors = await Mentor.find({ userId: { $exists: true, $ne: null } })
-    .populate({ path: "userId", select: "role isActive email" })
+    .populate({ path: "userId", select: "role isActive email name avatar" })
     .lean();
   const eligible = mentors.filter(isBookableMentorDoc);
   return {
@@ -57,7 +57,7 @@ export async function getMentorById(rawId) {
     or.push({ userId: rawId });
   }
   const mentor = await Mentor.findOne({ $or: or })
-    .populate({ path: "userId", select: "role isActive email" })
+    .populate({ path: "userId", select: "role isActive email name avatar" })
     .lean();
   if (!mentor || !isBookableMentorDoc(mentor)) {
     return { ok: false, status: 404, error: "Not found" };

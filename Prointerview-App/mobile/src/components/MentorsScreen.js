@@ -11,6 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { resolveMediaUrl, mentorAvatarFallback } from '../utils/mediaUrl';
 
 const MENTOR_CATEGORIES = ['Tất cả', 'Frontend', 'Backend', 'AI/ML', 'Product'];
 
@@ -134,20 +135,16 @@ export default function MentorsScreen({
               <Text style={styles.emptyHint}>Thử đổi từ khóa hoặc bộ lọc lĩnh vực.</Text>
             </View>
           ) : (
-            filteredMentors.map((mentor) => (
+            filteredMentors.map((mentor) => {
+              const avatarUri = resolveMediaUrl(mentor.avatar) || mentorAvatarFallback(mentor.name);
+              return (
               <TouchableOpacity
                 key={mentor.id}
                 style={styles.card}
                 activeOpacity={0.9}
                 onPress={() => onMentorPress?.(mentor)}
               >
-                {mentor.avatar ? (
-                  <Image source={{ uri: mentor.avatar }} style={styles.avatar} />
-                ) : (
-                  <View style={[styles.avatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#e9e0f7' }]}>
-                    <Ionicons name="person" size={22} color="#7c6a9a" />
-                  </View>
-                )}
+                <Image source={{ uri: avatarUri }} style={styles.avatar} />
                 <View style={styles.cardBody}>
                   <Text style={styles.name} numberOfLines={1}>
                     {mentor.name}
@@ -171,7 +168,8 @@ export default function MentorsScreen({
                   </View>
                 </View>
               </TouchableOpacity>
-            ))
+              );
+            })
           )}
         </ScrollView>
       )}

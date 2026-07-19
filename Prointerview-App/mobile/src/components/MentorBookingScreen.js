@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { resolveMediaUrl, mentorAvatarFallback } from '../utils/mediaUrl';
 import { fetchMentor, fetchMentorAvailability } from '../services/proInterviewApi';
 import { buildAvailableBookingDays, toBookingDate } from '../utils/bookingSchedule';
 import {
@@ -72,13 +73,10 @@ function MentorProfileCard({ mentor }) {
     <View style={styles.profileCard}>
       <View style={styles.profileTop}>
         <View style={styles.avatarCol}>
-          {mentor?.avatar ? (
-            <Image source={{ uri: mentor.avatar }} style={styles.avatar} />
-          ) : (
-            <View style={[styles.avatar, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#e9e0f7' }]}>
-              <Ionicons name="person" size={36} color="#7c6a9a" />
-            </View>
-          )}
+          <Image
+            source={{ uri: resolveMediaUrl(mentor?.avatar) || mentorAvatarFallback(mentor?.name) }}
+            style={styles.avatar}
+          />
           {mentor.available !== false ? (
             <View style={styles.statusBadge}>
               <View style={styles.statusDot} />

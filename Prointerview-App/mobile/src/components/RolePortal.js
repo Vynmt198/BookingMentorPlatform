@@ -86,7 +86,7 @@ function Hero({ eyebrow, title, accent, subtitle }) {
   );
 }
 
-/** Header chào giống role khách (Xin chào + avatar). */
+/** Header Xin chào giống home khách — sạch hơn Command Center. */
 function WelcomeHeader({ user, title, subtitle, onProfilePress }) {
   const uri = resolveMediaUrl(user?.avatar);
   return (
@@ -277,28 +277,28 @@ function AdminHome({ data, user, onNavigate }) {
 
   const journey = [
     {
-      id: 'mentors',
-      number: '01',
-      icon: 'people-outline',
-      title: 'Mentors',
-      desc: 'Duyệt hồ sơ cố vấn chờ phê duyệt.',
-      color: '#8037f4',
-      tab: 'admin_mentors',
-    },
-    {
       id: 'ops',
-      number: '02',
-      icon: 'scan-outline',
-      title: 'Quét CV',
+      number: '01',
+      icon: 'construct-outline',
+      title: 'Vận hành',
       desc: 'Booking · CK khóa · CK gói SePay.',
-      color: '#93f72b',
+      color: '#8037f4',
       tab: 'admin_ops',
     },
     {
-      id: 'courses',
-      number: '03',
+      id: 'mentors',
+      number: '02',
       icon: 'school-outline',
-      title: 'Khóa học',
+      title: 'Mentor',
+      desc: 'Duyệt hồ sơ cố vấn chờ phê duyệt.',
+      color: '#93f72b',
+      tab: 'admin_mentors',
+    },
+    {
+      id: 'manage',
+      number: '03',
+      icon: 'documents-outline',
+      title: 'Quản lý',
       desc: 'Users · khóa chờ · reviews · báo cáo.',
       color: '#f59e0b',
       tab: 'admin_content',
@@ -429,8 +429,8 @@ function AdminMentors({ data, onRefresh, user, onNavigate }) {
     <View>
       <WelcomeHeader
         user={user}
-        title="Mentors"
-        subtitle={`${list.length} hồ sơ · duyệt / ẩn cố vấn`}
+        title="Cố vấn"
+        subtitle={`${list.length} hồ sơ · duyệt / ẩn mentor`}
         onProfilePress={() => onNavigate?.('profile')}
       />
       <ChipRow
@@ -509,7 +509,7 @@ function AdminOps({ data, onRefresh, user, onNavigate }) {
     <View>
       <WelcomeHeader
         user={user}
-        title="Quét CV"
+        title="Vận hành"
         subtitle="Booking · chuyển khoản · SePay"
         onProfilePress={() => onNavigate?.('profile')}
       />
@@ -667,8 +667,8 @@ function AdminManage({ data, onRefresh, user, onNavigate }) {
     <View>
       <WelcomeHeader
         user={user}
-        title="Khóa học"
-        subtitle="Users · khóa chờ · reviews · báo cáo"
+        title="Quản lý"
+        subtitle="Users · khóa học · reviews · reports"
         onProfilePress={() => onNavigate?.('profile')}
       />
       <ChipRow
@@ -775,18 +775,18 @@ function MentorHome({ data, user, onNavigate }) {
     {
       id: 'sessions',
       number: '01',
-      icon: 'people-outline',
-      title: 'Mentors',
-      desc: 'Xác nhận và quản lý buổi hẹn với mentee.',
+      icon: 'calendar-outline',
+      title: 'Lịch hẹn',
+      desc: 'Xác nhận và quản lý buổi với mentee.',
       color: '#8037f4',
       tab: 'mentor_sessions',
     },
     {
       id: 'schedule',
       number: '02',
-      icon: 'scan-outline',
-      title: 'Quét CV',
-      desc: 'Lịch trống & khung giờ nhận booking.',
+      icon: 'time-outline',
+      title: 'Lịch trống',
+      desc: 'Khung giờ rảnh nhận booking.',
       color: '#93f72b',
       tab: 'mentor_schedule',
     },
@@ -795,7 +795,7 @@ function MentorHome({ data, user, onNavigate }) {
       number: '03',
       icon: 'school-outline',
       title: 'Khóa học',
-      desc: 'Publish, lưu trữ và xem đánh giá khóa.',
+      desc: 'Publish, lưu trữ và xem đánh giá.',
       color: '#f59e0b',
       tab: 'mentor_courses',
     },
@@ -932,8 +932,8 @@ function MentorSessions({ data, onRefresh, user, onNavigate }) {
     <View>
       <WelcomeHeader
         user={user}
-        title="Mentors"
-        subtitle={`${bookings.length} buổi hẹn · chạm thẻ để xác nhận / hoàn thành`}
+        title="Lịch mentoring"
+        subtitle={`${bookings.length} buổi · chạm thẻ để xác nhận / hoàn thành`}
         onProfilePress={() => onNavigate?.('profile')}
       />
       {bookings.length === 0 ? <EmptyState icon="calendar-outline" text="Chưa có lịch hẹn." /> : null}
@@ -1140,8 +1140,8 @@ function MentorCourses({ data, onRefresh, user, onNavigate }) {
     <View>
       <WelcomeHeader
         user={user}
-        title="Khóa học"
-        subtitle={`${courses.length} khóa · ${reviews.length} đánh giá`}
+        title="Khóa & đánh giá"
+        subtitle={`${courses.length} khóa · ${reviews.length} reviews`}
         onProfilePress={() => onNavigate?.('profile')}
       />
       <ChipRow

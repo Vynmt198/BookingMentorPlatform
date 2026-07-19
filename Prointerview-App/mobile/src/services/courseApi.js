@@ -1,6 +1,6 @@
 import { apiUrl, ensureApiBase } from '../utils/api';
 import { getCourseDisplayTitle } from '../utils/courseDisplay';
-import { resolveMediaUrl } from '../utils/mediaUrl';
+import { resolveMediaUrl, mentorAvatarFallback, DEFAULT_COURSE_THUMB } from '../utils/mediaUrl';
 
 const jsonHeaders = {
   Accept: 'application/json',
@@ -52,7 +52,7 @@ export function mapApiCourseToCard(c) {
   const lessons = c.totalLessons || c.lessonsCount;
   const durationMinutes = Number(c.totalDurationMinutes) || 0;
   const id = String(c._id || c.id || '').trim();
-  const thumb = resolveMediaUrl(c.thumbnail) || '';
+  const thumb = resolveMediaUrl(c.thumbnail) || DEFAULT_COURSE_THUMB;
   const level = normalizeLevel(c.level);
 
   return {
@@ -118,12 +118,14 @@ export function mapApiCourseDetail(c) {
     id: c._id,
     title: getCourseDisplayTitle(c.title || ''),
     description: c.description || '',
-    thumbnail: resolveMediaUrl(c.thumbnail) || '',
+    thumbnail: resolveMediaUrl(c.thumbnail) || DEFAULT_COURSE_THUMB,
     category: c.topics?.[0] || mapCategory(c),
     mentorId: c.mentorId?._id,
     mentorUserId: c.mentorId?.userId?._id || '',
     mentorName: c.mentorId?.userId?.name || '',
-    mentorAvatar: resolveMediaUrl(c.mentorId?.userId?.avatar) || '',
+    mentorAvatar:
+      resolveMediaUrl(c.mentorId?.userId?.avatar) ||
+      mentorAvatarFallback(c.mentorId?.userId?.name || 'Mentor'),
     mentorTitle: c.mentorId?.userId?.desiredPosition || '',
     mentorCompany: c.mentorId?.userId?.currentCompany || '',
     rating: stats.rating,

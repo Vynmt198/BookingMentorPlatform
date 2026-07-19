@@ -123,6 +123,9 @@ export function toPublicMentor(doc) {
   const m = doc.toObject ? doc.toObject() : { ...doc };
   const stats = m.stats || {};
   const firstField = Array.isArray(m.fields) && m.fields.length ? m.fields[0] : "";
+  const userAvatar =
+    m.userId && typeof m.userId === "object" && m.userId.avatar ? m.userId.avatar : "";
+  const rawAvatar = m.avatar || userAvatar || "";
   return {
     id: m.publicId ?? (m._id ? String(m._id) : undefined),
     name: m.name,
@@ -134,7 +137,7 @@ export function toPublicMentor(doc) {
     rating: stats.rating ?? 0,
     reviews: stats.reviewCount ?? 0,
     price: m.pricePerHour ?? 0,
-    avatar: resolveStoredUploadUrl(m.avatar ?? ""),
+    avatar: resolveStoredUploadUrl(rawAvatar),
     tags: Array.isArray(m.specialties) && m.specialties.length ? m.specialties : [],
     available: m.available !== false,
     bio: m.bio ?? "",

@@ -4,6 +4,7 @@
 import { apiUrl, ensureApiBase } from '../utils/api';
 import { authFetch } from '../utils/mobileAuth';
 import { mapApiCourseToCard } from './courseApi';
+import { resolveMediaUrl, mentorAvatarFallback } from '../utils/mediaUrl';
 
 const jsonHeaders = {
   Accept: 'application/json',
@@ -28,14 +29,19 @@ function mapMentorCard(m) {
   else if (categorySource.includes('qa') || categorySource.includes('test')) category = 'QA/QC';
   else if (categorySource.includes('product') || categorySource.includes('talent')) category = 'Product';
   else if (fields[0] || specialties[0]) category = String(fields[0] || specialties[0]);
+
+  const name = m.name || m.fullName || 'Mentor';
+  const rawAvatar = m.avatar || m.avatarUrl || m.userId?.avatar || '';
+  const avatar = resolveMediaUrl(rawAvatar) || mentorAvatarFallback(name);
+
   return {
     id: m.publicId || m._id || m.id,
-    name: m.name || m.fullName || 'Mentor',
+    name,
     role: roleStr || 'Mentor',
     title: roleStr || 'Mentor',
     company: companyStr && companyStr !== '-' && companyStr !== '—' ? companyStr : '',
     rating,
-    avatar: m.avatar || m.avatarUrl || '',
+    avatar,
     category,
     reviews: m.reviewsCount || m.reviews || m.stats?.reviewCount || 0,
     price: Number(m.price || m.sessionTypes?.[0]?.price) || 0,

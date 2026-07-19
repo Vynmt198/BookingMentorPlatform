@@ -369,7 +369,7 @@ export default function MentorScheduleScreen({ profile, bookings = [], onRefresh
               </Text>
             </View>
           </TouchableOpacity>
-          <Text style={styles.welcomePageTitle}>Quét CV</Text>
+          <Text style={styles.welcomePageTitle}>Lịch trống</Text>
           <Text style={styles.welcomePageSub}>Lịch hẹn + khung giờ rảnh nhận booking</Text>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => setShowEditor(true)}>
             <Ionicons name="settings-outline" size={16} color="#fff" />
