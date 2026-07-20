@@ -974,33 +974,49 @@ export async function requestPayout(userId, body) {
   if (!Number.isFinite(amount) || amount <= 0) return { ok: false, status: 400, error: "amount không hợp lệ." };
   if (amount < 100000) return { ok: false, status: 400, error: "Số tiền rút tối thiểu là 100.000đ." };
   const roundedAmount = Math.round(amount);
-  const availableBalance = Number(mentor.finance?.availableBalance || 0);
-  if (roundedAmount > availableBalance) {
-    return { ok: false, status: 400, error: "Số dư khả dụng không đủ để rút." };
-  }
 
   const payoutAccount = normalizePayoutAccount(mentor.finance?.bankAccount || {});
   if (!hasValidPayoutAccount(payoutAccount)) {
     return { ok: false, status: 400, error: "Vui lòng cập nhật tài khoản nhận tiền trước khi rút." };
   }
 
-  // Atomic check-and-decrement: nếu balance thay đổi giữa hai request đồng thời, chỉ một request thành công
-  const updated = await Mentor.findOneAndUpdate(
+  // Trừ số dư atomic (check-and-decrement trong 1 lệnh) TRƯỚC khi tạo PayoutRequest —
+  // tránh 2 request rút tiền gần như đồng thời cùng pass check rồi cùng rút vượt số dư thật.
+  const reserved = await Mentor.findOneAndUpdate(
     { _id: mentor._id, "finance.availableBalance": { $gte: roundedAmount } },
-    { $inc: { "finance.availableBalance": -roundedAmount, "finance.pendingBalance": roundedAmount } },
-    { new: true },
+    {
+      $inc: {
+        "finance.availableBalance": -roundedAmount,
+        "finance.pendingBalance": roundedAmount,
+      },
+    },
   );
-  if (!updated) {
+  if (!reserved) {
     return { ok: false, status: 400, error: "Số dư khả dụng không đủ để rút." };
   }
 
-  const payout = await PayoutRequest.create({
-    mentorId: mentor._id,
-    amount: roundedAmount,
-    status: "pending",
-    payoutAccount,
-    requestedAt: new Date(),
-  });
+  let payout;
+  try {
+    payout = await PayoutRequest.create({
+      mentorId: mentor._id,
+      amount: roundedAmount,
+      status: "pending",
+      payoutAccount,
+      requestedAt: new Date(),
+    });
+  } catch (err) {
+    // Rollback số dư đã trừ atomic ở trên nếu không tạo được PayoutRequest.
+    await Mentor.updateOne(
+      { _id: mentor._id },
+      {
+        $inc: {
+          "finance.availableBalance": roundedAmount,
+          "finance.pendingBalance": -roundedAmount,
+        },
+      },
+    );
+    throw err;
+  }
 
   await deliverNotification(userId, {
     mentorPrefKey: "payout_update",
@@ -1030,7 +1046,7 @@ export async function updatePayoutAccount(userId, body) {
 
   const payoutAccount = normalizePayoutAccount({
     ...(body || {}),
-    accountName: sanitizeText(mentor.name || ""),
+    accountName: sanitizeText(body?.accountName || "") || sanitizeText(mentor.name || ""),
   });
   if (!hasValidPayoutAccount(payoutAccount)) {
     return {

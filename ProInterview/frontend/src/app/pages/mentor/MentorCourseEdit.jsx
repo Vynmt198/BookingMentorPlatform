@@ -940,6 +940,7 @@ export function MentorCourseEdit() {
    const [courseAdminNote, setCourseAdminNote] = useState(null);
    const [showArchiveDialog, setShowArchiveDialog] = useState(false);
    const [archiving, setArchiving] = useState(false);
+   const [submittingUpdate, setSubmittingUpdate] = useState(false);
    const [tabLoading, setTabLoading] = useState(false);
    const [tabError, setTabError] = useState("");
    const [students, setStudents] = useState([]);
@@ -1302,7 +1303,10 @@ export function MentorCourseEdit() {
                   </button>
                   <button
                      type="button"
+                     disabled={submittingUpdate}
                      onClick={async () => {
+                        if (submittingUpdate) return;
+                        setSubmittingUpdate(true);
                         try {
                            // Giữ nguyên cấu trúc chapter gốc, chỉ cập nhật nội dung từng bài
                            const rawModules = course.raw?.modules || course.raw?.chapters || [];
@@ -1361,11 +1365,13 @@ export function MentorCourseEdit() {
                            navigate("/mentor/courses");
                         } catch {
                            toastApiError("Lỗi kết nối khi gửi bản cập nhật.");
+                        } finally {
+                           setSubmittingUpdate(false);
                         }
                      }}
-                     className="min-h-[44px] rounded-xl bg-[#a3e635] px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-900 shadow-md shadow-[#a3e635]/30 hover:bg-[#84cc16]"
+                     className="min-h-[44px] rounded-xl bg-[#a3e635] px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-900 shadow-md shadow-[#a3e635]/30 hover:bg-[#84cc16] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                     Lưu & gửi duyệt
+                     {submittingUpdate ? "Đang gửi…" : "Lưu & gửi duyệt"}
                   </button>
                </div>
             </div>

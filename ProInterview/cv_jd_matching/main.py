@@ -140,10 +140,9 @@ async def analyze_full(
     resume_data = await _process_upload("resume", resume)
     jd_data     = await _process_upload("jd", jd)
 
-    # cached = cv_cache.get("analyze/full", resume_data["text"], jd_data["text"])
-    # if cached:
-    #     # return cached
-    #     pass
+    cached = cv_cache.get("analyze/full", resume_data["text"], jd_data["text"])
+    if cached:
+        return cached
 
     try:
         match = semantic_match(
@@ -216,10 +215,9 @@ async def analyze_suggestions(
     resume_data = await _process_upload("resume", resume)
     jd_data     = await _process_upload("jd", jd)
 
-    # cached = cv_cache.get("analyze/suggestions", resume_data["text"], jd_data["text"])
-    # if cached:
-    #     # return cached
-    #     pass
+    cached = cv_cache.get("analyze/suggestions", resume_data["text"], jd_data["text"])
+    if cached:
+        return cached
 
     # ── Step 1: Semantic match (LLM hiểu ngữ nghĩa, không chỉ từ khóa) ──
     try:
@@ -297,10 +295,9 @@ async def analyze_field(
     """
     resume_data = await _process_upload("resume", resume)
 
-    # cached = cv_cache.get("analyze/field", resume_data["text"], field)
-    # if cached:
-    #     # return cached
-    #     pass
+    cached = cv_cache.get("analyze/field", resume_data["text"], field)
+    if cached:
+        return cached
 
     result = analyze_cv_by_field(
         cv_text=resume_data["text"],

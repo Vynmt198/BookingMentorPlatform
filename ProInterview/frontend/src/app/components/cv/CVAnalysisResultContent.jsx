@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Zap,
   AlertTriangle as Warning,
+  Info,
   Mic,
   Users,
   PlusCircle,
@@ -187,6 +188,21 @@ export function CVAnalysisResultContent({
 
   return (
     <div className="flex flex-col gap-6 px-4 py-6 sm:px-8 sm:py-8">
+      {R?.fallbackTriggered && (
+        <div
+          className="flex items-start gap-3 rounded-sm border border-slate-200 bg-slate-50 px-5 py-4"
+          role="status"
+        >
+          <Info className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-800">Kết quả minh họa (demo)</p>
+            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+              Dịch vụ phân tích AI tạm thời không phản hồi nên hệ thống hiển thị dữ liệu mẫu thay
+              vì kết quả phân tích thật. Vui lòng thử phân tích lại sau ít phút.
+            </p>
+          </div>
+        </div>
+      )}
       {historySaveWarning && (
         <div
           className="flex items-start gap-3 rounded-sm border border-amber-200/90 bg-amber-50 px-5 py-4"
@@ -290,16 +306,16 @@ export function CVAnalysisResultContent({
             {missingKws.length === 0 ? (
               <p className="text-sm font-medium text-slate-500">Không có</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              // Render dạng list thay vì chip pill — `kw` có thể là từ khóa ngắn hoặc nguyên
+              // câu yêu cầu JD (semantic match), chip nhỏ sẽ vỡ layout với câu dài.
+              <ul className="space-y-2">
                 {missingKws.map((kw, i) => (
-                  <span
-                    key={`${kw}-${i}`}
-                    className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700"
-                  >
-                    {kw}
-                  </span>
+                  <li key={`${kw}-${i}`} className="flex items-start gap-2 text-sm font-medium text-slate-700">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-orange-400" aria-hidden />
+                    <span>{kw}</span>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </div>
         </div>

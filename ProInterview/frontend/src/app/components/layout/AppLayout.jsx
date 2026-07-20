@@ -21,7 +21,9 @@ export function AppLayout() {
     ? " app-shell-ambient--home"
     : isLegalDoc
       ? " app-shell-ambient--legal"
-      : "";
+      : isMentor
+        ? " app-shell-ambient--mentor"
+        : "";
 
   useEffect(() => {
     document.title = resolveDocumentTitle(location.pathname);
@@ -37,7 +39,7 @@ export function AppLayout() {
     `app-user-shell relative min-h-svh w-full text-slate-900 antialiased selection:bg-violet-100 selection:text-violet-900 ${
       isHome
         ? "app-user-shell--home overflow-x-clip overflow-y-visible bg-transparent"
-        : isLegalDoc
+        : isLegalDoc || isMentor
           ? "overflow-x-hidden bg-slate-50"
           : "overflow-x-hidden bg-[#f3f0f9]"
     }`;

@@ -11,7 +11,6 @@ import { ensureMentorProfilesForAllMentorUsers } from "./mentorProfileService.js
 import { recordAdminTransferSuccess, recordTransferPending, recordTransferSubmitted } from "./paymentsService.js";
 import { tryCreditMentorForCompletedBooking } from "./mentorEarningsService.js";
 import { deliverNotification } from "./notificationDeliveryService.js";
-import { runInTransaction } from "../helpers/dbHelper.js";
 import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
 import { isBookingInLiveWindow, isBookingSlotInFuture } from "../utils/bookingSchedule.js";
 import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
@@ -727,7 +726,17 @@ export async function createBooking(userId, body) {
   if (creditFromRaw) {
     const creditCheck = await validateRebookCreditApply(uid, creditFromRaw, mentor._id, totalAmount);
     if (!creditCheck.ok) return creditCheck;
-    rebookCreditSource = creditCheck.source;
+    // Chuyển "available" -> "consumed" atomically NGAY (trước khi tạo booking mới) — tránh
+    // 2 request đồng thời cùng pass validate rồi cùng tạo được booking "đã thanh toán" từ 1 credit.
+    const reserved = await Booking.findOneAndUpdate(
+      { _id: creditCheck.source._id, userId: uid, rebookCreditStatus: "available" },
+      { $set: { rebookCreditStatus: "consumed" } },
+      { new: true },
+    );
+    if (!reserved) {
+      return { ok: false, status: 409, error: "Credit đổi mentor vừa được dùng ở nơi khác. Vui lòng tải lại trang." };
+    }
+    rebookCreditSource = reserved;
     rebookCreditVndApplied = creditCheck.creditVnd;
   }
 
@@ -773,41 +782,54 @@ export async function createBooking(userId, body) {
     paymentStatus === "pending" && mapPaymentMethod(body.paymentMethod ?? body.method) === "transfer";
   const paymentExpiresAt = transferPending ? newPaymentExpiresAt() : undefined;
 
-  const doc = await Booking.create({
-    userId: uid,
-    mentorId: mentor._id,
-    date: dateNormalized,
-    timeSlot: timeNormalized,
-    durationMinutes,
-    timezone,
-    sessionType,
-    notes: buildNotes(body),
-    cvFileName: typeof body.cvFile === "string" ? body.cvFile.trim().slice(0, 500) : "",
-    jdFileName: typeof body.jdFile === "string" ? body.jdFile.trim().slice(0, 500) : "",
-    cvFileUrl: typeof body.cvFileUrl === "string" ? body.cvFileUrl.trim().slice(0, 2000) : "",
-    jdFileUrl: typeof body.jdFileUrl === "string" ? body.jdFileUrl.trim().slice(0, 2000) : "",
-    meetingLink,
-    status,
-    price,
-    platformFeeRate: platformRate,
-    platformFee,
-    vat,
-    totalAmount,
-    paymentStatus,
-    paymentMethod: rebookCreditSource
-      ? "transfer"
-      : mapPaymentMethod(body.paymentMethod ?? body.method),
-    paymentRef,
-    paymentExpiresAt,
-    paidAt: paymentStatus === "paid" ? new Date() : undefined,
-    creditSourceBookingId: rebookCreditSource?._id ?? undefined,
-  });
+  let doc;
+  try {
+    doc = await Booking.create({
+      userId: uid,
+      mentorId: mentor._id,
+      date: dateNormalized,
+      timeSlot: timeNormalized,
+      durationMinutes,
+      timezone,
+      sessionType,
+      notes: buildNotes(body),
+      cvFileName: typeof body.cvFile === "string" ? body.cvFile.trim().slice(0, 500) : "",
+      jdFileName: typeof body.jdFile === "string" ? body.jdFile.trim().slice(0, 500) : "",
+      cvFileUrl: typeof body.cvFileUrl === "string" ? body.cvFileUrl.trim().slice(0, 2000) : "",
+      jdFileUrl: typeof body.jdFileUrl === "string" ? body.jdFileUrl.trim().slice(0, 2000) : "",
+      meetingLink,
+      status,
+      price,
+      platformFeeRate: platformRate,
+      platformFee,
+      vat,
+      totalAmount,
+      paymentStatus,
+      paymentMethod: rebookCreditSource ? "transfer" : mapPaymentMethod(body.paymentMethod ?? body.method),
+      paymentRef,
+      paymentExpiresAt,
+      paidAt: paymentStatus === "paid" ? new Date() : undefined,
+      creditSourceBookingId: rebookCreditSource?._id ?? undefined,
+    });
+  } catch (err) {
+    // Rollback credit đã reserve atomically ở trên nếu tạo booking thất bại (kể cả do
+    // trùng khung giờ — unique index ở Booking model chặn double-booking tầng DB).
+    if (rebookCreditSource) {
+      await Booking.updateOne(
+        { _id: rebookCreditSource._id, rebookCreditStatus: "consumed" },
+        { $set: { rebookCreditStatus: "available" } },
+      );
+    }
+    if (err?.code === 11000) {
+      return { ok: false, status: 409, error: "Khung giờ này vừa được đặt. Chọn giờ khác." };
+    }
+    throw err;
+  }
 
   if (rebookCreditSource) {
     const appliedVnd = Math.round(Number(doc.totalAmount ?? doc.price ?? 0));
     const remainderVnd = Math.max(0, rebookCreditVndApplied - appliedVnd);
 
-    rebookCreditSource.rebookCreditStatus = "consumed";
     rebookCreditSource.rebookCreditUsedOnBookingId = doc._id;
     let remainderSettlement = null;
     if (remainderVnd > 0) {
@@ -1320,50 +1342,47 @@ export async function confirmBankTransferPaymentByAdmin(bookingId, options = {})
     return { ok: false, status: 400, error: "Xác nhận ngoại lệ cần lý do rõ ràng (ít nhất 3 ký tự)." };
   }
 
-  try {
-    await runInTransaction(async (session) => {
-      const booking = await Booking.findById(bookingId).session(session);
-      if (!booking) throw new Error("ERR_404");
-      if (booking.paymentMethod !== "transfer") throw new Error("ERR_METHOD");
-      if (booking.paymentStatus === "paid") throw new Error("ERR_ALREADY_PAID");
-      if (booking.paymentStatus !== "pending") throw new Error("ERR_STATUS");
-      if (!force && !booking.transferSubmittedAt) throw new Error("ERR_NO_SUBMIT");
+  // Atomic claim: pending -> paid trong đúng 1 lệnh update, điều kiện trạng thái nằm ngay
+  // trong filter — an toàn kể cả trên MongoDB standalone (không có transaction thật). 2 admin
+  // cùng bấm xác nhận 1 lúc chỉ 1 người "thắng" filter, người còn lại nhận `before = null`
+  // thay vì cả 2 cùng qua được check rồi cùng ghi ledger 2 lần.
+  const transferConfirmedBy =
+    options?.adminUserId && mongoose.isValidObjectId(String(options.adminUserId)) ? options.adminUserId : undefined;
+  const paidAt = new Date();
+  const claimFilter = { _id: bookingId, paymentMethod: "transfer", paymentStatus: "pending" };
+  if (!force) claimFilter.transferSubmittedAt = { $ne: null };
 
-      const ledgerAmt = Math.round(Number(booking.totalAmount ?? booking.price ?? 0));
-      if (ledgerAmt > 0) {
-        const ledger = await recordAdminTransferSuccess({
-          userId: booking.userId,
-          type: "booking",
-          referenceModel: "Booking",
-          referenceId: booking._id,
-          amount: ledgerAmt,
-          adminUserId: options?.adminUserId || "",
-          forceConfirm: force,
-          forceNote,
-          session,
-        });
-        if (!ledger.ok && !ledger.idempotent) {
-          throw new Error(`ERR_LEDGER:${ledger.error || "unknown"}`);
-        }
-      }
+  const before = await Booking.findOneAndUpdate(
+    claimFilter,
+    {
+      $set: {
+        paymentStatus: "paid",
+        status: "confirmed",
+        paidAt,
+        transferConfirmedAt: paidAt,
+        transferConfirmedBy,
+        transferForceConfirm: force,
+        transferForceNote: force ? forceNote.slice(0, 500) : "",
+      },
+    },
+    { new: false },
+  );
 
-      booking.paymentStatus = "paid";
-      booking.status = "confirmed";
-      booking.paidAt = new Date();
-      booking.transferConfirmedAt = booking.paidAt;
-      booking.transferConfirmedBy =
-        options?.adminUserId && mongoose.isValidObjectId(String(options.adminUserId)) ? options.adminUserId : undefined;
-      booking.transferForceConfirm = force;
-      booking.transferForceNote = force ? forceNote.slice(0, 500) : "";
-      await booking.save({ session });
-    });
-  } catch (error) {
-    const msg = String(error?.message || "");
-    if (msg === "ERR_404") return { ok: false, status: 404, error: "Không tìm thấy booking." };
-    if (msg === "ERR_METHOD") return { ok: false, status: 400, error: "Chỉ áp dụng cho booking thanh toán chuyển khoản." };
-    if (msg === "ERR_ALREADY_PAID") return { ok: false, status: 400, error: "Booking đã được đánh dấu đã thanh toán." };
-    if (msg === "ERR_STATUS") return { ok: false, status: 400, error: "Trạng thái thanh toán không cho phép xác nhận." };
-    if (msg === "ERR_NO_SUBMIT") {
+  if (!before) {
+    const existing = await Booking.findById(bookingId)
+      .select("paymentMethod paymentStatus transferSubmittedAt")
+      .lean();
+    if (!existing) return { ok: false, status: 404, error: "Không tìm thấy booking." };
+    if (existing.paymentMethod !== "transfer") {
+      return { ok: false, status: 400, error: "Chỉ áp dụng cho booking thanh toán chuyển khoản." };
+    }
+    if (existing.paymentStatus === "paid") {
+      return { ok: false, status: 400, error: "Booking đã được đánh dấu đã thanh toán." };
+    }
+    if (existing.paymentStatus !== "pending") {
+      return { ok: false, status: 400, error: "Trạng thái thanh toán không cho phép xác nhận." };
+    }
+    if (!force && !existing.transferSubmittedAt) {
       return {
         ok: false,
         status: 400,
@@ -1371,12 +1390,33 @@ export async function confirmBankTransferPaymentByAdmin(bookingId, options = {})
           "Cần gửi force: true khi admin xác nhận thủ công (không bắt học viên bấm «đã chuyển khoản» trong app).",
       };
     }
-    if (msg.startsWith("ERR_LEDGER:")) {
-      console.error("[confirmBankTransferPaymentByAdmin]", msg);
+    return { ok: false, status: 409, error: "Booking vừa được xử lý ở nơi khác. Vui lòng tải lại." };
+  }
+
+  const ledgerAmt = Math.round(Number(before.totalAmount ?? before.price ?? 0));
+  if (ledgerAmt > 0) {
+    const ledger = await recordAdminTransferSuccess({
+      userId: before.userId,
+      type: "booking",
+      referenceModel: "Booking",
+      referenceId: before._id,
+      amount: ledgerAmt,
+      adminUserId: options?.adminUserId || "",
+      forceConfirm: force,
+      forceNote,
+    });
+    if (!ledger.ok && !ledger.idempotent) {
+      // Rollback claim vì không ghi được ledger — trả booking về đúng trạng thái trước đó.
+      await Booking.updateOne(
+        { _id: bookingId },
+        {
+          $set: { paymentStatus: before.paymentStatus, status: before.status },
+          $unset: { paidAt: "", transferConfirmedAt: "", transferConfirmedBy: "" },
+        },
+      );
+      console.error("[confirmBankTransferPaymentByAdmin] ERR_LEDGER", ledger.error);
       return { ok: false, status: 500, error: "Không thể ghi nhận giao dịch thanh toán. Vui lòng thử lại." };
     }
-    console.error("[confirmBankTransferPaymentByAdmin]", error?.message || error);
-    return { ok: false, status: 500, error: "Không thể xác nhận thanh toán lúc này." };
   }
 
   // Tự xác nhận các booking anh em cùng nhóm đặt nhiều slot (cùng userId + mentorId + paymentRef).
@@ -2397,7 +2437,14 @@ export async function resolveMentorCancelBooking(userId, rawId, body) {
   booking.cancelRefundPercent = null;
   booking.cancelRefundAmountVnd = null;
   booking.cancelRetainedAmountVnd = null;
-  await booking.save();
+  try {
+    await booking.save();
+  } catch (err) {
+    if (err?.code === 11000) {
+      return { ok: false, status: 409, error: "Khung giờ mới vừa có người đặt. Chọn giờ khác." };
+    }
+    throw err;
+  }
 
   const mentor = await Mentor.findById(booking.mentorId).lean();
   await notifyBookingOwner(booking.userId, {
@@ -2504,7 +2551,14 @@ export async function rescheduleMentorBooking(mentorUserId, rawId, body) {
   booking.date = newDateNorm;
   booking.timeSlot = newSlot;
   if (booking.status !== "pending") booking.status = "confirmed";
-  await booking.save();
+  try {
+    await booking.save();
+  } catch (err) {
+    if (err?.code === 11000) {
+      return { ok: false, status: 409, error: "Khung giờ mới vừa có người đặt. Chọn giờ khác." };
+    }
+    throw err;
+  }
   await booking.populate([
     { path: "userId", select: "name email avatar" },
     { path: "mentorId", select: "name title company avatar publicId userId", populate: { path: "userId", select: "email" } }

@@ -27,6 +27,9 @@ const userSchema = new Schema(
       mentorSessionUsed: { type: Number, default: 0 },
       mentorSessionLimit: { type: Number, default: 0 },
       resetAt: { type: Date, default: Date.now },
+      /** Chặn 1 user bắn nhiều request /analyze/* đồng thời (lãng phí LLM call). */
+      cvAnalysisInFlight: { type: Boolean, default: false },
+      cvAnalysisInFlightAt: { type: Date, default: null },
     },
 
     phone: { type: String, default: "" },

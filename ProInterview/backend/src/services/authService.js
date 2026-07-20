@@ -194,7 +194,7 @@ export async function refreshAccessToken(rawRefresh, req, options = {}) {
     return { ok: false, status: 401, error: "Refresh token không hợp lệ." };
   }
   const sid = new mongoose.Types.ObjectId(sidStr);
-  const user = await User.findOne({ "authSessions._id": sid }).select("+authSessions");
+  let user = await User.findOne({ "authSessions._id": sid }).select("+authSessions");
   if (!user) {
     return { ok: false, status: 401, error: "Phiên không còn hợp lệ. Đăng nhập lại." };
   }

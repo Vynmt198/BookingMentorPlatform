@@ -249,12 +249,13 @@ export function mapPythonCvPipelineToAnalysis(raw, { usedFallback = false, field
   const matchedSkills = m.matching ?? [];
   const missingSkills = m.missing ?? [];
 
+  // `matching`/`missing` có thể là từ khóa ngắn (fallback compute_match heuristic) hoặc nguyên
+  // câu yêu cầu JD (semantic_match qua LLM) — không bọc vào template "Có kỹ năng "..."" vì sẽ
+  // garbled khi là câu dài (vd. `Có kỹ năng "Có tối thiểu 3 năm kinh nghiệm..." phù hợp`).
   const strengths =
-    sugg.strengths ??
-    matchedSkills.slice(0, 6).map((sk) => `Có kỹ năng "${sk}" phù hợp với yêu cầu`);
+    sugg.strengths ?? matchedSkills.slice(0, 6).map((sk) => `Đáp ứng: ${sk}`);
   const weaknesses =
-    sugg.weaknesses ??
-    missingSkills.slice(0, 6).map((sk) => `Thiếu kỹ năng "${sk}" cần bổ sung`);
+    sugg.weaknesses ?? missingSkills.slice(0, 6).map((sk) => `Còn thiếu: ${sk}`);
 
   const bulletSuggestions = (sugg.rewritten_bullets ?? []).map((b) => ({
     type: "fix",

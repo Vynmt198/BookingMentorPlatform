@@ -155,6 +155,8 @@ export async function resolveCourseAccessForUser(userId, coursePrice) {
   }
   return fallback;
 }
+/** Coi in-flight cũ hơn ngưỡng này là "treo" (server restart/crash giữa chừng) — tự giải phóng. */
+const CV_ANALYSIS_IN_FLIGHT_STALE_MS = 3 * 60 * 1000;
 
 export async function requireCvAnalysisQuota(req, res, next) {
   try {
@@ -176,6 +178,36 @@ export async function requireCvAnalysisQuota(req, res, next) {
           : "Bạn đã hết lượt phân tích CV. Vui lòng nâng cấp gói.";
       return res.status(403).json({ success: false, error: "quota_exceeded", message });
     }
+
+    // Atomic claim: chặn user này bắn nhiều request /analyze/* (15-40s/lần, gọi LLM thật) đồng
+    // thời — trước đây middleware chỉ đọc quota nên nhiều request song song đều pass rồi đều
+    // tốn LLM call dù cuối cùng chỉ 1 request được lưu/tính quota.
+    const now = new Date();
+    const staleBefore = new Date(now.getTime() - CV_ANALYSIS_IN_FLIGHT_STALE_MS);
+    const claimed = await User.findOneAndUpdate(
+      {
+        _id: effective._id,
+        $or: [
+          { "quota.cvAnalysisInFlight": { $ne: true } },
+          { "quota.cvAnalysisInFlightAt": { $lt: staleBefore } },
+        ],
+      },
+      { $set: { "quota.cvAnalysisInFlight": true, "quota.cvAnalysisInFlightAt": now } },
+    );
+    if (!claimed) {
+      return res.status(409).json({
+        success: false,
+        error: "analysis_in_progress",
+        message: "Bạn có 1 yêu cầu phân tích CV khác đang xử lý. Vui lòng đợi kết quả rồi thử lại.",
+      });
+    }
+
+    res.on("finish", () => {
+      User.updateOne(
+        { _id: effective._id },
+        { $set: { "quota.cvAnalysisInFlight": false } },
+      ).catch(() => {});
+    });
 
     next();
   } catch (err) {

@@ -591,9 +591,10 @@ export function CVAnalysis() {
           const matchedSkills = m.matching ?? [];
           const missingSkills = m.missing  ?? [];
 
-          // Strengths từ matched skills, weaknesses từ missing
-          const strengths  = matchedSkills.slice(0, 6).map(sk => `Có kỹ năng "${sk}" phù hợp với yêu cầu JD`);
-          const weaknesses = missingSkills.slice(0, 6).map(sk => `Thiếu kỹ năng "${sk}" mà JD yêu cầu`);
+          // Strengths từ matched skills, weaknesses từ missing. `sk` có thể là từ khóa ngắn
+          // hoặc nguyên câu yêu cầu JD (semantic match) — không bọc trong dấu ngoặc kép lồng nhau.
+          const strengths  = matchedSkills.slice(0, 6).map(sk => `Đáp ứng: ${sk}`);
+          const weaknesses = missingSkills.slice(0, 6).map(sk => `Còn thiếu: ${sk}`);
 
           // Map rewritten_bullets → "fix" suggestions (hiển thị trước — high value)
           const bulletSuggestions = (sugg.rewritten_bullets ?? []).map(b => ({
@@ -705,6 +706,7 @@ export function CVAnalysis() {
               ...analysisPayload,
               cvFileUrl: fileUpload.cvFileUrl,
               jdFileUrl: fileUpload.jdFileUrl,
+              fallbackTriggered: usedFallback,
             },
           };
         } else if (analyzeMode === "field") {
@@ -789,6 +791,7 @@ export function CVAnalysis() {
             analysis: {
               ...analysisPayload,
               cvFileUrl: fileUpload.cvFileUrl,
+              fallbackTriggered: usedFieldFallback,
             },
           };
         } else {
