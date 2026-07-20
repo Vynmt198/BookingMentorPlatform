@@ -6,6 +6,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { MENTOR_BOOKING_COPY } from "../../../constants/brandVoice";
+import { getPlans } from "../../../utils/auth";
 
 function formatPriceVnd(amount) {
   return `${Number(amount || 0).toLocaleString("vi-VN")}đ`;
@@ -22,6 +23,12 @@ export function MentorProfileAside({
     mentor.sessionTypes.find((s) => s?.type === "mock_interview");
   const price = mock?.price ?? mentor.price ?? 0;
   const minutes = mock?.durationMinutes ?? 60;
+  /* Ưu đãi Sinh Viên/Chuyên Nghiệp (-5%/-10%) — ước tính hiển thị theo gói hiện tại, số tiền thật chốt ở /checkout. */
+  const plans = getPlans();
+  const planDiscountRate = plans.professional ? 0.1 : plans.student ? 0.05 : 0;
+  const planLabel = plans.professional ? "Chuyên Nghiệp" : plans.student ? "Sinh Viên" : "";
+  const planDiscountAmount = price > 0 && planDiscountRate > 0 ? Math.round(price * planDiscountRate) : 0;
+  const planFinalPrice = price - planDiscountAmount;
 
   const features = [
     { icon: Video, text: MENTOR_BOOKING_COPY.sessionVia },
@@ -36,8 +43,20 @@ export function MentorProfileAside({
           <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
             {MENTOR_BOOKING_COPY.sessionTitle}
           </p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-slate-900">
-            {formatPriceVnd(price)}
+          {planDiscountAmount > 0 ? (
+            <span className="mt-2 inline-block rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
+              -{Math.round(planDiscountRate * 100)}% {planLabel}
+            </span>
+          ) : null}
+          <p className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-bold tracking-tight text-slate-900">
+              {formatPriceVnd(planFinalPrice)}
+            </span>
+            {planDiscountAmount > 0 ? (
+              <span className="text-sm font-semibold text-slate-400 line-through">
+                {formatPriceVnd(price)}
+              </span>
+            ) : null}
           </p>
           <p className="mt-1 text-sm text-slate-600">/ {minutes} phút</p>
         </div>

@@ -9,6 +9,7 @@ export { CVAnalysis } from "./CVAnalysis.js";
 export { InterviewSession } from "./InterviewSession.js";
 export { Course } from "./Course.js";
 export { Enrollment } from "./Enrollment.js";
+export { Cart } from "./Cart.js";
 export { Review } from "./Review.js";
 export { Notification } from "./Notification.js";
 export { Payment } from "./Payment.js";

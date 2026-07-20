@@ -289,7 +289,7 @@ async function main() {
       role: "customer",
       plan: "student",
       planExpiresAt: addMonths(today, 2),
-      quota: quota({ cvUsed: 4, cvLimit: 999, resetAt: addDays(today, -1) }),
+      quota: quota({ cvUsed: 4, cvLimit: 50, resetAt: addDays(today, -1) }),
       desiredPosition: "Business Analyst",
       currentCompany: "Techcombank",
       skills: ["Business Analysis", "SQL", "Stakeholder Management"],

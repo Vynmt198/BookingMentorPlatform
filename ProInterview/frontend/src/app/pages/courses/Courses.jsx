@@ -13,9 +13,11 @@ import {
   AlertCircle,
   Sparkles,
   PlayCircle,
+  ShoppingCart,
 } from "lucide-react";
 import { fetchCourses } from "../../utils/courseApi";
-import { toastApiError } from "../../utils/apiToast";
+import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
+import { useCart } from "../../hooks/useCart";
 import { normalizeCourseStats } from "../../utils/courseStats";
 import { mediaSrc, DEFAULT_COURSE_THUMB, avatarSrc } from "../../utils/mediaUrl";
 import { ImageWithFallback } from "../../components/figma/ImageWithFallback";
@@ -26,6 +28,7 @@ import {
   buildCourseFilterCategories,
   courseMatchesTopic,
 } from "../../constants/courseCategories";
+import { getPlans } from "../../utils/auth";
 
 const LEVEL_OPTIONS = [
   { label: "Người mới", value: "Beginner" },
@@ -94,6 +97,28 @@ function CourseCard({ course, formatPrice, onOpen, index }) {
   const avatarFallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(
     course.mentorName || "M",
   )}&background=ede9fe&color=6d28d9`;
+  const { addToCart } = useCart();
+  const [addingToCart, setAddingToCart] = useState(false);
+  /* Ưu đãi Sinh Viên/Chuyên Nghiệp (-5%/-10%) — ước tính hiển thị theo gói hiện tại, số tiền thật chốt ở /checkout. */
+  const plans = getPlans();
+  const planDiscountRate = plans.professional ? 0.1 : plans.student ? 0.05 : 0;
+  const planLabel = plans.professional ? "Chuyên Nghiệp" : plans.student ? "Sinh Viên" : "";
+  const coursePrice = Number(course.price) || 0;
+  const planDiscountAmount = coursePrice > 0 && planDiscountRate > 0 ? Math.round(coursePrice * planDiscountRate) : 0;
+  const planFinalPrice = coursePrice - planDiscountAmount;
+
+  const handleAddToCart = async (event) => {
+    event.stopPropagation();
+    setAddingToCart(true);
+    const res = await addToCart("Course", course.id, course.title, course.price, 1, course.thumbnail);
+    setAddingToCart(false);
+    if (res?.success) {
+      toastApiSuccess("Đã thêm vào giỏ hàng");
+    } else {
+      toastApiError("Không thể thêm vào giỏ hàng");
+    }
+  };
+
   return (
     <motion.article
       onClick={onOpen}
@@ -120,10 +145,22 @@ function CourseCard({ course, formatPrice, onOpen, index }) {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-slate-900/10 to-transparent" />
 
-        <div className="absolute right-3 top-3 rounded-xl bg-[#93f72b] px-3 py-1.5 shadow-lg">
-          <span className="text-sm font-black leading-tight text-violet-950">
-            {formatPrice(course.price)}
-          </span>
+        <div className="absolute right-3 top-3 flex flex-col items-end gap-1">
+          {planDiscountAmount > 0 ? (
+            <span className="whitespace-nowrap rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white shadow">
+              -{Math.round(planDiscountRate * 100)}% {planLabel}
+            </span>
+          ) : null}
+          <div className="rounded-xl bg-[#93f72b] px-3 py-1.5 shadow-lg">
+            <span className="text-sm font-black leading-tight text-violet-950">
+              {formatPrice(planFinalPrice)}
+            </span>
+          </div>
+          {planDiscountAmount > 0 ? (
+            <span className="whitespace-nowrap rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-500 line-through shadow">
+              {formatPrice(coursePrice)}
+            </span>
+          ) : null}
         </div>
 
         <div className="absolute left-3 top-3">
@@ -171,20 +208,36 @@ function CourseCard({ course, formatPrice, onOpen, index }) {
           ) : null}
         </div>
 
-        <motion.button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpen();
-          }}
-          whileHover={{ scale: 1.03, backgroundColor: "#84cc16" }}
-          whileTap={{ scale: 0.94 }}
-          transition={{ type: "spring", stiffness: 380, damping: 22 }}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#a3e635] py-2.5 text-xs font-black uppercase tracking-wide text-slate-900 shadow-[0_4px_14px_rgba(163,230,53,0.3)]"
-        >
-          <PlayCircle className="size-3.5" />
-          Xem khóa học
-        </motion.button>
+        <div className="mt-4 flex items-center gap-2">
+          <motion.button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen();
+            }}
+            whileHover={{ scale: 1.03, backgroundColor: "#84cc16" }}
+            whileTap={{ scale: 0.94 }}
+            transition={{ type: "spring", stiffness: 380, damping: 22 }}
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#a3e635] py-2.5 text-xs font-black uppercase tracking-wide text-slate-900 shadow-[0_4px_14px_rgba(163,230,53,0.3)]"
+          >
+            <PlayCircle className="size-3.5" />
+            Xem khóa học
+          </motion.button>
+          {course.price > 0 ? (
+            <motion.button
+              type="button"
+              title="Thêm vào giỏ hàng"
+              onClick={handleAddToCart}
+              disabled={addingToCart}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
+              transition={{ type: "spring", stiffness: 380, damping: 22 }}
+              className="flex shrink-0 items-center justify-center rounded-2xl border border-violet-200 bg-white p-2.5 text-[#8037f4] shadow-sm disabled:opacity-50"
+            >
+              <ShoppingCart className="size-3.5" />
+            </motion.button>
+          ) : null}
+        </div>
       </div>
     </motion.article>
   );

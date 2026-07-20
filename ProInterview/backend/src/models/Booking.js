@@ -55,7 +55,7 @@ const bookingSchema = new Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["momo", "zalopay", "vnpay", "card", "transfer", ""],
+      enum: ["momo", "zalopay", "vnpay", "card", "transfer", "plan_quota", ""],
       default: "",
     },
     paymentRef: { type: String, default: "" },

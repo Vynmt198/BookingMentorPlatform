@@ -26,6 +26,7 @@ import { coursesRouter } from "./routes/courses.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { adminRouter } from "./routes/admin.js";
 import { enrollmentsRouter } from "./routes/enrollments.js";
+import { cartRouter } from "./routes/cart.js";
 import { cvRouter } from "./routes/cv.js";
 import { cvMatchRouter } from "./routes/cvMatch.js";
 import { interviewsRouter } from "./routes/interviews.js";
@@ -148,6 +149,7 @@ export function createApp() {
       admin: "/api/admin",
       analytics: "/api/analytics",
       enrollments: "/api/enrollments",
+      cart: "/api/cart",
 
       cv: "/api/cv",
       interviews: "/api/interviews",
@@ -192,6 +194,7 @@ export function createApp() {
   app.use("/api/notifications", notificationsRouter);
   app.use("/api/admin", adminRouter);
   app.use("/api/enrollments", enrollmentsRouter);
+  app.use("/api/cart", cartRouter);
   app.use("/api/cv", cvRouter);
   app.use("/api/cv", cvMatchRouter);
   app.use("/api/interviews", interviewsRouter);
