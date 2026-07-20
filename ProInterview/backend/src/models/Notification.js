@@ -23,6 +23,7 @@ const notificationSchema = new Schema(
         "course_completed",
         "certificate_ready",
         "feedback",
+        "streak_reminder",
         "system",
       ],
       required: true,
@@ -38,6 +39,8 @@ const notificationSchema = new Schema(
       mentorId: { type: Schema.Types.ObjectId, ref: "Mentor" },
       courseId: { type: Schema.Types.ObjectId, ref: "Course" },
       actionUrl: { type: String },
+      /** Chu kỳ hết hạn gói tại thời điểm nhắc — dùng để dedupe "plan_expiring" (đổi khi gia hạn). */
+      planExpiresAt: { type: Date },
     },
   },
   { collection: "notifications", timestamps: true }

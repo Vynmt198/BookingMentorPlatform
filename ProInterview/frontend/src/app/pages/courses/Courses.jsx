@@ -48,7 +48,8 @@ const SORT_OPTIONS = [
   { value: "rating", label: "Đánh giá cao" },
 ];
 
-const COURSES_PAGE_SIZE = 8;
+// Bội số của 3 để khớp lưới 3 cột (lg:grid-cols-3) — tránh dư ô trống ở hàng cuối mỗi trang.
+const COURSES_PAGE_SIZE = 9;
 
 function normalizeLevel(raw) {
   const value = String(raw || "").toLowerCase();

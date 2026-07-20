@@ -5,6 +5,7 @@ import { Payment } from "../models/Payment.js";
 import { Booking } from "../models/Booking.js";
 import { User } from "../models/User.js";
 import { Enrollment } from "../models/Enrollment.js";
+import { Cart } from "../models/Cart.js";
 import { planKeyFromSubscriptionMeta } from "../utils/planKeys.js";
 import { getPlanPrice } from "../utils/planPricing.js";
 import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
@@ -713,6 +714,12 @@ export async function confirmEnrollmentTransferByAdmin(enrollmentId, options = {
     await incrementCourseEnrollmentCount(courseIdForStats);
   }
 
+  // Thanh toán đã xác nhận — giờ mới xóa khóa học này khỏi giỏ hàng (nếu còn đó từ lúc checkout giỏ).
+  await Cart.updateOne(
+    { userId: before.userId },
+    { $pull: { items: { itemType: "Course", itemId: courseIdForStats } } },
+  );
+
   const enrollment = await Enrollment.findById(enrollmentId).lean();
   return { ok: true, enrollment };
 }
@@ -838,7 +845,7 @@ async function finalizePaymentSuccess(paymentId) {
       .select("_id userId mentorId date timeSlot")
       .lean();
     if (booking && !alreadySuccess) {
-      const mentor = await Mentor.findById(booking.mentorId).select("userId").lean();
+      const mentor = await Mentor.findById(booking.mentorId).select("userId name").lean();
       const student = await User.findById(booking.userId).select("name").lean();
       if (mentor?.userId) {
         await deliverNotification(mentor.userId, {
@@ -852,6 +859,17 @@ async function finalizePaymentSuccess(paymentId) {
           },
         });
       }
+      await deliverNotification(booking.userId, {
+        customerPrefKey: "interview_reminder",
+        type: "booking_confirmed",
+        title: "Lịch hẹn đã được xác nhận",
+        body: `Thanh toán đã được duyệt — buổi với ${mentor?.name || "mentor"} lúc ${booking.date} ${booking.timeSlot} đã xác nhận.`,
+        metadata: {
+          bookingId: booking._id,
+          mentorId: booking.mentorId,
+          actionUrl: `/session/${booking._id}`,
+        },
+      });
     }
   }
   if (pay.type === "course" && pay.referenceModel === "Enrollment") {
