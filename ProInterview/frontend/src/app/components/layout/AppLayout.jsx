@@ -15,7 +15,7 @@ export function AppLayout() {
   const allowHorizontalScroll = isCvAnalysisHub;
   const isLegalDoc = pathNorm === "terms" || pathNorm === "privacy";
   const hideNavbar = pathNorm === "interview/room";
-  const hideFooter = pathNorm === "interview/room";
+  const hideFooter = pathNorm === "interview/room" || pathNorm === "checkout";
   const showSiteFooter = !isMentor && !hideFooter;
   const ambientModifier = isHome
     ? " app-shell-ambient--home"

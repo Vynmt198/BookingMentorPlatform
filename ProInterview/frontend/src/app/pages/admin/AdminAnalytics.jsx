@@ -309,7 +309,7 @@ export function AdminAnalytics() {
     void loadAll();
   }, [loadAll]);
 
-  const plans = stats?.plans || { free: 0, student: 0, professional: 0, premium: 0 };
+  const plans = stats?.plans || { free: 0, student: 0, professional: 0 };
   const bookingBreakdown = useMemo(() => {
     const raw = stats?.bookingsByStatus || {};
     return Object.entries(raw)
@@ -371,9 +371,9 @@ export function AdminAnalytics() {
             <SectionHeader icon={BarChart3} kicker="Tong hop" title="Chi so chi tiet" />
             <div className="space-y-4 p-5 sm:p-7">
               <div className={adminStatGrid4}>
+                <MiniStat label="Mien phi" value={plans.free ?? 0} />
                 <MiniStat label="Sinh vien" value={plans.student ?? 0} accent="text-violet-800" />
                 <MiniStat label="Chuyen nghiep" value={plans.professional ?? 0} accent="text-violet-900" />
-                <MiniStat label="Cao cap" value={plans.premium ?? 0} />
                 <MiniStat label="Bao cao mo" value={stats?.reportsOpen ?? 0} accent="text-amber-700" />
               </div>
               <div className={adminStatGrid4}>

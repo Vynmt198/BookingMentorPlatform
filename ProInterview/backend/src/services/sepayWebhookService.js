@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import { Booking } from "../models/Booking.js";
-import { Course } from "../models/Course.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Payment } from "../models/Payment.js";
 import { SepayWebhookEvent } from "../models/SepayWebhookEvent.js";
@@ -70,15 +69,37 @@ async function findPendingTargets(orderRef) {
   })
     .select("_id userId paymentRef totalAmount price paymentExpiresAt createdAt")
     .lean();
+
+  // Gom các booking pending cùng (paymentRef, userId) — đơn đặt nhiều slot dùng chung 1 mã CK,
+  // 1 lần chuyển khoản phải khớp TỔNG tiền cả nhóm chứ không phải từng booking riêng lẻ.
+  const bookingGroupMap = new Map(); // `${norm}::${userId}` -> [booking]
   for (const b of bookings) {
     if (isTransferPaymentExpired(b)) continue;
     if (orderRefsMatch(b.paymentRef, norm)) {
+      const groupKey = `${norm}::${String(b.userId)}`;
+      if (!bookingGroupMap.has(groupKey)) bookingGroupMap.set(groupKey, []);
+      bookingGroupMap.get(groupKey).push(b);
+    }
+  }
+  for (const group of bookingGroupMap.values()) {
+    const totalExpected = group.reduce((sum, b) => sum + expectedBookingAmount(b), 0);
+    if (group.length === 1) {
+      const b = group[0];
       targets.push({
         entityType: "booking",
         entityId: String(b._id),
         userId: String(b.userId),
-        expectedAmount: expectedBookingAmount(b),
+        expectedAmount: totalExpected,
         transferSubmittedAt: b.transferSubmittedAt ?? null,
+      });
+    } else {
+      targets.push({
+        entityType: "booking_group",
+        entityId: String(group[0]._id),
+        entityIds: group.map((b) => String(b._id)),
+        userId: String(group[0].userId),
+        expectedAmount: totalExpected,
+        transferSubmittedAt: group[0].transferSubmittedAt ?? null,
       });
     }
   }
@@ -89,22 +110,12 @@ async function findPendingTargets(orderRef) {
   })
     .select("_id userId paymentRef pricePaid transferSubmittedAt courseId paymentExpiresAt createdAt")
     .lean();
-  const courseIds = enrollments.map((e) => e.courseId).filter(Boolean);
-  const courseRows =
-    courseIds.length > 0
-      ? await Course.find({ _id: { $in: courseIds } })
-          .select("price")
-          .lean()
-      : [];
-  const priceByCourseId = new Map(
-    courseRows.map((c) => [String(c._id), Math.round(Number(c.price ?? 0))]),
-  );
   for (const e of enrollments) {
     if (isTransferPaymentExpired(e)) continue;
     if (orderRefsMatch(e.paymentRef, norm)) {
-      const fromCourse = priceByCourseId.get(String(e.courseId)) ?? 0;
-      const expectedAmount =
-        fromCourse > 0 ? fromCourse : Math.round(Number(e.pricePaid ?? 0));
+      // pricePaid được server tính lúc tạo ghi danh (áp dụng giảm giá theo gói) — nguồn sự thật duy nhất,
+      // không dùng lại Course.price gốc (sẽ sai với user đang được giảm giá).
+      const expectedAmount = Math.round(Number(e.pricePaid ?? 0));
       targets.push({
         entityType: "course",
         entityId: String(e._id),
@@ -154,6 +165,22 @@ async function autoConfirmTarget(target, { sepayId, amount }) {
 
   if (target.entityType === "booking") {
     return confirmBankTransferPaymentByAdmin(target.entityId, opts);
+  }
+  if (target.entityType === "booking_group") {
+    // _skipSiblingConfirm: nhóm đã được liệt kê đủ entityIds ở đây — không cần từng booking
+    // tự tìm anh em nữa (tránh xác nhận trùng 2 lần cho cùng 1 nhóm).
+    const groupOpts = { ...opts, _skipSiblingConfirm: true };
+    const errors = [];
+    for (const id of target.entityIds) {
+      const res = await confirmBankTransferPaymentByAdmin(id, groupOpts);
+      if (!res.ok && !String(res.error || "").includes("đã thanh toán")) {
+        errors.push(res.error || "lỗi không xác định");
+      }
+    }
+    if (errors.length > 0) {
+      return { ok: false, error: `Một số slot không xác nhận được: ${errors.join("; ")}` };
+    }
+    return { ok: true };
   }
   if (target.entityType === "course") {
     return confirmEnrollmentTransferByAdmin(target.entityId, opts);
@@ -262,7 +289,10 @@ export async function handleSepayWebhook(body, authHeader) {
     orderRef,
     entityType: target.entityType,
     entityId: target.entityId,
-    resultMessage: "auto confirmed",
+    resultMessage:
+      target.entityType === "booking_group"
+        ? `auto confirmed group (${target.entityIds.length} bookings)`
+        : "auto confirmed",
   });
 
   return {

@@ -90,9 +90,16 @@ Xem `backend/.env.example` để biết đầy đủ biến.
 ```env
 VITE_GOOGLE_CLIENT_ID=<giống backend>
 VITE_API_URL=https://your-api.example.com   # Chỉ cần khi prod SPA ≠ API host
+# Checkout CK — không set thì trang thanh toán báo "Chưa cấu hình STK ngân hàng"
+VITE_BANK_TRANSFER_NAME=<tên ngân hàng>
+VITE_BANK_TRANSFER_ACCOUNT=<số tài khoản>
+VITE_BANK_TRANSFER_OWNER=<chủ tài khoản>
+VITE_VIETQR_BANK_ID=<mã ngân hàng VietQR, vd TPB — bỏ qua nếu tên NH đã tự nhận diện được>
 ```
 
 `frontend/src/app/utils/api.js` resolve `API_BASE_URL`: ưu tiên `VITE_API_URL`, fallback `http://localhost:5000` (dev), rồi `""` (same-origin prod).
+
+`frontend/src/app/pages/booking/Checkout.jsx` đọc `VITE_BANK_TRANSFER_*` để hiển thị QR VietQR + thông tin chuyển khoản trên trang thanh toán — thiếu biến này thì trang chỉ hiện thông báo lỗi cấu hình thay vì QR thật (Vite cần restart dev server sau khi đổi `.env`).
 
 ---
 
@@ -299,14 +306,13 @@ utils/
 
 ### Plans & Quota
 
-| Plan | Giá/tháng | CV Analysis | Mentor Sessions |
-|:-----|:----------|:------------|:----------------|
-| `free` | 0đ | 2 | 0 |
-| `student` | 150,000đ | Unlimited | 1 |
-| `professional` | 500,000đ | Unlimited | 4 |
-| `premium` | 2,000,000đ | Unlimited | Unlimited |
+| Plan | Giá/tháng | CV/JD Analysis | Ưu đãi đặt Mentor | Ưu đãi mua khóa học |
+|:-----|:----------|:----------------|:-------------------|:---------------------|
+| `free` | 0đ | 3/tháng | 0% | 0% |
+| `student` | 150,000đ | 10/tháng | 5% | 5% |
+| `professional` | 500,000đ | 30/tháng | 10% | 10% |
 
-Fields trên `User`: `plan`, `planExpiresAt`, `quota` (cvAnalysisUsed/Limit, mentorSessionUsed/Limit).
+Fields trên `User`: `plan`, `planExpiresAt`, `quota` (cvAnalysisUsed/Limit, mentorSessionUsed/Limit). `mentorSessionUsed/Limit` được giữ lại trong schema để tương thích với booking lịch sử (`paymentMethod: "plan_quota"`) nhưng không còn dùng để cấp buổi miễn phí — buổi mentor giờ luôn tự thanh toán với ưu đãi % theo gói (`resolveMentorBookingDiscountForUser` trong `planGuard.js`).
 
 Backward-compat: `starter_pro` → `student`, `elite_pro` → `professional` (xử lý trong `planKeys.js`).
 

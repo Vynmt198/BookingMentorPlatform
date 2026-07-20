@@ -7,6 +7,7 @@ import { incrementCourseEnrollmentCount } from "../services/courseStatsService.j
 import { serializeCourseForApi } from "../utils/resolveStoredUploadUrl.js";
 import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
 import { expireEnrollmentTransferIfNeeded } from "../services/transferPaymentExpiryService.js";
+import { resolveCourseAccessForUser } from "../utils/planGuard.js";
 
 function genOrderRef() {
   return `PI${Math.floor(Math.random() * 900000 + 100000)}`;
@@ -34,19 +35,33 @@ export const EnrollmentController = {
       if (!course) return res.status(404).json({ success: false, error: "Không tìm thấy khóa học" });
 
       const price = Number(course.price || 0);
+      // Professional: khóa học bao gồm trong gói (miễn phí). Student: giảm giá. Còn lại: giá gốc.
+      const access = await resolveCourseAccessForUser(userId, price);
       const existing = await Enrollment.findOne({ userId, courseId });
 
       if (existing) {
         if (enrollmentAccessGranted(existing)) {
           return res.json({ success: true, message: "Bạn đã ghi danh khóa học này rồi", enrollment: existing });
         }
+
+        if (access.included) {
+          existing.pricePaid = access.price;
+          existing.paymentStatus = "paid";
+          existing.paymentMethod = "plan_included";
+          existing.paidAt = new Date();
+          existing.lastAccessedAt = new Date();
+          await existing.save();
+          await incrementCourseEnrollmentCount(courseId);
+          return res.json({ success: true, enrollment: existing, included: true });
+        }
+
         const bodyPm = String(req.body?.paymentMethod || "").trim();
-        if (price > 0 && bodyPm === "transfer") {
+        if (access.effectivePrice > 0 && bodyPm === "transfer") {
           const expired = await expireEnrollmentTransferIfNeeded(existing);
           if (expired.expired) {
             // Ghi danh cũ đã hết hạn — tạo mới bên dưới.
           } else {
-            const coursePrice = Math.round(price);
+            const coursePrice = Math.round(access.effectivePrice);
             const clientOrder = extractOrderPart(req.body?.orderNum);
             let dirty = false;
             if (Math.round(Number(existing.pricePaid ?? 0)) !== coursePrice) {
@@ -65,6 +80,7 @@ export const EnrollmentController = {
               orderNum: orderPart,
               awaitingPayment: true,
               paymentExpiresAt: existing.paymentExpiresAt,
+              discountPercent: access.discountPercent,
             });
           }
         } else {
@@ -75,7 +91,21 @@ export const EnrollmentController = {
         }
       }
 
-      if (price <= 0) {
+      if (access.included) {
+        const enrollment = await Enrollment.create({
+          userId,
+          courseId,
+          pricePaid: access.price,
+          paymentStatus: "paid",
+          paymentMethod: "plan_included",
+          paidAt: new Date(),
+          lastAccessedAt: new Date(),
+        });
+        await incrementCourseEnrollmentCount(courseId);
+        return res.status(201).json({ success: true, enrollment, included: true });
+      }
+
+      if (access.effectivePrice <= 0) {
         const enrollment = await Enrollment.create({
           userId,
           courseId,
@@ -94,7 +124,8 @@ export const EnrollmentController = {
           success: false,
           error: "Khóa học có phí. Vui lòng thanh toán chuyển khoản qua trang thanh toán.",
           requiresPayment: true,
-          price,
+          price: access.effectivePrice,
+          discountPercent: access.discountPercent,
         });
       }
 
@@ -105,7 +136,7 @@ export const EnrollmentController = {
       const enrollment = await Enrollment.create({
         userId,
         courseId,
-        pricePaid: price,
+        pricePaid: access.effectivePrice,
         paymentStatus: "pending",
         paymentMethod: "transfer",
         paymentRef: orderRef,
@@ -134,6 +165,7 @@ export const EnrollmentController = {
         enrollment,
         orderNum: enrollment.paymentRef,
         paymentExpiresAt: enrollment.paymentExpiresAt,
+        discountPercent: access.discountPercent,
       });
     } catch (error) {
       next(error);

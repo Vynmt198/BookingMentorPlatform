@@ -10,19 +10,14 @@ const formatCurrency = (val) => {
 };
 
 export function CartDrawer() {
-  const { cart, isCartOpen, setIsCartOpen, removeFromCart, addToCart, cartTotal } = useCart();
+  const { cart, isCartOpen, setIsCartOpen, removeFromCart, updateCartItemQuantity, cartTotal } = useCart();
   const items = cart?.items || [];
 
   const handleUpdateQuantity = (item, newQuantity) => {
     if (newQuantity < 1) {
       removeFromCart(item._id);
     } else {
-      // Since addToCart works by adding quantity, we might need a specific update API. 
-      // But for simplicity in this implementation, we can call update api if we had one.
-      // Wait, we DO have updateCartItem API in backend (PUT /api/cart/:itemId)!
-      // Let's implement it in useCart or just fetch it here.
-      // Assuming useCart has updateQuantity or we just use removeFromCart for now if it's too complex.
-      // Let's just remove and add? No, let's just make a fetch call here for simplicity, or we should add it to useCart.
+      updateCartItemQuantity(item._id, newQuantity);
     }
   };
 
@@ -74,10 +69,26 @@ export function CartDrawer() {
                         {formatCurrency ? formatCurrency(item.price) : `${item.price?.toLocaleString()}đ`}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">x{item.quantity}</span>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-gray-500 hover:text-gray-700"
+                          onClick={() => handleUpdateQuantity(item, item.quantity - 1)}
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </Button>
+                        <span className="text-sm text-gray-600 w-4 text-center">{item.quantity}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-gray-500 hover:text-gray-700"
+                          onClick={() => handleUpdateQuantity(item, item.quantity + 1)}
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-50"
                           onClick={() => handleRemove(item._id)}
                         >

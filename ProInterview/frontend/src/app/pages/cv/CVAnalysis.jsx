@@ -318,7 +318,7 @@ export function CVAnalysis() {
     if (!res.success || !res.quota) return;
 
     const planKey = getUser()?.plan ?? "free";
-    const isUnlimitedPlan = ["student", "professional", "premium"].includes(String(planKey));
+    const isUnlimitedPlan = ["student", "professional"].includes(String(planKey));
     const remaining = Math.max(
       0,
       isUnlimitedPlan
@@ -349,7 +349,7 @@ export function CVAnalysis() {
   }, [loadCvQuota]);
 
   const canAnalyze  =
-    !hasAuthCredentials() || plans.student || plans.professional || plans.premium || cvRemaining > 0;
+    !hasAuthCredentials() || plans.student || plans.professional || cvRemaining > 0;
   const hasCvInput = Boolean(cvUploaded || reuseCV || cvFile);
   const hasJdInput = Boolean(jdUploaded || reuseJD || jdFile);
   const needsJdForRoute = routeMode === "jd";
@@ -661,7 +661,7 @@ export function CVAnalysis() {
           };
 
           const planFlags = getPlans();
-          const planAtTime = planFlags.premium ? "premium" : planFlags.professional ? "professional" : planFlags.student ? "student" : "free";
+          const planAtTime = planFlags.professional ? "professional" : planFlags.student ? "student" : "free";
           const fileUpload = await uploadCvJdFiles(cvFile, jdFile, { includeJd: true });
           const savePayload = buildCvAnalysisSavePayload({
             analysis: analysisPayload,
@@ -746,7 +746,7 @@ export function CVAnalysis() {
           });
 
           const planFlags = getPlans();
-          const planAtTime = planFlags.premium ? "premium" : planFlags.professional ? "professional" : planFlags.student ? "student" : "free";
+          const planAtTime = planFlags.professional ? "professional" : planFlags.student ? "student" : "free";
           const fileUpload = await uploadCvJdFiles(cvFile, null, { includeJd: false });
           const savePayload = buildCvAnalysisSavePayload({
             analysis: analysisPayload,
@@ -914,7 +914,6 @@ export function CVAnalysis() {
         hasAuthCredentials() &&
         !plans.student &&
         !plans.professional &&
-        !plans.premium &&
         step === "upload" ? (
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold sm:text-[11px] ${
@@ -1077,7 +1076,7 @@ export function CVAnalysis() {
                 </div>
               )}
 
-              {hasAuthCredentials() && cvRemaining === 0 && !plans.student && !plans.professional && !plans.premium && (
+              {hasAuthCredentials() && cvRemaining === 0 && !plans.student && !plans.professional && (
                 <div className="mx-4 mb-0 mt-3 flex items-center justify-between gap-2 rounded-xl border border-amber-200/90 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 sm:mx-5">
                   <span>Đã hết lượt miễn phí — nâng cấp để tiếp tục</span>
                   <button type="button" onClick={() => navigate("/pricing")} className="font-bold text-[#8037f4] hover:underline">

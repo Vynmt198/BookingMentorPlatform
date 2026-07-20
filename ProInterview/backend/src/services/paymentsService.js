@@ -7,6 +7,7 @@ import { User } from "../models/User.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { runInTransaction } from "../helpers/dbHelper.js";
 import { planKeyFromSubscriptionMeta } from "../utils/planKeys.js";
+import { getPlanPrice } from "../utils/planPricing.js";
 import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
 import {
   expireSubscriptionTransferIfNeeded,
@@ -57,18 +58,14 @@ export async function initiatePayment(userId, body) {
     amount = Number.isFinite(amount) && amount > 0 ? Math.round(amount) : Math.round(b.totalAmount ?? b.price ?? 0);
     referenceId = b._id;
   } else if (type === "subscription") {
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return { ok: false, status: 400, error: "amount bắt buộc khi type=subscription." };
-    }
-    amount = Math.round(amount);
     referenceId = new mongoose.Types.ObjectId(String(userId));
     referenceModel = "Subscription";
-    const rawPlan = String(body?.planKey ?? body?.plan ?? "student").toLowerCase();
-    let subscriptionPlan = "student";
-    if (rawPlan.includes("premium")) subscriptionPlan = "premium";
-    else if (rawPlan.includes("professional") || rawPlan.includes("career") || rawPlan.includes("elite")) subscriptionPlan = "professional";
-    else if (rawPlan.includes("student") || rawPlan.includes("basic") || rawPlan.includes("starter")) subscriptionPlan = "student";
-    providerResponse = { plan: subscriptionPlan };
+    const billing = String(body?.billing ?? "monthly").toLowerCase() === "yearly" ? "yearly" : "monthly";
+    const subscriptionPlan = planKeyFromSubscriptionMeta(body?.planKey ?? body?.plan) || "student";
+    // Giá luôn tính từ bảng giá chuẩn server-side — không tin `amount` client gửi lên.
+    amount = getPlanPrice(subscriptionPlan, billing);
+    if (!amount) return { ok: false, status: 400, error: "Gói hoặc chu kỳ thanh toán không hợp lệ." };
+    providerResponse = { plan: subscriptionPlan, billing };
   } else {
     return { ok: false, status: 400, error: "type phải là booking hoặc subscription." };
   }
@@ -439,12 +436,16 @@ function normalizeSubscriptionPlanKey(raw) {
 }
 
 /** Gói Pro/Elite — chuyển khoản: tạo payment pending + mã PI làm nội dung CK. */
-export async function createSubscriptionTransferPending(userId, { amount, planKey, orderNum, billing }) {
+export async function createSubscriptionTransferPending(userId, { planKey, orderNum, billing }) {
   if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
   if (!mongoose.isValidObjectId(userId)) return { ok: false, status: 401, error: "Phiên không hợp lệ." };
   const ref = String(orderNum || "").trim().slice(0, 100);
   if (!ref) return { ok: false, status: 400, error: "orderNum (mã đơn) bắt buộc." };
   const plan = normalizeSubscriptionPlanKey(planKey);
+  const cycle = billing === "yearly" ? "yearly" : "monthly";
+  // Giá luôn tính từ bảng giá chuẩn server-side — không tin `amount` client gửi lên (chặn tamper URL/body).
+  const amount = getPlanPrice(plan, cycle);
+  if (!amount) return { ok: false, status: 400, error: "Gói hoặc chu kỳ thanh toán không hợp lệ." };
   const expiresAt = newPaymentExpiresAt();
 
   const pendingRow = await Payment.findOne({
@@ -457,16 +458,26 @@ export async function createSubscriptionTransferPending(userId, { amount, planKe
   if (pendingRow) {
     const expired = await expireSubscriptionTransferIfNeeded(pendingRow);
     if (!expired.expired) {
-      if (pendingRow.providerRef !== ref) {
-        pendingRow.providerRef = ref;
-        await pendingRow.save();
-      }
+      // Refresh amount/plan trên record pending sẵn có — tránh lệch nếu user quay lại chọn plan/chu kỳ khác
+      // trước khi giao dịch cũ hết hạn (webhook SePay đối chiếu amount lưu trong DB, không phải giá trị trả về đây).
+      await Payment.updateOne(
+        { _id: pendingRow._id },
+        {
+          $set: {
+            amount,
+            providerRef: ref,
+            "providerResponse.plan": plan,
+            "providerResponse.billing": cycle,
+          },
+        },
+      );
       return {
         ok: true,
         paymentId: String(pendingRow._id),
-        providerRef: pendingRow.providerRef || ref,
+        providerRef: ref,
         idempotent: true,
         paymentExpiresAt: pendingRow.paymentExpiresAt,
+        amount,
       };
     }
   }
@@ -492,6 +503,7 @@ export async function createSubscriptionTransferPending(userId, { amount, planKe
     providerRef: ledger.providerRef || ref,
     idempotent: Boolean(ledger.idempotent),
     paymentExpiresAt: ledger.paymentExpiresAt || expiresAt,
+    amount,
   };
 }
 
@@ -773,9 +785,8 @@ async function applySubscriptionPlanFromPayment(pay) {
     planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
   }
   const QUOTA_MAP = {
-    student:      { cvAnalysisLimit: 999, mentorSessionLimit: 1   },
-    professional: { cvAnalysisLimit: 999, mentorSessionLimit: 4   },
-    premium:      { cvAnalysisLimit: 999, mentorSessionLimit: 999 },
+    student:      { cvAnalysisLimit: 10, mentorSessionLimit: 0 },
+    professional: { cvAnalysisLimit: 30, mentorSessionLimit: 0 },
   };
   const quota = QUOTA_MAP[plan] || QUOTA_MAP.student;
   await User.findByIdAndUpdate(pay.userId, {

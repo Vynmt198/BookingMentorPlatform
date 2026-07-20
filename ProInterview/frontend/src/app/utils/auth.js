@@ -736,7 +736,7 @@ export function syncPlansFromUser(user) {
 
 export function getPlans() {
   const raw = localStorage.getItem(PLAN_KEY);
-  let stored = { student: false, professional: false, premium: false };
+  let stored = { student: false, professional: false };
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
@@ -746,7 +746,7 @@ export function getPlans() {
         localStorage.setItem(PLAN_KEY, JSON.stringify(stored));
       }
     } catch {
-      stored = { student: false, professional: false, premium: false };
+      stored = { student: false, professional: false };
     }
   }
   const u = getUser();
@@ -764,12 +764,8 @@ export function setPlan(plan, value = true) {
 }
 
 export function setActivePlan(plan) {
-  const fresh = { student: false, professional: false, premium: false };
-  if (plan === "premium") {
-    fresh.student = true;
-    fresh.professional = true;
-    fresh.premium = true;
-  } else if (plan === "professional") {
+  const fresh = { student: false, professional: false };
+  if (plan === "professional") {
     fresh.student = true;
     fresh.professional = true;
   } else if (plan === "student") {
@@ -779,7 +775,7 @@ export function setActivePlan(plan) {
 }
 
 export function activateAllPlans() {
-  const all = { student: true, professional: true, premium: true };
+  const all = { student: true, professional: true };
   localStorage.setItem(PLAN_KEY, JSON.stringify(all));
 }
 
@@ -798,7 +794,7 @@ export function incrementCVCount() {
 
 export function getCVRemaining() {
   const plans = getPlans();
-  if (plans.professional || plans.premium) return Infinity;
+  if (plans.professional) return Infinity;
   if (plans.student) return Infinity;
   return Math.max(0, CV_FREE_LIMIT - getCVAnalysisCount());
 }

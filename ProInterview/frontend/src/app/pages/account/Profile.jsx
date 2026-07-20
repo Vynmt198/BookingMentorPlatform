@@ -430,23 +430,12 @@ export function Profile() {
   ];
 
   const planInfo = (() => {
-    if (plans.premium) return {
-      name: "Cao Cấp",
-      nameIcon: Medal,
-      badge: { bg: "bg-primary-fixed/20", border: "border-primary-fixed/30", icon: "text-primary-fixed", text: "text-primary-fixed" },
-      cardGrad: "linear-gradient(145deg, #0E0922 0%, #1a0d35 100%)",
-      desc: "Mentor chuyên trách · Huấn luyện hàng tuần · Luyện phỏng vấn thực chiến",
-
-      progress: null,
-      isPaid: true,
-      accent: "#93f72b"
-    };
     if (plans.professional) return {
       name: "Chuyên Nghiệp",
       nameIcon: Medal,
       badge: { bg: "bg-[#6d2fd6]/20", border: "border-[#6d2fd6]/40", icon: "text-[#6d2fd6]", text: "text-[#6d2fd6]" },
       cardGrad: "linear-gradient(145deg, #1a0d35 0%, #2D1B69 100%)",
-      desc: "Phân tích CV/JD · Tối ưu ATS · 4 buổi mentor/tháng",
+      desc: "Phân tích CV/JD 30 lần/tháng · Ưu tiên đặt lịch · Giảm 10% khi đặt Mentor",
       progress: null,
       isPaid: true,
       accent: "#6d2fd6"
@@ -456,7 +445,7 @@ export function Profile() {
       nameIcon: Lightning,
       badge: { bg: "bg-[#93f72b]/20", border: "border-[#93f72b]/40", icon: "text-[#7fe015]", text: "text-[#8037f4]" },
       cardGrad: "#8037f4",
-      desc: "CV/JD không giới hạn · 1 buổi mentor/tháng",
+      desc: "CV/JD 10 lần/tháng · Giảm 5% khi đặt Mentor",
       progress: { used: 0, max: 20 },
 
       isPaid: true,
@@ -467,7 +456,7 @@ export function Profile() {
       nameIcon: Plant,
       badge: { bg: "bg-[#8037f4]/15", border: "border-[#8037f4]/30", icon: "text-[#8037f4]", text: "text-[#8037f4]" },
       cardGrad: "linear-gradient(145deg, #2D1B69 0%, #3B2A82 100%)",
-      desc: "2 lần phân tích CV · Xem trước khóa học",
+      desc: "3 lần phân tích CV · Xem trước khóa học",
       progress: { used: 0, max: 2 },
       isPaid: false,
       accent: "#93f72b"

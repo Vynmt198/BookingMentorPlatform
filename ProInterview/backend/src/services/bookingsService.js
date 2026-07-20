@@ -17,6 +17,7 @@ import { isBookingInLiveWindow, isBookingSlotInFuture } from "../utils/bookingSc
 import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
 import { expireBookingTransferIfNeeded } from "./transferPaymentExpiryService.js";
 import { resolveBookingPlatformFeeRate } from "./mentorCommissionService.js";
+import { releaseMentorSessionQuota, resolveMentorBookingDiscountForUser } from "../utils/planGuard.js";
 import { buildJaasMeetingLaunch } from "./jaasService.js";
 
 /**
@@ -669,10 +670,10 @@ export async function createBooking(userId, body) {
   /** VAT tách trong giá hiển thị (mentor.price), không cộng thêm lên số khách CK. */
   const vatRate = parseFeeRate(process.env.BOOKING_VAT_RATE, 0);
 
-  const price = Math.round(basePrice);
-  const platformFee = Math.round(price * platformRate);
-  const totalAmount = price;
-  const vat = vatRate > 0 ? Math.round((price * vatRate) / (1 + vatRate)) : 0;
+  let price = Math.round(basePrice);
+  let platformFee = Math.round(price * platformRate);
+  let totalAmount = price;
+  let vat = vatRate > 0 ? Math.round((price * vatRate) / (1 + vatRate)) : 0;
 
   const dup = await Booking.findOne({
     mentorId: mentor._id,
@@ -688,9 +689,24 @@ export async function createBooking(userId, body) {
       const expired = await expireBookingTransferIfNeeded(dup);
       if (!expired.expired) {
         const clientOrder = extractOrderPart(body.orderNum);
-        if (clientOrder && extractOrderPart(dup.paymentRef) !== clientOrder) {
+        const oldRef = extractOrderPart(dup.paymentRef);
+        if (clientOrder && oldRef !== clientOrder) {
           dup.paymentRef = clientOrder;
           await dup.save();
+          // Đồng bộ các booking anh em cùng nhóm đặt nhiều slot (cùng paymentRef cũ) sang mã CK mới,
+          // để "Tạo đơn mới" ở Checkout không làm lệch mã PI giữa các buổi trong cùng 1 lần đặt.
+          if (oldRef) {
+            await Booking.updateMany(
+              {
+                _id: { $ne: dup._id },
+                userId: uid,
+                paymentRef: oldRef,
+                paymentStatus: "pending",
+                status: "pending",
+              },
+              { $set: { paymentRef: clientOrder } },
+            );
+          }
         }
         return { ok: true, booking: toPublicBooking(dup, mentor) };
       }
@@ -713,6 +729,19 @@ export async function createBooking(userId, body) {
     if (!creditCheck.ok) return creditCheck;
     rebookCreditSource = creditCheck.source;
     rebookCreditVndApplied = creditCheck.creditVnd;
+  }
+
+  // Ưu đãi % theo gói khi tự đặt buổi mentor (student=5%, professional=10%) — khách vẫn tự thanh toán, không còn "buổi miễn phí trong quota".
+  let mentorBookingDiscountPercent = 0;
+  if (!rebookCreditSource) {
+    const discountInfo = await resolveMentorBookingDiscountForUser(uid);
+    mentorBookingDiscountPercent = discountInfo.discountPercent || 0;
+  }
+  if (mentorBookingDiscountPercent > 0) {
+    price = Math.round(price * (1 - mentorBookingDiscountPercent / 100));
+    platformFee = Math.round(price * platformRate);
+    totalAmount = price;
+    vat = vatRate > 0 ? Math.round((price * vatRate) / (1 + vatRate)) : 0;
   }
 
   const paymentStatusRaw = String(body.paymentStatus ?? "pending").toLowerCase();
@@ -765,7 +794,9 @@ export async function createBooking(userId, body) {
     vat,
     totalAmount,
     paymentStatus,
-    paymentMethod: rebookCreditSource ? "transfer" : mapPaymentMethod(body.paymentMethod ?? body.method),
+    paymentMethod: rebookCreditSource
+      ? "transfer"
+      : mapPaymentMethod(body.paymentMethod ?? body.method),
     paymentRef,
     paymentExpiresAt,
     paidAt: paymentStatus === "paid" ? new Date() : undefined,
@@ -857,14 +888,19 @@ export async function createBooking(userId, body) {
   const customerName = user?.name || "Học viên";
   const payLabel =
     doc.paymentStatus === "paid" ? "đã thanh toán" : "đang chờ thanh toán";
+  // Đặt lịch mentor ưu tiên (Professional) — mentor thấy ngay là khách gói cao để ưu tiên xử lý.
+  const isPriorityCustomer = String(user?.plan || "") === "professional";
   await notifyMentorBooking(mentor.userId, "booking_request", {
     type: "new_booking_request",
-    title: "Yêu cầu đặt lịch mới",
-    body: `${customerName} đặt buổi ${dateNormalized} lúc ${timeNormalized} (${payLabel}).`,
+    title: isPriorityCustomer ? "⭐ Yêu cầu đặt lịch ưu tiên" : "Yêu cầu đặt lịch mới",
+    body: `${customerName} đặt buổi ${dateNormalized} lúc ${timeNormalized} (${payLabel})${
+      isPriorityCustomer ? " — khách gói cao cấp, vui lòng ưu tiên xác nhận." : ""
+    }`,
     metadata: {
       bookingId: doc._id,
       mentorId: mentor._id,
       actionUrl: `/mentor/meeting-detail/${doc._id}`,
+      priority: isPriorityCustomer,
     },
   });
 
@@ -1343,10 +1379,40 @@ export async function confirmBankTransferPaymentByAdmin(bookingId, options = {})
     return { ok: false, status: 500, error: "Không thể xác nhận thanh toán lúc này." };
   }
 
+  // Tự xác nhận các booking anh em cùng nhóm đặt nhiều slot (cùng userId + mentorId + paymentRef).
+  // _skipSiblingConfirm chặn đệ quy vô hạn khi gọi lại cho từng anh em.
+  if (!options?._skipSiblingConfirm) {
+    const primary = await Booking.findById(bookingId).select("paymentRef userId mentorId").lean();
+    const ref = String(primary?.paymentRef || "").trim();
+    if (ref) {
+      const siblings = await Booking.find({
+        _id: { $ne: bookingId },
+        userId: primary.userId,
+        mentorId: primary.mentorId,
+        paymentRef: ref,
+        paymentStatus: "pending",
+        paymentMethod: "transfer",
+      })
+        .select("_id")
+        .lean();
+
+      for (const sib of siblings) {
+        const sibResult = await confirmBankTransferPaymentByAdmin(String(sib._id), {
+          ...options,
+          force: true,
+          forceNote: options?.forceNote || "Auto-confirmed: cùng đơn đặt nhiều slot",
+          _skipSiblingConfirm: true,
+        });
+        if (!sibResult.ok && !String(sibResult.error || "").includes("đã thanh toán")) {
+          console.warn(`[confirmBankTransferPaymentByAdmin] sibling ${sib._id} failed:`, sibResult.error);
+        }
+      }
+    }
+  }
 
   const booking = await Booking.findById(bookingId)
-    .populate({ 
-      path: "mentorId", 
+    .populate({
+      path: "mentorId",
       select: "name title company avatar publicId userId",
       populate: { path: "userId", select: "email" }
     })
@@ -1357,7 +1423,9 @@ export async function confirmBankTransferPaymentByAdmin(bookingId, options = {})
     booking.mentorId?.userId?._id || booking.mentorId?.userId;
   const studentName =
     booking.userId?.name || booking.userId?.email || "Học viên";
-  if (mentorUid) {
+  // Booking anh em (gọi với _skipSiblingConfirm=true) bỏ qua thông báo riêng — booking chính ở trên
+  // đã tự xác nhận cả nhóm trong 1 request, tránh spam N thông báo giống nhau cho cùng 1 mentor.
+  if (mentorUid && !options?._skipSiblingConfirm) {
     await notifyMentorBooking(mentorUid, "booking_request", {
       type: "booking_confirmed",
       title: "Buổi mentor đã được thanh toán",
@@ -1725,6 +1793,64 @@ export async function cancelMyBooking(userId, rawId, body) {
     return { ok: false, status: 400, error: "Không thể hủy booking ở trạng thái này." };
   }
 
+  // Buổi trả bằng quota gói — không có tiền CK để hoàn, xử lý riêng (bỏ qua ledger tiền mặt bên dưới).
+  if (booking.paymentMethod === "plan_quota") {
+    const sessionAt = parseBookingDateTime(booking.date, booking.timeSlot);
+    const hoursUntilStart =
+      sessionAt instanceof Date ? (sessionAt.getTime() - Date.now()) / 3_600_000 : Number.POSITIVE_INFINITY;
+    const feePercent = userCancellationFeePercent(hoursUntilStart);
+    const refundPercent = Math.max(0, 100 - feePercent);
+    const quotaRestored = refundPercent === 100;
+
+    booking.status = "cancelled";
+    booking.cancelledBy = "user";
+    booking.cancelReason = reason || "Người dùng hủy";
+    booking.cancelledAt = new Date();
+    booking.cancelRefundPercent = refundPercent;
+    booking.cancelRefundAmountVnd = 0;
+    booking.cancelRetainedAmountVnd = 0;
+    await booking.save();
+
+    if (quotaRestored) {
+      await releaseMentorSessionQuota(booking.userId);
+    }
+
+    await notifyBookingOwner(booking.userId, {
+      type: "booking_cancelled",
+      title: "Đã hủy lịch hẹn",
+      body: quotaRestored
+        ? "Đã hủy buổi (dùng quota gói) — buổi đã được hoàn lại vào quota tháng này."
+        : "Đã hủy buổi. Theo chính sách hủy trong vòng 24h trước giờ hẹn, buổi dùng quota gói này không được hoàn lại.",
+      metadata: { bookingId: String(booking._id), refundAmountVnd: 0 },
+    });
+
+    const mentorLean = await Mentor.findById(booking.mentorId).select("userId").lean();
+    if (mentorLean?.userId) {
+      const student = await User.findById(booking.userId).select("name").lean();
+      await notifyMentorBooking(mentorLean.userId, "booking_change", {
+        type: "booking_cancelled",
+        title: "Học viên đã hủy buổi",
+        body: `${student?.name || "Học viên"} hủy lịch ${booking.date} ${booking.timeSlot}.`,
+        metadata: { bookingId: booking._id, actionUrl: "/mentor/schedule" },
+      });
+    }
+
+    const mentorForResponse = mentorLean || (await Mentor.findById(booking.mentorId).lean());
+    return {
+      ok: true,
+      booking: toPublicBooking(booking, mentorForResponse),
+      cancellationPolicy: {
+        hoursUntilStart: Number.isFinite(hoursUntilStart) ? Number(hoursUntilStart.toFixed(2)) : null,
+        feePercent,
+        refundPercent,
+        refundAmountVnd: 0,
+        retainedAmountVnd: 0,
+        paidTotalVnd: 0,
+        ledger: quotaRestored ? "plan_quota_restored" : "plan_quota_forfeited",
+      },
+    };
+  }
+
   const payStatusNow = String(booking.paymentStatus || "").toLowerCase();
   if (payStatusNow === "refund_pending") {
     return {
@@ -1933,7 +2059,15 @@ export async function cancelMentorBooking(mentorUserId, rawId, body) {
   booking.cancelledAt = new Date();
   booking.mentorCancelResolutionAt = new Date();
 
-  if (paidBooking && paidTotal > 0 && isLateCancel) {
+  if (booking.paymentMethod === "plan_quota") {
+    // Không có tiền CK để hoàn — mentor hủy không phải lỗi HV nên luôn hoàn lại quota buổi.
+    await releaseMentorSessionQuota(booking.userId);
+    booking.mentorCancelResolution = "";
+    booking.cancelRefundPercent = null;
+    booking.cancelRefundAmountVnd = null;
+    booking.cancelRetainedAmountVnd = null;
+    booking.paymentStatus = "paid";
+  } else if (paidBooking && paidTotal > 0 && isLateCancel) {
     /** <24h: ưu tiên hoàn 100% — không chọn đổi lịch/đổi mentor. */
     let settlement = await applyUserCancellationLedger(booking, 100);
     if (settlement.ledger === "refund_already_requested") {
@@ -2067,7 +2201,14 @@ export async function processBookingNoShow(rawId, body = {}, { markedBy = "admin
   booking.mentorCancelResolutionAt = new Date();
 
   let settlement = { refundAmountVnd: 0, ledger: "not_paid_no_settlement" };
-  if (paidBooking) {
+  if (booking.paymentMethod === "plan_quota") {
+    // Mentor no-show không phải lỗi HV — không có tiền CK để hoàn, hoàn lại quota buổi thay vào đó.
+    await releaseMentorSessionQuota(booking.userId);
+    booking.cancelRefundPercent = null;
+    booking.cancelRefundAmountVnd = null;
+    booking.cancelRetainedAmountVnd = null;
+    booking.paymentStatus = "paid";
+  } else if (paidBooking) {
     settlement = await applyUserCancellationLedger(booking, 100);
     if (settlement.ledger === "refund_already_requested") {
       return { ok: false, status: 400, error: "Yêu cầu hoàn tiền đã được ghi nhận." };

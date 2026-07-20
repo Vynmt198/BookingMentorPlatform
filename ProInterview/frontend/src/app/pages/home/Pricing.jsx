@@ -19,7 +19,7 @@ import { trackAction } from "../../utils/analytics/analyticsApi";
 const FAQ_DATA = [
   {
     q: "Các gói khác nhau như thế nào?",
-    a: "Gói Sinh viên mở phân tích CV/JD không giới hạn và 1 buổi mentor/tháng. Gói Chuyên nghiệp thêm 2–4 buổi mentor, đặt lịch ưu tiên và tối ưu ATS. Gói Cao cấp là mentor chuyên trách riêng, huấn luyện hàng tuần và lộ trình sự nghiệp cá nhân hóa.",
+    a: "Gói Sinh viên mở phân tích CV/JD 10 lần/tháng, ưu đãi 5% khi đặt lịch mentor và mua khóa học. Gói Chuyên nghiệp phân tích CV/JD 30 lần/tháng, ưu đãi 10% khi đặt lịch mentor và mua khóa học, cùng đặt lịch mentor ưu tiên.",
   },
   {
     q: "Tôi có thể hủy gói đăng ký bất cứ lúc nào không?",
@@ -45,7 +45,7 @@ const PLANS = [
     yearlyTotal: null,
     yearlySave: null,
     features: [
-      "2 lần phân tích CV/JD mỗi tháng",
+      "3 lần phân tích CV/JD mỗi tháng",
       "Xem trước khóa học",
       "Tìm kiếm và xem hồ sơ mentor",
     ],
@@ -64,9 +64,9 @@ const PLANS = [
     yearlyTotal: 1440000,
     yearlySave: 360000,
     features: [
-      "Phân tích CV/JD KHÔNG GIỚI HẠN",
-      "Truy cập toàn bộ khóa học (1 chuyên ngành)",
-      "1 buổi với mentor/tháng (15–30 phút)",
+      "Phân tích CV/JD 10 lần/tháng",
+      "Ưu đãi 5% khi đặt lịch Mentor",
+      "Giảm 5% khi mua khóa học",
       "Phản hồi CV chi tiết",
     ],
     cta: "Đăng ký Sinh viên",
@@ -84,39 +84,16 @@ const PLANS = [
     yearlyTotal: 4800000,
     yearlySave: 1200000,
     features: [
-      "Phân tích CV/JD + Tối ưu ATS KHÔNG GIỚI HẠN",
-      "Truy cập toàn bộ khóa học",
-      "2–4 buổi với mentor/tháng (45–60 phút)",
+      "Phân tích CV/JD 30 lần/tháng",
+      "Ưu đãi 10% khi đặt lịch Mentor",
+      "Giảm 10% khi mua khóa học",
       "Đặt lịch mentor ưu tiên",
-      "Phân tích mức lương & lộ trình sự nghiệp",
     ],
     cta: "Nâng cấp Chuyên nghiệp",
     checkoutMonthly: "/checkout?plan=professional&billing=monthly&planPrice=500000",
     checkoutYearly: "/checkout?plan=professional&billing=yearly&planPrice=4800000",
     popular: true,
     variant: "elite",
-  },
-  {
-    id: "premium",
-    title: "Cao Cấp",
-    subtitle: "Huấn luyện 1-1 cá nhân hóa",
-    monthlyDisplay: 2000000,
-    yearlyDisplay: 1600000,
-    yearlyTotal: 19200000,
-    yearlySave: 4800000,
-    features: [
-      "Mentor chuyên trách riêng",
-      "Buổi huấn luyện 1-1 hàng tuần",
-      "Luyện phỏng vấn thực chiến cùng mentor",
-      "Lộ trình sự nghiệp cá nhân hóa",
-      "Phân tích CV/JD KHÔNG GIỚI HẠN",
-      "Hỗ trợ ưu tiên 24/7",
-    ],
-    cta: "Đăng ký Cao cấp",
-    checkoutMonthly: "/checkout?plan=premium&billing=monthly&planPrice=2000000",
-    checkoutYearly: "/checkout?plan=premium&billing=yearly&planPrice=19200000",
-    popular: false,
-    variant: "premium",
   },
 ];
 
@@ -135,20 +112,21 @@ function fmtVnd(amount) {
   return new Intl.NumberFormat("vi-VN").format(amount) + "đ";
 }
 
-const UNLIMITED_HIGHLIGHT = "KHÔNG GIỚI HẠN";
+const FEATURE_HIGHLIGHTS = ["10 lần/tháng", "30 lần/tháng", "Ưu đãi 5%", "Ưu đãi 10%", "Giảm 5%", "Giảm 10%"];
 
 function FeatureLabel({ text }) {
-  if (!text.includes(UNLIMITED_HIGHLIGHT)) {
+  const highlight = FEATURE_HIGHLIGHTS.find((h) => text.includes(h));
+  if (!highlight) {
     return <span className="leading-snug">{text}</span>;
   }
-  const parts = text.split(UNLIMITED_HIGHLIGHT);
+  const parts = text.split(highlight);
   return (
     <span className="leading-snug">
       {parts.map((part, i) => (
         <React.Fragment key={i}>
           {part}
           {i < parts.length - 1 && (
-            <span className="font-bold text-[#8037f4]">{UNLIMITED_HIGHLIGHT}</span>
+            <span className="font-bold text-[#8037f4]">{highlight}</span>
           )}
         </React.Fragment>
       ))}
@@ -158,11 +136,10 @@ function FeatureLabel({ text }) {
 
 function normalizePlanKey(plan) {
   const k = String(plan ?? "").trim().toLowerCase();
-  if (k === "premium") return "premium";
   if (k === "professional") return "professional";
   if (k === "student") return "student";
-  // backward-compat
-  if (k === "elitepro" || k === "elite_pro") return "professional";
+  // backward-compat / gói đã ngừng bán
+  if (k === "elitepro" || k === "elite_pro" || k === "premium") return "professional";
   if (k === "starterpro" || k === "starter_pro") return "student";
   return "free";
 }
@@ -259,7 +236,7 @@ export function Pricing() {
 
           <BillingToggle billing={billing} onChange={setBilling} savePercent={YEARLY_SAVE_PCT} />
 
-          <div className="mt-10 grid w-full grid-cols-1 items-stretch justify-items-stretch gap-6 md:grid-cols-2 xl:grid-cols-4 lg:gap-8 [&>article]:min-w-0 [&>article]:w-full">
+          <div className="mt-10 grid w-full grid-cols-1 items-stretch justify-items-stretch gap-6 md:grid-cols-3 lg:gap-8 [&>article]:min-w-0 [&>article]:w-full">
             {PLANS.map((plan) => {
               const isCurrent = currentPlan === plan.id;
               const isPopular = plan.popular;
@@ -334,7 +311,7 @@ export function Pricing() {
                     <p className="text-xs font-semibold text-slate-500">{plan.subtitle}</p>
                     <h3
                       className={`mt-1 font-headline text-xl font-bold ${
-                        variant === "elite" || variant === "premium" ? "text-[#6d2fd6]" : "text-slate-900"
+                        variant === "elite" ? "text-[#6d2fd6]" : "text-slate-900"
                       }`}
                     >
                       {plan.title}
@@ -383,7 +360,7 @@ export function Pricing() {
                   <ul className="flex flex-1 flex-col gap-2">
                     {plan.features.map((f, i) => (
                       <li key={i} className="flex items-start gap-2.5 text-sm text-slate-700">
-                        {variant === "elite" || variant === "premium" ? (
+                        {variant === "elite" ? (
                           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#6d2fd6]" />
                         ) : (
                           <CheckCircle2

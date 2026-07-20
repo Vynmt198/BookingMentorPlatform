@@ -166,7 +166,7 @@ export function Mentors() {
   }, []);
 
   const filteredMentors = useMemo(() => {
-    return mentors.filter((mentor) => {
+    const filtered = mentors.filter((mentor) => {
       const q = search.toLowerCase();
       const tags = mentor.tags || [];
       const matchSearch =
@@ -227,6 +227,8 @@ export function Mentors() {
         matchRating
       );
     });
+
+    return filtered;
   }, [
     search,
     companySearch,

@@ -30,6 +30,8 @@ import { fetchMyReviewForTarget } from "../../utils/reviewsApi";
 import { ReviewReplyBlock } from "../reviews/ReviewReplyBlock";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
 import { avatarSrc, mediaSrc } from "../../utils/mediaUrl";
+import { useCart } from "../../hooks/useCart";
+import { getPlans } from "../../utils/auth";
 
 export const formatCoursePrice = (price) => {
   if (price === 0) return "Miễn phí";
@@ -108,10 +110,30 @@ export function CoursePurchaseCard({
   const hasDiscount = discountPrice > 0 && discountPrice < price;
   const displayPrice = hasDiscount ? discountPrice : price;
   const discountPct = hasDiscount ? Math.round((1 - discountPrice / price) * 100) : 0;
+  /* Ưu đãi Sinh Viên/Chuyên Nghiệp (-5%/-10%) — ước tính hiển thị theo gói hiện tại, số tiền thật chốt ở /checkout. */
+  const plans = getPlans();
+  const planDiscountRate = plans.professional ? 0.1 : plans.student ? 0.05 : 0;
+  const planLabel = plans.professional ? "Chuyên Nghiệp" : plans.student ? "Sinh Viên" : "";
+  const planDiscountAmount =
+    displayPrice > 0 && planDiscountRate > 0 ? Math.round(displayPrice * planDiscountRate) : 0;
+  const planFinalPrice = displayPrice - planDiscountAmount;
   const previewUrl = course.previewVideoUrl || "";
   const embed = youtubeEmbedUrl(previewUrl);
   const directPreview = !embed && isDirectVideoUrl(previewUrl) ? mediaSrc(previewUrl) : null;
   const includes = buildCourseIncludes(course);
+  const { addToCart } = useCart();
+  const [addingToCart, setAddingToCart] = useState(false);
+
+  const handleAddToCart = async () => {
+    setAddingToCart(true);
+    const res = await addToCart("Course", course.id, course.title, planFinalPrice, 1, course.thumbnail);
+    setAddingToCart(false);
+    if (res?.success) {
+      toastApiSuccess("Đã thêm vào giỏ hàng");
+    } else {
+      toastApiError("Không thể thêm vào giỏ hàng");
+    }
+  };
 
   const ctaClassName =
     "flex w-full items-center justify-center gap-2 rounded-xl bg-[#a3e635] py-3.5 text-sm font-bold text-slate-900 shadow-md shadow-[#a3e635]/30 transition-all hover:bg-[#84cc16] active:scale-[0.99] lg:rounded-sm lg:py-3 lg:shadow-none";
@@ -147,15 +169,20 @@ export function CoursePurchaseCard({
         <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-4 lg:border-0 lg:pb-0">
           <div className="flex flex-wrap items-baseline gap-2">
             <span className="text-2xl font-black text-[#8037f4] sm:text-3xl lg:font-bold lg:text-slate-900">
-              {formatCoursePrice(displayPrice)}
+              {formatCoursePrice(planFinalPrice)}
             </span>
+            {planDiscountAmount > 0 || hasDiscount ? (
+              <span className="text-sm text-slate-400 line-through">{formatCoursePrice(price)}</span>
+            ) : null}
             {hasDiscount ? (
-              <>
-                <span className="text-sm text-slate-400 line-through">{formatCoursePrice(price)}</span>
-                <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700">
-                  Giảm {discountPct}%
-                </span>
-              </>
+              <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700">
+                Giảm {discountPct}%
+              </span>
+            ) : null}
+            {planDiscountAmount > 0 ? (
+              <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white">
+                -{Math.round(planDiscountRate * 100)}% {planLabel}
+              </span>
             ) : null}
           </div>
         </div>
@@ -180,19 +207,32 @@ export function CoursePurchaseCard({
             Tiếp tục thanh toán
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={canTakeStudentActions ? onEnroll : undefined}
-            disabled={!canTakeStudentActions}
-            className={`${ctaClassName} disabled:cursor-not-allowed disabled:opacity-50`}
-          >
-            <ShoppingCart className="size-4" />
-            {canTakeStudentActions
-              ? price === 0
-                ? "Đăng ký miễn phí"
-                : "Mua khóa học"
-              : "Mentor chỉ xem"}
-          </button>
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              onClick={canTakeStudentActions ? onEnroll : undefined}
+              disabled={!canTakeStudentActions}
+              className={`${ctaClassName} disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <ShoppingCart className="size-4" />
+              {canTakeStudentActions
+                ? price === 0
+                  ? "Đăng ký miễn phí"
+                  : "Mua khóa học"
+                : "Mentor chỉ xem"}
+            </button>
+            {canTakeStudentActions && price > 0 ? (
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={addingToCart}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#8037f4]/30 bg-white py-3 text-sm font-bold text-[#8037f4] transition-colors hover:bg-violet-50 disabled:cursor-not-allowed disabled:opacity-50 lg:rounded-sm"
+              >
+                <ShoppingCart className="size-4" />
+                {addingToCart ? "Đang thêm..." : "Thêm vào giỏ hàng"}
+              </button>
+            ) : null}
+          </div>
         )}
 
         <div className="rounded-xl bg-violet-50/60 p-3.5 lg:rounded-none lg:bg-transparent lg:p-0">
