@@ -239,9 +239,18 @@ export const EnrollmentController = {
         })
         .sort({ updatedAt: -1 });
 
+      // Ghi danh "pending" chờ chuyển khoản quá hạn (mà không ai còn đứng ở trang Checkout để
+      // trigger expire qua polling) sẽ kẹt vĩnh viễn — khóa học không hiện lại "Mua khóa học"/
+      // "Thêm vào giỏ hàng" được nữa. Dọn lazy tại đây mỗi lần load danh sách ghi danh.
+      const active = [];
+      for (const e of enrollments) {
+        const { expired } = await expireEnrollmentTransferIfNeeded(e);
+        if (!expired) active.push(e);
+      }
+
       res.json({
         success: true,
-        enrollments: enrollments.map((e) => {
+        enrollments: active.map((e) => {
           const doc = e.toObject ? e.toObject() : e;
           if (doc.courseId) doc.courseId = serializeCourseForApi(doc.courseId);
           return doc;

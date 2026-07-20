@@ -666,10 +666,12 @@ export function Checkout() {
   const [bookingMentor, setBookingMentor] = React.useState(null);
   const [courseInfo, setCourseInfo] = React.useState(null);
   
-  const { cart, cartTotal, clearCart } = useCart();
+  const { cart, cartTotal, fetchCart } = useCart();
   const cartItems = cart?.items || [];
-  // Chốt lại tổng tiền + danh sách sản phẩm giỏ hàng tại thời điểm tạo đơn CK,
-  // vì clearCart() sau đó sẽ làm cartItems/cartTotal về rỗng trong lúc trang vẫn cần hiển thị QR/số tiền cần chuyển.
+  // Chốt lại tổng tiền + danh sách sản phẩm giỏ hàng tại thời điểm tạo đơn CK, vì backend chỉ xóa
+  // các item đã được cấp quyền ngay (miễn phí/gói) — item đang chờ chuyển khoản vẫn còn trong giỏ
+  // cho tới khi thanh toán được xác nhận, nên fetchCart() sau đó có thể trả về cartItems/cartTotal
+  // không khớp với đơn đang hiển thị QR ở đây.
   const [cartOrderSnapshot, setCartOrderSnapshot] = React.useState(() => restoredOrder?.cartOrderSnapshot ?? null);
   const displayCartItems = isCart ? (cartOrderSnapshot?.items ?? cartItems) : [];
   const displayCartTotal = isCart ? (cartOrderSnapshot?.total ?? cartTotal) : 0;
@@ -1067,7 +1069,7 @@ export function Checkout() {
               paymentMethod: "plan_included",
             });
             toastApiSuccess("Các khóa học này được tính vào gói của bạn — đã ghi danh, không cần chuyển khoản.");
-            clearCart();
+            fetchCart();
             navigate("/my-courses");
             return { ok: true, isCart: true };
           }
@@ -1085,7 +1087,10 @@ export function Checkout() {
           });
           if (!silent) toastApiSuccess("Đã gộp đơn hàng. Quét QR và chuyển khoản — hệ thống tự xác nhận toàn bộ.");
           setCartOrderSnapshot({ items: cartItems, total: realTotal });
-          clearCart();
+          // Không clearCart() ở đây — item vẫn "pending" chờ chuyển khoản, backend giữ nguyên trong giỏ
+          // và chỉ xóa khi confirmEnrollmentTransferByAdmin xác nhận thanh toán thành công. Nhờ vậy nếu
+          // user thoát trang thanh toán trước khi chuyển khoản, giỏ hàng vẫn còn nguyên khi quay lại.
+          fetchCart();
           return { ok: true, isCart: true };
         }
         const msg = apiRes.error || "Không thể gộp đơn hàng.";
@@ -1296,6 +1301,12 @@ export function Checkout() {
       }
     }
 
+    if (isCart) {
+      // Backend chỉ xóa item khỏi giỏ tại thời điểm này (thanh toán vừa được xác nhận) — đồng bộ lại
+      // để icon/drawer giỏ hàng ở chỗ khác trong app cập nhật đúng ngay.
+      fetchCart();
+    }
+
     if (isPlanCheckout) {
       trackAction("plan_upgrade", location.pathname, {
         planKey,
@@ -1359,6 +1370,38 @@ export function Checkout() {
     bookingDate,
     bookingTime,
   ]);
+
+  // Khi đang ở màn hình chờ chuyển khoản của đơn giỏ hàng, nếu user thêm/bớt khóa học khác vào
+  // giỏ ở nơi khác trong app (cart context là global nên cartItems ở đây tự cập nhật theo), QR/số
+  // tiền đang hiển thị sẽ bị "đứng hình" nếu không có gì kích hoạt gọi lại handlePay. So sánh chữ
+  // ký (itemId:quantity) của giỏ hiện tại với snapshot lúc tạo đơn — lệch thì tự gộp lại đơn cũ
+  // (backend đã hỗ trợ merge theo cùng orderNum) để QR luôn phản ánh đúng tổng cần chuyển khoản.
+  const cartCourseSignature = useMemo(() => {
+    if (!isCart) return "";
+    return cartItems
+      .filter((it) => it.itemType === "Course")
+      .map((it) => `${it.itemId}:${it.quantity}`)
+      .sort()
+      .join("|");
+  }, [isCart, cartItems]);
+
+  const mergingCartOrderRef = useRef(false);
+
+  useEffect(() => {
+    if (!isCart || !orderCreated || paymentConfirmed || !cartOrderSnapshot) return;
+    const snapshotSignature = (cartOrderSnapshot.items || [])
+      .filter((it) => it.itemType === "Course")
+      .map((it) => `${it.itemId}:${it.quantity}`)
+      .sort()
+      .join("|");
+    if (snapshotSignature === cartCourseSignature) return;
+    if (mergingCartOrderRef.current) return;
+    mergingCartOrderRef.current = true;
+    (async () => {
+      await handlePay({ silent: true });
+      mergingCartOrderRef.current = false;
+    })();
+  }, [isCart, orderCreated, paymentConfirmed, cartOrderSnapshot, cartCourseSignature]);
 
   const pollErrorShownRef = useRef(false);
 

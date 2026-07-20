@@ -8,9 +8,23 @@ import {
   CheckCircle,
   ShieldCheck,
   ChevronRight,
+  CalendarCheck,
+  Clock,
+  CalendarX,
+  UserCheck,
+  Star,
+  CreditCard,
 } from "lucide-react";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
-import { logout, getUser, updateUser, refreshUserProfile } from "../../utils/auth";
+import {
+  logout,
+  getUser,
+  updateUser,
+  refreshUserProfile,
+  getDisplayName,
+  getInitials,
+} from "../../utils/auth";
+import { avatarSrc, DEFAULT_AVATAR } from "../../utils/mediaUrl";
 import { LoginSessionsSection } from "../../components/account/LoginSessionsSection";
 import { AccountDangerZone } from "../../components/account/AccountDangerZone";
 import {
@@ -88,18 +102,24 @@ function SectionCard({
   children,
   className = "",
   title,
-  icon: Icon
+  subtitle,
+  icon: Icon,
+  headerRight,
 }) {
   return (
     <div className={`glass-card p-8 ${className}`}>
       {title && (
-         <div className="relative z-10 mb-8 flex items-center gap-3 border-b border-slate-200 pb-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[#8037f4]">
-               {Icon && <Icon size={18} strokeWidth={2} />}
+         <div className="relative z-10 mb-8 flex items-center justify-between gap-3 border-b border-slate-200 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-[#8037f4]">
+                 {Icon && <Icon size={18} strokeWidth={2} />}
+              </div>
+              <div>
+                 <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-800">{title}</h3>
+                 {subtitle && <p className="mt-0.5 text-xs text-slate-400">{subtitle}</p>}
+              </div>
             </div>
-            <div>
-               <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-800">{title}</h3>
-            </div>
+            {headerRight}
          </div>
       )}
       <div className="relative z-10">{children}</div>
@@ -155,10 +175,49 @@ function SaveBar({
 }
 
 /* ─── TAB: Notifications ────────────────────────────────── */
-const DEFAULT_NOTIFS = [
-  { id: "interview_reminder", label: "Nhắc nhở lịch mentor", description: "Thông báo trước 1 giờ khi có buổi hẹn", value: true },
-  { id: "mentor_feedback", label: "Phản hồi từ Mentor", description: "Khi mentor gửi đánh giá luyện tập", value: true },
-  { id: "streak_reminder", label: "Nhắc nhở duy trì streak", description: "Nhắc bạn luyện tập đều đặn", value: true },
+const DEFAULT_CUSTOMER_NOTIFS = [
+  {
+    id: "interview_reminder",
+    label: "Xác nhận lịch hẹn thành công",
+    description: "Khi thanh toán được duyệt và lịch mentor được xác nhận.",
+    value: true,
+    icon: CalendarCheck,
+  },
+  {
+    id: "session_upcoming",
+    label: "Nhắc lịch trước buổi hẹn",
+    description: "Email và thông báo app khoảng 1 giờ trước buổi mentor.",
+    value: true,
+    icon: Clock,
+  },
+  {
+    id: "booking_change",
+    label: "Lịch hẹn bị hủy hoặc đổi",
+    description: "Khi mentor hủy, đổi lịch hoặc có cập nhật hoàn tiền.",
+    value: true,
+    icon: CalendarX,
+  },
+  {
+    id: "mentor_feedback",
+    label: "Phản hồi từ mentor",
+    description: "Khi mentor gửi góp ý sau buổi hoặc nhận xét về bạn.",
+    value: true,
+    icon: UserCheck,
+  },
+  {
+    id: "streak_reminder",
+    label: "Nhắc luyện tập đều đặn",
+    description: "Nhắc luyện phỏng vấn AI và hoàn thành mục tiêu tuần.",
+    value: true,
+    icon: Star,
+  },
+  {
+    id: "plan_expiring",
+    label: "Gói sắp hết hạn",
+    description: "Nhắc trước 7 ngày khi gói Pro hoặc Elite của bạn sắp hết.",
+    value: true,
+    icon: CreditCard,
+  },
 ];
 
 const DEFAULT_MENTOR_NOTIFS = [
@@ -167,36 +226,42 @@ const DEFAULT_MENTOR_NOTIFS = [
     label: "Yêu cầu đặt lịch mới",
     description: "Có lịch mới hoặc học viên đã thanh toán.",
     value: true,
+    icon: CalendarCheck,
   },
   {
     id: "session_reminder",
     label: "Nhắc buổi mentor sắp tới",
     description: "Nhắc trước buổi khoảng 1 giờ.",
     value: true,
+    icon: Clock,
   },
   {
     id: "mentee_review",
     label: "Đánh giá từ học viên",
     description: "Học viên gửi nhận xét sau buổi.",
     value: true,
+    icon: UserCheck,
   },
   {
     id: "booking_change",
     label: "Đổi hoặc hủy lịch",
     description: "Hủy buổi, đổi lịch hoặc cập nhật hoàn tiền.",
     value: true,
+    icon: CalendarX,
   },
   {
     id: "payout_update",
     label: "Cập nhật tài chính",
     description: "Thu nhập, rút tiền và xác nhận từ admin.",
     value: true,
+    icon: CreditCard,
   },
   {
     id: "peer_review_course",
     label: "Đánh giá chéo khóa học",
     description: "Có khóa học cần bạn đánh giá chéo.",
     value: true,
+    icon: Star,
   },
 ];
 
@@ -228,6 +293,11 @@ function NotificationsTab({ isMentor, profileFromServer, onProfileSynced }) {
 
   const toggle = (id) => {
     setPush((prev) => prev.map((t) => (t.id === id ? { ...t, value: !t.value } : t)));
+    setDirty(true);
+  };
+
+  const turnOffAll = () => {
+    setPush((prev) => prev.map((t) => ({ ...t, value: false })));
     setDirty(true);
   };
 
@@ -264,17 +334,43 @@ function NotificationsTab({ isMentor, profileFromServer, onProfileSynced }) {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <SectionCard title={sectionTitle} icon={Bell}>
+      <SectionCard
+        title={sectionTitle}
+        subtitle="Chọn loại thông báo bạn muốn nhận"
+        icon={Bell}
+        headerRight={
+          <button
+            type="button"
+            onClick={turnOffAll}
+            className="shrink-0 rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
+          >
+            Tắt tất cả
+          </button>
+        }
+      >
         <div className="space-y-4">
-          {push.map((item) => (
-            <div key={item.id} className="group flex items-center justify-between gap-6 rounded-2xl border border-slate-200 bg-white p-5">
-              <div>
-                <p className={`mb-0.5 ${SETTINGS_TITLE_CLS}`}>{item.label}</p>
-                <p className={ITEM_DESC_CLS}>{item.description}</p>
+          {push.map((item, index) => {
+            const ItemIcon = item.icon || Bell;
+            const isPurple = index % 2 === 0;
+            return (
+              <div key={item.id} className="group flex items-center justify-between gap-6 rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                      isPurple ? "bg-violet-50 text-[#8037f4]" : "bg-lime-50 text-lime-600"
+                    }`}
+                  >
+                    <ItemIcon size={18} strokeWidth={2} />
+                  </div>
+                  <div>
+                    <p className={`mb-0.5 ${SETTINGS_TITLE_CLS}`}>{item.label}</p>
+                    <p className={ITEM_DESC_CLS}>{item.description}</p>
+                  </div>
+                </div>
+                <ToggleSwitch enabled={item.value} onChange={() => toggle(item.id)} colorClass="bg-[#7fe015]" />
               </div>
-              <ToggleSwitch enabled={item.value} onChange={() => toggle(item.id)} colorClass="bg-[#7fe015]" />
-            </div>
-          ))}
+            );
+          })}
         </div>
       </SectionCard>
       <SaveBar dirty={dirty} saving={saving} saved={false} onSave={handleSave} onReset={handleReset} />
@@ -446,6 +542,58 @@ function SecurityTab({ profileFromServer, onProfileSynced }) {
   );
 }
 
+/* ─── Sidebar profile card ──────────────────────────────── */
+function ProfileAvatar({ user, initials, size = 96 }) {
+  const avatar = avatarSrc(user?.avatar, DEFAULT_AVATAR);
+  return (
+    <span
+      className="flex items-center justify-center overflow-hidden rounded-full border-4 border-white text-lg font-bold leading-none text-white shadow-lg"
+      style={{ background: "#8037f4", width: size, height: size }}
+    >
+      {avatar ? (
+        <img
+          src={avatar}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={(event) => {
+            event.currentTarget.style.display = "none";
+            const fallback = event.currentTarget.nextElementSibling;
+            if (fallback) fallback.style.display = "flex";
+          }}
+        />
+      ) : null}
+      <span className="hidden h-full w-full items-center justify-center" style={{ display: avatar ? "none" : "flex" }}>
+        {initials}
+      </span>
+    </span>
+  );
+}
+
+function SidebarProfileCard({ user, roleLabel, onEditProfile }) {
+  const displayName = getDisplayName(user);
+  const initials = getInitials(displayName);
+  return (
+    <div className="glass-card overflow-hidden">
+      <div className="h-20 bg-gradient-to-br from-[#8037f4] to-[#4c1d95]" />
+      <div className="-mt-12 flex flex-col items-center px-6 pb-6">
+        <ProfileAvatar user={user} initials={initials} size={96} />
+        <p className="mt-4 text-center text-base font-bold text-slate-900">{displayName}</p>
+        <span className="mt-1.5 rounded-full bg-violet-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-[#8037f4]">
+          {roleLabel}
+        </span>
+        <p className="mt-2 break-all text-center text-xs text-slate-400">{user?.email}</p>
+        <button
+          type="button"
+          onClick={onEditProfile}
+          className="mt-5 w-full rounded-xl bg-[#8037f4] py-3 text-[11px] font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#6c2bd6]"
+        >
+          Chỉnh sửa hồ sơ
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Main Settings Page ────────────────────────────────── */
 const TABS = [
   { id: "notifications", label: "Thông báo", icon: Bell },
@@ -474,6 +622,8 @@ export function Settings() {
   };
 
   const isMentor = profileFromServer?.role === "mentor";
+  const roleLabel =
+    profileFromServer?.role === "admin" ? "QUẢN TRỊ" : isMentor ? "MENTOR" : "HỌC VIÊN";
 
   return (
     <MentorPageShell bottomPad="pb-32">
@@ -547,31 +697,43 @@ export function Settings() {
          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
             {/* Sidebar Navigation */}
             <aside className="lg:col-span-3">
-               <div className="settings-glass-nav sticky top-24 rounded-[28px] p-2">
-                  {TABS.map((tab) => {
-                     const isActive = tab.id === activeTab;
-                     return (
-                        <button
-                           key={tab.id}
-                           type="button"
-                           onClick={() => setActiveTab(tab.id)}
-                           className={`group relative mb-1 flex w-full items-center justify-between rounded-[20px] px-5 py-4 text-left transition-all last:mb-0 ${
-                              isActive ? "bg-[#f7f1ff] text-[#8037f4] shadow-lg shadow-violet-200/40" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                           }`}
-                        >
-                           <div className="flex items-center gap-3">
-                              <tab.icon size={18} strokeWidth={2} className={`shrink-0 transition-transform duration-300 ${isActive ? "scale-105 text-[#8037f4]" : "group-hover:translate-x-0.5"}`} />
-                              <span className="text-[10px] font-bold uppercase tracking-[0.18em]">{tab.label}</span>
-                           </div>
-                           {isActive && <ChevronRight size={14} className="shrink-0 text-[#8037f4]/35" strokeWidth={2} />}
+               <div className="sticky top-24 space-y-5">
+                  <SidebarProfileCard
+                     user={profileFromServer}
+                     roleLabel={roleLabel}
+                     onEditProfile={() => navigate("/profile")}
+                  />
+
+                  <div className="settings-glass-nav rounded-[28px] p-2">
+                     {TABS.map((tab, index) => {
+                        const isActive = tab.id === activeTab;
+                        return (
+                           <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => setActiveTab(tab.id)}
+                              className={`group relative mb-1 flex w-full items-center justify-between rounded-[20px] px-5 py-4 text-left transition-all last:mb-0 ${
+                                 isActive ? "bg-[#f7f1ff] text-[#8037f4] shadow-lg shadow-violet-200/40" : "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                              }`}
+                           >
+                              <div className="flex items-center gap-3">
+                                 <span className={`text-[10px] font-bold ${isActive ? "text-[#8037f4]/50" : "text-slate-300"}`}>
+                                    {String(index + 1).padStart(2, "0")}
+                                 </span>
+                                 <tab.icon size={18} strokeWidth={2} className={`shrink-0 transition-transform duration-300 ${isActive ? "scale-105 text-[#8037f4]" : "group-hover:translate-x-0.5"}`} />
+                                 <span className="text-sm font-semibold tracking-normal">{tab.label}</span>
+                              </div>
+                              {isActive && <ChevronRight size={14} className="shrink-0 text-[#8037f4]/35" strokeWidth={2} />}
+                           </button>
+                        );
+                     })}
+                     <div className="mt-2 border-t border-slate-200 pt-2">
+                        <button type="button" onClick={handleLogout} className="group flex w-full items-center gap-3 rounded-[20px] px-5 py-4 text-left text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900">
+                           <span className="text-[10px] font-bold text-slate-300">{String(TABS.length + 1).padStart(2, "0")}</span>
+                           <LogOut size={18} strokeWidth={2} className="shrink-0" />
+                           <span className="text-sm font-semibold tracking-normal">Đăng xuất</span>
                         </button>
-                     );
-                  })}
-                  <div className="mt-2 border-t border-slate-200 pt-2">
-                     <button type="button" onClick={handleLogout} className="flex w-full items-center gap-3 rounded-[20px] px-5 py-4 text-left text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-300">
-                        <LogOut size={18} strokeWidth={2} />
-                        <span className="text-sm font-semibold tracking-normal">Đăng xuất</span>
-                     </button>
+                     </div>
                   </div>
                </div>
             </aside>
