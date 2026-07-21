@@ -3,6 +3,7 @@
 # Hoặc: New → Web Service → Root Directory = backend (bỏ qua file này).
 #
 # Docs: https://render.com/docs/blueprint-spec
+# (trigger resync)
 
 services:
   - type: web
