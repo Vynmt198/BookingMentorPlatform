@@ -7,9 +7,7 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#f5f0fc",
     "icon": "./assets/logo-mark-circle.png",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "enabled": true,
       "checkAutomatically": "ON_LOAD",
