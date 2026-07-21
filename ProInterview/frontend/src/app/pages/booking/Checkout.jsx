@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { getUser, isLoggedIn, setLoggedIn } from "../../utils/auth";
 import { fetchCurrentPlan } from "../../utils/plansApi";
-import { landingPrimaryButtonClass } from "../../constants/landingTheme";
+import { landingLimeButtonClass } from "../../constants/landingTheme";
 import { fetchMentor } from "../../utils/mentorApi";
 import { createBooking, cancelBooking, fetchRebookCredit } from "../../utils/bookingsApi";
 import { fetchCourseById } from "../../utils/courseApi";
@@ -73,7 +73,7 @@ const checkoutCard =
   "rounded-2xl border border-slate-200 bg-white shadow-sm";
 const labelMuted = "text-xs font-medium text-slate-500";
 const textMuted = "text-sm text-slate-600";
-const pageShell = "min-h-screen bg-[#faf9fc] text-slate-900 antialiased";
+const pageShell = "min-h-screen bg-transparent text-slate-900 antialiased";
 
 function mentorIdsMatch(a, b) {
   const na = String(a || "").trim().toLowerCase();
@@ -115,6 +115,20 @@ function buildVietQrImageUrl(bankId, accountDigits, amountVnd, addInfo) {
   if (!bid || !acc || amt <= 0) return null;
   const add = encodeURIComponent(String(addInfo || "").slice(0, 50));
   return `https://img.vietqr.io/image/${bid}-${acc}-compact2.png?amount=${amt}&addInfo=${add}`;
+}
+
+/** In đậm phần số/% trong text tính năng gói (VD: "Ưu đãi 10% khi đặt lịch Mentor"). */
+function highlightPlanNumbers(text) {
+  const parts = String(text).split(/(\d+%|\d+\s*lần\/tháng)/g);
+  return parts.map((part, i) =>
+    /^\d+%$|^\d+\s*lần\/tháng$/.test(part) ? (
+      <strong key={i} className="font-extrabold text-[#8037f4]">
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  );
 }
 
 function extractOrderPart(value) {
@@ -386,16 +400,16 @@ function OrderLineItem({ isBooking, isCourse, isCartItem, bookingMentor, courseI
     );
   }
   return (
-    <div className={`${checkoutCard} p-4 sm:p-5`}>
+    <div className="rounded-2xl border border-violet-400/30 bg-[#8037f4] p-4 shadow-sm sm:p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#8037f4]">Gói cước</p>
-          <p className="mt-1 text-lg font-semibold text-slate-900">{plan.name}</p>
-          <p className={`mt-1 ${labelMuted}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#93f72b]">Gói cước</p>
+          <p className="mt-1 text-lg font-semibold text-white">{plan.name}</p>
+          <p className="mt-1 text-xs font-medium text-white/70">
             {billing === "yearly" ? "Gói năm" : "Gói tháng"}
           </p>
         </div>
-        <p className="text-lg font-bold text-[#8037f4]">{fmt(baseTotal)}</p>
+        <p className="text-lg font-bold text-white">{fmt(baseTotal)}</p>
       </div>
     </div>
   );
@@ -858,7 +872,11 @@ export function Checkout() {
     setBankSubscriptionPaymentId(null);
     setTransferOrderNum(`PI${Math.floor(Math.random() * 900000 + 100000)}`);
     setCardError("");
+    setInvoiceConfirmed(false);
   };
+
+  // Xác nhận lại số tiền hóa đơn ngay trên trang trước khi tạo đơn + chuyển sang QR chuyển khoản.
+  const [invoiceConfirmed, setInvoiceConfirmed] = useState(false);
 
   const [cardError, setCardError] = useState("");
 
@@ -1268,9 +1286,10 @@ export function Checkout() {
   };
 
   const hasBank = Boolean(BANK_TRANSFER.bankName && BANK_TRANSFER.accountNumber);
-  const showBankQr = payMode === PAY_MODE.BANK && payAmount > 0;
   const orderCreated = appStep === "awaiting_transfer";
   const paymentConfirmed = appStep === "paid";
+  // Chỉ tạo đơn + hiện QR sau khi người dùng xác nhận hóa đơn (hoặc đơn đã tạo từ trước, vd sau F5).
+  const showBankQr = payMode === PAY_MODE.BANK && payAmount > 0 && (invoiceConfirmed || orderCreated);
   const stepCurrent = paymentConfirmed || orderCreated ? 2 : 1;
   const showPriceBreakdown = billing === "yearly" && !isCourse && !isBooking && baseTotal > total;
 
@@ -1419,7 +1438,11 @@ export function Checkout() {
             <div>
               <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Thanh toán</h1>
             </div>
-            {showStepBar ? <StepBar current={stepCurrent} steps={stepLabels} /> : null}
+            {showStepBar ? (
+              <div className="mr-16">
+                <StepBar current={stepCurrent} steps={stepLabels} />
+              </div>
+            ) : null}
           </div>
         )}
 
@@ -1473,6 +1496,20 @@ export function Checkout() {
                 navigate={navigate}
               />
 
+              {payMode === PAY_MODE.BANK && !showBankQr && (
+                <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <Landmark className="mt-0.5 h-5 w-5 shrink-0 text-[#8037f4]" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Thanh toán chuyển khoản</p>
+                    <p className={`mt-1 ${textMuted}`}>
+                      Kiểm tra lại thông tin và <span className="font-semibold text-slate-900">số tiền</span> bên
+                      phải, sau đó bấm <span className="font-semibold text-[#8037f4]">«Tiếp tục»</span> để xác nhận
+                      hóa đơn và nhận mã QR chuyển khoản.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {showBankQr && (
                 <>
                   <h2 className="text-lg font-bold text-slate-900">Thanh toán chuyển khoản</h2>
@@ -1496,11 +1533,11 @@ export function Checkout() {
 
               {!orderCreated && isPlanCheckout && !isCourse && !isBooking && (
                 <div className="mt-5 border-t border-slate-200 pt-5">
-                  <ul className="space-y-2">
+                  <ul className="space-y-2.5">
                     {plan.features.slice(0, 3).map((f, i) => (
-                      <li key={i} className={`flex items-start gap-2 text-xs ${textMuted}`}>
+                      <li key={i} className="flex items-start gap-2 text-sm font-semibold text-slate-900">
                         <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8037f4]" />
-                        {f}
+                        {highlightPlanNumbers(f)}
                       </li>
                     ))}
                   </ul>
@@ -1540,9 +1577,15 @@ export function Checkout() {
                   {!payBlocked && !showBankQr ? (
                     <button
                       type="button"
-                      onClick={handlePay}
+                      onClick={() => {
+                        if (payMode === PAY_MODE.REBOOK_READY) {
+                          handlePay();
+                        } else {
+                          setInvoiceConfirmed(true);
+                        }
+                      }}
                       disabled={!isPaidCheckout || payMode === PAY_MODE.REBOOK_LOADING}
-                      className={`${landingPrimaryButtonClass} h-12 w-full gap-2 rounded-xl text-base font-semibold disabled:pointer-events-none disabled:opacity-40`}
+                      className={`${landingLimeButtonClass} h-12 w-full gap-2 rounded-xl text-base font-semibold disabled:pointer-events-none disabled:opacity-40`}
                     >
                       <Lock className="h-4 w-4" />
                       {payMode === PAY_MODE.REBOOK_READY ? "Xác nhận đặt lại" : "Tiếp tục"}
@@ -1553,7 +1596,7 @@ export function Checkout() {
                       <button
                         type="button"
                         onClick={() => handlePay()}
-                        className={`${landingPrimaryButtonClass} h-12 w-full gap-2 rounded-xl text-base font-semibold`}
+                        className={`${landingLimeButtonClass} h-12 w-full gap-2 rounded-xl text-base font-semibold`}
                       >
                         Thử lại
                       </button>

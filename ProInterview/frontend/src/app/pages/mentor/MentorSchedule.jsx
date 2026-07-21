@@ -254,14 +254,14 @@ function AvailabilityModal({ onClose, availability, onSaved }) {
   return (
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center p-6 backdrop-blur-sm bg-slate-900/50"
+      className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 pt-24 pb-6 backdrop-blur-sm sm:pt-28"
       onClick={onClose}
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0, y: 30 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 30 }}
-        className="glass-card w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="glass-card w-full max-w-2xl overflow-hidden flex flex-col max-h-[calc(100vh-8rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-8 border-b border-slate-200 flex items-center justify-between bg-slate-50">
