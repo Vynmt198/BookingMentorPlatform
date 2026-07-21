@@ -73,6 +73,7 @@ export function AdminBookingStatusStack({
   mentorCancelResolution = "",
 }) {
   const showPayment = paymentMethod === "transfer" && paymentStatus;
+  const showPlanQuota = paymentMethod === "plan_quota";
   const extra =
     String(mentorCancelResolution || "") === "awaiting_user" ? (
       <StatusRow caption="Hủy / đổi lịch">
@@ -92,6 +93,15 @@ export function AdminBookingStatusStack({
       {showPayment ? (
         <StatusRow caption="Thanh toán">
           <PaymentStatusPill status={paymentStatus} />
+        </StatusRow>
+      ) : null}
+      {showPlanQuota ? (
+        <StatusRow caption="Thanh toán">
+          <StatusPill
+            icon={CheckCircle}
+            label="Gói cước (quota)"
+            toneClass="border-violet-200 bg-violet-50 text-violet-800"
+          />
         </StatusRow>
       ) : null}
       {extra}

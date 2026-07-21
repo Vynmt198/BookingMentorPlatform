@@ -5,8 +5,9 @@ import { Payment } from "../models/Payment.js";
 import { Booking } from "../models/Booking.js";
 import { User } from "../models/User.js";
 import { Enrollment } from "../models/Enrollment.js";
-import { runInTransaction } from "../helpers/dbHelper.js";
+import { Cart } from "../models/Cart.js";
 import { planKeyFromSubscriptionMeta } from "../utils/planKeys.js";
+import { getPlanPrice } from "../utils/planPricing.js";
 import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
 import {
   expireSubscriptionTransferIfNeeded,
@@ -54,21 +55,19 @@ export async function initiatePayment(userId, body) {
     }
     const b = await Booking.findOne({ _id: bid, userId }).lean();
     if (!b) return { ok: false, status: 404, error: "Không tìm thấy booking." };
-    amount = Number.isFinite(amount) && amount > 0 ? Math.round(amount) : Math.round(b.totalAmount ?? b.price ?? 0);
+    // Luôn tính từ giá booking đã lưu server-side — không tin `amount` client gửi lên,
+    // tránh bị thao túng trả thấp hơn giá thật rồi vẫn được đánh dấu đã thanh toán.
+    amount = Math.round(b.totalAmount ?? b.price ?? 0);
     referenceId = b._id;
   } else if (type === "subscription") {
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return { ok: false, status: 400, error: "amount bắt buộc khi type=subscription." };
-    }
-    amount = Math.round(amount);
     referenceId = new mongoose.Types.ObjectId(String(userId));
     referenceModel = "Subscription";
-    const rawPlan = String(body?.planKey ?? body?.plan ?? "student").toLowerCase();
-    let subscriptionPlan = "student";
-    if (rawPlan.includes("premium")) subscriptionPlan = "premium";
-    else if (rawPlan.includes("professional") || rawPlan.includes("career") || rawPlan.includes("elite")) subscriptionPlan = "professional";
-    else if (rawPlan.includes("student") || rawPlan.includes("basic") || rawPlan.includes("starter")) subscriptionPlan = "student";
-    providerResponse = { plan: subscriptionPlan };
+    const billing = String(body?.billing ?? "monthly").toLowerCase() === "yearly" ? "yearly" : "monthly";
+    const subscriptionPlan = planKeyFromSubscriptionMeta(body?.planKey ?? body?.plan) || "student";
+    // Giá luôn tính từ bảng giá chuẩn server-side — không tin `amount` client gửi lên.
+    amount = getPlanPrice(subscriptionPlan, billing);
+    if (!amount) return { ok: false, status: 400, error: "Gói hoặc chu kỳ thanh toán không hợp lệ." };
+    providerResponse = { plan: subscriptionPlan, billing };
   } else {
     return { ok: false, status: 400, error: "type phải là booking hoặc subscription." };
   }
@@ -439,12 +438,16 @@ function normalizeSubscriptionPlanKey(raw) {
 }
 
 /** Gói Pro/Elite — chuyển khoản: tạo payment pending + mã PI làm nội dung CK. */
-export async function createSubscriptionTransferPending(userId, { amount, planKey, orderNum, billing }) {
+export async function createSubscriptionTransferPending(userId, { planKey, orderNum, billing }) {
   if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
   if (!mongoose.isValidObjectId(userId)) return { ok: false, status: 401, error: "Phiên không hợp lệ." };
   const ref = String(orderNum || "").trim().slice(0, 100);
   if (!ref) return { ok: false, status: 400, error: "orderNum (mã đơn) bắt buộc." };
   const plan = normalizeSubscriptionPlanKey(planKey);
+  const cycle = billing === "yearly" ? "yearly" : "monthly";
+  // Giá luôn tính từ bảng giá chuẩn server-side — không tin `amount` client gửi lên (chặn tamper URL/body).
+  const amount = getPlanPrice(plan, cycle);
+  if (!amount) return { ok: false, status: 400, error: "Gói hoặc chu kỳ thanh toán không hợp lệ." };
   const expiresAt = newPaymentExpiresAt();
 
   const pendingRow = await Payment.findOne({
@@ -457,16 +460,26 @@ export async function createSubscriptionTransferPending(userId, { amount, planKe
   if (pendingRow) {
     const expired = await expireSubscriptionTransferIfNeeded(pendingRow);
     if (!expired.expired) {
-      if (pendingRow.providerRef !== ref) {
-        pendingRow.providerRef = ref;
-        await pendingRow.save();
-      }
+      // Refresh amount/plan trên record pending sẵn có — tránh lệch nếu user quay lại chọn plan/chu kỳ khác
+      // trước khi giao dịch cũ hết hạn (webhook SePay đối chiếu amount lưu trong DB, không phải giá trị trả về đây).
+      await Payment.updateOne(
+        { _id: pendingRow._id },
+        {
+          $set: {
+            amount,
+            providerRef: ref,
+            "providerResponse.plan": plan,
+            "providerResponse.billing": cycle,
+          },
+        },
+      );
       return {
         ok: true,
         paymentId: String(pendingRow._id),
-        providerRef: pendingRow.providerRef || ref,
+        providerRef: ref,
         idempotent: true,
         paymentExpiresAt: pendingRow.paymentExpiresAt,
+        amount,
       };
     }
   }
@@ -492,6 +505,7 @@ export async function createSubscriptionTransferPending(userId, { amount, planKe
     providerRef: ledger.providerRef || ref,
     idempotent: Boolean(ledger.idempotent),
     paymentExpiresAt: ledger.paymentExpiresAt || expiresAt,
+    amount,
   };
 }
 
@@ -627,71 +641,84 @@ export async function confirmEnrollmentTransferByAdmin(enrollmentId, options = {
     return { ok: false, status: 400, error: "Xác nhận ngoại lệ cần lý do (ít nhất 3 ký tự)." };
   }
 
-  let courseIdForStats = null;
-  try {
-    await runInTransaction(async (session) => {
-      const row = await Enrollment.findById(enrollmentId).session(session);
-      if (!row) throw new Error("ERR_404");
-      if (row.paymentMethod !== "transfer") throw new Error("ERR_METHOD");
-      if (row.paymentStatus !== "pending") throw new Error("ERR_STATUS");
-      if (!force && !row.transferSubmittedAt) throw new Error("ERR_NO_SUBMIT");
+  const transferConfirmedBy =
+    options?.adminUserId && mongoose.isValidObjectId(String(options.adminUserId)) ? options.adminUserId : undefined;
+  const paidAt = new Date();
+  const claimFilter = { _id: enrollmentId, paymentMethod: "transfer", paymentStatus: "pending" };
+  if (!force) claimFilter.transferSubmittedAt = { $ne: null };
 
-      courseIdForStats = row.courseId;
+  // Atomic claim (xem ghi chú tương tự ở bookingsService.confirmBankTransferPaymentByAdmin) —
+  // an toàn kể cả trên MongoDB standalone, tránh 2 admin xác nhận đồng thời cùng ghi ledger.
+  const before = await Enrollment.findOneAndUpdate(
+    claimFilter,
+    {
+      $set: {
+        paymentStatus: "paid",
+        paidAt,
+        transferConfirmedAt: paidAt,
+        transferConfirmedBy,
+        transferForceConfirm: force,
+        transferForceNote: force ? forceNote.slice(0, 500) : "",
+      },
+    },
+    { new: false },
+  );
 
-      const courseAmt = Math.round(Number(row.pricePaid ?? 0));
-      if (courseAmt > 0) {
-        const ledger = await recordAdminTransferSuccess({
-          userId: row.userId,
-          type: "course",
-          referenceModel: "Enrollment",
-          referenceId: row._id,
-          amount: courseAmt,
-          adminUserId: options?.adminUserId || "",
-          forceConfirm: force,
-          forceNote,
-          session,
-        });
-        if (!ledger.ok && !ledger.idempotent) {
-          throw new Error(`ERR_LEDGER:${ledger.error || "unknown"}`);
-        }
-      }
-
-      row.paymentStatus = "paid";
-      row.paidAt = new Date();
-      row.transferConfirmedAt = row.paidAt;
-      row.transferConfirmedBy =
-        options?.adminUserId && mongoose.isValidObjectId(String(options.adminUserId))
-          ? options.adminUserId
-          : undefined;
-      row.transferForceConfirm = force;
-      row.transferForceNote = force ? forceNote.slice(0, 500) : "";
-      await row.save({ session });
-    });
-  } catch (error) {
-    const msg = String(error?.message || "");
-    if (msg === "ERR_404") return { ok: false, status: 404, error: "Không tìm thấy ghi danh." };
-    if (msg === "ERR_METHOD") {
+  if (!before) {
+    const existing = await Enrollment.findById(enrollmentId)
+      .select("paymentMethod paymentStatus transferSubmittedAt")
+      .lean();
+    if (!existing) return { ok: false, status: 404, error: "Không tìm thấy ghi danh." };
+    if (existing.paymentMethod !== "transfer") {
       return { ok: false, status: 400, error: "Ghi danh này không dùng chuyển khoản." };
     }
-    if (msg === "ERR_STATUS") {
+    if (existing.paymentStatus !== "pending") {
       return { ok: false, status: 400, error: "Trạng thái thanh toán không cho phép xác nhận." };
     }
-    if (msg === "ERR_NO_SUBMIT") {
+    if (!force && !existing.transferSubmittedAt) {
       return {
         ok: false,
         status: 400,
         error: "Admin xác nhận thủ công cần force: true (không bắt học viên bấm trong app).",
       };
     }
-    if (msg.startsWith("ERR_LEDGER:")) {
+    return { ok: false, status: 409, error: "Ghi danh vừa được xử lý ở nơi khác. Vui lòng tải lại." };
+  }
+
+  const courseIdForStats = before.courseId;
+  const courseAmt = Math.round(Number(before.pricePaid ?? 0));
+  if (courseAmt > 0) {
+    const ledger = await recordAdminTransferSuccess({
+      userId: before.userId,
+      type: "course",
+      referenceModel: "Enrollment",
+      referenceId: before._id,
+      amount: courseAmt,
+      adminUserId: options?.adminUserId || "",
+      forceConfirm: force,
+      forceNote,
+    });
+    if (!ledger.ok && !ledger.idempotent) {
+      await Enrollment.updateOne(
+        { _id: enrollmentId },
+        {
+          $set: { paymentStatus: before.paymentStatus },
+          $unset: { paidAt: "", transferConfirmedAt: "", transferConfirmedBy: "" },
+        },
+      );
       return { ok: false, status: 500, error: "Không thể ghi nhận giao dịch thanh toán." };
     }
-    return { ok: false, status: 500, error: error?.message || "Không thể xác nhận thanh toán." };
   }
 
   if (courseIdForStats) {
     await incrementCourseEnrollmentCount(courseIdForStats);
   }
+
+  // Thanh toán đã xác nhận — giờ mới xóa khóa học này khỏi giỏ hàng (nếu còn đó từ lúc checkout giỏ).
+  await Cart.updateOne(
+    { userId: before.userId },
+    { $pull: { items: { itemType: "Course", itemId: courseIdForStats } } },
+  );
 
   const enrollment = await Enrollment.findById(enrollmentId).lean();
   return { ok: true, enrollment };
@@ -773,9 +800,8 @@ async function applySubscriptionPlanFromPayment(pay) {
     planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
   }
   const QUOTA_MAP = {
-    student:      { cvAnalysisLimit: 999, mentorSessionLimit: 1   },
-    professional: { cvAnalysisLimit: 999, mentorSessionLimit: 4   },
-    premium:      { cvAnalysisLimit: 999, mentorSessionLimit: 999 },
+    student:      { cvAnalysisLimit: 10, mentorSessionLimit: 0 },
+    professional: { cvAnalysisLimit: 30, mentorSessionLimit: 0 },
   };
   const quota = QUOTA_MAP[plan] || QUOTA_MAP.student;
   await User.findByIdAndUpdate(pay.userId, {
@@ -793,6 +819,17 @@ async function finalizePaymentSuccess(paymentId) {
   if (!pay) return { ok: false };
   const alreadySuccess = pay.status === "success";
 
+  if (pay.type === "booking" && pay.referenceModel === "Booking" && !alreadySuccess) {
+    const ref = await Booking.findById(pay.referenceId).select("totalAmount price").lean();
+    const expected = Math.round(ref?.totalAmount ?? ref?.price ?? 0);
+    if (!ref || Math.round(Number(pay.amount) || 0) !== expected) {
+      pay.status = "failed";
+      pay.failureReason = "Số tiền thanh toán không khớp giá booking.";
+      await pay.save();
+      return { ok: false, amountMismatch: true };
+    }
+  }
+
   if (!alreadySuccess) {
     pay.status = "success";
     pay.paidAt = new Date();
@@ -808,7 +845,7 @@ async function finalizePaymentSuccess(paymentId) {
       .select("_id userId mentorId date timeSlot")
       .lean();
     if (booking && !alreadySuccess) {
-      const mentor = await Mentor.findById(booking.mentorId).select("userId").lean();
+      const mentor = await Mentor.findById(booking.mentorId).select("userId name").lean();
       const student = await User.findById(booking.userId).select("name").lean();
       if (mentor?.userId) {
         await deliverNotification(mentor.userId, {
@@ -822,6 +859,17 @@ async function finalizePaymentSuccess(paymentId) {
           },
         });
       }
+      await deliverNotification(booking.userId, {
+        customerPrefKey: "interview_reminder",
+        type: "booking_confirmed",
+        title: "Lịch hẹn đã được xác nhận",
+        body: `Thanh toán đã được duyệt — buổi với ${mentor?.name || "mentor"} lúc ${booking.date} ${booking.timeSlot} đã xác nhận.`,
+        metadata: {
+          bookingId: booking._id,
+          mentorId: booking.mentorId,
+          actionUrl: `/session/${booking._id}`,
+        },
+      });
     }
   }
   if (pay.type === "course" && pay.referenceModel === "Enrollment") {

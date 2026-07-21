@@ -66,7 +66,7 @@ async function runBookingReminders() {
     if (cid && mongoose.isValidObjectId(cid)) {
       if (!(await alreadyReminded(cid, b._id))) {
         await deliverNotification(cid, {
-          customerPrefKey: "interview_reminder",
+          customerPrefKey: "session_upcoming",
           type: "booking_reminder",
           title: "Nhắc buổi mentor",
           body: `Buổi hẹn của bạn lúc ${slotLabel} sẽ bắt đầu trong khoảng 1 giờ.`,

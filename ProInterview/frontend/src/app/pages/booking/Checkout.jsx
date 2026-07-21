@@ -1,14 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router";
 import {
-  ArrowLeft,
-  Sparkles as Sparkle,
   Check,
   CheckCircle2,
   Lock,
   AlertCircle,
-  Tag,
-  Phone,
   Copy,
   Calendar,
   Clock,
@@ -18,9 +14,9 @@ import {
 } from "lucide-react";
 import { getUser, isLoggedIn, setLoggedIn } from "../../utils/auth";
 import { fetchCurrentPlan } from "../../utils/plansApi";
-import { landingPrimaryButtonClass } from "../../constants/landingTheme";
+import { landingLimeButtonClass } from "../../constants/landingTheme";
 import { fetchMentor } from "../../utils/mentorApi";
-import { createBooking, fetchRebookCredit } from "../../utils/bookingsApi";
+import { createBooking, cancelBooking, fetchRebookCredit } from "../../utils/bookingsApi";
 import { fetchCourseById } from "../../utils/courseApi";
 import { enrollmentApi } from "../../utils/enrollmentApi";
 import { createSubscriptionTransferPending, fetchTransferStatus } from "../../utils/paymentsApi";
@@ -39,27 +35,20 @@ const PLANS = {
     tagline: "Dành cho sinh viên",
     monthlyPrice: 150000,
     yearlyPrice: 120000,
+    yearlyTotal: 1440000,
     badge: "PHỔ BIẾN",
     accentColor: "#8037f4",
-    features: ["Phân tích CV/JD không giới hạn", "Truy cập toàn bộ khóa học (1 chuyên ngành)", "1 buổi với mentor/tháng (15–30 phút)", "Phản hồi CV chi tiết"],
+    features: ["Phân tích CV/JD 10 lần/tháng", "Ưu đãi 5% khi đặt lịch Mentor", "Giảm 5% khi mua khóa học", "Phản hồi CV chi tiết"],
   },
   professional: {
     name: "Chuyên Nghiệp",
     tagline: "Dành cho người đi làm",
     monthlyPrice: 500000,
     yearlyPrice: 400000,
+    yearlyTotal: 4800000,
     badge: "TỐT NHẤT",
     accentColor: "#6d2fd6",
-    features: ["Phân tích CV/JD + Tối ưu ATS không giới hạn", "Truy cập toàn bộ khóa học", "2–4 buổi với mentor/tháng (45–60 phút)", "Đặt lịch mentor ưu tiên", "Phân tích mức lương & lộ trình sự nghiệp"],
-  },
-  premium: {
-    name: "Cao Cấp",
-    tagline: "Huấn luyện 1-1 cá nhân hóa",
-    monthlyPrice: 2000000,
-    yearlyPrice: 1600000,
-    badge: "CAO CẤP",
-    accentColor: "#93f72b",
-    features: ["Mentor chuyên trách riêng", "Buổi huấn luyện 1-1 hàng tuần", "Luyện phỏng vấn thực chiến cùng mentor", "Lộ trình sự nghiệp cá nhân hóa", "Phân tích CV/JD không giới hạn", "Hỗ trợ ưu tiên 24/7"],
+    features: ["Phân tích CV/JD 30 lần/tháng", "Ưu đãi 10% khi đặt lịch Mentor", "Giảm 10% khi mua khóa học", "Đặt lịch mentor ưu tiên"],
   },
   // backward-compat aliases
   starterPro: null,
@@ -70,11 +59,21 @@ function fmt(n) {
   return new Intl.NumberFormat("vi-VN").format(n) + "đ";
 }
 
+/** Thời hạn chờ CK hiển thị ở FE — khớp mặc định backend (TRANSFER_PAYMENT_TIMEOUT_MINUTES). */
+const TRANSFER_TIMEOUT_MINUTES = 15;
+
+function formatCountdown(ms) {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const mm = Math.floor(totalSeconds / 60);
+  const ss = totalSeconds % 60;
+  return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
+
 const checkoutCard =
   "rounded-2xl border border-slate-200 bg-white shadow-sm";
 const labelMuted = "text-xs font-medium text-slate-500";
 const textMuted = "text-sm text-slate-600";
-const pageShell = "min-h-screen bg-[#faf9fc] text-slate-900 antialiased";
+const pageShell = "min-h-screen bg-transparent text-slate-900 antialiased";
 
 function mentorIdsMatch(a, b) {
   const na = String(a || "").trim().toLowerCase();
@@ -118,6 +117,20 @@ function buildVietQrImageUrl(bankId, accountDigits, amountVnd, addInfo) {
   return `https://img.vietqr.io/image/${bid}-${acc}-compact2.png?amount=${amt}&addInfo=${add}`;
 }
 
+/** In đậm phần số/% trong text tính năng gói (VD: "Ưu đãi 10% khi đặt lịch Mentor"). */
+function highlightPlanNumbers(text) {
+  const parts = String(text).split(/(\d+%|\d+\s*lần\/tháng)/g);
+  return parts.map((part, i) =>
+    /^\d+%$|^\d+\s*lần\/tháng$/.test(part) ? (
+      <strong key={i} className="font-extrabold text-[#8037f4]">
+        {part}
+      </strong>
+    ) : (
+      part
+    ),
+  );
+}
+
 function extractOrderPart(value) {
   const s = String(value || "").trim();
   if (!s) return "";
@@ -135,10 +148,10 @@ function CopyBtn({ text }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      className={`flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all ${
+      className={`flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
         copied
-          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-          : "border-slate-200 bg-slate-50 text-slate-600 hover:border-violet-300 hover:bg-violet-50 hover:text-violet-800"
+          ? "bg-emerald-500 text-white"
+          : "bg-[#93f72b] text-black hover:brightness-95"
       }`}
     >
       {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -281,7 +294,7 @@ function CheckoutPayPanel({ mode, fmt, rebookCreditVnd, bookingTotalEstimate, bo
   return null;
 }
 
-function OrderLineItem({ isBooking, isCourse, isCartItem, bookingMentor, courseInfo, plan, billing, bookingDate, bookingTime, baseTotal, fmt }) {
+function OrderLineItem({ isBooking, isCourse, isCartItem, bookingMentor, courseInfo, plan, billing, bookingDate, bookingTime, bookingSlots, baseTotal, fmt }) {
   if (isCartItem) {
     return (
       <div className={`${checkoutCard} flex gap-4 p-4 sm:p-5 mb-4`}>
@@ -324,6 +337,8 @@ function OrderLineItem({ isBooking, isCourse, isCartItem, bookingMentor, courseI
     );
   }
   if (isBooking) {
+    const slots =
+      bookingSlots ?? (bookingDate ? [{ dateKey: bookingDate, dayFull: bookingDate, time: bookingTime }] : []);
     return (
       <div className={`${checkoutCard} p-4 sm:p-5`}>
         <div className="flex gap-4">
@@ -341,41 +356,60 @@ function OrderLineItem({ isBooking, isCourse, isCartItem, bookingMentor, courseI
               {bookingMentor?.name || "Đang tải mentor…"}
             </p>
             <p className={`mt-0.5 ${labelMuted}`}>{bookingMentor?.title || "Buổi phỏng vấn 1:1"}</p>
-            <div className={`mt-2 flex flex-wrap gap-3 ${textMuted} text-xs`}>
-              {bookingDate && (
+            {slots.length > 1 ? (
+              <div className="mt-2 space-y-1">
+                {slots.map((s, i) => (
+                  <div key={`${s.dateKey}_${s.time}`} className="flex items-center gap-2 text-xs text-slate-600">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#8037f4] text-[0.6rem] font-black text-white">
+                      {i + 1}
+                    </span>
+                    <Calendar className="h-3 w-3 text-[#8037f4]" />
+                    <span className="font-medium">{s.dayFull || s.dateKey}</span>
+                    <Clock className="h-3 w-3 text-[#8037f4]" />
+                    <span className="font-bold">{s.time}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className={`mt-2 flex flex-wrap gap-3 ${textMuted} text-xs`}>
+                {bookingDate && (
+                  <span className="inline-flex items-center gap-1">
+                    <Calendar className="h-3.5 w-3.5 text-[#8037f4]" />
+                    {bookingDate}
+                  </span>
+                )}
+                {bookingTime && (
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5 text-[#8037f4]" />
+                    {bookingTime}
+                  </span>
+                )}
                 <span className="inline-flex items-center gap-1">
-                  <Calendar className="h-3.5 w-3.5 text-[#8037f4]" />
-                  {bookingDate}
+                  <Video className="h-3.5 w-3.5 text-[#8037f4]" />
+                  Jitsi trên ProInterview · 60 phút
                 </span>
-              )}
-              {bookingTime && (
-                <span className="inline-flex items-center gap-1">
-                  <Clock className="h-3.5 w-3.5 text-[#8037f4]" />
-                  {bookingTime}
-                </span>
-              )}
-              <span className="inline-flex items-center gap-1">
-                <Video className="h-3.5 w-3.5 text-[#8037f4]" />
-                Jitsi trên ProInterview · 60 phút
-              </span>
-            </div>
+              </div>
+            )}
           </div>
-          <p className="shrink-0 text-lg font-bold text-[#8037f4]">{fmt(baseTotal)}</p>
+          <div className="shrink-0 text-right">
+            <p className="text-lg font-bold text-[#8037f4]">{fmt(baseTotal)}</p>
+            {slots.length > 1 && <p className="text-xs text-slate-500">{slots.length} buổi</p>}
+          </div>
         </div>
       </div>
     );
   }
   return (
-    <div className={`${checkoutCard} p-4 sm:p-5`}>
+    <div className="rounded-2xl border border-violet-400/30 bg-[#8037f4] p-4 shadow-sm sm:p-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#8037f4]">Gói cước</p>
-          <p className="mt-1 text-lg font-semibold text-slate-900">{plan.name}</p>
-          <p className={`mt-1 ${labelMuted}`}>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#93f72b]">Gói cước</p>
+          <p className="mt-1 text-lg font-semibold text-white">{plan.name}</p>
+          <p className="mt-1 text-xs font-medium text-white/70">
             {billing === "yearly" ? "Gói năm" : "Gói tháng"}
           </p>
         </div>
-        <p className="text-lg font-bold text-[#8037f4]">{fmt(baseTotal)}</p>
+        <p className="text-lg font-bold text-white">{fmt(baseTotal)}</p>
       </div>
     </div>
   );
@@ -494,6 +528,10 @@ function BankTransferBlock({
   vietQrLoadFailed,
   onQrError,
   onOpenQrModal,
+  countdownLabel,
+  awaitingConfirm,
+  expired,
+  onCreateNewOrder,
 }) {
   if (!hasBank) {
     return (
@@ -504,40 +542,15 @@ function BankTransferBlock({
   }
 
   return (
-    <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between gap-2">
-            <span className={labelMuted}>Ngân hàng</span>
-            <span className="text-right font-medium text-slate-800">{BANK_TRANSFER.bankName}</span>
-          </div>
-          <div className="flex justify-between gap-2">
-            <span className={labelMuted}>Số TK</span>
-            <span className="font-mono font-bold text-blue-600">{BANK_TRANSFER.accountNumber}</span>
-          </div>
-          {BANK_TRANSFER.accountOwner ? (
-            <div className="flex justify-between gap-2">
-              <span className={labelMuted}>Chủ TK</span>
-              <span className="text-right font-medium text-slate-800">{BANK_TRANSFER.accountOwner}</span>
-            </div>
-          ) : null}
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className={labelMuted}>Nội dung chuyển khoản</p>
-                <p className="mt-0.5 break-all font-mono text-sm font-semibold text-slate-900">{transferOrderNum}</p>
-              </div>
-              <CopyBtn text={transferOrderNum} />
-            </div>
-            <p className="mt-1.5 text-xs font-semibold text-[#8037f4]">Số tiền: {fmt(payAmount)}</p>
-          </div>
-        </div>
-
-        <div className="flex flex-col items-center justify-center">
+    <div className="mt-4">
+      <div className="grid gap-8 md:grid-cols-[1fr_1fr]">
+        {/* QR */}
+        <div className="flex flex-col items-center gap-2">
           {vietQrUrl && !vietQrLoadFailed ? (
             <button
               type="button"
               onClick={onOpenQrModal}
-              className="w-full max-w-[200px] rounded-xl border border-slate-200 bg-white p-3 text-center shadow-sm transition-colors hover:border-violet-300 hover:shadow-md"
+              className="w-full max-w-[240px] rounded-2xl border border-slate-200 bg-white p-3 text-center shadow-sm transition-colors hover:border-violet-300 hover:shadow-md"
             >
               <img
                 src={vietQrUrl}
@@ -546,7 +559,6 @@ function BankTransferBlock({
                 loading="lazy"
                 onError={onQrError}
               />
-              <p className="mt-2 text-xs font-medium text-slate-500">Phóng to QR</p>
             </button>
           ) : vietQrUrl && vietQrLoadFailed ? (
             <p className={`text-center text-xs ${labelMuted}`}>Không tải QR — chuyển thủ công theo STK.</p>
@@ -555,7 +567,80 @@ function BankTransferBlock({
               Thêm <span className="font-mono">VITE_VIETQR_BANK_ID</span> để hiện QR.
             </p>
           )}
+          <p className="text-xs font-medium text-slate-500">Chạm để phóng to QR</p>
         </div>
+
+        {/* Thông tin thanh toán */}
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-violet-50/40 px-4 py-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[#8037f4]">Số tiền cần thanh toán</p>
+              <p className="mt-1 text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">{fmt(payAmount)}</p>
+            </div>
+            {countdownLabel ? (
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                <Clock className="h-3.5 w-3.5" />
+                Còn {countdownLabel}
+              </span>
+            ) : null}
+          </div>
+
+          {expired ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4">
+              <p className="text-sm font-bold text-red-700">Đơn đã hết hạn ({TRANSFER_TIMEOUT_MINUTES} phút)</p>
+              <p className="mt-1 text-xs leading-relaxed text-red-700/90">
+                Mã {transferOrderNum} không còn hiệu lực. Tạo đơn mới để nhận QR và mã chuyển khoản mới.
+              </p>
+              <button
+                type="button"
+                onClick={onCreateNewOrder}
+                className="mt-3 rounded-full bg-[#93f72b] px-4 py-2 text-xs font-bold text-black transition-all hover:brightness-95"
+              >
+                Tạo đơn mới
+              </button>
+            </div>
+          ) : null}
+
+          <div className="border-t border-slate-200" />
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200">
+            <div className="bg-[#8037f4] px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">
+              Nội dung chuyển khoản
+            </div>
+            <div className="flex items-center justify-between gap-2 px-4 py-3">
+              <span className="break-all font-mono text-sm font-bold text-slate-900">{transferOrderNum}</span>
+              <CopyBtn text={transferOrderNum} />
+            </div>
+          </div>
+
+          <div className="space-y-2.5 rounded-2xl border border-slate-200 px-4 py-4 text-sm">
+            <div>
+              <p className={labelMuted}>Ngân hàng</p>
+              <p className="font-medium text-slate-800">{BANK_TRANSFER.bankName}</p>
+            </div>
+            <div className="flex items-center justify-between gap-2 border-l-2 border-emerald-400 pl-3">
+              <div className="min-w-0">
+                <p className={labelMuted}>Số tài khoản</p>
+                <p className="break-all font-mono font-bold text-[#8037f4]">{BANK_TRANSFER.accountNumber}</p>
+              </div>
+              <CopyBtn text={BANK_TRANSFER.accountNumber} />
+            </div>
+            {BANK_TRANSFER.accountOwner ? (
+              <div>
+                <p className={labelMuted}>Chủ tài khoản</p>
+                <p className="font-medium text-slate-800">{BANK_TRANSFER.accountOwner}</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {awaitingConfirm ? (
+        <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3 text-center text-sm font-medium text-violet-800">
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-emerald-500" />
+          Đang chờ xác nhận thanh toán…
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -568,6 +653,22 @@ export function Checkout() {
   const location = useLocation();
   usePageAnalytics();
 
+  // Đơn CK đang chờ (mã, hạn đếm ngược, id booking/enrollment/subscription…) được lưu tạm ở sessionStorage
+  // theo query string trang này — để F5 khôi phục lại đúng đơn cũ thay vì tự sinh mã PI + hạn 15 phút mới.
+  const checkoutStorageKey = `prointerview_checkout_pending:${searchParams.toString()}`;
+  const restoredOrder = useMemo(() => {
+    if (typeof sessionStorage === "undefined") return null;
+    try {
+      const raw = sessionStorage.getItem(checkoutStorageKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.appStep === "awaiting_transfer" ? parsed : null;
+    } catch {
+      return null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /* ── Booking / Course / Plan / Cart mode ─────────────────────────────── */
   const isBooking = searchParams.get("type") === "booking";
   const isCourse = searchParams.get("type") === "course";
@@ -579,8 +680,15 @@ export function Checkout() {
   const [bookingMentor, setBookingMentor] = React.useState(null);
   const [courseInfo, setCourseInfo] = React.useState(null);
   
-  const { cart, cartTotal, clearCart } = useCart();
+  const { cart, cartTotal, fetchCart } = useCart();
   const cartItems = cart?.items || [];
+  // Chốt lại tổng tiền + danh sách sản phẩm giỏ hàng tại thời điểm tạo đơn CK, vì backend chỉ xóa
+  // các item đã được cấp quyền ngay (miễn phí/gói) — item đang chờ chuyển khoản vẫn còn trong giỏ
+  // cho tới khi thanh toán được xác nhận, nên fetchCart() sau đó có thể trả về cartItems/cartTotal
+  // không khớp với đơn đang hiển thị QR ở đây.
+  const [cartOrderSnapshot, setCartOrderSnapshot] = React.useState(() => restoredOrder?.cartOrderSnapshot ?? null);
+  const displayCartItems = isCart ? (cartOrderSnapshot?.items ?? cartItems) : [];
+  const displayCartTotal = isCart ? (cartOrderSnapshot?.total ?? cartTotal) : 0;
 
   React.useEffect(() => {
     if (!isBooking || !mentorId) {
@@ -616,27 +724,50 @@ export function Checkout() {
     })();
   }, [isCourse, courseId]);
 
-  const bookingPrice = Number(bookingMentor?.price ?? searchParams.get("price") ?? 0);
-  const bookingDate = searchParams.get("date") ?? "";
-  const bookingTime = searchParams.get("time") ?? "";
+  // Đặt nhiều buổi cùng lúc (Booking.jsx) — mảng [{dateKey, dayFull, time}] gửi qua URL dạng JSON.
+  const bookingSlots = useMemo(() => {
+    if (!isBooking) return null;
+    const raw = searchParams.get("slots") ?? "";
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+    } catch {
+      return null;
+    }
+  }, [isBooking, searchParams]);
+  const bookingSlotCount = bookingSlots ? bookingSlots.length : 1;
+
+  // Sau khi tạo booking, giá thực tế cần trả (có thể được backend tự giảm giá cho buổi ngoài quota
+  // gói Chuyên Nghiệp) do server trả về — ưu tiên số này cho QR thay vì giá niêm yết của mentor.
+  // Khi có nhiều slot, đây là TỔNG tiền của cả nhóm (cộng dồn totalAmount từng booking con).
+  const [bookingChargeOverride, setBookingChargeOverride] = useState(() => restoredOrder?.bookingChargeOverride ?? null);
+  const bookingPricePerSlot = Number(bookingMentor?.price ?? searchParams.get("price") ?? 0);
+  const bookingPrice = Number(bookingChargeOverride ?? bookingPricePerSlot * bookingSlotCount);
+  const bookingDate = bookingSlots?.[0]?.dateKey ?? searchParams.get("date") ?? "";
+  const bookingTime = bookingSlots?.[0]?.time ?? searchParams.get("time") ?? "";
 
   /* ── Plan mode ────────────────────────────────────────── */
   const planKey = searchParams.get("plan") ?? "student";
   const billing = (searchParams.get("billing") ?? "yearly");
   const plan = PLANS[planKey] ?? PLANS.student;
-  // Read the exact price shown on the Pricing page (passed via URL); fall back to PLANS data
-  const urlPlanPrice = Number(searchParams.get("planPrice") ?? "0");
-  const price = urlPlanPrice > 0
-    ? urlPlanPrice
-    : (billing === "yearly" ? plan.yearlyPrice : plan.monthlyPrice);
+  // Giá luôn lấy từ bảng giá cố định của FE (khớp backend) — không tin tham số planPrice trên URL,
+  // vì nó có thể bị sửa tay và backend sẽ luôn tự tính lại giá theo plan+billing khi tạo giao dịch.
+  const price = billing === "yearly" ? plan.yearlyTotal : plan.monthlyPrice;
   const courseUrlPrice = Number(searchParams.get("price") ?? "0");
-  const coursePriceNum = isCourse ? Number((courseInfo?.price ?? courseUrlPrice) || 0) : 0;
+  // Sau khi ghi danh, giá thực tế cần trả (đã áp giảm giá/miễn phí theo gói) do backend trả về — ưu tiên số này cho QR.
+  const [courseChargeOverride, setCourseChargeOverride] = useState(() => restoredOrder?.courseChargeOverride ?? null);
+  const coursePriceNum = isCourse
+    ? Number(courseChargeOverride ?? (courseInfo?.price ?? courseUrlPrice) ?? 0)
+    : 0;
   const planListPrice =
     billing === "yearly" ? plan.monthlyPrice * 12 : plan.monthlyPrice;
-  const baseTotal = isBooking ? bookingPrice : isCourse ? coursePriceNum : isCart ? cartTotal : planListPrice;
-  const total = isBooking ? bookingPrice : isCourse ? coursePriceNum : isCart ? cartTotal : price;
+  const baseTotal = isBooking ? bookingPrice : isCourse ? coursePriceNum : isCart ? displayCartTotal : planListPrice;
+  const total = isBooking ? bookingPrice : isCourse ? coursePriceNum : isCart ? displayCartTotal : price;
 
-  const [transferOrderNum, setTransferOrderNum] = useState(() => `PI${Math.floor(Math.random() * 900000 + 100000)}`);
+  const [transferOrderNum, setTransferOrderNum] = useState(
+    () => restoredOrder?.transferOrderNum ?? `PI${Math.floor(Math.random() * 900000 + 100000)}`,
+  );
 
   /* ── Read all booking params from URL ── */
   const bookingPosition = searchParams.get("position") ?? "";
@@ -670,22 +801,89 @@ export function Checkout() {
     })();
   }, [isBooking, rebookFrom]);
 
-  const [appStep, setAppStep] = useState("checkout");
-  const [bankBookingId, setBankBookingId] = useState(null);
-  const [bankEnrollmentId, setBankEnrollmentId] = useState(null);
-  const [bankSubscriptionPaymentId, setBankSubscriptionPaymentId] = useState(null);
+  const [appStep, setAppStep] = useState(() => restoredOrder?.appStep ?? "checkout");
+  const [bankBookingId, setBankBookingId] = useState(() => restoredOrder?.bankBookingId ?? null);
+  const [bankEnrollmentId, setBankEnrollmentId] = useState(() => restoredOrder?.bankEnrollmentId ?? null);
+  const [bankSubscriptionPaymentId, setBankSubscriptionPaymentId] = useState(
+    () => restoredOrder?.bankSubscriptionPaymentId ?? null,
+  );
+  const [transferDeadline, setTransferDeadline] = useState(() => restoredOrder?.transferDeadline ?? null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const [awaitingAutoConfirm, setAwaitingAutoConfirm] = useState(false);
   const [paymentSuccessOverlay, setPaymentSuccessOverlay] = useState(null);
-  const autoOrderStartedRef = useRef(false);
+  const autoOrderStartedRef = useRef(Boolean(restoredOrder));
   const paidRedirectStartedRef = useRef(false);
   const checkoutOpenTrackedRef = useRef(false);
 
+  // Đếm ngược hạn CK — chỉ mang tính hiển thị, backend luôn là nguồn xác thực hạn thật.
+  useEffect(() => {
+    if (!transferDeadline) return;
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [transferDeadline]);
+  const transferExpired = Boolean(transferDeadline && nowTick >= transferDeadline);
+  const countdownLabel = transferDeadline && !transferExpired ? formatCountdown(transferDeadline - nowTick) : null;
+
+  // Ghi lại đơn CK đang chờ để F5 khôi phục đúng mã + hạn cũ (xem restoredOrder ở đầu component).
+  useEffect(() => {
+    if (typeof sessionStorage === "undefined" || appStep !== "awaiting_transfer") return;
+    try {
+      sessionStorage.setItem(
+        checkoutStorageKey,
+        JSON.stringify({
+          appStep,
+          transferOrderNum,
+          transferDeadline,
+          bankBookingId,
+          bankEnrollmentId,
+          bankSubscriptionPaymentId,
+          bookingChargeOverride,
+          courseChargeOverride,
+          cartOrderSnapshot,
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [
+    appStep,
+    checkoutStorageKey,
+    transferOrderNum,
+    transferDeadline,
+    bankBookingId,
+    bankEnrollmentId,
+    bankSubscriptionPaymentId,
+    bookingChargeOverride,
+    courseChargeOverride,
+    cartOrderSnapshot,
+  ]);
+
+  const handleCreateNewOrder = () => {
+    if (typeof sessionStorage !== "undefined") {
+      try {
+        sessionStorage.removeItem(checkoutStorageKey);
+      } catch {
+        /* ignore */
+      }
+    }
+    autoOrderStartedRef.current = false;
+    setAppStep("checkout");
+    setTransferDeadline(null);
+    setBankBookingId(null);
+    setBankEnrollmentId(null);
+    setBankSubscriptionPaymentId(null);
+    setTransferOrderNum(`PI${Math.floor(Math.random() * 900000 + 100000)}`);
+    setCardError("");
+    setInvoiceConfirmed(false);
+  };
+
+  // Xác nhận lại số tiền hóa đơn ngay trên trang trước khi tạo đơn + chuyển sang QR chuyển khoản.
+  const [invoiceConfirmed, setInvoiceConfirmed] = useState(false);
+
   const [cardError, setCardError] = useState("");
 
-  /* Coupon */
-  const [coupon, setCoupon] = useState("");
-  const [couponApplied, setCouponApplied] = useState(false);
-  const discount = isCourse ? 0 : couponApplied ? Math.round(total * 0.1) : 0;
+  // Không có hệ thống mã khuyến mãi được backend xác thực — giá luôn là giá đầy đủ.
+  const discount = 0;
   const payAmount = total - discount;
   const bookingTotalEstimate = Math.round(isBooking ? payAmount : bookingPrice);
 
@@ -760,7 +958,7 @@ export function Checkout() {
 
     if (isPlanCheckout) {
       setCardError("");
-      const apiPlanKey = planKey; // student | professional | premium (đã chuẩn hóa từ URL)
+      const apiPlanKey = planKey; // student | professional (đã chuẩn hóa từ URL)
       try {
         const apiRes = await createSubscriptionTransferPending({
           amount: payAmount,
@@ -771,6 +969,7 @@ export function Checkout() {
         if (apiRes.success && apiRes.paymentId) {
           if (apiRes.providerRef) setTransferOrderNum(apiRes.providerRef);
           setBankSubscriptionPaymentId(apiRes.paymentId);
+          setTransferDeadline(Date.now() + TRANSFER_TIMEOUT_MINUTES * 60 * 1000);
           setAppStep("awaiting_transfer");
           trackAction("plan_checkout_start", location.pathname, {
             planKey: apiPlanKey,
@@ -826,14 +1025,33 @@ export function Checkout() {
         const apiRes = await enrollmentApi.enroll(courseId, { paymentMethod: "transfer", orderNum: transferOrderNum });
         const eid = apiRes.enrollment?._id || apiRes.enrollment?.id;
         if (apiRes.success && eid) {
+          // Được gói trả (Professional) hoặc miễn phí sau giảm giá — backend đã xác nhận paid, không cần CK.
+          if (apiRes.enrollment?.paymentStatus === "paid") {
+            trackAction("course_enroll", location.pathname, {
+              courseId,
+              enrollmentId: String(eid),
+              paymentMethod: apiRes.included ? "plan_included" : "free",
+            });
+            toastApiSuccess(
+              apiRes.included
+                ? "Khóa học này được tính vào gói của bạn — đã ghi danh, không cần chuyển khoản."
+                : "Đã ghi danh khóa học.",
+            );
+            navigate(`/courses/${encodeURIComponent(courseId)}/learn`);
+            return { ok: true, enrollmentId: String(eid) };
+          }
+
+          const realAmount = Number(apiRes.enrollment?.pricePaid ?? expected);
+          setCourseChargeOverride(realAmount);
           const serverOrder = extractOrderPart(apiRes.orderNum || apiRes.enrollment?.paymentRef);
           if (serverOrder) setTransferOrderNum(serverOrder);
           setBankEnrollmentId(String(eid));
+          setTransferDeadline(Date.now() + TRANSFER_TIMEOUT_MINUTES * 60 * 1000);
           setAppStep("awaiting_transfer");
           trackAction("course_enroll", location.pathname, {
             courseId,
             enrollmentId: String(eid),
-            amount: expected,
+            amount: realAmount,
             paymentMethod: "transfer_pending",
           });
           if (!silent) toastApiSuccess("Đã tạo ghi danh. Quét QR và chuyển khoản — hệ thống tự xác nhận qua SePay.");
@@ -860,21 +1078,40 @@ export function Checkout() {
       try {
         const apiRes = await cartApi.checkout({ paymentMethod: "transfer", orderNum: transferOrderNum });
         if (apiRes.success) {
+          const realTotal = Number(apiRes.totalDue ?? cartTotal);
+          // Toàn bộ khóa học trong giỏ được gói trả (Professional) — không còn gì cần chuyển khoản.
+          if (realTotal <= 0) {
+            trackAction("course_enroll", location.pathname, {
+              checkoutType: "cart",
+              itemCount: cartItems.length,
+              paymentMethod: "plan_included",
+            });
+            toastApiSuccess("Các khóa học này được tính vào gói của bạn — đã ghi danh, không cần chuyển khoản.");
+            fetchCart();
+            navigate("/my-courses");
+            return { ok: true, isCart: true };
+          }
+
           const serverOrder = extractOrderPart(apiRes.orderNum || transferOrderNum);
           if (serverOrder) setTransferOrderNum(serverOrder);
           setBankEnrollmentId("cart-" + serverOrder); // Fake id to trigger the awaiting_transfer step
+          setTransferDeadline(Date.now() + TRANSFER_TIMEOUT_MINUTES * 60 * 1000);
           setAppStep("awaiting_transfer");
           trackAction("course_enroll", location.pathname, {
             checkoutType: "cart",
             itemCount: cartItems.length,
-            amount: cartTotal,
+            amount: realTotal,
             paymentMethod: "transfer_pending",
           });
           if (!silent) toastApiSuccess("Đã gộp đơn hàng. Quét QR và chuyển khoản — hệ thống tự xác nhận toàn bộ.");
-          clearCart();
+          setCartOrderSnapshot({ items: cartItems, total: realTotal });
+          // Không clearCart() ở đây — item vẫn "pending" chờ chuyển khoản, backend giữ nguyên trong giỏ
+          // và chỉ xóa khi confirmEnrollmentTransferByAdmin xác nhận thanh toán thành công. Nhờ vậy nếu
+          // user thoát trang thanh toán trước khi chuyển khoản, giỏ hàng vẫn còn nguyên khi quay lại.
+          fetchCart();
           return { ok: true, isCart: true };
         }
-        const msg = apiRes.message || "Không thể gộp đơn hàng.";
+        const msg = apiRes.error || "Không thể gộp đơn hàng.";
         setCardError(msg);
         toastApiError(msg);
         return { ok: false };
@@ -891,11 +1128,20 @@ export function Checkout() {
       return { ok: false };
     }
 
-    if (!isBookingSlotInFuture(bookingDate, bookingTime)) {
-      const msg = "Không thể đặt lịch trong quá khứ. Vui lòng chọn ngày và giờ trong tương lai.";
-      setCardError(msg);
-      toastApiError(msg);
+    const slotsToBook =
+      bookingSlots ?? [{ dateKey: bookingDate, dayFull: bookingDate, time: bookingTime }];
+    const MAX_SLOTS = 5;
+    if (slotsToBook.length > MAX_SLOTS) {
+      setCardError(`Tối đa ${MAX_SLOTS} buổi trên một đơn đặt lịch.`);
       return { ok: false };
+    }
+    for (const slot of slotsToBook) {
+      if (!isBookingSlotInFuture(slot.dateKey, slot.time)) {
+        const msg = `Khung giờ ${slot.time} ngày ${slot.dateKey} đã qua. Vui lòng quay lại chọn lại.`;
+        setCardError(msg);
+        toastApiError(msg);
+        return { ok: false };
+      }
     }
 
     if (rebookCreditTooLow) {
@@ -923,7 +1169,7 @@ export function Checkout() {
           note: bookingNote,
           cvFile: bookingCvFile || "",
           jdFile: bookingJdFile || "",
-          price: bookingPrice,
+          price: bookingPricePerSlot,
           durationMinutes: 60,
           applyRebookCreditFromBookingId: rebookFrom,
         });
@@ -950,48 +1196,92 @@ export function Checkout() {
         return { ok: false };
       }
 
-      const apiRes = await createBooking({
-        mentorId: bookingMentor.id,
-        date: bookingDate,
-        time: bookingTime,
-        timeSlot: bookingTime,
-        sessionType: "mock_interview",
-        position: bookingPosition,
-        note: bookingNote,
-        cvFile: bookingCvFile || "",
-        jdFile: bookingJdFile || "",
-        price: bookingPrice,
-        durationMinutes: 60,
-        orderNum: transferOrderNum,
-        paymentStatus: "pending",
-        paymentMethod: "transfer",
-      });
-      if (apiRes.success && apiRes.booking?.id) {
-        const serverOrder = extractOrderPart(apiRes.booking?.paymentRef);
-        if (serverOrder) setTransferOrderNum(serverOrder);
-        setBankBookingId(apiRes.booking.id);
-        setAppStep("awaiting_transfer");
-        trackAction("booking_submit", location.pathname, {
-          bookingId: apiRes.booking.id,
+      // Mỗi slot tạo 1 booking riêng, tất cả dùng chung 1 mã CK (orderNum) — chuyển khoản 1 lần cho cả nhóm.
+      // Sau slot đầu, dùng paymentRef server xác nhận cho các slot sau (đề phòng server chuẩn hoá mã khác client).
+      let confirmedOrderNum = transferOrderNum;
+      const createdIds = [];
+      let runningTotal = 0;
+      for (const slot of slotsToBook) {
+        const apiRes = await createBooking({
           mentorId: bookingMentor.id,
-          date: bookingDate,
-          timeSlot: bookingTime,
-          amount: bookingPrice,
-          paymentMethod: "transfer_pending",
-          rebookFrom,
+          date: slot.dateKey,
+          time: slot.time,
+          timeSlot: slot.time,
+          sessionType: "mock_interview",
+          position: bookingPosition,
+          note: bookingNote,
+          cvFile: bookingCvFile || "",
+          jdFile: bookingJdFile || "",
+          price: bookingPricePerSlot,
+          durationMinutes: 60,
+          orderNum: confirmedOrderNum,
+          paymentStatus: "pending",
+          paymentMethod: "transfer",
         });
-        if (!silent) {
-          toastApiSuccess(
-            "Đã tạo lịch. Quét QR, chuyển khoản — khi tiền vào sẽ tự xác nhận và chuyển sang buổi hẹn.",
-          );
+
+        if (apiRes.success && apiRes.booking?.id) {
+          // Buổi được gói trả (quota mentor session còn hạn) — backend đã xác nhận paid, không cần CK.
+          // Chỉ xảy ra ở slot đầu (nếu có) vì đây là field lịch sử, không còn cấp mới theo business rule hiện tại.
+          if (
+            createdIds.length === 0 &&
+            apiRes.booking.paymentMethod === "plan_quota" &&
+            apiRes.booking.paymentStatus === "paid"
+          ) {
+            trackAction("booking_submit", location.pathname, {
+              bookingId: apiRes.booking.id,
+              mentorId: bookingMentor.id,
+              date: slot.dateKey,
+              timeSlot: slot.time,
+              paymentMethod: "plan_quota",
+            });
+            toastApiSuccess("Buổi này được tính vào quota gói của bạn — đã xác nhận, không cần chuyển khoản.");
+            navigate(`/session/${encodeURIComponent(apiRes.booking.id)}`);
+            return { ok: true, bookingId: apiRes.booking.id };
+          }
+
+          createdIds.push(apiRes.booking.id);
+          runningTotal += Number(apiRes.booking.totalAmount ?? apiRes.booking.price ?? bookingPricePerSlot);
+          if (createdIds.length === 1) {
+            const serverOrder = extractOrderPart(apiRes.booking?.paymentRef);
+            if (serverOrder) {
+              setTransferOrderNum(serverOrder);
+              confirmedOrderNum = serverOrder;
+            }
+            setBankBookingId(apiRes.booking.id);
+          }
+          continue;
         }
-        return { ok: true, bookingId: apiRes.booking.id };
+
+        // Slot này tạo thất bại — huỷ các booking đã tạo trước đó trong vòng lặp để không để rác "pending".
+        for (const id of createdIds) {
+          cancelBooking(id).catch(() => {});
+        }
+        const msg = apiRes.error || `Không thể tạo lịch buổi ${slot.time} ngày ${slot.dateKey}.`;
+        console.warn("[POST /api/bookings]", msg);
+        setCardError(msg);
+        toastApiError(msg);
+        return { ok: false };
       }
-      const msg = apiRes.error || "Không thể tạo lịch chờ chuyển khoản.";
-      console.warn("[POST /api/bookings]", msg);
-      setCardError(msg);
-      toastApiError(msg);
-      return { ok: false };
+
+      if (runningTotal > 0) setBookingChargeOverride(runningTotal);
+      setTransferDeadline(Date.now() + TRANSFER_TIMEOUT_MINUTES * 60 * 1000);
+      setAppStep("awaiting_transfer");
+      trackAction("booking_submit", location.pathname, {
+        bookingIds: createdIds,
+        mentorId: bookingMentor.id,
+        slotCount: createdIds.length,
+        amount: runningTotal,
+        paymentMethod: "transfer_pending",
+        rebookFrom,
+      });
+      if (!silent) {
+        toastApiSuccess(
+          createdIds.length > 1
+            ? `Đã tạo ${createdIds.length} buổi hẹn. Chuyển khoản 1 lần, hệ thống tự xác nhận tất cả.`
+            : "Đã tạo lịch. Quét QR, chuyển khoản — khi tiền vào sẽ tự xác nhận và chuyển sang buổi hẹn.",
+        );
+      }
+      return { ok: true, bookingId: createdIds[0], bookingIds: createdIds };
     } catch {
       const msg = "Lỗi hệ thống khi tạo lịch hẹn.";
       setCardError(msg);
@@ -1001,13 +1291,12 @@ export function Checkout() {
   };
 
   const hasBank = Boolean(BANK_TRANSFER.bankName && BANK_TRANSFER.accountNumber);
-  const showBankQr = payMode === PAY_MODE.BANK && payAmount > 0;
   const orderCreated = appStep === "awaiting_transfer";
   const paymentConfirmed = appStep === "paid";
+  // Chỉ tạo đơn + hiện QR sau khi người dùng xác nhận hóa đơn (hoặc đơn đã tạo từ trước, vd sau F5).
+  const showBankQr = payMode === PAY_MODE.BANK && payAmount > 0 && (invoiceConfirmed || orderCreated);
   const stepCurrent = paymentConfirmed || orderCreated ? 2 : 1;
-  const showPriceBreakdown =
-    (billing === "yearly" && !isCourse && !isBooking && baseTotal > total) ||
-    (couponApplied && !isCourse);
+  const showPriceBreakdown = billing === "yearly" && !isCourse && !isBooking && baseTotal > total;
 
   const resolvePaidRedirect = (apiRedirect) => {
     if (apiRedirect) return apiRedirect;
@@ -1023,6 +1312,19 @@ export function Checkout() {
     const target = resolvePaidRedirect(pollResult?.redirectTo);
     setAwaitingAutoConfirm(false);
     setAppStep("paid");
+    if (typeof sessionStorage !== "undefined") {
+      try {
+        sessionStorage.removeItem(checkoutStorageKey);
+      } catch {
+        /* ignore */
+      }
+    }
+
+    if (isCart) {
+      // Backend chỉ xóa item khỏi giỏ tại thời điểm này (thanh toán vừa được xác nhận) — đồng bộ lại
+      // để icon/drawer giỏ hàng ở chỗ khác trong app cập nhật đúng ngay.
+      fetchCart();
+    }
 
     if (isPlanCheckout) {
       trackAction("plan_upgrade", location.pathname, {
@@ -1088,6 +1390,38 @@ export function Checkout() {
     bookingTime,
   ]);
 
+  // Khi đang ở màn hình chờ chuyển khoản của đơn giỏ hàng, nếu user thêm/bớt khóa học khác vào
+  // giỏ ở nơi khác trong app (cart context là global nên cartItems ở đây tự cập nhật theo), QR/số
+  // tiền đang hiển thị sẽ bị "đứng hình" nếu không có gì kích hoạt gọi lại handlePay. So sánh chữ
+  // ký (itemId:quantity) của giỏ hiện tại với snapshot lúc tạo đơn — lệch thì tự gộp lại đơn cũ
+  // (backend đã hỗ trợ merge theo cùng orderNum) để QR luôn phản ánh đúng tổng cần chuyển khoản.
+  const cartCourseSignature = useMemo(() => {
+    if (!isCart) return "";
+    return cartItems
+      .filter((it) => it.itemType === "Course")
+      .map((it) => `${it.itemId}:${it.quantity}`)
+      .sort()
+      .join("|");
+  }, [isCart, cartItems]);
+
+  const mergingCartOrderRef = useRef(false);
+
+  useEffect(() => {
+    if (!isCart || !orderCreated || paymentConfirmed || !cartOrderSnapshot) return;
+    const snapshotSignature = (cartOrderSnapshot.items || [])
+      .filter((it) => it.itemType === "Course")
+      .map((it) => `${it.itemId}:${it.quantity}`)
+      .sort()
+      .join("|");
+    if (snapshotSignature === cartCourseSignature) return;
+    if (mergingCartOrderRef.current) return;
+    mergingCartOrderRef.current = true;
+    (async () => {
+      await handlePay({ silent: true });
+      mergingCartOrderRef.current = false;
+    })();
+  }, [isCart, orderCreated, paymentConfirmed, cartOrderSnapshot, cartCourseSignature]);
+
   const pollErrorShownRef = useRef(false);
 
   const runTransferPoll = async () => {
@@ -1141,52 +1475,28 @@ export function Checkout() {
         .fade-in { animation: fadeIn 0.35s ease-out both; }
       `}</style>
 
-      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-md">
-        <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="flex items-center gap-2.5"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#8037f4] shadow-md">
-              <Sparkle className="h-4 w-4 text-white" />
+      <div className="fade-in relative z-10 mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        {orderCreated ? null : (
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Thanh toán</h1>
             </div>
-            <span className="text-base font-bold text-slate-900">ProInterview</span>
-          </button>
-          <div className="flex items-center gap-4">
-            <div className={`hidden items-center gap-1.5 sm:flex ${labelMuted}`}>
-              <Phone className="h-3.5 w-3.5 text-[#8037f4]" />
-              <span>Hỗ trợ: 1800 1234</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Quay lại
-            </button>
-          </div>
-        </nav>
-      </header>
-
-      <main className="fade-in relative z-10 mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Thanh toán</h1>
-            {orderCreated ? (
-              <p className={`mt-1 ${textMuted}`}>
-                Mã CK: <span className="font-mono font-semibold text-slate-800">{transferOrderNum}</span>
-              </p>
+            {showStepBar ? (
+              <div className="mr-16">
+                <StepBar current={stepCurrent} steps={stepLabels} />
+              </div>
             ) : null}
           </div>
-          {showStepBar ? <StepBar current={stepCurrent} steps={stepLabels} /> : null}
-        </div>
+        )}
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:items-start">
-          {/* Cột trái ~70%: sản phẩm + CK + QR */}
+        <div
+          className={`mt-6 grid gap-6 ${
+            orderCreated ? "" : "lg:grid-cols-[minmax(0,1fr)_minmax(280px,340px)] lg:items-start"
+          }`}
+        >
+          {/* Cột trái ~70%: sản phẩm + CK + QR (đã tạo đơn thì chỉ còn card CK, giống production) */}
           <div className="min-w-0 space-y-4">
-            {!compactRebook && !isCart && (
+            {!orderCreated && !compactRebook && !isCart && (
               <OrderLineItem
                 isBooking={isBooking}
                 isCourse={isCourse}
@@ -1196,14 +1506,15 @@ export function Checkout() {
                 billing={billing}
                 bookingDate={bookingDate}
                 bookingTime={bookingTime}
+                bookingSlots={bookingSlots}
                 baseTotal={baseTotal}
                 fmt={fmt}
               />
             )}
-            
-            {isCart && cartItems.length > 0 && (
+
+            {!orderCreated && isCart && displayCartItems.length > 0 && (
               <div className="space-y-4">
-                {cartItems.map((item) => (
+                {displayCartItems.map((item) => (
                   <OrderLineItem
                     key={item._id}
                     isCartItem={true}
@@ -1216,6 +1527,8 @@ export function Checkout() {
             )}
 
             <div className={`${checkoutCard} p-5 sm:p-6`}>
+              {orderCreated && showStepBar ? <StepBar current={stepCurrent} steps={stepLabels} /> : null}
+
               <CheckoutPayPanel
                 mode={payMode}
                 fmt={fmt}
@@ -1226,9 +1539,24 @@ export function Checkout() {
                 navigate={navigate}
               />
 
+              {payMode === PAY_MODE.BANK && !showBankQr && (
+                <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <Landmark className="mt-0.5 h-5 w-5 shrink-0 text-[#8037f4]" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Thanh toán chuyển khoản</p>
+                    <p className={`mt-1 ${textMuted}`}>
+                      Kiểm tra lại thông tin và <span className="font-semibold text-slate-900">số tiền</span> bên
+                      phải, sau đó bấm <span className="font-semibold text-[#8037f4]">«Tiếp tục»</span> để xác nhận
+                      hóa đơn và nhận mã QR chuyển khoản.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {showBankQr && (
                 <>
-                  <h2 className="mb-4 text-base font-semibold text-slate-900">Chuyển khoản</h2>
+                  <h2 className="text-lg font-bold text-slate-900">Thanh toán chuyển khoản</h2>
+                  <p className={`mt-1 ${textMuted}`}>Quét QR hoặc chuyển thủ công, hệ thống tự xác nhận qua SePay.</p>
                   <BankTransferBlock
                   hasBank={hasBank}
                   payAmount={payAmount}
@@ -1238,47 +1566,21 @@ export function Checkout() {
                   vietQrLoadFailed={vietQrLoadFailed}
                   onQrError={() => setVietQrLoadFailed(true)}
                   onOpenQrModal={() => setQrModalOpen(true)}
+                  countdownLabel={countdownLabel}
+                  awaitingConfirm={orderCreated && !paymentConfirmed && awaitingAutoConfirm && !transferExpired}
+                  expired={orderCreated && !paymentConfirmed && transferExpired}
+                  onCreateNewOrder={handleCreateNewOrder}
                 />
                 </>
               )}
 
-              {isPlanCheckout && !isCourse && !isBooking && (
+              {!orderCreated && isPlanCheckout && !isCourse && !isBooking && (
                 <div className="mt-5 border-t border-slate-200 pt-5">
-                  <p className={`mb-2 ${labelMuted}`}>Mã khuyến mãi</p>
-                  {couponApplied ? (
-                    <div className="flex items-center justify-between rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Tag className="h-4 w-4 text-[#8037f4]" />
-                        <span className="text-sm font-semibold text-slate-900">{coupon.toUpperCase()}</span>
-                      </div>
-                      <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-violet-700">
-                        Đã áp dụng
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#8037f4] focus:outline-none focus:ring-1 focus:ring-violet-200"
-                        placeholder="Nhập mã khuyến mãi"
-                        value={coupon}
-                        onChange={(e) => setCoupon(e.target.value)}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (coupon.trim()) setCouponApplied(true);
-                        }}
-                        className="shrink-0 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:border-violet-300 hover:bg-violet-50"
-                      >
-                        Áp dụng
-                      </button>
-                    </div>
-                  )}
-                  <ul className="mt-4 space-y-2">
+                  <ul className="space-y-2.5">
                     {plan.features.slice(0, 3).map((f, i) => (
-                      <li key={i} className={`flex items-start gap-2 text-xs ${textMuted}`}>
+                      <li key={i} className="flex items-start gap-2 text-sm font-semibold text-slate-900">
                         <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#8037f4]" />
-                        {f}
+                        {highlightPlanNumbers(f)}
                       </li>
                     ))}
                   </ul>
@@ -1294,57 +1596,63 @@ export function Checkout() {
             </div>
           </div>
 
-          {/* Cột phải ~30%: tóm tắt + xác nhận CK */}
-          <aside className="min-w-0">
-            <div className={`${checkoutCard} sticky top-20 overflow-hidden`}>
-              <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
-                <p className={labelMuted}>Tổng cộng</p>
-                <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{fmt(grandTotal)}</p>
-              </div>
-
-              {showPriceBreakdown ? (
-                <div className="space-y-2 px-5 py-4 sm:px-6">
-                  {billing === "yearly" && !isCourse && !isBooking && baseTotal > total && (
-                    <div className="flex justify-between text-sm">
-                      <span className={labelMuted}>Giảm gói năm</span>
-                      <span className="font-medium text-emerald-600">−{fmt(baseTotal - total)}</span>
-                    </div>
-                  )}
-                  {couponApplied && !isCourse && (
-                    <div className="flex justify-between text-sm">
-                      <span className={labelMuted}>Mã giảm (10%)</span>
-                      <span className="font-medium text-emerald-600">−{fmt(discount)}</span>
-                    </div>
-                  )}
+          {/* Cột phải ~30%: tóm tắt + xác nhận CK — ẩn sau khi đã tạo đơn, chỉ còn card CK giống production */}
+          {!orderCreated && (
+            <aside className="min-w-0">
+              <div className={`${checkoutCard} sticky top-20 overflow-hidden`}>
+                <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
+                  <p className={labelMuted}>Tổng cộng</p>
+                  <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{fmt(grandTotal)}</p>
                 </div>
-              ) : null}
 
-              <div className="border-t border-slate-200 p-5 sm:p-6">
-                {!payBlocked && !orderCreated && !showBankQr ? (
-                  <button
-                    type="button"
-                    onClick={handlePay}
-                    disabled={!isPaidCheckout || payMode === PAY_MODE.REBOOK_LOADING}
-                    className={`${landingPrimaryButtonClass} h-12 w-full gap-2 rounded-xl text-base font-semibold disabled:pointer-events-none disabled:opacity-40`}
-                  >
-                    <Lock className="h-4 w-4" />
-                    {payMode === PAY_MODE.REBOOK_READY ? "Xác nhận đặt lại" : "Tiếp tục"}
-                  </button>
-                ) : null}
-                {showBankQr && orderCreated && !paymentConfirmed && awaitingAutoConfirm ? (
-                  <div className="flex items-center justify-center gap-2 text-center text-sm text-violet-800">
-                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-violet-200 border-t-[#8037f4]" />
-                    Đang chờ xác nhận thanh toán…
+                {showPriceBreakdown ? (
+                  <div className="space-y-2 px-5 py-4 sm:px-6">
+                    {billing === "yearly" && !isCourse && !isBooking && baseTotal > total && (
+                      <div className="flex justify-between text-sm">
+                        <span className={labelMuted}>Giảm gói năm</span>
+                        <span className="font-medium text-emerald-600">−{fmt(baseTotal - total)}</span>
+                      </div>
+                    )}
                   </div>
                 ) : null}
-                {showBankQr && !orderCreated && !payBlocked ? (
-                  <p className={`text-center text-xs ${labelMuted}`}>Đang tạo đơn…</p>
-                ) : null}
+
+                <div className="border-t border-slate-200 p-5 sm:p-6">
+                  {!payBlocked && !showBankQr ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (payMode === PAY_MODE.REBOOK_READY) {
+                          handlePay();
+                        } else {
+                          setInvoiceConfirmed(true);
+                        }
+                      }}
+                      disabled={!isPaidCheckout || payMode === PAY_MODE.REBOOK_LOADING}
+                      className={`${landingLimeButtonClass} h-12 w-full gap-2 rounded-xl text-base font-semibold disabled:pointer-events-none disabled:opacity-40`}
+                    >
+                      <Lock className="h-4 w-4" />
+                      {payMode === PAY_MODE.REBOOK_READY ? "Xác nhận đặt lại" : "Tiếp tục"}
+                    </button>
+                  ) : null}
+                  {showBankQr && !payBlocked ? (
+                    cardError ? (
+                      <button
+                        type="button"
+                        onClick={() => handlePay()}
+                        className={`${landingLimeButtonClass} h-12 w-full gap-2 rounded-xl text-base font-semibold`}
+                      >
+                        Thử lại
+                      </button>
+                    ) : (
+                      <p className={`text-center text-xs ${labelMuted}`}>Đang tạo đơn…</p>
+                    )
+                  ) : null}
+                </div>
               </div>
-            </div>
-          </aside>
+            </aside>
+          )}
         </div>
-      </main>
+      </div>
 
       {paymentSuccessOverlay ? (
         <div

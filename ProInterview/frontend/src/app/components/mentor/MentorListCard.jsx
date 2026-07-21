@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { Video, BadgeCheck, Star } from "lucide-react";
 import { MENTOR_BOOKING_COPY } from "../../constants/brandVoice";
+import { getPlans } from "../../utils/auth";
 
 function formatVnd(amount) {
   return `${Number(amount || 0).toLocaleString("vi-VN")}đ`;
@@ -55,6 +56,13 @@ function StarRating({ rating, reviewCount }) {
 
 export function MentorListCard({ mentor, onOpenProfile, onBook }) {
   const offer = resolveMentorSessionOffer(mentor);
+  /* Ưu đãi Sinh Viên/Chuyên Nghiệp (-5%/-10%) — ước tính hiển thị theo gói hiện tại, số tiền thật chốt ở /checkout. */
+  const plans = getPlans();
+  const planDiscountRate = plans.professional ? 0.1 : plans.student ? 0.05 : 0;
+  const planLabel = plans.professional ? "Chuyên Nghiệp" : plans.student ? "Sinh Viên" : "";
+  const planDiscountAmount =
+    offer.price > 0 && planDiscountRate > 0 ? Math.round(offer.price * planDiscountRate) : 0;
+  const planFinalPrice = offer.price - planDiscountAmount;
   const avatarSrc =
     mentor.avatar ||
     `https://ui-avatars.com/api/?name=${encodeURIComponent(
@@ -152,15 +160,23 @@ export function MentorListCard({ mentor, onOpenProfile, onBook }) {
 
         <div className="mb-4 text-center">
           <span className="text-xs text-slate-500">{offer.label}</span>
-          <p className="mt-0.5">
+          <p className="mt-0.5 flex items-center justify-center gap-1.5">
+            {planDiscountAmount > 0 ? (
+              <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                -{Math.round(planDiscountRate * 100)}% {planLabel}
+              </span>
+            ) : null}
             <span className="text-sm font-bold text-slate-900">
-              {formatVnd(offer.price)}
+              {formatVnd(planFinalPrice)}
               <span className="text-xs font-medium text-slate-500">
                 {" "}
                 / {offer.minutes} phút
               </span>
             </span>
           </p>
+          {planDiscountAmount > 0 ? (
+            <span className="text-[11px] text-slate-400 line-through">{formatVnd(offer.price)}</span>
+          ) : null}
         </div>
 
         <div className="flex w-full flex-col gap-2">

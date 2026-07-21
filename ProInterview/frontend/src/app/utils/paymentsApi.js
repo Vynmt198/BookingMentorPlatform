@@ -50,6 +50,7 @@ export async function createSubscriptionTransferPending({ amount, planKey, order
         providerRef: body.providerRef,
         idempotent: Boolean(body.idempotent),
         paymentExpiresAt: body.paymentExpiresAt ?? null,
+        amount: body.amount,
       };
     }
     return { success: false, error: body.error || "Không tạo được giao dịch chờ CK." };

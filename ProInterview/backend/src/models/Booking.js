@@ -55,7 +55,7 @@ const bookingSchema = new Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["momo", "zalopay", "vnpay", "card", "transfer", ""],
+      enum: ["momo", "zalopay", "vnpay", "card", "transfer", "plan_quota", ""],
       default: "",
     },
     paymentRef: { type: String, default: "" },
@@ -138,5 +138,10 @@ const bookingSchema = new Schema(
 bookingSchema.index({ userId: 1, status: 1 });
 bookingSchema.index({ mentorId: 1, date: 1 });
 bookingSchema.index({ status: 1 });
+/** Chặn double-booking cùng khung giờ ở tầng DB (không chỉ check ở code — tránh race condition). */
+bookingSchema.index(
+  { mentorId: 1, date: 1, timeSlot: 1 },
+  { unique: true, partialFilterExpression: { status: { $in: ["pending", "confirmed", "in_progress"] } } },
+);
 
 export const Booking = mongoose.models.Booking ?? mongoose.model("Booking", bookingSchema);

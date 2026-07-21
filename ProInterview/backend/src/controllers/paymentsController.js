@@ -39,6 +39,7 @@ export class PaymentsController {
         providerRef: result.providerRef,
         idempotent: Boolean(result.idempotent),
         paymentExpiresAt: result.paymentExpiresAt,
+        amount: result.amount,
       });
     } catch (err) {
       next(err);

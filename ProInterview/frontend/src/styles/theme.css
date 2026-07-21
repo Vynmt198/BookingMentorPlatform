@@ -120,6 +120,12 @@ body:has(.app-user-shell) {
   background-size: auto;
 }
 
+/* Khu vực mentor — nền phẳng xám nhạt, không loang tím (đồng bộ MentorPageShell bg-[#f8f9fc]) */
+.app-shell-ambient--mentor {
+  background-color: #f8f9fc;
+  background-image: none;
+}
+
 /* Tiêu đề section Home (trừ hero) — một cỡ trên mọi breakpoint */
 .home-section-title {
   font-size: clamp(2.25rem, 3.5vw, 3.25rem);

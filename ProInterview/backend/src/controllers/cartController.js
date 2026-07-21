@@ -1,4 +1,16 @@
 import { Cart } from "../models/Cart.js";
+import { Course } from "../models/Course.js";
+import { resolveCourseAccessForUser } from "../utils/planGuard.js";
+
+// Giá khóa học hiển thị/lưu trong giỏ luôn là giá ĐÃ áp ưu đãi % theo gói hiện tại của user
+// (student -5%, professional -10%) — khớp với giá hiển thị ở trang khóa học và số tiền thực tế
+// checkoutCart() sẽ tính khi tạo đơn, tránh giỏ hàng hiện giá gốc còn nơi khác hiện giá đã giảm.
+async function priceCourseForCart(userId, courseId) {
+  const course = await Course.findById(courseId).select("price").lean();
+  if (!course) return null;
+  const access = await resolveCourseAccessForUser(userId, course.price);
+  return access.effectivePrice;
+}
 
 // Lấy giỏ hàng của user
 export const getCart = async (req, res) => {
@@ -11,6 +23,25 @@ export const getCart = async (req, res) => {
       await cart.save();
     }
 
+    // Tính lại giá hiện hành cho từng khóa học trong giỏ (gói của user hoặc giá khóa có thể đã
+    // đổi từ lúc thêm vào giỏ), đồng thời dọn luôn quantity sai (khóa học chỉ ghi danh 1 lần/user,
+    // không có khái niệm "mua nhiều số lượng") — sửa thẳng trong DB để các nơi khác (checkoutCart)
+    // cũng nhất quán, không chỉ che ở lần hiển thị này.
+    let dirty = false;
+    for (const item of cart.items) {
+      if (item.itemType !== "Course") continue;
+      const livePrice = await priceCourseForCart(userId, item.itemId);
+      if (livePrice !== null && item.price !== livePrice) {
+        item.price = livePrice;
+        dirty = true;
+      }
+      if (item.quantity !== 1) {
+        item.quantity = 1;
+        dirty = true;
+      }
+    }
+    if (dirty) await cart.save();
+
     res.json({ success: true, cart });
   } catch (error) {
     console.error("[Cart] getCart error:", error);
@@ -22,10 +53,18 @@ export const getCart = async (req, res) => {
 export const addToCart = async (req, res) => {
   try {
     const userId = req.userId;
-    const { itemType, itemId, title, price, quantity, thumbnail } = req.body;
+    const { itemType, itemId, title, quantity, thumbnail } = req.body;
+    let { price } = req.body;
 
     if (!itemType || !itemId || !title || price === undefined) {
       return res.status(400).json({ success: false, message: "Thiếu thông tin sản phẩm." });
+    }
+
+    // Giá khóa học luôn lấy từ server, đã áp ưu đãi % theo gói — không tin giá client gửi lên.
+    if (itemType === "Course") {
+      const livePrice = await priceCourseForCart(userId, itemId);
+      if (livePrice === null) return res.status(404).json({ success: false, message: "Không tìm thấy khóa học." });
+      price = livePrice;
     }
 
     let cart = await Cart.findOne({ userId });
@@ -39,8 +78,11 @@ export const addToCart = async (req, res) => {
     );
 
     if (existingItemIndex > -1) {
-      // Nếu đã có, tăng số lượng
-      cart.items[existingItemIndex].quantity += (quantity || 1);
+      // Khóa học: mỗi user chỉ ghi danh 1 lần cho 1 khóa (unique userId+courseId) — "mua thêm số
+      // lượng" là vô nghĩa, giữ nguyên quantity = 1, không cộng dồn như sản phẩm thông thường.
+      if (itemType !== "Course") {
+        cart.items[existingItemIndex].quantity += (quantity || 1);
+      }
     } else {
       // Nếu chưa có, thêm mới
       cart.items.push({
@@ -48,7 +90,7 @@ export const addToCart = async (req, res) => {
         itemId,
         title,
         price,
-        quantity: quantity || 1,
+        quantity: itemType === "Course" ? 1 : (quantity || 1),
         thumbnail: thumbnail || ""
       });
     }
@@ -78,6 +120,11 @@ export const updateCartItem = async (req, res) => {
     const item = cart.items.find((i) => i._id.toString() === itemId);
     if (!item) return res.status(404).json({ success: false, message: "Không tìm thấy sản phẩm trong giỏ." });
 
+    // Khóa học chỉ ghi danh 1 lần/user (unique userId+courseId) — không cho đổi số lượng.
+    if (item.itemType === "Course" && quantity !== 1) {
+      return res.status(400).json({ success: false, message: "Khóa học chỉ có thể mua với số lượng 1." });
+    }
+
     item.quantity = quantity;
     await cart.save();
 
@@ -91,7 +138,7 @@ export const updateCartItem = async (req, res) => {
 // Xóa sản phẩm khỏi giỏ
 export const removeFromCart = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.userId;
     const { itemId } = req.params;
 
     const cart = await Cart.findOne({ userId });
@@ -126,14 +173,15 @@ export const clearCart = async (req, res) => {
 };
 
 import { Enrollment } from "../models/Enrollment.js";
+import { expireEnrollmentTransferIfNeeded } from "../services/transferPaymentExpiryService.js";
 
 // Thanh toán giỏ hàng (tạo pending enrollments cho các khóa học trong giỏ)
 export const checkoutCart = async (req, res) => {
   try {
     const userId = req.userId;
-    const { orderNum, paymentMethod } = req.body;
+    const { orderNum: clientOrderNum, paymentMethod } = req.body;
 
-    if (!orderNum) {
+    if (!clientOrderNum) {
       return res.status(400).json({ success: false, message: "Thiếu mã đơn hàng (orderNum)." });
     }
 
@@ -149,29 +197,76 @@ export const checkoutCart = async (req, res) => {
       return res.status(400).json({ success: false, message: "Chỉ hỗ trợ thanh toán khóa học trong giỏ hàng." });
     }
 
-    const now = new Date();
-    // Tạo Enrollments pending cho từng khóa học
+    // Nếu giỏ đang có khóa học nào thuộc 1 đơn "pending" chờ chuyển khoản mà CHƯA hết hạn
+    // (ví dụ user vừa bấm Thanh toán, đang chờ QR, rồi thêm khóa khác vào giỏ và bấm Thanh
+    // toán lần nữa) — gộp lần thanh toán này vào CÙNG mã đơn cũ đó thay vì phát mã mới, để
+    // không làm "mồ côi" một giao dịch mà user có thể đã chuyển khoản ghi nội dung mã đơn cũ.
+    let orderNum = clientOrderNum;
     for (const item of courseItems) {
-      // Kiểm tra xem đã ghi danh chưa
+      const existingPending = await Enrollment.findOne({
+        userId,
+        courseId: item.itemId,
+        paymentStatus: "pending",
+        paymentMethod: "transfer",
+      });
+      if (!existingPending) continue;
+      const { expired } = await expireEnrollmentTransferIfNeeded(existingPending);
+      if (expired || !existingPending.paymentRef) continue;
+      orderNum = existingPending.paymentRef;
+      break;
+    }
+
+    const now = new Date();
+    let totalDue = 0;
+    const grantedCourseIds = [];
+    // Tạo Enrollments pending cho từng khóa học — giá luôn tính lại từ Course + gói hiện tại của user
+    // (không tin snapshot price trong giỏ, vì Professional được miễn phí, Student được giảm giá).
+    for (const item of courseItems) {
+      const course = await Course.findById(item.itemId).select("price").lean();
+      if (!course) continue;
+      const access = await resolveCourseAccessForUser(userId, course.price);
+
       const existing = await Enrollment.findOne({ userId, courseId: item.itemId });
-      
+
+      if (access.included || access.effectivePrice <= 0) {
+        if (existing) {
+          existing.pricePaid = access.included ? access.price : 0;
+          existing.paymentStatus = "paid";
+          existing.paymentMethod = access.included ? "plan_included" : "";
+          existing.paidAt = now;
+          existing.lastAccessedAt = now;
+          await existing.save();
+        } else {
+          await Enrollment.create({
+            userId,
+            courseId: item.itemId,
+            paymentMethod: access.included ? "plan_included" : "",
+            paymentStatus: "paid",
+            pricePaid: access.included ? access.price : 0,
+            paidAt: now,
+            lastAccessedAt: now,
+          });
+        }
+        grantedCourseIds.push(String(item.itemId));
+        continue;
+      }
+
+      totalDue += access.effectivePrice;
       if (existing) {
-        // Nếu đã có pending với cùng orderNum thì bỏ qua, nếu pending khác orderNum thì update
         if (existing.paymentStatus === "pending") {
           existing.paymentRef = orderNum;
           existing.paymentMethod = paymentMethod || "transfer";
-          existing.pricePaid = item.price;
+          existing.pricePaid = access.effectivePrice;
           existing.transferSubmittedAt = now;
           await existing.save();
         }
       } else {
-        // Tạo mới
         await Enrollment.create({
           userId,
           courseId: item.itemId,
           paymentMethod: paymentMethod || "transfer",
           paymentStatus: "pending",
-          pricePaid: item.price,
+          pricePaid: access.effectivePrice,
           paymentRef: orderNum,
           transferSubmittedAt: now,
           transferForceConfirm: false,
@@ -181,11 +276,16 @@ export const checkoutCart = async (req, res) => {
       }
     }
 
-    // Làm trống giỏ hàng (hoặc chỉ xóa các món đã checkout)
-    cart.items = cart.items.filter(item => item.itemType !== "Course");
+    // Chỉ xóa khỏi giỏ các khóa học đã được cấp quyền NGAY (miễn phí/nằm trong gói).
+    // Khóa học đang chờ chuyển khoản ("pending") vẫn giữ nguyên trong giỏ — chỉ bị xóa khi
+    // thanh toán thực sự được xác nhận (xem confirmEnrollmentTransferByAdmin trong paymentsService.js).
+    // Nếu xóa ngay tại đây, user thoát trang thanh toán trước khi chuyển khoản sẽ mất giỏ hàng oan.
+    cart.items = cart.items.filter(
+      (item) => !(item.itemType === "Course" && grantedCourseIds.includes(String(item.itemId)))
+    );
     await cart.save();
 
-    res.json({ success: true, orderNum, message: "Đã gộp đơn hàng thành công." });
+    res.json({ success: true, orderNum, totalDue, grantedCourseIds, message: "Đã gộp đơn hàng thành công." });
   } catch (error) {
     console.error("[Cart] checkoutCart error:", error);
     res.status(500).json({ success: false, message: "Lỗi server khi thanh toán giỏ hàng." });

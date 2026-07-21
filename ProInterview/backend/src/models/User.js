@@ -18,7 +18,7 @@ const userSchema = new Schema(
     avatar: { type: String, default: "" },
 
     role: { type: String, enum: ["customer", "mentor", "admin"], default: "customer" },
-    plan: { type: String, enum: ["free", "student", "professional", "premium"], default: "free" },
+    plan: { type: String, enum: ["free", "student", "professional"], default: "free" },
     planExpiresAt: { type: Date, default: null },
 
     quota: {
@@ -27,6 +27,9 @@ const userSchema = new Schema(
       mentorSessionUsed: { type: Number, default: 0 },
       mentorSessionLimit: { type: Number, default: 0 },
       resetAt: { type: Date, default: Date.now },
+      /** Chặn 1 user bắn nhiều request /analyze/* đồng thời (lãng phí LLM call). */
+      cvAnalysisInFlight: { type: Boolean, default: false },
+      cvAnalysisInFlightAt: { type: Date, default: null },
     },
 
     phone: { type: String, default: "" },

@@ -11,11 +11,11 @@ function vnd(n) {
 }
 
 function planLabel(plan) {
-  if (plan === "premium") return "Cao cấp";
   if (plan === "professional") return "Chuyên nghiệp";
   if (plan === "student") return "Sinh viên";
   if (plan === "free") return "Miễn phí";
-  // backward-compat
+  // backward-compat / gói đã ngừng bán
+  if (plan === "premium") return "Cao cấp (ngừng bán)";
   if (plan === "elite_pro") return "Chuyên nghiệp (cũ)";
   if (plan === "starter_pro") return "Sinh viên (cũ)";
   return plan || "—";

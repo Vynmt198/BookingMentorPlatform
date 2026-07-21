@@ -50,6 +50,14 @@ export function buildMentorProfileFieldsFromUser(user) {
 export async function syncMentorProfileFromUser(user) {
   if (!user?._id) return null;
   const fields = buildMentorProfileFieldsFromUser(user);
+  // User.hourlyRate hầu như không có nguồn nào ghi (mentor apply / duyệt đổi giá đều lưu thẳng
+  // vào Mentor.pricePerHour, không đụng User) — nếu đụng tới đây sẽ ghi đè giá mentor đã đặt
+  // về mặc định 350k mỗi khi User được save() (post-save hook này chạy sau MỌI lần save).
+  const hr = Number(user.hourlyRate);
+  if (!(Number.isFinite(hr) && hr > 0)) {
+    delete fields.pricePerHour;
+    delete fields.sessionTypes;
+  }
   return Mentor.findOneAndUpdate({ userId: user._id }, { $set: fields }, { new: true });
 }
 

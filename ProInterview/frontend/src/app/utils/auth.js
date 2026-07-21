@@ -83,31 +83,47 @@ function clearAuthStorage() {
 
 /**
  * Gọi POST /api/auth/refresh — trả true nếu đã có access token mới.
+ *
+ * `refreshToken` xoay vòng (dùng 1 lần) ở backend, nên nhiều lệnh gọi song song (vd.
+ * vài `authFetch` bắn cùng lúc lúc load trang) không được phép cùng gửi refresh token cũ —
+ * request thứ 2 sẽ bị 401 vì token đã bị request thứ 1 tiêu, rồi xoá luôn phiên vừa refresh
+ * thành công. Dùng 1 promise dùng chung để mọi lệnh gọi đồng thời chỉ tạo ra 1 request thật.
  */
+let inFlightRefresh = null;
+
 export async function tryRefreshAccessToken() {
+  if (inFlightRefresh) return inFlightRefresh;
+
   const rt = getRefreshToken();
   if (!rt) return false;
-  try {
-    const access = getAccessToken();
-    const headers = { ...jsonHeaders };
-    if (access) headers.Authorization = `Bearer ${access}`;
-    const res = await fetch(apiUrl("/api/auth/refresh"), {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ refreshToken: rt }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body.success || !body.token) {
-      if (res.status === 401 || res.status === 403) {
-        clearAuthStorage();
+
+  inFlightRefresh = (async () => {
+    try {
+      const access = getAccessToken();
+      const headers = { ...jsonHeaders };
+      if (access) headers.Authorization = `Bearer ${access}`;
+      const res = await fetch(apiUrl("/api/auth/refresh"), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ refreshToken: rt }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.success || !body.token) {
+        if (res.status === 401 || res.status === 403) {
+          clearAuthStorage();
+        }
+        return false;
       }
+      persistLoginPayload(body);
+      return true;
+    } catch {
       return false;
+    } finally {
+      inFlightRefresh = null;
     }
-    persistLoginPayload(body);
-    return true;
-  } catch {
-    return false;
-  }
+  })();
+
+  return inFlightRefresh;
 }
 
 /** Lỗi tạm thời (backend restart, rate limit) — giữ phiên local, không đăng xuất. */
@@ -736,7 +752,7 @@ export function syncPlansFromUser(user) {
 
 export function getPlans() {
   const raw = localStorage.getItem(PLAN_KEY);
-  let stored = { student: false, professional: false, premium: false };
+  let stored = { student: false, professional: false };
   if (raw) {
     try {
       const parsed = JSON.parse(raw);
@@ -746,7 +762,7 @@ export function getPlans() {
         localStorage.setItem(PLAN_KEY, JSON.stringify(stored));
       }
     } catch {
-      stored = { student: false, professional: false, premium: false };
+      stored = { student: false, professional: false };
     }
   }
   const u = getUser();
@@ -764,12 +780,8 @@ export function setPlan(plan, value = true) {
 }
 
 export function setActivePlan(plan) {
-  const fresh = { student: false, professional: false, premium: false };
-  if (plan === "premium") {
-    fresh.student = true;
-    fresh.professional = true;
-    fresh.premium = true;
-  } else if (plan === "professional") {
+  const fresh = { student: false, professional: false };
+  if (plan === "professional") {
     fresh.student = true;
     fresh.professional = true;
   } else if (plan === "student") {
@@ -779,7 +791,7 @@ export function setActivePlan(plan) {
 }
 
 export function activateAllPlans() {
-  const all = { student: true, professional: true, premium: true };
+  const all = { student: true, professional: true };
   localStorage.setItem(PLAN_KEY, JSON.stringify(all));
 }
 
@@ -798,7 +810,7 @@ export function incrementCVCount() {
 
 export function getCVRemaining() {
   const plans = getPlans();
-  if (plans.professional || plans.premium) return Infinity;
+  if (plans.professional) return Infinity;
   if (plans.student) return Infinity;
   return Math.max(0, CV_FREE_LIMIT - getCVAnalysisCount());
 }

@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiUrl } from '../utils/api.js';
+import { getAccessToken } from '../utils/auth.js';
 
 const CartContext = createContext();
 
@@ -13,12 +15,11 @@ export const CartProvider = ({ children }) => {
 
   const fetchCart = async () => {
     try {
-      // Assuming a generic token setup, you might need to adapt how token is fetched
-      const token = localStorage.getItem('prointerview_access_token');
+      const token = getAccessToken();
       if (!token) return;
 
       setLoading(true);
-      const res = await fetch('/api/cart', {
+      const res = await fetch(apiUrl('/api/cart'), {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -38,13 +39,13 @@ export const CartProvider = ({ children }) => {
 
   const addToCart = async (itemType, itemId, title, price, quantity = 1, thumbnail = '') => {
     try {
-      const token = localStorage.getItem('prointerview_access_token');
+      const token = getAccessToken();
       if (!token) {
         alert("Vui lòng đăng nhập để thêm vào giỏ hàng");
         return;
       }
-      
-      const res = await fetch('/api/cart/add', {
+
+      const res = await fetch(apiUrl('/api/cart/add'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,15 +58,37 @@ export const CartProvider = ({ children }) => {
         setCart(data.cart);
         setIsCartOpen(true); // Mở giỏ hàng khi thêm thành công
       }
+      return data;
     } catch (error) {
       console.error("Failed to add to cart:", error);
+      return { success: false };
+    }
+  };
+
+  const updateCartItemQuantity = async (itemId, quantity) => {
+    try {
+      const token = getAccessToken();
+      const res = await fetch(apiUrl(`/api/cart/${itemId}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ quantity })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setCart(data.cart);
+      }
+    } catch (error) {
+      console.error("Failed to update cart item:", error);
     }
   };
 
   const removeFromCart = async (itemId) => {
     try {
-      const token = localStorage.getItem('prointerview_access_token');
-      const res = await fetch(`/api/cart/remove/${itemId}`, {
+      const token = getAccessToken();
+      const res = await fetch(apiUrl(`/api/cart/remove/${itemId}`), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -80,8 +103,8 @@ export const CartProvider = ({ children }) => {
 
   const clearCart = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/cart/clear`, {
+      const token = getAccessToken();
+      const res = await fetch(apiUrl('/api/cart/clear'), {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -104,6 +127,7 @@ export const CartProvider = ({ children }) => {
       isCartOpen,
       setIsCartOpen,
       addToCart,
+      updateCartItemQuantity,
       removeFromCart,
       clearCart,
       cartItemsCount,
