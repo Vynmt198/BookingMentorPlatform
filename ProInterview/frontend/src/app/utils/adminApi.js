@@ -72,8 +72,6 @@ export const adminApi = {
   getTransactionSupport: () => authedFetch("/api/admin/system/transaction-support"),
   getSystemOverview: () => authedFetch("/api/admin/system/overview"),
   getContentStats: () => authedFetch("/api/admin/content/stats"),
-  getRecentInterviewSessions: (limit = 30) =>
-    authedFetch(`/api/admin/content/interview-sessions?limit=${encodeURIComponent(limit)}`),
   getCourseMediaOverview: (scope = "all") =>
     authedFetch(`/api/admin/content/course-media?scope=${encodeURIComponent(scope)}`),
   updateBookingStatus: (id, status, reason = "") =>

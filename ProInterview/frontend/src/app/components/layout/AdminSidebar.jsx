@@ -59,7 +59,7 @@ const MAIN_GROUPS = [
   {
     title: "Đối soát SePay",
     items: [
-      { to: "/admin/subscription-payments", label: "Theo dõi gói Pro/Elite", icon: Crown },
+      { to: "/admin/subscription-payments", label: "Theo dõi gói Sinh viên/Chuyên nghiệp", icon: Crown },
       { to: "/admin/course-payments", label: "Theo dõi học phí khóa", icon: BookOpen },
     ],
   },

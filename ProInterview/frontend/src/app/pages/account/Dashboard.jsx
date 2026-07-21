@@ -52,21 +52,28 @@ function getCancellationPolicy(dateStr, timeStr) {
   return { feePercent: 0, refundPercent: 100 };
 }
 
-function getTimeUntilSessionLabel(dateStr, timeStr) {
+/** Số ms đã trôi qua kể từ giờ hẹn (âm nếu chưa tới giờ). */
+function elapsedMs(dateStr, timeStr) {
   const [d, m, y] = String(dateStr || "").split("/").map(Number);
   const [hh, mm] = String(timeStr || "").split(":").map(Number);
   const startAt = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
-  if (!Number.isFinite(startAt.getTime())) return "";
+  if (!Number.isFinite(startAt.getTime())) return 0;
+  return Date.now() - startAt.getTime();
+}
 
-  const diffMs = startAt.getTime() - Date.now();
-  if (diffMs <= 0) return "Đến giờ";
-
-  const totalMin = Math.floor(diffMs / 60000);
-  const h = Math.floor(totalMin / 60);
-  const min = totalMin % 60;
-  if (h <= 0) return `Còn ${min}m`;
-  if (min === 0) return `Còn ${h}h`;
-  return `Còn ${h}h ${min}m`;
+function getTimeUntilSessionLabel(dateStr, timeStr) {
+  const elapsed = elapsedMs(dateStr, timeStr);
+  if (elapsed < 0) {
+    const diffMs = -elapsed;
+    const totalMin = Math.floor(diffMs / 60000);
+    const h = Math.floor(totalMin / 60);
+    const min = totalMin % 60;
+    if (h <= 0) return `Còn ${min}m`;
+    if (min === 0) return `Còn ${h}h`;
+    return `Còn ${h}h ${min}m`;
+  }
+  if (elapsed <= 30 * 60000) return "Đang diễn ra";
+  return "Đã qua giờ";
 }
 
 // Modal Hủy Lịch Hẹn
@@ -326,7 +333,7 @@ function MentorIssuesCompactPanel({ alerts, refundAlerts, onOpen }) {
   );
 }
 
-function getPaymentBadge(paymentStatus, status) {
+function getPaymentBadge(paymentStatus, status, dateStr, timeStr) {
   if (paymentStatus === "refund_pending") {
     return {
       text: "Chờ hoàn CK",
@@ -339,10 +346,16 @@ function getPaymentBadge(paymentStatus, status) {
       className: "bg-sky-500/10 text-sky-300 border-sky-500/30",
     };
   }
-  if (status === "confirmed" || paymentStatus === "paid") {
+  if (status === "confirmed" || status === "in_progress" || paymentStatus === "paid") {
     return {
       text: "Đã thanh toán",
       className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+    };
+  }
+  if (status === "pending" && elapsedMs(dateStr, timeStr) > 0) {
+    return {
+      text: "Hết hạn TT",
+      className: "bg-slate-500/10 text-slate-400 border-slate-500/20",
     };
   }
   return {
@@ -563,7 +576,8 @@ export function Dashboard() {
     });
     const upcoming = merged.filter((b) => {
       const st = String(b.status || "").toLowerCase();
-      return st === "confirmed" || st === "in_progress";
+      if (st !== "confirmed" && st !== "in_progress") return false;
+      return elapsedMs(b.date, b.time) <= 2 * 3600000;
     });
     setUpcomingSessions(upcoming);
     setMentorIssueAlerts(mentorAlerts);
@@ -765,7 +779,7 @@ export function Dashboard() {
                              <div className="flex items-center justify-between mb-1">
                                 <p className="text-[10px] font-black text-secondary tracking-wider uppercase">{s.date} • {s.time}</p>
                                 {(() => {
-                                  const badge = getPaymentBadge(s.paymentStatus, s.status);
+                                  const badge = getPaymentBadge(s.paymentStatus, s.status, s.date, s.time);
                                   return (
                                     <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase border ${badge.className}`}>
                                       {badge.text}
@@ -773,7 +787,13 @@ export function Dashboard() {
                                   );
                                 })()}
                              </div>
-                             <p className="text-[10px] font-bold text-violet-600 mb-1.5">
+                             <p
+                               className={`text-[10px] font-bold mb-1.5 ${
+                                 getTimeUntilSessionLabel(s.date, s.time) === "Đã qua giờ"
+                                   ? "text-orange-500"
+                                   : "text-violet-600"
+                               }`}
+                             >
                                {getTimeUntilSessionLabel(s.date, s.time)}
                              </p>
                              <h4 className="text-base font-black text-slate-900 truncate pr-4">{s.mentorName}</h4>

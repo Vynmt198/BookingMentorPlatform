@@ -9,7 +9,6 @@ const activitySchema = new Schema(
     type: {
       type: String,
       enum: [
-        "interview_completed",
         "cv_analyzed",
         "booking_created",
         "booking_completed",

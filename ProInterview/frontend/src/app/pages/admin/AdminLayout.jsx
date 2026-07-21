@@ -14,7 +14,7 @@ const ADMIN_HEADER_RULES = [
   [/^\/admin\/bookings\/[^/]+$/, "Lịch hẹn & thanh toán"],
   [/^\/admin\/bookings$/, "Lịch hẹn & thanh toán"],
   [/^\/admin\/course-payments$/, "Theo dõi học phí khóa"],
-  [/^\/admin\/subscription-payments$/, "Theo dõi gói Pro/Elite"],
+  [/^\/admin\/subscription-payments$/, "Theo dõi gói Sinh viên/Chuyên nghiệp"],
   [/^\/admin\/transactions$/, "Giao dịch"],
   [/^\/admin\/payouts$/, "Rút tiền cố vấn"],
   [/^\/admin\/finance$/, "Tài chính"],

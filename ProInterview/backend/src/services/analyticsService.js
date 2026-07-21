@@ -15,7 +15,6 @@ export const FUNNEL_STEPS = [
   { route: "/", regex: "^/$" },
   { route: "/pricing", regex: "^/pricing" },
   { route: "/cv-analysis", regex: "^/cv-analysis" },
-  { route: "/interview", regex: "^/interview" },
   { route: "/mentors", regex: "^/mentors" },
   { route: "/booking", regex: "^/booking" },
   { route: "/checkout", regex: "^/checkout" },

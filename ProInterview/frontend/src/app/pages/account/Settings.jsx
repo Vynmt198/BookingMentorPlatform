@@ -214,7 +214,7 @@ const DEFAULT_CUSTOMER_NOTIFS = [
   {
     id: "plan_expiring",
     label: "Gói sắp hết hạn",
-    description: "Nhắc trước 7 ngày khi gói Pro hoặc Elite của bạn sắp hết.",
+    description: "Nhắc trước 7 ngày khi gói Sinh viên hoặc Chuyên nghiệp của bạn sắp hết.",
     value: true,
     icon: CreditCard,
   },

@@ -25,7 +25,7 @@ const TILES = [
   { to: "/admin/mentors/pending", label: "Duyệt cố vấn", icon: UserPlus, desc: "Hồ sơ chờ phê duyệt" },
   {
     to: "/admin/subscription-payments",
-    label: "Gói Pro/Elite",
+    label: "Gói Sinh viên/Chuyên nghiệp",
     icon: Crown,
     desc: "CK nâng cấp gói — SePay tự kích hoạt",
   },

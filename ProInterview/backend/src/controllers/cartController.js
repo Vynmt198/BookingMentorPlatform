@@ -1,6 +1,8 @@
 import { Cart } from "../models/Cart.js";
 import { Course } from "../models/Course.js";
+import { Enrollment } from "../models/Enrollment.js";
 import { resolveCourseAccessForUser } from "../utils/planGuard.js";
+import { expireEnrollmentTransferIfNeeded } from "../services/transferPaymentExpiryService.js";
 
 // Giá khóa học hiển thị/lưu trong giỏ luôn là giá ĐÃ áp ưu đãi % theo gói hiện tại của user
 // (student -5%, professional -10%) — khớp với giá hiển thị ở trang khóa học và số tiền thực tế
@@ -23,11 +25,32 @@ export const getCart = async (req, res) => {
       await cart.save();
     }
 
+    let dirty = false;
+
+    // Khóa học đã mua xong (paymentStatus "paid") không được phép còn nằm trong giỏ — dọn luôn
+    // tại đây để tự phục hồi các giỏ hàng cũ (thêm vào giỏ từ trước khi mua, hoặc mua qua nơi
+    // khác) trước khi user có thể bấm thanh toán trùng cho khóa học đã sở hữu.
+    const cartCourseIds = cart.items.filter((i) => i.itemType === "Course").map((i) => i.itemId);
+    if (cartCourseIds.length > 0) {
+      const paidEnrollments = await Enrollment.find({
+        userId,
+        courseId: { $in: cartCourseIds },
+        paymentStatus: "paid",
+      }).select("courseId").lean();
+      const paidCourseIds = new Set(paidEnrollments.map((e) => String(e.courseId)));
+      if (paidCourseIds.size > 0) {
+        const before = cart.items.length;
+        cart.items = cart.items.filter(
+          (item) => !(item.itemType === "Course" && paidCourseIds.has(String(item.itemId)))
+        );
+        if (cart.items.length !== before) dirty = true;
+      }
+    }
+
     // Tính lại giá hiện hành cho từng khóa học trong giỏ (gói của user hoặc giá khóa có thể đã
     // đổi từ lúc thêm vào giỏ), đồng thời dọn luôn quantity sai (khóa học chỉ ghi danh 1 lần/user,
     // không có khái niệm "mua nhiều số lượng") — sửa thẳng trong DB để các nơi khác (checkoutCart)
     // cũng nhất quán, không chỉ che ở lần hiển thị này.
-    let dirty = false;
     for (const item of cart.items) {
       if (item.itemType !== "Course") continue;
       const livePrice = await priceCourseForCart(userId, item.itemId);
@@ -65,6 +88,12 @@ export const addToCart = async (req, res) => {
       const livePrice = await priceCourseForCart(userId, itemId);
       if (livePrice === null) return res.status(404).json({ success: false, message: "Không tìm thấy khóa học." });
       price = livePrice;
+
+      // Đã sở hữu khóa học rồi thì không cho thêm lại vào giỏ (tránh mua/thanh toán trùng).
+      const alreadyOwned = await Enrollment.exists({ userId, courseId: itemId, paymentStatus: "paid" });
+      if (alreadyOwned) {
+        return res.status(400).json({ success: false, message: "Bạn đã sở hữu khóa học này rồi." });
+      }
     }
 
     let cart = await Cart.findOne({ userId });
@@ -172,9 +201,6 @@ export const clearCart = async (req, res) => {
   }
 };
 
-import { Enrollment } from "../models/Enrollment.js";
-import { expireEnrollmentTransferIfNeeded } from "../services/transferPaymentExpiryService.js";
-
 // Thanh toán giỏ hàng (tạo pending enrollments cho các khóa học trong giỏ)
 export const checkoutCart = async (req, res) => {
   try {
@@ -227,6 +253,14 @@ export const checkoutCart = async (req, res) => {
       const access = await resolveCourseAccessForUser(userId, course.price);
 
       const existing = await Enrollment.findOne({ userId, courseId: item.itemId });
+
+      // Đã mua/sở hữu khóa học rồi (paymentStatus "paid") — không tính lại tiền, chỉ đánh dấu
+      // để dọn khỏi giỏ. Trường hợp này chỉ xảy ra với giỏ hàng cũ từ trước khi addToCart/getCart
+      // chặn thêm/tự dọn khóa đã sở hữu.
+      if (existing && existing.paymentStatus === "paid") {
+        grantedCourseIds.push(String(item.itemId));
+        continue;
+      }
 
       if (access.included || access.effectivePrice <= 0) {
         if (existing) {

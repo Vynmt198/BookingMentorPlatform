@@ -104,20 +104,8 @@ function MenteeScoreCell({ mentee, compact = false }) {
       </div>
     );
   }
-  if (mentee.scoreSource === "interview" && mentee.avgInterviewScore != null) {
-    return (
-      <div className="flex items-center justify-center gap-1" title="Điểm STAR trung bình từ phỏng vấn AI">
-        <span className={`${valueCls} tabular-nums text-violet-700`}>{mentee.avgInterviewScore.toFixed(1)}</span>
-        {compact ? (
-          <span className="rounded bg-violet-50 px-1 py-0.5 text-[9px] font-bold text-violet-600">AI</span>
-        ) : (
-          <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-bold text-violet-600">AI</span>
-        )}
-      </div>
-    );
-  }
   return (
-    <span className={`${emptyCls} text-slate-600`} title="Chưa có đánh giá sao hoặc điểm phỏng vấn AI">
+    <span className={`${emptyCls} text-slate-600`} title="Chưa có đánh giá sao">
       Chưa có
     </span>
   );
@@ -431,11 +419,9 @@ export function MentorAnalytics() {
               <span
                 className="font-headline text-sm font-black text-[#8037f4]"
                 title={
-                  stats.radarScoreSource === "interview"
-                    ? "Trung bình 5 trục STAR từ phỏng vấn AI"
-                    : stats.radarScoreSource === "review"
-                      ? "Trung bình đánh giá sao của học viên"
-                      : undefined
+                  stats.radarScoreSource === "review"
+                    ? "Trung bình đánh giá sao của học viên"
+                    : undefined
                 }
               >
                 {formatScoreOfFive(overallAvg) ?? "Chưa có"}
@@ -626,11 +612,9 @@ export function MentorAnalytics() {
                           return (
                             <div className="flex h-full flex-col items-start justify-center rounded-xl border-2 border-dashed border-violet-200/80 bg-violet-50/40 px-4 py-5 text-left sm:items-center sm:text-center">
                               <ChartLineIcon size={28} className="mb-3 text-violet-400" />
-                              <p className="text-sm font-bold text-slate-700">
-                                {selectedMentee.hasInterviewSessions ? "Chưa đủ điểm STAR để vẽ biểu đồ" : "Chưa có dữ liệu"}
-                              </p>
+                              <p className="text-sm font-bold text-slate-700">Chưa có dữ liệu</p>
                               <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">
-                                Cần thêm buổi phỏng vấn AI hoặc đánh giá sau mentor
+                                Cần thêm đánh giá sau buổi mentor
                               </p>
                             </div>
                           );

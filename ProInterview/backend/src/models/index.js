@@ -6,7 +6,6 @@ export { User, toPublicUser } from "./User.js";
 export { Mentor, toPublicMentor } from "./Mentor.js";
 export { Booking } from "./Booking.js";
 export { CVAnalysis } from "./CVAnalysis.js";
-export { InterviewSession } from "./InterviewSession.js";
 export { Course } from "./Course.js";
 export { Enrollment } from "./Enrollment.js";
 export { Cart } from "./Cart.js";

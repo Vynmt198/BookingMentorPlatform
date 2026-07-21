@@ -13,11 +13,9 @@ import {
   Clock,
   Copy,
   Crown,
-  ChevronDown,
   Eye,
   RefreshCw,
   Search,
-  User,
   Wallet,
   XCircle,
 } from "lucide-react";
@@ -27,15 +25,6 @@ import {
   StatusPill,
 } from "../../components/admin/AdminStatusPill.jsx";
 import { AdminFilterSelect, AdminListFilterBar } from "../../components/admin/AdminListFilters.jsx";
-import {
-  AdminPageToolbar,
-  adminGlassTable,
-  adminHeaderRow,
-  adminPageWrap,
-  adminStatGrid4,
-  adminTdCell,
-  adminThCell,
-} from "../../components/admin/AdminPageShell.jsx";
 import { adminApi } from "../../utils/adminApi.js";
 import { toastApiError, toastApiSuccess, tryApi } from "../../utils/apiToast";
 import { AnimatePresence, motion } from "motion/react";
@@ -120,8 +109,7 @@ export function AdminUserDetail() {
           <div className="grid gap-3 sm:grid-cols-2 text-sm">
             <p><span className="font-semibold">Vai trò:</span> {user.role}</p>
             <p><span className="font-semibold">Gói:</span> {user.plan || "free"}</p>
-            <p><span className="font-semibold">CV đã dùng:</span> {user.quota?.cvAnalysisUsed ?? 0} / {user.quota?.cvAnalysisLimit ?? 3}</p>
-            <p><span className="font-semibold">Phỏng vấn AI:</span> {user.quota?.interviewUsed ?? 0} / {user.quota?.interviewLimit ?? user.quota?.interviewQuestionsAllowed ?? 1}</p>
+            <p><span className="font-semibold">CV đã dùng:</span> {user.quota?.cvAnalysisUsed ?? 0} / {(user.quota?.cvAnalysisLimit ?? 3) >= 999 ? "Không giới hạn" : user.quota?.cvAnalysisLimit ?? 3}</p>
             <p><span className="font-semibold">Lịch hẹn:</span> {user.stats?.bookingsCount ?? 0}</p>
             <p><span className="font-semibold">Khóa học:</span> {user.stats?.enrollmentsCount ?? 0}</p>
             <p><span className="font-semibold">Trạng thái:</span> {user.isActive === false ? "Đã khóa" : "Hoạt động"}</p>
@@ -164,7 +152,7 @@ function bookingPaymentStatus(b) {
 const FINANCE_QUICK_LINKS = [
   { to: "/admin/bookings", label: "Lịch hẹn", icon: Calendar },
   { to: "/admin/course-payments", label: "Học phí khóa", icon: BookOpen },
-  { to: "/admin/subscription-payments", label: "Gói Pro/Elite", icon: Crown },
+  { to: "/admin/subscription-payments", label: "Gói Sinh viên/Chuyên nghiệp", icon: Crown },
   { to: "/admin/payouts", label: "Rút tiền cố vấn", icon: Banknote },
 ];
 
@@ -369,7 +357,7 @@ export function AdminFinance() {
               <div className="min-w-0 text-sm text-slate-600">
                 <p className="font-bold text-slate-900">Đối soát chi tiết</p>
                 <p className="mt-1 leading-relaxed">
-                  Thu chuyển khoản (lịch hẹn, khóa học, gói Pro) được SePay tự khớp theo mã thanh toán và số tiền.
+                  Thu chuyển khoản (lịch hẹn, khóa học, gói cước) được SePay tự khớp theo mã thanh toán và số tiền.
                   Khi cổng lỗi, admin xác nhận thủ công từ từng màn theo dõi tương ứng.
                 </p>
               </div>
@@ -1310,261 +1298,6 @@ export function AdminPayouts() {
 /** @deprecated, dùng `AdminBookingDetail.jsx` */
 export { AdminBookingDetail } from "./AdminBookingDetail.jsx";
 
-const INTERVIEW_STATUS_VI = {
-  in_progress: "Đang diễn ra",
-  completed: "Hoàn thành",
-  abandoned: "Bỏ dở",
-};
-
-const SESSION_STATUS_OPTIONS = [
-  { id: "all", label: "Tất cả" },
-  { id: "completed", label: "Hoàn thành" },
-  { id: "in_progress", label: "Đang diễn ra" },
-  { id: "abandoned", label: "Bỏ dở" },
-];
-
-function formatSessionWhen(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("vi-VN", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-export function AdminContentQuestions() {
-  const [stats, setStats] = useState(null);
-  const [sessions, setSessions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [expandedId, setExpandedId] = useState(null);
-
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    const [statsRes, sessionsRes] = await Promise.all([
-      tryApi(() => adminApi.getContentStats(), {
-        fallback: "Không tải được thống kê nội dung.",
-        silent: true,
-      }),
-      tryApi(() => adminApi.getRecentInterviewSessions(30), {
-        fallback: "Không tải được danh sách phiên phỏng vấn.",
-      }),
-    ]);
-    if (statsRes.success) setStats(statsRes.content || null);
-    if (sessionsRes.success) setSessions(sessionsRes.sessions || []);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
-
-  const totalSessions = Number(stats?.interviewSessions ?? 0);
-  const completed = Number(stats?.completedInterviews ?? 0);
-
-  const filteredSessions = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    return sessions.filter((s) => {
-      const statusKey = String(s.status || "").toLowerCase();
-      if (statusFilter !== "all" && statusKey !== statusFilter) return false;
-      if (!q) return true;
-      const name = String(s.user?.name || "").toLowerCase();
-      const email = String(s.user?.email || "").toLowerCase();
-      const role = String(s.role || "").toLowerCase();
-      return name.includes(q) || email.includes(q) || role.includes(q);
-    });
-  }, [sessions, searchTerm, statusFilter]);
-
-  return (
-    <div className={adminPageWrap}>
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className={adminHeaderRow}>
-        <div className="min-w-0 flex-1">
-          <h2 className="font-headline text-3xl font-black uppercase tracking-tighter text-slate-900">
-            <span className="text-violet-700">Câu hỏi</span> phỏng vấn AI
-          </h2>
-        </div>
-        <AdminPageToolbar
-          loading={loading}
-          onRefresh={() => void loadAll()}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          searchPlaceholder="Tìm học viên, email…"
-        />
-      </motion.div>
-
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={adminStatGrid4}>
-        <div className="rounded-2xl border border-violet-200 bg-violet-50/80 p-4">
-          <p className="text-[10px] font-black uppercase tracking-widest text-violet-900">Phiên phỏng vấn AI</p>
-          <p className="mt-1 text-2xl font-black text-violet-950">{totalSessions}</p>
-        </div>
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
-          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900">Đã hoàn thành</p>
-          <p className="mt-1 text-2xl font-black text-emerald-950">{completed}</p>
-        </div>
-        <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4">
-          <p className="text-[10px] font-black uppercase tracking-widest text-sky-900">Phân tích CV</p>
-          <p className="mt-1 text-2xl font-black text-sky-950">{stats?.cvAnalyses ?? 0}</p>
-        </div>
-        <div className="rounded-2xl border border-teal-200 bg-teal-50/80 p-4">
-          <p className="text-[10px] font-black uppercase tracking-widest text-teal-900">Khóa đã xuất bản</p>
-          <p className="mt-1 text-2xl font-black text-teal-950">{stats?.publishedCourses ?? 0}</p>
-        </div>
-      </motion.div>
-
-      <AdminListFilterBar
-        countText={`Hiển thị ${filteredSessions.length} / ${sessions.length} phiên`}
-        showReset={Boolean(searchTerm.trim()) || statusFilter !== "all"}
-        onReset={() => {
-          setSearchTerm("");
-          setStatusFilter("all");
-        }}
-      >
-        <AdminFilterSelect
-          id="interview-session-status"
-          label="Trạng thái phiên"
-          value={statusFilter}
-          options={SESSION_STATUS_OPTIONS}
-          onChange={setStatusFilter}
-        />
-      </AdminListFilterBar>
-
-      <div className={adminGlassTable}>
-        <div className="max-w-full overflow-x-auto overscroll-x-contain">
-          <table className="w-full min-w-0 table-fixed border-collapse text-left">
-            <colgroup>
-              <col className="w-[4%]" />
-              <col className="w-[24%]" />
-              <col className="w-[18%]" />
-              <col className="w-[10%]" />
-              <col className="w-[18%]" />
-              <col className="w-[26%]" />
-            </colgroup>
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50/90">
-                <th className={adminThCell} />
-                <th className={adminThCell}>Học viên</th>
-                <th className={adminThCell}>Vai trò / cấp</th>
-                <th className={`${adminThCell} text-center`}>Số câu</th>
-                <th className={adminThCell}>Trạng thái</th>
-                <th className={adminThCell}>Thời gian</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className={`${adminTdCell} py-20 text-center text-[10px] font-black uppercase italic tracking-widest text-slate-500`}
-                  >
-                    Đang tải…
-                  </td>
-                </tr>
-              ) : filteredSessions.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className={`${adminTdCell} py-16 text-center text-slate-500`}>
-                    {sessions.length === 0 ? "Chưa có phiên." : "Không có kết quả."}
-                  </td>
-                </tr>
-              ) : (
-                filteredSessions.map((row) => {
-                  const open = expandedId === row.id;
-                  const statusKey = String(row.status || "").toLowerCase();
-                  return (
-                    <React.Fragment key={row.id}>
-                      <tr className="hover:bg-violet-50/30">
-                        <td className={adminTdCell}>
-                            <button
-                              type="button"
-                              onClick={() => setExpandedId(open ? null : row.id)}
-                              className="flex size-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-violet-50 hover:text-violet-700"
-                              aria-expanded={open}
-                              aria-label="Xem câu hỏi"
-                            >
-                              <ChevronDown
-                                className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`}
-                              />
-                            </button>
-                        </td>
-                        <td className={adminTdCell}>
-                          <div className="flex items-center gap-3">
-                              <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-700">
-                                <User className="h-4 w-4" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="truncate font-semibold text-slate-900">
-                                  {row.user?.name || "—"}
-                                </p>
-                                <p className="truncate text-xs text-slate-500">{row.user?.email || ""}</p>
-                              </div>
-                          </div>
-                        </td>
-                        <td className={`${adminTdCell} truncate text-slate-700`}>{row.role}</td>
-                        <td className={`${adminTdCell} text-center`}>
-                            <span className="font-black text-violet-700">{row.questionCount}</span>
-                            {row.questionsAllowed != null ? (
-                              <span className="text-xs text-slate-400"> / {row.questionsAllowed}</span>
-                            ) : null}
-                        </td>
-                        <td className={adminTdCell}>
-                          <StatusPill
-                              label={INTERVIEW_STATUS_VI[statusKey] || row.status || "—"}
-                              toneClass={
-                                statusKey === "completed"
-                                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                                  : statusKey === "in_progress"
-                                    ? "border-sky-200 bg-sky-50 text-sky-800"
-                                    : statusKey === "abandoned"
-                                      ? "border-rose-200 bg-rose-50 text-rose-700"
-                                      : "border-slate-200 bg-slate-50 text-slate-600"
-                              }
-                          />
-                        </td>
-                        <td className={`${adminTdCell} whitespace-nowrap text-slate-600`}>
-                          {formatSessionWhen(row.createdAt)}
-                        </td>
-                      </tr>
-                      {open ? (
-                        <tr className="bg-violet-50/20">
-                          <td colSpan={6} className="px-6 py-4">
-                              {row.questions?.length > 0 ? (
-                                <ol className="space-y-3">
-                                  {row.questions.map((q) => (
-                                    <li
-                                      key={`${row.id}-${q.index}`}
-                                      className="rounded-md border border-violet-100 bg-white px-4 py-3"
-                                    >
-                                      <p className="text-[10px] font-semibold uppercase tracking-wide text-violet-700">
-                                        Câu {q.index}
-                                      </p>
-                                      <p className="mt-1 text-sm leading-relaxed text-slate-800">
-                                        {q.question || "—"}
-                                      </p>
-                                    </li>
-                                  ))}
-                                </ol>
-                              ) : (
-                                <p className="text-sm text-slate-500">Chưa có câu hỏi lưu trên máy chủ.</p>
-                              )}
-                          </td>
-                        </tr>
-                      ) : null}
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export { AdminContentCourses } from "./AdminContentCourses.jsx";
 
 export function AdminSystemSettings() {
@@ -1606,16 +1339,14 @@ export function AdminSystemSettings() {
                 <thead>
                   <tr className="text-left text-xs uppercase text-slate-500">
                     <th className="py-2 pr-4">Gói</th>
-                    <th className="py-2 pr-4">CV/tháng</th>
-                    <th className="py-2">Phỏng vấn AI</th>
+                    <th className="py-2">CV/tháng</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(overview.plans || []).map((p) => (
                     <tr key={p.key} className="border-t border-slate-100">
                       <td className="py-2 pr-4 font-medium">{p.label || p.key}</td>
-                      <td className="py-2 pr-4">{p.cvAnalysisLimit}</td>
-                      <td className="py-2">{p.interviewLimit}</td>
+                      <td className="py-2">{p.cvAnalysisLimit >= 999 ? "Không giới hạn" : p.cvAnalysisLimit}</td>
                     </tr>
                   ))}
                 </tbody>

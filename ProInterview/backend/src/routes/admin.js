@@ -30,7 +30,6 @@ adminRouter.get("/bookings/:id", asyncHandler(AdminController.getBookingById));
 adminRouter.get("/system/transaction-support", asyncHandler(AdminController.getTransactionSupport));
 adminRouter.get("/system/overview", asyncHandler(AdminController.getSystemOverview));
 adminRouter.get("/content/stats", asyncHandler(AdminController.getContentStats));
-adminRouter.get("/content/interview-sessions", asyncHandler(AdminController.getRecentInterviewSessions));
 adminRouter.get("/content/course-media", asyncHandler(AdminController.getCourseMediaOverview));
 adminRouter.get("/finance/courses", asyncHandler(AdminController.getCourseFinanceSummary));
 adminRouter.get("/finance/platform-summary", asyncHandler(AdminController.getPlatformFinanceSummary));
@@ -61,6 +60,5 @@ adminRouter.get("/courses/published", asyncHandler(AdminController.getPublishedC
 adminRouter.patch("/courses/:id/approve", asyncHandler(AdminController.approveCourse));
 adminRouter.patch("/courses/:id/reject", asyncHandler(AdminController.rejectCourse));
 adminRouter.patch("/courses/:id/archive", asyncHandler(AdminController.archiveCourse));
-adminRouter.get("/interview-metrics", asyncHandler(AdminController.getInterviewMetrics));
 adminRouter.get("/analytics/user-behavior", asyncHandler(AdminController.getPlatformBehavior));
 adminRouter.get("/analytics/users/:id/journey", asyncHandler(AdminController.getUserJourney));
