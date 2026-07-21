@@ -390,7 +390,9 @@ export function MentorSchedule() {
         return;
       }
       const rows = Array.isArray(result.bookings) ? result.bookings : [];
-      setMentorMeetings(rows.map(toMeetingItem));
+      // Ẩn buổi "pending" (học viên chưa thanh toán) khỏi lịch mentor — chỉ hiện khi đã xác nhận.
+      const confirmedRows = rows.filter((r) => String(r.status || "").toLowerCase() !== "pending");
+      setMentorMeetings(confirmedRows.map(toMeetingItem));
     })();
     return () => {
       active = false;
@@ -447,7 +449,6 @@ export function MentorSchedule() {
   });
 
   const finalDays = [...calendarDays, ...paddingDays];
-  const activeStatuses = new Set(["pending", "confirmed", "in_progress"]);
   const sourceMeetings = mentorMeetings;
   const selectedDayMeetings = sourceMeetings.filter((m) => bookingOnDate(m.date, selectedDate) || bookingOnDate(m.scheduledDate, selectedDate));
 

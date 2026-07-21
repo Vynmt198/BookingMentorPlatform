@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import { User } from "../models/User.js";
 import { Booking } from "../models/Booking.js";
 import { CVAnalysis } from "../models/CVAnalysis.js";
-import { InterviewSession } from "../models/InterviewSession.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Activity } from "../models/Activity.js";
 import { computeLearningStreak, toVnDayKey } from "../utils/learningStreak.js";
@@ -19,14 +18,9 @@ export async function getDashboardStats(userId) {
 
   const uid = new mongoose.Types.ObjectId(userId);
 
-  const [user, cvCount, interviewCompleted, completedSessions, bookingsTotal, bookingsUpcoming] = await Promise.all([
+  const [user, cvCount, bookingsTotal, bookingsUpcoming] = await Promise.all([
     User.findById(uid).select("plan planExpiresAt quota name").lean(),
     CVAnalysis.countDocuments({ userId: uid }),
-    InterviewSession.countDocuments({ userId: uid, status: "completed" }),
-    InterviewSession.find({ userId: uid, status: "completed" })
-      .select("feedback.overallScore")
-      .lean()
-      .limit(200),
     Booking.countDocuments({ userId: uid }),
     Booking.countDocuments({
       userId: uid,
@@ -35,14 +29,6 @@ export async function getDashboardStats(userId) {
   ]);
 
   if (!user) return { ok: false, status: 404, error: "Không tìm thấy user." };
-
-  let avgInterviewScore = 0;
-  if (completedSessions.length) {
-    const scores = completedSessions
-      .map((s) => Number(s.feedback?.overallScore))
-      .filter((n) => Number.isFinite(n) && n > 0);
-    if (scores.length) avgInterviewScore = Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10;
-  }
 
   const bestCv = await CVAnalysis.findOne({ userId: uid, "result.matchScore": { $exists: true } })
     .sort({ "result.matchScore": -1 })
@@ -60,8 +46,6 @@ export async function getDashboardStats(userId) {
       planExpiresAt: user.planExpiresAt,
       quota: user.quota ?? {},
       cvAnalysesCount: cvCount,
-      interviewSessionsCompleted: interviewCompleted,
-      interviewAverageScore: avgInterviewScore,
       cvBestMatchScore: bestMatchScore,
       mentorBookingsTotal: bookingsTotal,
       mentorBookingsActive: bookingsUpcoming,
@@ -81,11 +65,7 @@ export async function collectLearningActiveDays(userId) {
     if (Number.isFinite(t.getTime())) keys.add(toVnDayKey(t));
   };
 
-  const [sessions, analyses, enrollments, activities] = await Promise.all([
-    InterviewSession.find({ userId, status: "completed" })
-      .select("completedAt updatedAt")
-      .lean()
-      .limit(400),
+  const [analyses, enrollments, activities] = await Promise.all([
     CVAnalysis.find({ userId }).select("createdAt").lean().limit(400),
     Enrollment.find({ userId, lastAccessedAt: { $ne: null } })
       .select("lastAccessedAt")
@@ -94,7 +74,6 @@ export async function collectLearningActiveDays(userId) {
     Activity.find({ userId }).select("createdAt").lean().limit(400),
   ]);
 
-  for (const s of sessions) add(s.completedAt || s.updatedAt);
   for (const c of analyses) add(c.createdAt);
   for (const e of enrollments) add(e.lastAccessedAt);
   for (const a of activities) add(a.createdAt);

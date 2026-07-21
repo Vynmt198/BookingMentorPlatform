@@ -20,7 +20,6 @@ import { Activity } from "../models/Activity.js";
 import { CourseQA } from "../models/CourseQA.js";
 import { MentorPeerReview } from "../models/MentorPeerReview.js";
 import { CVAnalysis } from "../models/CVAnalysis.js";
-import { InterviewSession } from "../models/InterviewSession.js";
 import { createMentorProfileForUser, syncMentorProfileFromUser } from "../services/mentorProfileService.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -148,7 +147,6 @@ async function ensureUser(definition, passwordHash) {
   user.journeyProgress = {
     uploadedCV: Boolean(definition.journeyProgress?.uploadedCV),
     analyzedCVJD: Boolean(definition.journeyProgress?.analyzedCVJD),
-    completedInterview: Boolean(definition.journeyProgress?.completedInterview),
     bookedMentor: Boolean(definition.journeyProgress?.bookedMentor),
     receivedOffer: Boolean(definition.journeyProgress?.receivedOffer),
   };
@@ -260,7 +258,7 @@ async function main() {
       bio: "Seed customer with dashboard, booking and review data.",
       school: "FPT University",
       phone: "0901000001",
-      journeyProgress: { uploadedCV: true, analyzedCVJD: true, completedInterview: true, bookedMentor: true },
+      journeyProgress: { uploadedCV: true, analyzedCVJD: true, bookedMentor: true },
     },
     passwordHash,
   );
@@ -297,7 +295,7 @@ async function main() {
       bio: "Starter plan user for plans, payments and reports tests.",
       school: "UEH",
       phone: "0901000003",
-      journeyProgress: { uploadedCV: true, analyzedCVJD: true, completedInterview: true, bookedMentor: true, receivedOffer: true },
+      journeyProgress: { uploadedCV: true, analyzedCVJD: true, bookedMentor: true, receivedOffer: true },
     },
     passwordHash,
   );
@@ -1069,12 +1067,6 @@ async function main() {
     description: `[Seed ${SEED_VERSION}] CV match analysis completed`,
     metadata: { matchScore: 82 },
   });
-  await upsertDoc(Activity, { userId: users.customerDev._id, description: `[Seed ${SEED_VERSION}] AI interview session completed` }, {
-    userId: users.customerDev._id,
-    type: "interview_completed",
-    description: `[Seed ${SEED_VERSION}] AI interview session completed`,
-    metadata: { score: 84 },
-  });
   await upsertDoc(Activity, { userId: users.customerDev._id, description: `[Seed ${SEED_VERSION}] Mentor booking created` }, {
     userId: users.customerDev._id,
     type: "booking_created",
@@ -1162,65 +1154,6 @@ async function main() {
     },
     planAtTime: "pro",
     meta: { processingTimeMs: 1760, llmProvider: "mock", pythonEndpoint: "/analyze/suggestions" },
-  });
-
-  await upsertDoc(InterviewSession, { shareToken: `seed-${SEED_VERSION}-interview-customer-1` }, {
-    userId: users.customerDev._id,
-    hrGender: "female",
-    planAtTime: "free",
-    questionsAllowed: 3,
-    answers: [
-      { questionIndex: 0, questionText: "Tell me about yourself.", transcript: "I am a backend developer focused on APIs and databases.", wordCount: 18, durationSeconds: 58, recordedAt: addDays(today, -6) },
-      { questionIndex: 1, questionText: "Describe a difficult bug you solved.", transcript: "I traced a race condition in an order sync job and fixed retry logic.", wordCount: 24, durationSeconds: 86, recordedAt: addDays(today, -6) },
-    ],
-    feedback: {
-      overallScore: 84,
-      communication: 82,
-      confidence: 80,
-      structure: 85,
-      content: 86,
-      timing: 83,
-      generalComment: "Good clarity and solid examples. Add more measurable impact.",
-      perQuestion: [
-        { questionIndex: 0, score: 84, badge: "Tốt", strengths: ["Clear intro", "Relevant summary"], improvements: ["Mention metrics sooner"] },
-        { questionIndex: 1, score: 85, badge: "Tốt", strengths: ["Good ownership", "Logical breakdown"], improvements: ["Close with business result"] },
-      ],
-      isLockedForFree: false,
-    },
-    status: "completed",
-    totalDurationSeconds: 144,
-    completedAt: addDays(today, -6),
-    feedbackGeneratedAt: addDays(today, -6),
-    reportPdfUrl: "https://example.com/reports/interview-customer-1.pdf",
-    shareToken: `seed-${SEED_VERSION}-interview-customer-1`,
-    shareTokenExpiresAt: addMonths(today, 1),
-  });
-  await upsertDoc(InterviewSession, { shareToken: `seed-${SEED_VERSION}-interview-customer-2` }, {
-    userId: users.customerDev._id,
-    hrGender: "male",
-    planAtTime: "free",
-    questionsAllowed: 3,
-    answers: [
-      { questionIndex: 0, questionText: "How do you design a scalable API?", transcript: "I start with use cases, capacity, data flow and failure handling.", wordCount: 20, durationSeconds: 72, recordedAt: addDays(today, -3) },
-    ],
-    feedback: {
-      overallScore: 88,
-      communication: 86,
-      confidence: 85,
-      structure: 90,
-      content: 89,
-      timing: 84,
-      generalComment: "Very solid structure and better technical framing than the previous run.",
-      perQuestion: [{ questionIndex: 0, score: 88, badge: "Xuất sắc", strengths: ["Strong framework", "Good tradeoffs"], improvements: ["Use one concrete production example"] }],
-      isLockedForFree: false,
-    },
-    status: "completed",
-    totalDurationSeconds: 72,
-    completedAt: addDays(today, -3),
-    feedbackGeneratedAt: addDays(today, -3),
-    reportPdfUrl: "https://example.com/reports/interview-customer-2.pdf",
-    shareToken: `seed-${SEED_VERSION}-interview-customer-2`,
-    shareTokenExpiresAt: addMonths(today, 1),
   });
 
   await upsertDoc(CourseQA, { courseId: courses.backend._id, question: `[Seed ${SEED_VERSION}] How should I explain database indexing tradeoffs in interviews?` }, {
@@ -1411,7 +1344,6 @@ async function main() {
       notifications: await Notification.countDocuments(),
       reports: await Report.countDocuments(),
       cvAnalyses: await CVAnalysis.countDocuments(),
-      interviewSessions: await InterviewSession.countDocuments(),
       subscriptions: await Subscription.countDocuments(),
       activities: await Activity.countDocuments(),
       courseQAs: await CourseQA.countDocuments(),

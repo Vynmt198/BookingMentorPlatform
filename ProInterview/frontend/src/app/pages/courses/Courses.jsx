@@ -28,7 +28,9 @@ import {
   buildCourseFilterCategories,
   courseMatchesTopic,
 } from "../../constants/courseCategories";
-import { getPlans } from "../../utils/auth";
+import { getPlans, isLoggedIn } from "../../utils/auth";
+import { enrollmentApi } from "../../utils/enrollmentApi";
+import { enrollmentAccessGranted } from "../../utils/enrollmentAccess";
 
 const LEVEL_OPTIONS = [
   { label: "Người mới", value: "Beginner" },
@@ -92,7 +94,7 @@ function LevelBadge({ level }) {
   );
 }
 
-function CourseCard({ course, formatPrice, onOpen, index }) {
+function CourseCard({ course, formatPrice, onOpen, index, owned }) {
   const ratingDisplay = course.rating != null ? course.rating.toFixed(1) : "—";
   const durationHours = Math.floor((course.duration || 0) / 60);
   const avatarFallback = `https://ui-avatars.com/api/?name=${encodeURIComponent(
@@ -110,13 +112,14 @@ function CourseCard({ course, formatPrice, onOpen, index }) {
 
   const handleAddToCart = async (event) => {
     event.stopPropagation();
+    if (owned) return;
     setAddingToCart(true);
     const res = await addToCart("Course", course.id, course.title, course.price, 1, course.thumbnail);
     setAddingToCart(false);
     if (res?.success) {
       toastApiSuccess("Đã thêm vào giỏ hàng");
     } else {
-      toastApiError("Không thể thêm vào giỏ hàng");
+      toastApiError(res?.message, "Không thể thêm vào giỏ hàng");
     }
   };
 
@@ -227,13 +230,13 @@ function CourseCard({ course, formatPrice, onOpen, index }) {
           {course.price > 0 ? (
             <motion.button
               type="button"
-              title="Thêm vào giỏ hàng"
+              title={owned ? "Bạn đã sở hữu khóa học này" : "Thêm vào giỏ hàng"}
               onClick={handleAddToCart}
-              disabled={addingToCart}
-              whileHover={{ scale: 1.06 }}
-              whileTap={{ scale: 0.94 }}
+              disabled={addingToCart || owned}
+              whileHover={owned ? undefined : { scale: 1.06 }}
+              whileTap={owned ? undefined : { scale: 0.94 }}
               transition={{ type: "spring", stiffness: 380, damping: 22 }}
-              className="flex shrink-0 items-center justify-center rounded-2xl border border-violet-200 bg-white p-2.5 text-[#8037f4] shadow-sm disabled:opacity-50"
+              className="flex shrink-0 items-center justify-center rounded-2xl border border-violet-200 bg-white p-2.5 text-[#8037f4] shadow-sm disabled:cursor-not-allowed disabled:opacity-40 disabled:text-slate-300"
             >
               <ShoppingCart className="size-3.5" />
             </motion.button>
@@ -280,6 +283,7 @@ export function Courses() {
   const glow2Y = useTransform(scrollYProgress, [0, 1], [0, -45]);
 
   const [courses, setCourses] = useState([]);
+  const [ownedCourseIds, setOwnedCourseIds] = useState(() => new Set());
   const [filterCategories, setFilterCategories] = useState(() =>
     buildCourseFilterCategories(),
   );
@@ -356,6 +360,17 @@ export function Courses() {
 
   useEffect(() => {
     loadCourses();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn()) return;
+    enrollmentApi.getMyEnrollments().then((res) => {
+      if (!res.success) return;
+      const ids = res.enrollments
+        .filter((e) => e.courseId && enrollmentAccessGranted(e))
+        .map((e) => String(e.courseId?._id || e.courseId));
+      setOwnedCourseIds(new Set(ids));
+    });
   }, []);
 
   const hasFilter =
@@ -737,6 +752,7 @@ export function Courses() {
                       formatPrice={formatPrice}
                       onOpen={() => navigate(`/courses/${course.id}`)}
                       index={index}
+                      owned={ownedCourseIds.has(String(course.id))}
                     />
                   ))}
                 </motion.div>

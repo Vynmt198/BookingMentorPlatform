@@ -16,11 +16,11 @@ function normalizeAnalysisPlanAtTime(value) {
 //   Object: { name: "React", category: "frontend", confidence: 0.9 }
 // Controller sẽ normalize string → object sau khi validate.
 const skillItemSchema = Joi.alternatives().try(
-  Joi.string().trim().min(1).max(100),
+  Joi.string().trim().min(1).max(200),
   Joi.object({
-    name:       Joi.string().trim().min(1).max(100).required(),
+    name:       Joi.string().trim().min(1).max(200).required(),
     category:   Joi.string().trim().max(50).optional(),
-    aliases:    Joi.array().items(Joi.string().trim().max(100)).max(20).default([]),
+    aliases:    Joi.array().items(Joi.string().trim().max(200)).max(20).default([]),
     confidence: Joi.number().min(0).max(1).default(1),
   }).unknown(false),
 );

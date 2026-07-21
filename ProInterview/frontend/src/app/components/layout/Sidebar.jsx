@@ -21,7 +21,6 @@ import {
   Home,
   LogIn,
   UserPlus,
-  Mic,
 } from "lucide-react";
 import {
   Sidebar,
@@ -60,7 +59,6 @@ import { requireLoginNavigate } from "../../utils/authGate";
 const customerMainItems = [
   { title: "Trang chủ", url: "/", icon: Home, public: true },
   { title: "Phân tích CV/JD", url: "/cv-analysis", icon: FileText, requiresAuth: true },
-  { title: "Phỏng vấn AI", url: "/interview", icon: Mic, requiresAuth: true },
   { title: "Khóa học", url: "/courses", icon: GraduationCap, public: true },
   { title: "Tìm Mentor", url: "/mentors", icon: Users, public: true },
 ];

@@ -7,7 +7,6 @@ import { Review } from "../models/Review.js";
 import { Course } from "../models/Course.js";
 import { MentorPeerReview } from "../models/MentorPeerReview.js";
 import { User } from "../models/User.js";
-import { InterviewSession } from "../models/InterviewSession.js";
 import { MentorKnowledge } from "../models/MentorKnowledge.js";
 import { deliverNotification } from "./notificationDeliveryService.js";
 import {
@@ -155,9 +154,10 @@ export async function getMentorDashboard(userId) {
     status: { $in: ["confirmed", "in_progress", "completed"] },
   });
 
+  // "pending" (học viên chưa thanh toán) không tính là buổi hẹn thật — không đưa vào lịch mentor.
   const upcomingRaw = await Booking.find({
     mentorId: mentor._id,
-    status: { $in: ["pending", "confirmed", "in_progress"] },
+    status: { $in: ["confirmed", "in_progress"] },
   })
     .populate({ path: "userId", select: "name email avatar" })
     .sort({ date: 1, timeSlot: 1 })
@@ -419,20 +419,7 @@ function parseMentorNotesSections(notes) {
   return { strengths, weaknesses };
 }
 
-function scoreToFive(score100) {
-  const n = Number(score100);
-  if (!Number.isFinite(n)) return null;
-  return Number((Math.min(100, Math.max(0, n)) / 20).toFixed(1));
-}
-
-function sessionOverallScore(session) {
-  const star = extractSessionStarScores(session);
-  if (!star) return null;
-  const vals = [star.situation, star.task, star.action, star.result].filter((v) => v != null);
-  return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-}
-
-function computeMenteeProgressTrend(uid, reviews, interviewsByUser, starHistory) {
+function computeMenteeProgressTrend(uid, reviews, starHistory) {
   const MS_DAY = 86400000;
   const now = Date.now();
 
@@ -471,23 +458,6 @@ function computeMenteeProgressTrend(uid, reviews, interviewsByUser, starHistory)
     }
   }
 
-  const sessions = (interviewsByUser.get(uid) || [])
-    .slice()
-    .sort(
-      (a, b) =>
-        new Date(a.completedAt || a.createdAt || 0).getTime() -
-        new Date(b.completedAt || b.createdAt || 0).getTime(),
-    );
-  const sessionScores = sessions.map(sessionOverallScore).filter((v) => v != null);
-  if (sessionScores.length >= 2) {
-    const last = sessionScores[sessionScores.length - 1];
-    const prev = sessionScores[sessionScores.length - 2];
-    const delta = last - prev;
-    if (delta >= 0.2) return "improving";
-    if (delta <= -0.2) return "declining";
-    return "stable";
-  }
-
   const weekAvgs = (starHistory || [])
     .map((row) => {
       const vals = [row.situation, row.task, row.action, row.result].filter(
@@ -510,60 +480,6 @@ function computeMenteeProgressTrend(uid, reviews, interviewsByUser, starHistory)
   return "unknown";
 }
 
-function extractSessionStarScores(session) {
-  const perQ = Array.isArray(session?.feedback?.perQuestion) ? session.feedback.perQuestion : [];
-  const pick = (key) => {
-    const vals = perQ.map((q) => Number(q.scores?.[key])).filter((v) => Number.isFinite(v));
-    if (!vals.length) return null;
-    return scoreToFive(vals.reduce((a, b) => a + b, 0) / vals.length);
-  };
-  const situation = pick("structure");
-  const task = pick("clarity");
-  const action = pick("relevance");
-  const result = pick("credibility");
-  if ([situation, task, action, result].some((v) => v != null)) {
-    return { situation, task, action, result };
-  }
-  const conf = Number(session?.behavioralSummary?.overallConfidenceScore);
-  if (Number.isFinite(conf) && conf > 0) {
-    const v = Number(Math.min(5, Math.max(0, conf)).toFixed(1));
-    return { situation: v, task: v, action: v, result: v };
-  }
-  const overallVals = perQ.map((q) => Number(q.overall5)).filter((v) => v > 0);
-  if (overallVals.length) {
-    const v = Number((overallVals.reduce((a, b) => a + b, 0) / overallVals.length).toFixed(1));
-    return { situation: v, task: v, action: v, result: v };
-  }
-  return null;
-}
-
-function buildWeeklyBehaviorStarHistory(sessions, now = new Date()) {
-  return Array.from({ length: 4 }, (_, i) => {
-    const weekIndex = 3 - i;
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - weekIndex * 7, 23, 59, 59, 999);
-    const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - 6, 0, 0, 0, 0);
-    const inWeek = sessions.filter((s) => {
-      const t = new Date(s.completedAt || s.createdAt || 0).getTime();
-      return t >= start.getTime() && t <= end.getTime();
-    });
-    const scores = inWeek.map(extractSessionStarScores).filter(Boolean);
-    if (!scores.length) {
-      return { date: `W${i + 1}`, situation: null, task: null, action: null, result: null };
-    }
-    const avg = (key) => {
-      const vals = scores.map((s) => s[key]).filter((v) => v != null);
-      return vals.length ? Number((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)) : null;
-    };
-    return {
-      date: `W${i + 1}`,
-      situation: avg("situation"),
-      task: avg("task"),
-      action: avg("action"),
-      result: avg("result"),
-    };
-  });
-}
-
 function uniqInsightLines(items, limit = 6) {
   const seen = new Set();
   const out = [];
@@ -577,11 +493,10 @@ function uniqInsightLines(items, limit = 6) {
   return out;
 }
 
-function buildMenteeBehaviorProfile(uid, bookings, mentorReviews, knowledgeByBooking, interviewsByUser, now) {
+function buildMenteeBehaviorProfile(uid, bookings, mentorReviews, knowledgeByBooking, now) {
   const rows = bookings.filter((b) => String(b.userId) === uid);
   const done = rows.filter((r) => r.status === "completed").length;
   const reviews = mentorReviews.filter((r) => String(r.userId) === uid);
-  const sessions = interviewsByUser.get(uid) || [];
 
   const strengthPool = [];
   const weaknessPool = [];
@@ -599,13 +514,6 @@ function buildMenteeBehaviorProfile(uid, bookings, mentorReviews, knowledgeByBoo
     }
   }
 
-  for (const s of sessions) {
-    for (const q of Array.isArray(s?.feedback?.perQuestion) ? s.feedback.perQuestion : []) {
-      strengthPool.push(...(Array.isArray(q.strengths) ? q.strengths : []));
-      weaknessPool.push(...(Array.isArray(q.improvements) ? q.improvements : []));
-    }
-  }
-
   for (const r of reviews) {
     for (const tag of Array.isArray(r.tags) ? r.tags : []) {
       strengthPool.push(tag);
@@ -613,20 +521,12 @@ function buildMenteeBehaviorProfile(uid, bookings, mentorReviews, knowledgeByBoo
     if (Number(r.rating || 0) <= 3 && r.comment) weaknessPool.push(r.comment);
   }
 
-  let starHistory = buildWeeklyBehaviorStarHistory(sessions, now);
-  const hasBehaviorChart = starHistory.some((row) =>
-    [row.situation, row.task, row.action, row.result].some((v) => v != null && Number.isFinite(Number(v))),
-  );
-  if (!hasBehaviorChart) {
-    starHistory = buildWeeklyStarHistoryForMentee(uid, mentorReviews, now);
-  }
+  const starHistory = buildWeeklyStarHistoryForMentee(uid, mentorReviews, now);
 
   const strengths = uniqInsightLines(strengthPool);
   const weaknesses = uniqInsightLines(weaknessPool);
   const hasReviewHistory = reviews.length > 0;
-  const hasInterviewSessions = sessions.length > 0;
-  const hasBehaviorData =
-    hasBehaviorChart || strengths.length > 0 || weaknesses.length > 0 || hasInterviewSessions || knowledgeCount > 0;
+  const hasBehaviorData = strengths.length > 0 || weaknesses.length > 0 || knowledgeCount > 0;
 
   return {
     strengths,
@@ -634,7 +534,6 @@ function buildMenteeBehaviorProfile(uid, bookings, mentorReviews, knowledgeByBoo
     starHistory,
     hasBehaviorData,
     hasReviewHistory,
-    hasInterviewSessions,
     completedSessions: done,
   };
 }
@@ -705,8 +604,7 @@ function deriveMenteeInsights(userId, mentorReviews, completedSessions = 0) {
 
 const RADAR_SUBJECTS = ["Tình huống", "Nhiệm vụ", "Hành động", "Kết quả", "Phản hồi"];
 
-function buildMentorRadarAnalytics(interviewRows, mentorReviews) {
-  const starRows = interviewRows.map(extractSessionStarScores).filter(Boolean);
+function buildMentorRadarAnalytics(mentorReviews) {
   const reviewAvg =
     mentorReviews.length > 0
       ? Number(
@@ -715,38 +613,6 @@ function buildMentorRadarAnalytics(interviewRows, mentorReviews) {
           ).toFixed(1),
         )
       : null;
-
-  const avgDim = (key) => {
-    const vals = starRows.map((s) => s[key]).filter((v) => v != null && Number.isFinite(Number(v)));
-    return vals.length ? Number((vals.reduce((a, b) => a + Number(b), 0) / vals.length).toFixed(1)) : null;
-  };
-
-  if (starRows.length > 0) {
-    const situation = avgDim("situation") ?? 0;
-    const task = avgDim("task") ?? 0;
-    const action = avgDim("action") ?? 0;
-    const result = avgDim("result") ?? 0;
-    const dims = [situation, task, action, result].filter((v) => v > 0);
-    const feedback =
-      reviewAvg != null
-        ? reviewAvg
-        : dims.length
-          ? Number((dims.reduce((a, b) => a + b, 0) / dims.length).toFixed(1))
-          : 0;
-    const radarSkills = [
-      { subject: "Tình huống", value: situation, fullMark: 5 },
-      { subject: "Nhiệm vụ", value: task, fullMark: 5 },
-      { subject: "Hành động", value: action, fullMark: 5 },
-      { subject: "Kết quả", value: result, fullMark: 5 },
-      { subject: "Phản hồi", value: feedback, fullMark: 5 },
-    ];
-    const valuesForAvg = [situation, task, action, result, feedback].filter((v) => v > 0);
-    const overallAvgRating =
-      valuesForAvg.length > 0
-        ? Number((valuesForAvg.reduce((a, b) => a + b, 0) / valuesForAvg.length).toFixed(1))
-        : null;
-    return { radarSkills, overallAvgRating, radarScoreSource: "interview" };
-  }
 
   if (reviewAvg != null) {
     const radarSkills = RADAR_SUBJECTS.map((subject) => ({
@@ -800,44 +666,18 @@ export async function getMentorAnalytics(userId) {
       : [];
   const knowledgeByBooking = new Map(knowledgeRows.map((k) => [String(k.bookingId), k]));
 
-  const interviewRows =
-    menteeIds.length > 0
-      ? await InterviewSession.find({
-          userId: { $in: menteeIds },
-          status: "completed",
-        })
-          .select("userId createdAt completedAt feedback behavioralSummary")
-          .lean()
-      : [];
-  const interviewsByUser = new Map();
-  for (const s of interviewRows) {
-    const key = String(s.userId);
-    if (!interviewsByUser.has(key)) interviewsByUser.set(key, []);
-    interviewsByUser.get(key).push(s);
-  }
-
   const menteeAnalytics = menteeIds.map((uid) => {
     const rows = bookings.filter((b) => String(b.userId) === uid);
     const reviews = reviewsByUser.get(uid) || [];
     const avgStar = reviews.length
       ? reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / reviews.length
       : null;
-    const interviewScores = (interviewsByUser.get(uid) || [])
-      .map(sessionOverallScore)
-      .filter((v) => v != null);
-    const avgInterview =
-      interviewScores.length > 0
-        ? Number(
-            (interviewScores.reduce((sum, v) => sum + v, 0) / interviewScores.length).toFixed(1),
-          )
-        : null;
     const u = menteeMap.get(uid) || {};
     const behavior = buildMenteeBehaviorProfile(
       uid,
       bookings,
       mentorReviews,
       knowledgeByBooking,
-      interviewsByUser,
       now,
     );
     return {
@@ -848,15 +688,11 @@ export async function getMentorAnalytics(userId) {
       completedSessions: behavior.completedSessions,
       hasReviewHistory: behavior.hasReviewHistory,
       hasBehaviorData: behavior.hasBehaviorData,
-      hasInterviewSessions: behavior.hasInterviewSessions,
       avgStarScore: avgStar != null ? Number(avgStar.toFixed(1)) : null,
-      avgInterviewScore: avgInterview,
-      scoreSource:
-        avgStar != null ? "review" : avgInterview != null ? "interview" : null,
+      scoreSource: avgStar != null ? "review" : null,
       progressTrend: computeMenteeProgressTrend(
         uid,
         reviews,
-        interviewsByUser,
         behavior.starHistory,
       ),
       lastSessionDate: rows
@@ -896,10 +732,7 @@ export async function getMentorAnalytics(userId) {
     .filter((v) => v != null && Number.isFinite(v));
   const topAvg = menteeScores.length ? Math.max(...menteeScores) : 0;
 
-  const { radarSkills, overallAvgRating, radarScoreSource } = buildMentorRadarAnalytics(
-    interviewRows,
-    mentorReviews,
-  );
+  const { radarSkills, overallAvgRating, radarScoreSource } = buildMentorRadarAnalytics(mentorReviews);
 
   const weekCurrent = dayRange(6, 0);
   const weekPrevious = dayRange(13, 7);

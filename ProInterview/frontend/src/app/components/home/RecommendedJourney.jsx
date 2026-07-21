@@ -1,9 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router";
-import { navigateToInterview } from "../../utils/authGate";
 import {
   Zap as Lightning,
-  Brain,
   GraduationCap,
   Users,
   ArrowRight,
@@ -13,16 +11,6 @@ import {
 const JOURNEY_STEPS = [
   {
     number: "01",
-    icon: Brain,
-    title: "Phỏng vấn AI",
-    desc: "Luyện tập với AI và nhận phản hồi chi tiết",
-    route: "/interview",
-    color: "#7c3aed",
-    bgColor: "rgba(124, 58, 237,0.12)",
-    borderColor: "rgba(124, 58, 237,0.35)",
-  },
-  {
-    number: "02",
     icon: GraduationCap,
     title: "Học khóa học",
     desc: "Nâng cao kỹ năng với khóa học phù hợp",
@@ -32,7 +20,7 @@ const JOURNEY_STEPS = [
     borderColor: "rgba(180,240,0,0.35)",
   },
   {
-    number: "03",
+    number: "02",
     icon: Users,
     title: "Đặt lịch Mentor",
     desc: "Củng cố kiến thức với mentor 1:1",
@@ -86,11 +74,7 @@ export function RecommendedJourney({
             return (
               <button
                 key={i}
-                onClick={() =>
-                  step.route === "/interview"
-                    ? navigateToInterview(navigate)
-                    : navigate(step.route)
-                }
+                onClick={() => navigate(step.route)}
                 className="w-full flex items-center gap-3 p-3 rounded-xl transition-all hover:brightness-110"
                 style={{
                   background: isActive
@@ -196,7 +180,7 @@ export function RecommendedJourney({
           className="text-white/50 max-w-lg mx-auto"
           style={{ fontSize: "0.9375rem", lineHeight: 1.6 }}
         >
-          Theo dõi 3 bước này để tối ưu hóa kết quả học tập và sẵn sàng chinh phục mọi cuộc phỏng vấn
+          Theo dõi 2 bước này để tối ưu hóa kết quả học tập và sẵn sàng chinh phục mọi cuộc phỏng vấn
         </p>
       </div>
 
@@ -204,13 +188,13 @@ export function RecommendedJourney({
       <div className="relative">
         {/* Connector line */}
         <div
-          className="hidden md:block absolute top-12 left-[16.66%] right-[16.66%] h-0.5"
+          className="hidden md:block absolute top-12 left-[25%] right-[25%] h-0.5"
           style={{
             background: "rgba(128, 55, 244, 0.28)",
           }}
         />
 
-        <div className="grid md:grid-cols-3 gap-6 relative">
+        <div className="grid md:grid-cols-2 gap-6 relative max-w-xl mx-auto">
           {JOURNEY_STEPS.map((step, i) => {
             const isActive = currentStep !== undefined && i + 1 === currentStep;
             const isCompleted = currentStep !== undefined && i + 1 < currentStep;
@@ -218,11 +202,7 @@ export function RecommendedJourney({
             return (
               <button
                 key={i}
-                onClick={() =>
-                  step.route === "/interview"
-                    ? navigateToInterview(navigate)
-                    : navigate(step.route)
-                }
+                onClick={() => navigate(step.route)}
                 className="group flex flex-col items-center text-center transition-all hover:-translate-y-1"
               >
                 {/* Number badge with icon */}

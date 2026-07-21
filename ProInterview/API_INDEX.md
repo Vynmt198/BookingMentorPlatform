@@ -5,7 +5,7 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 | Phần | Nội dung |
 |:-----|:---------|
 | **A** | Backend Express — entrypoint `backend/src/server.js` |
-| **B** | Supabase Edge (CV), D-ID — FE gọi trực tiếp |
+| **B** | Supabase Edge (CV) — FE gọi trực tiếp |
 | **C** | Tham chiếu contract (method/path); **trạng thái triển khai** xem cột trong [`ROADMAP.md`](./ROADMAP.md) |
 
 ---
@@ -52,7 +52,6 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 | `PORT` | Cổng backend (mặc định `5000`). |
 | `CORS_ORIGIN` | Danh sách origin CORS (tùy chọn). |
 | `VITE_API_URL` | FE: base URL backend production (`frontend/src/app/utils/api.js`). |
-| D-ID API key | FE phỏng vấn AI — `useDIDStream` / cấu hình trang Interview. |
 
 ---
 
@@ -62,13 +61,11 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 |:------|:---------|
 | **Express** | Dev: cùng origin, Vite proxy `/api` → `http://localhost:5000`. Prod: `VITE_API_URL` (bỏ `/` cuối) hoặc `http://localhost:5000`. |
 | **Supabase Edge** | `https://<projectId>.supabase.co/functions/v1/make-server-64a0c849/` — `projectId` từ `/utils/supabase/info.js`. |
-| **D-ID** | `https://api.d-id.com` |
 
 | Nguồn | Header / auth |
 |:------|:--------------|
 | **Express** | `Authorization: Bearer <access_token>` từ `POST /api/auth/login` hoặc `/google`. **Không** dùng JWT Supabase cho `/api/*`. |
 | **Supabase Edge** | `Authorization: Bearer <token>` khi có. Edge có thể từ chối JWT backend — FE có fallback demo. **Không** gửi `apikey` (CORS). |
-| **D-ID** | `Authorization: Basic base64(<API_KEY> + ":")` và `Content-Type: application/json`. |
 
 ---
 
@@ -235,21 +232,7 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 
 ---
 
-### A.8. Module Interviews — `/api/interviews`
-
-**File:** `backend/src/routes/interviews.js`
-
-| Method | Path | Auth | Mô tả |
-|:-------|:-----|:-----|:------|
-| POST | `/api/interviews/sessions` | Bearer | Tạo phiên phỏng vấn thử |
-| PATCH | `/api/interviews/sessions/:id` | Bearer | Cập nhật câu trả lời |
-| POST | `/api/interviews/sessions/:id/complete` | Bearer | Hoàn thành và nhận feedback |
-| GET | `/api/interviews/sessions` | Bearer | Lịch sử phỏng vấn |
-| GET | `/api/interviews/sessions/:id` | Bearer | Chi tiết phiên phỏng vấn |
-
----
-
-### A.9. Module Upload — `/api/upload`
+### A.8. Module Upload — `/api/upload`
 
 **File:** `backend/src/routes/upload.js`
 
@@ -261,7 +244,7 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 | POST | `/api/upload/course-video` | Bearer + Mentor | Tải lên video bài học (qua backend) |
 | POST | `/api/upload/sign-video` | Bearer + Mentor | Ký chữ ký Cloudinary cho video >50MB — FE upload thẳng lên Cloudinary (bỏ qua backend, tránh timeout Render); trả 503 nếu Cloudinary chưa cấu hình |
 
-### A.10. Module Admin — `/api/admin`
+### A.9. Module Admin — `/api/admin`
 
 **File:** `backend/src/routes/admin.js` · **Auth:** `[ADMIN]`
 
@@ -285,8 +268,7 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 | GET | `/api/reviews/mine` | `[AUTH]` Đánh giá của user cho `targetType` + `targetId` → `{ hasReview, review? }` |
 | GET | `/api/admin/system/overview` | Auth, gói, dịch vụ, Mongo topology |
 | GET | `/api/admin/system/transaction-support` | Kiểm tra MongoDB transactions |
-| GET | `/api/admin/content/stats` | Thống kê phiên AI, CV, khóa + `interviewOps` (7 ngày, few-shot) |
-| GET | `/api/admin/content/interview-sessions` | Phiên phỏng vấn AI gần đây + câu hỏi đã lưu (`?limit=30`) |
+| GET | `/api/admin/content/stats` | Thống kê CV analyses, khóa đã xuất bản |
 | GET | `/api/admin/content/course-media` | Danh sách khóa + số bài video (`?scope=all\|published\|pending`) |
 | GET | `/api/admin/courses/pending` | Khóa chờ duyệt (`pending_review`, `pending_update`) + `stats.enrollmentCount` (đếm ghi danh `paid`) |
 | GET | `/api/admin/courses/published` | Khóa đã xuất bản (`?limit=50`, tối đa 100) + `stats` |
@@ -299,7 +281,7 @@ File trong repo: `API_INDEX.md`. Cập nhật khi thêm route, đổi FE hoặc 
 **FE:** `frontend/src/app/utils/adminApi.js` — `AdminUsers`, `AdminMentors`, `AdminBookings`, `AdminContentCourses`, `AdminPlaceholders` (detail + support).
 
 ---
-### A.11. Module Analytics — `/api/analytics`
+### A.10. Module Analytics — `/api/analytics`
 
 **File:** `backend/src/routes/analytics.js` · **Auth:** `[AUTH]`
 
@@ -327,27 +309,9 @@ CV đã chuyển sang **Phần A.7** (`/api/cv` + proxy Python). Không dùng Su
 
 ---
 
-### B.2. D-ID — streaming avatar
-
-| | |
-|:--|:--|
-| **File** | `frontend/src/app/hooks/useDIDStream.js` |
-| **Host** | `https://api.d-id.com` |
-| **Auth** | `Authorization: Basic base64(<API_KEY> + ":")` |
-
-| # | Method | Path | Mô tả |
-|--:|:-------|:-----|:------|
-| 1 | POST | `/talks/streams` | Tạo stream — ví dụ `{ "source_url": "..." }` |
-| 2 | POST | `/talks/streams/{id}/ice` | ICE |
-| 3 | POST | `/talks/streams/{id}/sdp` | SDP answer |
-| 4 | POST | `/talks/streams/{id}` | Script (audio / text) |
-| 5 | DELETE | `/talks/streams/{id}` | Đóng stream |
-
----
-
 ## Phần C — Roadmap API (tham chiếu)
 
-Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có route Express hay chưa:** xem cột **Trạng thái** trong [`ROADMAP.md`](./ROADMAP.md) (Phase 1–4). Entrypoint: `backend/src/server.js`.
+Danh sách phẳng method/path (C.1–C.14) để tra cứu nhanh. **Đã có route Express hay chưa:** xem cột **Trạng thái** trong [`ROADMAP.md`](./ROADMAP.md) (Phase 1–4). Entrypoint: `backend/src/server.js`.
 
 **Đồng bộ với [`ROADMAP.md`](./ROADMAP.md):** cùng method + path; `ROADMAP.md` gom theo **phase** (1–4) + mục *Bổ sung auth*. Khi đổi contract, sửa **cả hai** file.
 
@@ -418,17 +382,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | DELETE | `/api/cv/analyses/:id` |
 | GET | `/api/cv/quota` |
 
-### C.5. Interview — `/api/interviews`
-
-| Method | Path |
-|:-------|:-----|
-| POST | `/api/interviews/sessions` |
-| PATCH | `/api/interviews/sessions/:id` |
-| POST | `/api/interviews/sessions/:id/complete` |
-| GET | `/api/interviews/sessions` |
-| GET | `/api/interviews/sessions/:id` |
-
-### C.6. Courses — `/api/courses`
+### C.5. Courses — `/api/courses`
 
 | Method | Path |
 |:-------|:-----|
@@ -445,7 +399,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | PATCH | `/api/courses/:id/publish` |
 | DELETE | `/api/courses/:id` |
 
-### C.7. Enrollments — `/api/enrollments`
+### C.6. Enrollments — `/api/enrollments`
 
 | Method | Path |
 |:-------|:-----|
@@ -453,7 +407,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | PATCH | `/api/enrollments/:id/progress` |
 | GET | `/api/enrollments/:id/certificate` |
 
-### C.8. Reviews — `/api/reviews`
+### C.7. Reviews — `/api/reviews`
 
 | Method | Path |
 |:-------|:-----|
@@ -462,7 +416,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | PATCH | `/api/reviews/:id/reply` |
 | DELETE | `/api/reviews/:id` |
 
-### C.9. Notifications — `/api/notifications`
+### C.8. Notifications — `/api/notifications`
 
 | Method | Path |
 |:-------|:-----|
@@ -472,7 +426,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | DELETE | `/api/notifications/:id` |
 | GET | `/api/notifications/unread-count` |
 
-### C.10. Payments — `/api/payments`
+### C.9. Payments — `/api/payments`
 
 | Method | Path |
 |:-------|:-----|
@@ -483,7 +437,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | GET | `/api/payments/transfer-status?orderRef=PI…` — Bearer JWT; poll checkout (`status`: `pending` \| `submitted` \| `paid` \| `not_found`) |
 | GET | `/api/payments/history` |
 
-### C.11. Plans — `/api/plans`
+### C.10. Plans — `/api/plans`
 
 | Method | Path |
 |:-------|:-----|
@@ -493,7 +447,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 
 *Plan hiện có field trên `User` (Mongo) — có thể đồng bộ sau.*
 
-### C.12. Dashboard
+### C.11. Dashboard
 
 | Method | Path |
 |:-------|:-----|
@@ -504,7 +458,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | GET | `/api/mentor/analytics` |
 | POST | `/api/mentor/payout` |
 
-### C.13. Reports & upload
+### C.12. Reports & upload
 
 | Method | Path |
 |:-------|:-----|
@@ -515,7 +469,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | POST | `/api/upload/cv` |
 | POST | `/api/upload/course-thumbnail` |
 
-### C.14. Admin — `/api/admin`
+### C.13. Admin — `/api/admin`
 
 | Method | Path |
 |:-------|:-----|
@@ -536,7 +490,7 @@ Danh sách phẳng method/path (C.1–C.13) để tra cứu nhanh. **Đã có ro
 | GET | `/api/admin/analytics/user-behavior` |
 | GET | `/api/admin/analytics/users/:id/journey` |
 
-### C.15. Analytics — `/api/analytics`
+### C.14. Analytics — `/api/analytics`
 
 | Method | Path |
 |:-------|:-----|
@@ -622,7 +576,7 @@ Chi tiết endpoint theo phase và màn FE: **[`ROADMAP.md`](./ROADMAP.md)** (Ph
 | **1** | Phase 1 — booking + payments + plans + `dashboard-stats` |
 | **2** | Phase 2 — mentor vận hành, reviews, reports, availability mentor |
 | **3** | Phase 3 — courses, enrollments, certificate |
-| **4** | Phase 4 — CV Express, interview sessions, notifications, upload |
+| **4** | Phase 4 — CV Express, notifications, upload |
 
 *(Điều chỉnh theo ưu tiên sản phẩm.)*
 
@@ -642,7 +596,6 @@ Chi tiết collection và field: [`backend/DATABASE.md`](./backend/DATABASE.md).
 | Auth client | `frontend/src/app/utils/auth.js` |
 | Mentor client | `frontend/src/app/utils/mentorApi.js` |
 | CV (Express + Python) | `frontend/src/app/utils/cvApi.js`, `pages/cv/CVAnalysis.jsx` |
-| D-ID stream | `frontend/src/app/hooks/useDIDStream.js` |
 | Entry server | `backend/src/server.js` |
 | Auth controller | `backend/src/controllers/authController.js` |
 | Mentors controller | `backend/src/controllers/mentorsController.js` |
@@ -655,4 +608,4 @@ Chi tiết collection và field: [`backend/DATABASE.md`](./backend/DATABASE.md).
 
 ---
 
-*Tài liệu gồm: (1) API Express đang chạy, (2) Supabase & D-ID mà FE dùng, (3) roadmap endpoint.*
+*Tài liệu gồm: (1) API Express đang chạy, (2) Supabase mà FE dùng, (3) roadmap endpoint.*

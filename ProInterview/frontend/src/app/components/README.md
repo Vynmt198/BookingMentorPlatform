@@ -12,7 +12,7 @@
 | `cv/` | Preview và widget liên quan **CV** |
 | `courses/` | Gợi ý khóa học (`CourseRecommendations`, …) |
 | `home/` | Khối marketing / landing: `RecommendedJourney`, … |
-| `shared/` | Khối dùng chung nhiều màn: `PageHeader`, `SupportContact`, `HistoryPanel` |
+| `shared/` | Khối dùng chung nhiều màn: `PageHeader`, `SupportContact` |
 
 File đặt ở **root** `components/` chỉ khi là entry chung (vd. còn lại từ prototype). Ưu tiên thêm file mới vào đúng folder domain.
 

@@ -18,22 +18,31 @@ const TABS = [
   { id: "cancelled", label: "Đã hủy" },
 ];
 
-function getTimeUntilSessionLabel(dateStr, timeStr) {
+/** Số ms đã trôi qua kể từ giờ hẹn (âm nếu chưa tới giờ). */
+function elapsedMs(dateStr, timeStr) {
   const [d, m, y] = String(dateStr || "").split("/").map(Number);
   const [hh, mm] = String(timeStr || "").split(":").map(Number);
   const startAt = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
-  if (!Number.isFinite(startAt.getTime())) return "";
-  const diffMs = startAt.getTime() - Date.now();
-  if (diffMs <= 0) return "Đến giờ";
-  const totalMin = Math.floor(diffMs / 60000);
-  const h = Math.floor(totalMin / 60);
-  const min = totalMin % 60;
-  if (h <= 0) return `Còn ${min} phút`;
-  if (min === 0) return `Còn ${h} giờ`;
-  return `Còn ${h} giờ ${min} phút`;
+  if (!Number.isFinite(startAt.getTime())) return 0;
+  return Date.now() - startAt.getTime();
 }
 
-function getPaymentBadge(paymentStatus, status) {
+function getTimeUntilSessionLabel(dateStr, timeStr) {
+  const elapsed = elapsedMs(dateStr, timeStr);
+  if (elapsed < 0) {
+    const diffMs = -elapsed;
+    const totalMin = Math.floor(diffMs / 60000);
+    const h = Math.floor(totalMin / 60);
+    const min = totalMin % 60;
+    if (h <= 0) return `Còn ${min} phút`;
+    if (min === 0) return `Còn ${h} giờ`;
+    return `Còn ${h} giờ ${min} phút`;
+  }
+  if (elapsed <= 30 * 60000) return "Đang diễn ra";
+  return "Đã qua giờ";
+}
+
+function getPaymentBadge(paymentStatus, status, dateStr, timeStr) {
   const pst = String(paymentStatus || "").toLowerCase();
   const st = String(status || "").toLowerCase();
   if (pst === "refund_pending") {
@@ -45,14 +54,30 @@ function getPaymentBadge(paymentStatus, status) {
   if (st === "confirmed" || st === "in_progress" || pst === "paid") {
     return { text: "Đã thanh toán", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
   }
+  if (st === "cancelled" || st === "rescheduled") {
+    if (pst === "failed") {
+      return { text: "Hết hạn thanh toán", className: "bg-slate-100 text-slate-500 border-slate-200" };
+    }
+    return { text: "Đã hủy", className: "bg-slate-100 text-slate-500 border-slate-200" };
+  }
+  if (st === "pending" && elapsedMs(dateStr, timeStr) > 0) {
+    return { text: "Hết hạn TT", className: "bg-slate-100 text-slate-400 border-slate-200" };
+  }
   return { text: "Chờ thanh toán", className: "bg-amber-50 text-amber-700 border-amber-200" };
 }
 
+/** Sắp tới chỉ khi trạng thái còn hoạt động VÀ chưa quá lâu so với giờ hẹn — tránh
+ * booking đã trôi qua nhiều ngày nhưng chưa được đánh dấu completed vẫn kẹt ở "Sắp tới".
+ * `pending` (chưa thanh toán) không hiện ở tab nào — chỉ tính là buổi hẹn thật sau khi
+ * thanh toán xong (chuyển "confirmed"); nếu hết hạn CK, backend tự hủy nên sẽ rơi vào "Đã hủy". */
 function classifyBooking(row) {
   const st = String(row.status || "").toLowerCase();
+  if (st === "pending") return "hidden";
   if (st === "cancelled" || st === "rescheduled") return "cancelled";
   if (st === "done" || st === "completed" || st === "no_show") return "past";
-  if (st === "confirmed" || st === "in_progress" || st === "pending") return "upcoming";
+  if (st === "confirmed" || st === "in_progress") {
+    return elapsedMs(row.date, row.time) > 2 * 3600000 ? "past" : "upcoming";
+  }
   return "past";
 }
 
@@ -130,7 +155,11 @@ export function MyBookings() {
         />
 
         <CustomerStatGrid>
-          <CustomerStatCard icon={CalendarClock} value={rows.length} label="Tổng lịch hẹn" />
+          <CustomerStatCard
+            icon={CalendarClock}
+            value={counts.upcoming + counts.past + counts.cancelled}
+            label="Tổng lịch hẹn"
+          />
           <CustomerStatCard icon={CalendarCheck} value={counts.upcoming} label="Sắp tới" />
           <CustomerStatCard icon={CheckCircle2} value={counts.past} label="Đã hoàn thành" tone="lime" />
           <CustomerStatCard icon={CalendarX} value={counts.cancelled} label="Đã hủy" tone="red" />
@@ -191,11 +220,12 @@ export function MyBookings() {
           <div className="space-y-4">
             {filtered.map((s) => {
               const id = s.sessionId || s.backendId;
-              const badge = getPaymentBadge(s.paymentStatus, s.status);
+              const badge = getPaymentBadge(s.paymentStatus, s.status, s.date, s.time);
               const paid = String(s.paymentStatus || "").toLowerCase() === "paid";
               const canMeet =
                 paid && (s.status === "confirmed" || s.status === "in_progress");
               const needsReview = s.status === "done" && !s.isReviewed;
+              const timeLabel = tab === "upcoming" ? getTimeUntilSessionLabel(s.date, s.time) : "";
 
               return (
                 <motion.article
@@ -222,9 +252,13 @@ export function MyBookings() {
                           {badge.text}
                         </span>
                       </div>
-                      {tab === "upcoming" && (
-                        <p className="mb-1 text-xs font-semibold text-violet-600">
-                          {getTimeUntilSessionLabel(s.date, s.time)}
+                      {timeLabel && (
+                        <p
+                          className={`mb-1 text-xs font-semibold ${
+                            timeLabel === "Đã qua giờ" ? "text-orange-500" : "text-violet-600"
+                          }`}
+                        >
+                          {timeLabel}
                         </p>
                       )}
                       <h2 className="truncate text-lg font-black text-slate-900">{s.mentorName}</h2>
