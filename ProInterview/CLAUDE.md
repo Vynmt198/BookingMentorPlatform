@@ -29,8 +29,15 @@ npm start                      # node src/server.js (production)
 npm run seed:users             # Seed users dev (chỉ khi collection rỗng)
 npm run seed:all               # Seed toàn bộ dữ liệu mock
 npm run seed:ui-mock           # Seed mock cho UI
+npm run seed:reviews / seed:reports / seed:mentor-samples / seed:course-samples
+npm run seed:mentor-bios / seed:commission / seed:mentor-courses-ui
 npm run db:prune-fake-mentors  # Xóa Mentor docs không có User tương ứng
 npm run sync:mentor-profiles   # Đồng bộ Mentor profiles với Users
+npm run db:normalize-transfer-refs / db:migrate-cv-analysis[:dry]
+npm run verify:jaas              # Kiểm tra cấu hình JaaS (JWT signing, key, appId)
+npm run encode:jaas-key           # Encode JaaS private key PEM → base64 cho env var
+npm test                         # Toàn bộ test (Node test runner + Jest)
+npm run test:node / test:payments / test:python-cv / test:dto
 ```
 
 **Node:** `>=20` (xem `backend/package.json` → `engines`).
@@ -129,16 +136,21 @@ Thực tế: auth, bookings, payments, plans, mentor dashboard, reviews, reports
 | `/api/admin` | `admin.js` | |
 | `/api/enrollments` | `enrollments.js` | |
 | `/api/cv` | `cv.js` + `cvMatch.js` | cv.js: CRUD/quota; cvMatch.js: proxy sang Python |
+| `/api/interviews` | `interviews.js` | Session lifecycle phỏng vấn AI: tạo, trả lời, complete, evaluate, analyze-face, generate-questions, extract-cv-text |
+| `/api/ai` | `aiProviders.js` | STT (`/transcribe`), TTS (`/tts`), emotion (`/emotion`), D-ID avatar (`/avatar/*`), pre-generate câu hỏi (`/interview/pregenerate`, `/interview/pregen/*`) |
+| `/api/analytics` | `analytics.js` | `POST /events` — ghi nhận sự kiện hành vi (page_view/action) vào `UserEvent`, dùng cho admin user-journey tracking |
 | `/api/upload` | `upload.js` | |
 | `/api/mock` | `mockCourses.js` | Mock data cho dev/test |
 
+**Chưa mount:** `backend/src/routes/cart.js` + `cartController.js` đã viết đầy đủ (get/add/checkout/update/remove/clear, model `Cart` tồn tại) nhưng **không được import trong `app.js`** — dead code trên bản web hiện tại. (Bản mobile — `Prointerview-App/backend` — đã mount `/api/cart`.)
+
 ### Services (`services/`)
 
-`authService`, `bookingsService`, `dashboardStatsService`, `mentorDashboardService`, `mentorMeService`, `mentorProfileService`, `mentorsService`, `paymentsService`, `plansService`, `reportsService`, `reviewsService`, `userRoleService`
+`authService`, `bookingsService` (tích hợp JaaS qua `buildJaasMeetingLaunch`), `dashboardStatsService`, `mentorDashboardService`, `mentorMeService`, `mentorProfileService`, `mentorsService`, `paymentsService`, `plansService`, `reportsService`, `reviewsService`, `userRoleService`, `analyticsService` (ghi/đọc `UserEvent`, `FUNNEL_STEPS`), `jaasService` (ký JWT phòng họp 8x8.vc), `interviewQuestionService`, `emotionService`, `sttService`, `ttsService`, `avatarService`, `videoPregenService`, `competencyFramework`, `courseMentorInsightsService`, `courseStatsService`, `mentorCommissionService`, `mentorEarningsService`, `sepayWebhookService`, `normalizeTransferRefsService`, `transferPaymentExpiryService`, `notificationDeliveryService`, `emailService`, `cacheService`, `accessTokenBlacklist`, `langfuseService`
 
-### Models (`models/`) — 17 Mongoose schemas
+### Models (`models/`) — 21 Mongoose schemas
 
-`User`, `Mentor`, `Booking`, `Payment`, `Course`, `Enrollment`, `Review`, `Notification`, `CVAnalysis`, `Report`, `Subscription`, `Activity`, `CourseQA`, `MentorPeerReview`, `PayoutRequest`, `index.js`
+`User`, `Mentor`, `Booking`, `Payment`, `Course`, `Enrollment`, `Review`, `Notification`, `CVAnalysis`, `Report`, `Subscription`, `Activity`, `CourseQA`, `MentorPeerReview`, `PayoutRequest`, `Cart` (chưa dùng — route chưa mount), `InterviewSession`, `MentorKnowledge`, `SecurityLog`, `SepayWebhookEvent`, `UserEvent`, `index.js`
 
 Plan và quota được lưu trực tiếp trên **`User`** (field `plan`, `planExpiresAt`, `quota.cvAnalysisUsed/Limit`, `quota.mentorSessionUsed/Limit`).
 
@@ -226,40 +238,53 @@ utils/
 
 **Auth state:** `localStorage` keys `prointerview_access_token`, `prointerview_auth`. Session khôi phục qua `GET /api/auth/me` khi app load.
 
-### Tất cả routes hiện có
+### Tất cả routes hiện có (`frontend/src/app/routes.js`)
 
 | Path | Component |
 |:-----|:---------|
-| `/` | Home |
+| `/` | Home (redirect theo role nếu đã login: mentor→`/mentor/dashboard`, admin→`/admin`) |
+| `/landing` | CinematicHeroPage |
 | `/login`, `/register` | Login, Register |
-| `/forgot-password`, `/reset-password` | ForgotPassword, ResetPassword |
-| `/pricing` | Pricing |
-| `/checkout` | Checkout |
+| `/forgot-password`, `/reset-password`, `/verify-email` | ForgotPassword, ResetPassword, VerifyEmail |
+| `/pricing`, `/about`, `/achievements`, `/blog`, `/terms`, `/privacy` | Trang tĩnh/marketing |
+| `/checkout` | Checkout (yêu cầu login) |
 | `/payment-return`, `/payment-success`, `/payment-failure` | Payment pages |
-| `/avatar-demo` | AvatarDemo |
-| `/courses/:id/learn` | CourseLearning (full-screen) |
-| `/admin/*` | Admin section (AdminLayout) |
-| `/dashboard` | Dashboard |
-| `/cv-analysis`, `/cv-analysis/history` | CVAnalysis, AnalysisHistory |
+| `/courses/:id/learn` | CourseLearning (full-screen, yêu cầu login) |
+| `/meeting/:sessionId` | MeetingRoom (yêu cầu login; route cũ `/mentor/meeting/:sessionId` redirect sang đây) |
 | `/mentors`, `/mentors/:id` | Mentors, MentorProfile |
-| `/booking/:id`, `/booking` | Booking |
-| `/session/:id` | SessionDetail |
-| `/review/:sessionId` | MentorReview |
-| `/profile`, `/settings` | Profile, Settings |
-| `/mentor/dashboard` | MentorDashboard |
-| `/mentor/schedule` | MentorSchedule |
-| `/mentor/finance` | MentorFinance |
-| `/mentor/analytics` | MentorAnalytics |
-| `/mentor/reviews` | MentorReviews |
-| `/mentor/meeting/:sessionId` | MeetingRoom |
+| `/courses`, `/courses/:id` | Courses, CourseDetail |
+| `/cv-analysis` | CVAnalysisHub — chọn mode JD hoặc Field |
+| `/cv-analysis/jd`, `/cv-analysis/jd/result[/:analysisId]`, `/cv-analysis/jd/history` | Luồng phân tích theo JD |
+| `/cv-analysis/field`, `/cv-analysis/field/result[/:analysisId]`, `/cv-analysis/field/history` | Luồng phân tích theo lĩnh vực |
+| `/my-bookings`, `/my-courses` | MyBookings, MyCourses (yêu cầu login) |
+| `/booking/:id`, `/booking` | Booking (yêu cầu login) |
+| `/session/:id` | SessionDetail (yêu cầu login) |
+| `/review/:sessionId` | MentorReview (yêu cầu login) |
+| `/profile`, `/settings` | Profile, Settings (yêu cầu login) |
+| `/mentor/dashboard`, `/mentor/schedule`, `/mentor/finance`, `/mentor/analytics`, `/mentor/reviews` | Mentor area (nested dưới `MentorArea`, yêu cầu login) |
 | `/mentor/meeting-detail/:sessionId` | MentorMeetingDetail |
 | `/mentor/courses`, `/mentor/courses/:id/edit` | MentorCourseManagement, MentorCourseEdit |
 | `/mentor/peer-review` | MentorPeerReview |
-| `/courses`, `/courses/:id` | Courses, CourseDetail |
+| `/mentor/session-feedback/:sessionId` | MentorSessionFeedback |
+| `/admin/*` | Admin section (AdminLayout + `adminLoader`) |
 
-### Admin routes (placeholders — chưa implement đầy đủ)
+**Route đã xoá/redirect:** `/interview`, `/interview/gender`, `/interview/room`, `/interview/feedback`, `/avatar-demo` → tất cả redirect `/`. `/cv-analysis/history` redirect theo query `mode` sang route mới.
 
-`/admin/analytics`, `/admin/users/:id`, `/admin/mentors/:id`, `/admin/finance`, `/admin/transactions`, `/admin/payouts`, `/admin/bookings/:id`, `/admin/content/questions`, `/admin/content/courses` (video khóa gộp trong trang này), `/admin/settings`, `/admin/reviews`, `/admin/support`
+### Admin routes (`/admin/*`)
+
+| Path | Component |
+|:-----|:---------|
+| `/admin` (index) | AdminDashboard |
+| `/admin/analytics` | AdminAnalytics — dashboard hành vi người dùng (đọc `UserEvent`) |
+| `/admin/users`, `/admin/users/:id` | AdminUsers, AdminUserDetail |
+| `/admin/mentors`, `/admin/mentors/pending`, `/admin/mentors/:id` | AdminMentors, AdminMentorsPending, AdminMentorDetail |
+| `/admin/finance`, `/admin/transactions`, `/admin/payouts` | AdminFinance, AdminTransactions, AdminPayouts |
+| `/admin/bookings`, `/admin/bookings/:id`, `/admin/bookings/check-ins` | AdminBookings, AdminBookingDetail, AdminBookingCheckIns |
+| `/admin/course-payments`, `/admin/subscription-payments` | AdminCoursePayments, AdminSubscriptionPayments |
+| `/admin/content/questions`, `/admin/content/courses` | AdminContentQuestions, AdminContentCourses |
+| `/admin/settings`, `/admin/reviews`, `/admin/support`, `/admin/achievements` | AdminSystemSettings, AdminReviews, AdminSupport, AdminAchievements |
+
+**Không còn placeholder rỗng.** File `AdminPlaceholders.jsx` vẫn còn tên cũ nhưng mọi export (`AdminUserDetail`, `AdminFinance`, `AdminTransactions`, `AdminPayouts`, `AdminContentQuestions`, `AdminSystemSettings`) đều gọi API thật, có loading/error/filter. `AdminMentorDetail`, `AdminBookingDetail`, `AdminContentCourses`, `AdminSupport` đã tách thành file riêng và implement đầy đủ. Route cũ `/admin/content/videos` và `/admin/interview-metrics` chỉ còn redirect (gộp vào `/admin/content/courses` và `/admin/content/questions`).
 
 ---
 
@@ -292,6 +317,23 @@ utils/
 - ID token → `POST /api/auth/google` (backend verify qua `google-auth-library`)
 - Frontend: `frontend/.env.local` → `VITE_GOOGLE_CLIENT_ID`
 - Vercel header `Cross-Origin-Opener-Policy: same-origin-allow-popups` cần cho FedCM
+
+### JaaS (8x8.vc) — Phòng họp mentor/booking
+
+- File: `backend/src/services/jaasService.js` — ký JWT RS256 (`signJaasMeetingJwt`), `buildJaasMeetingLaunch()` trả object `meeting` cho FE khi bắt đầu booking
+- Được gọi trực tiếp trong `bookingsService.js` (không có route/controller riêng); fallback `{ provider: "jitsi_public" }` nếu JaaS chưa cấu hình hoặc lỗi ký
+- `GET /api/health` trả kèm `getJaasPublicStatus()` để kiểm tra nhanh cấu hình đã đúng chưa
+- Script hỗ trợ: `npm run verify:jaas` (kiểm tra JWT/key/appId), `npm run encode:jaas-key` (encode PEM private key sang base64 cho env)
+
+### AI Providers & Interview session (`/api/ai/*`, `/api/interviews/*`)
+
+- `interviews.js` + `interviewsController.js` — vòng đời phiên phỏng vấn AI: tạo session, cập nhật câu trả lời, complete, evaluate, phân tích cảm xúc khuôn mặt (`analyze-face`, rate-limit riêng), sinh câu hỏi bằng LLM (`generate-questions`, có `injectionRateLimit` chống prompt injection), trích xuất text từ CV (`extract-cv-text`)
+- `aiProviders.js` + `aiProvidersController.js` — lớp abstraction cho STT (`/transcribe`), TTS (`/tts` + `/tts/voices`), emotion analysis (`/emotion`), D-ID avatar (`/avatar/presenters`, `/avatar/usage`), và pre-generate nội dung phỏng vấn (sync `/interview/pregenerate` hoặc async job `/interview/pregen/start` + poll `/interview/pregen/:jobId`)
+
+### Analytics / Admin user-journey tracking (`/api/analytics/*`)
+
+- FE gọi `POST /api/analytics/events` (auth + rate limit `analyticsEventsLimiter`) để ghi sự kiện `page_view`/`action` vào model `UserEvent` (collection `user_events`)
+- Admin đọc lại qua `GET /api/admin/analytics/user-behavior` và `GET /api/admin/analytics/users/:id/journey` (trong `adminController`/`adminRouter`), hiển thị ở trang `/admin/analytics` (`AdminAnalytics.jsx`)
 
 ---
 
@@ -337,30 +379,31 @@ Hủy booking: `DELETE /api/bookings/:id` (không dùng `PATCH .../cancel`).
 
 ### Backend ✅
 
-Toàn bộ 80+ endpoint Phase 1–4 đã implement và mount. Xem `ROADMAP.md` để biết status từng endpoint (✅/📋).
+Toàn bộ 80+ endpoint Phase 1–4 đã implement và mount, cộng thêm các module mới ngoài ROADMAP gốc: `/api/interviews`, `/api/ai`, `/api/analytics`, JaaS video meeting. Xem `ROADMAP.md` để biết status từng endpoint Phase 1–4 (✅/📋 — 77 ✅ / 4 📋).
 
-**Còn thiếu (📋):**
-- `DELETE /api/auth/me` — xóa tài khoản
-- `POST /api/bookings/:id/review` — alias route (dùng `POST /api/reviews` với `bookingId` thay thế)
+**Ghi chú:**
+- `/api/cart` (`routes/cart.js`, `cartController.js`, model `Cart`) đã viết xong nhưng **chưa mount** trong `app.js` — không hoạt động trên bản web.
+- Có hạ tầng test thật: 14 file `*.test.js`/`*.integration.test.js`, dùng Node test runner + Jest + `mongodb-memory-server`.
 
 ### Frontend — trạng thái từng domain
 
 | Domain | Trạng thái |
 |:-------|:-----------|
-| Auth (login/register/Google/reset) | ✅ kết nối API thật |
-| Dashboard (`/dashboard`) | ✅ gọi `GET /api/users/dashboard-stats` |
+| Auth (login/register/Google/reset/verify-email) | ✅ kết nối API thật |
+| Dashboard (mentor/admin redirect từ `/`) | ✅ |
 | Mentors list + profile | ✅ kết nối API thật |
-| Booking flow | ✅ phần lớn API thật; Checkout còn mock payment link |
-| Session detail (`/session/:id`) | 🔧 một số trường dùng mock/demo |
-| CV Analysis | 🔧 dùng Supabase Edge (chưa migrate sang Express) |
-| Courses | ✅ list/detail API thật; enrollment API thật |
-| Mentor dashboard/schedule/finance | ✅ gọi `/api/mentor/*` API thật |
-| Mentor meeting room | 🔧 một phần mock |
-| Admin dashboard/users/mentors/bookings | ✅ API thật |
-| Admin detail pages | 📋 Placeholders chưa implement |
+| Booking flow (`/my-bookings`, `/booking/:id`, check-in) | ✅ phần lớn API thật |
+| Session detail / feedback | ✅ |
+| CV Analysis (hub tách JD/Field) | ✅ đã tách UI theo mode; kiểm tra lại phần Supabase Edge legacy nếu còn dùng |
+| Courses (`/my-courses`, learning full-screen) | ✅ list/detail/enrollment API thật |
+| Mentor dashboard/schedule/finance/analytics/peer-review | ✅ gọi `/api/mentor/*` API thật |
+| Meeting room (`/meeting/:sessionId`) | ✅ JaaS thật, fallback Jitsi public |
+| Admin: dashboard/users/mentors/bookings/finance/transactions/payouts/content/settings/reviews/support/achievements | ✅ tất cả gọi API thật — **không còn trang admin nào là placeholder rỗng** |
+| Admin analytics (user-journey) | ✅ đọc `UserEvent` qua `/api/admin/analytics/*` |
 | Notifications | 🔧 UI có; cần kiểm tra kết nối |
-| Upload (avatar/CV/thumbnail) | 🔧 response trả mock URL |
-| Payment return/success/failure | ✅ nhận redirect từ gateway |
+| Upload (avatar/CV/thumbnail) | 🔧 kiểm tra lại — trước đây trả mock URL |
+| Payment return/success/failure (+ course/subscription payments admin) | ✅ |
+| Giỏ hàng (mobile-only hiện tại) | 📋 route backend có sẵn nhưng chưa mount cho web; FE web chưa có UI cart |
 
 ### CV/JD Production Checklist
 
@@ -432,10 +475,10 @@ Có `Procfile` + `runtime.txt` — deploy được lên Heroku/Render. Sau deplo
 |:-|:-|
 | Frontend | React 18, Vite, React Router v7 (hash), Tailwind CSS, shadcn/ui, Recharts, @react-three/* |
 | Backend | Express 5 (ESM), Node 20+, Mongoose 9, JWT, bcrypt, multer, google-auth-library |
-| DB | MongoDB (collections: 17 schemas) |
+| DB | MongoDB (collections: 21 schemas) |
 | CV Analysis | Python FastAPI, pdf parsing, NLP skill extraction |
 | Payments | MoMo, ZaloPay (sandbox), VNPay partial |
-| External | Google Identity Services, Supabase Edge, D-ID API |
+| External | Google Identity Services, Supabase Edge, D-ID API, JaaS (8x8.vc), STT/TTS providers |
 
 ---
 

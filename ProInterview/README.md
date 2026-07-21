@@ -138,22 +138,22 @@ Mật khẩu: **`Dev123456`**
 
 ### Người dùng (Customer)
 - Đăng ký / đăng nhập email, Google OAuth
-- Luyện phỏng vấn với AI avatar (D-ID streaming)
-- Upload CV, phân tích và đối chiếu với JD
-- Tìm kiếm và đặt lịch mentor
+- Luyện phỏng vấn AI: sinh câu hỏi bằng LLM, ghi âm + STT, chấm điểm + TTS, phân tích cảm xúc/khuôn mặt qua webcam, avatar D-ID
+- Upload CV, phân tích và đối chiếu với JD hoặc theo lĩnh vực (`cv-analysis/jd` và `cv-analysis/field`)
+- Tìm kiếm và đặt lịch mentor, vào phòng họp video qua JaaS (8x8.vc, fallback Jitsi public)
 - Mua và học khóa học video
-- Lịch sử phỏng vấn, dashboard cá nhân
+- Lịch sử phỏng vấn, booking, dashboard cá nhân
 
 ### Mentor
-- Quản lý lịch, booking, thu nhập
+- Quản lý lịch, booking (kèm check-in), thu nhập/hoa hồng
 - Tạo và quản lý khóa học
 - Peer review với mentor khác
 - Analytics buổi tư vấn
 
 ### Admin
-- Quản lý người dùng, mentor, bookings
-- Xét duyệt mentor mới
-- Dashboard thống kê toàn hệ thống
+- Quản lý người dùng, mentor, bookings, khoá học, thanh toán (booking/subscription/course)
+- Xét duyệt mentor mới, quản lý check-in booking
+- Analytics hành vi người dùng (user-journey tracking) và dashboard thống kê toàn hệ thống
 
 ---
 
@@ -168,10 +168,14 @@ Base URL: `/api` · Auth: `Authorization: Bearer <jwt>`
 | Bookings | `/api/bookings/*` |
 | Courses | `/api/courses/*`, `/api/enrollments/*` |
 | CV & JD | `/api/cv/*` |
-| Interviews | `/api/interviews/*` |
+| Interviews | `/api/interviews/*` (session lifecycle: tạo, trả lời, chấm điểm, phân tích cảm xúc khuôn mặt) |
+| AI Providers | `/api/ai/*` (STT, TTS, emotion, D-ID avatar, pre-generate câu hỏi) |
+| Analytics | `/api/analytics/events` (ghi nhận sự kiện hành vi cho admin user-journey) |
 | Payments | `/api/payments/*` |
 | Admin | `/api/admin/*` |
 | Health | `GET /api/health` |
+
+> `backend/src/routes/cart.js` + `cartController.js` đã có sẵn nhưng **chưa được mount** trong `app.js` — tính năng giỏ hàng chưa hoạt động trên bản web (khác với bản mobile, nơi `/api/cart` đã mount).
 
 Xem toàn bộ contract tại [API_INDEX.md](./API_INDEX.md).  
 Docs CV/JD service (khi chạy local): `http://127.0.0.1:8000/docs`
@@ -207,11 +211,13 @@ Sau khi deploy, đặt `CV_ANALYZER_URL` trong backend env trỏ về URL Python
 |:------|:----------|
 | Frontend | React 18, Vite, React Router v7, Tailwind CSS, shadcn/ui, Recharts |
 | Backend | Express 5 (ESM), Node ≥ 20, Mongoose 9, JWT, bcrypt, Multer |
-| Database | MongoDB |
-| AI / CV | Python FastAPI, pdf parsing, NLP |
-| Avatar AI | D-ID Streaming API |
+| Database | MongoDB (21 Mongoose schema) |
+| AI / CV | Python FastAPI, pdf parsing, NLP; LLM (OpenAI-compatible) cho sinh câu hỏi |
+| AI Providers | D-ID Streaming API (avatar), STT/TTS, emotion analysis (`aiProviders.js`) |
+| Video meeting | JaaS (8x8.vc, JWT ký bởi `jaasService.js`), fallback Jitsi public |
 | Auth | Google Identity Services (FedCM), JWT refresh sessions |
 | Payments | Chuyển khoản ngân hàng (chính); MoMo / ZaloPay (sandbox) |
+| Testing | Node test runner + Jest, integration test qua `mongodb-memory-server` (14 file `*.test.js`) |
 
 ---
 
