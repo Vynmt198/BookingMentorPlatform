@@ -44,10 +44,13 @@
       "navigationBar": {
         "backgroundColor": "#f5f0fc",
         "barStyle": "dark-content"
-      }
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "scheme": "prointerview",
-    "owner": "vietvan",
+    "owner": "janetns198",
     "plugins": [
       [
         "@react-native-google-signin/google-signin",
@@ -65,6 +68,11 @@
           "cameraPermission": "Cho phép ProInterview dùng camera để chụp ảnh đại diện."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "73e4279d-f448-45d4-9c73-1d9c177383c4"
+      }
+    }
   }
 }
