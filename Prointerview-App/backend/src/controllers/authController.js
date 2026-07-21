@@ -209,12 +209,20 @@ export class AuthController {
   static async forgotPassword(req, res, next) {
     try {
       const result = await authService.requestPasswordReset(req.body?.email, req);
-      // Trả về success: true kèm message để người dùng biết mail đã được gửi.
-      res.json({ 
-        success: true, 
-        message: "Nếu email tồn tại trong hệ thống, một liên kết đặt lại mật khẩu đã được gửi đi.",
-        resetUrl: result?.resetUrl, // Cho dev
-        resetToken: result?.resetToken // Cho dev
+      const mailConfigured = Boolean(result?.mailConfigured);
+      const mailSent = Boolean(result?.mailSent);
+      res.json({
+        success: true,
+        message: mailSent
+          ? "Nếu email tồn tại trong hệ thống, một liên kết đặt lại mật khẩu đã được gửi đi."
+          : mailConfigured
+            ? "Yêu cầu đã ghi nhận. Nếu email hợp lệ, hệ thống sẽ gửi link (kiểm tra spam)."
+            : "Yêu cầu đã ghi nhận. Server chưa cấu hình SMTP nên chưa gửi được email.",
+        resetUrl: result?.resetUrl,
+        resetToken: result?.resetToken,
+        mailSent,
+        mailConfigured,
+        mailError: result?.mailError,
       });
     } catch (err) {
       next(err);

@@ -1,5 +1,5 @@
-import { apiUrl, ensureApiBase, getLastApiProbeAttempts, setApiBaseUrl, getApiBaseUrl } from './api';
-import { resolveConfiguredApiBase } from '../config/apiConfig';
+import { apiUrl, ensureApiBase, getLastApiProbeAttempts, setApiBaseUrl, getApiBaseUrl, resetApiBaseCache } from './api';
+import { buildNativeDevApiUrl, isNativeRuntime, resolveConfiguredApiBase, resolveDevHost } from '../config/apiConfig';
 import { formatBackendUnreachableMessage } from './backendErrors';
 import {
   clearAuthStorage,
@@ -18,10 +18,25 @@ const jsonHeaders = {
 const LOGIN_FETCH_TIMEOUT_MS = 8000;
 
 function parseApiError(body, fallback) {
-  if (body && typeof body.error === 'string' && body.error.trim()) {
+  if (!body || typeof body !== 'object') return fallback;
+  if (typeof body.error === 'string' && body.error.trim()) {
     return body.error.trim();
   }
+  if (typeof body.message === 'string' && body.message.trim()) {
+    return body.message.trim();
+  }
   return fallback;
+}
+
+function mapLoginHttpError(status) {
+  if (status === 401) return 'Email hoặc mật khẩu không đúng.';
+  if (status === 403) return 'Tài khoản đã bị khóa. Liên hệ quản trị viên.';
+  if (status === 429) return 'Quá nhiều lần thử. Bạn đợi vài phút rồi thử lại nhé.';
+  if (status === 503) return 'Dịch vụ tạm chưa sẵn sàng. Kiểm tra backend đang chạy.';
+  if (status >= 500) {
+    return 'Backend chưa chạy hoặc đang lỗi. Chạy `npm run dev` trong Prointerview-App/backend (cổng 5001).';
+  }
+  return '';
 }
 
 function backendUnreachableMessage() {
@@ -54,25 +69,49 @@ async function fetchWithTimeout(url, init, timeoutMs = LOGIN_FETCH_TIMEOUT_MS) {
   }
 }
 
+/**
+ * Login email/password — cùng contract với ProInterview web (`POST /api/auth/login`).
+ */
 async function postLogin(base, email, password) {
+  const trimmedEmail = String(email || '').trim().toLowerCase();
+  const trimmedPassword = String(password || '').trim();
+
   const res = await fetchWithTimeout(`${base}/api/auth/login`, {
     method: 'POST',
     headers: jsonHeaders,
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
   });
   const body = await res.json().catch(() => ({}));
-  if (!res.ok || !body.success) {
+
+  if (!res.ok) {
     return {
       success: false,
-      error: parseApiError(body, 'Email hoặc mật khẩu không hợp lệ.'),
+      error:
+        parseApiError(body, '') ||
+        mapLoginHttpError(res.status) ||
+        'Email hoặc mật khẩu không đúng.',
       status: res.status,
     };
   }
+
+  if (!body.success || !body.token || !body.user) {
+    return {
+      success: false,
+      error: parseApiError(body, 'Đăng nhập thất bại.'),
+      status: res.status,
+    };
+  }
+
   setApiBaseUrl(base);
-  // Không chờ SecureStore trước khi vào app. Trên Expo Go/iOS bước này có thể chậm
-  // và làm UI login quay mãi dù backend đã trả token.
-  void persistLoginPayload(body).catch(() => {});
-  return { success: true, token: body.token, user: body.user };
+  // Giống web: lưu token trước khi vào app (cùng key prointerview_*).
+  await persistLoginPayload(body);
+  return {
+    success: true,
+    token: body.token,
+    user: body.user,
+    refreshToken: body.refreshToken,
+    expiresIn: body.expiresIn,
+  };
 }
 
 export async function tryRefreshAccessToken() {
@@ -134,38 +173,68 @@ export async function authFetch(path, init = {}) {
 }
 
 export async function loginWithEmail(email, password) {
-  if (!String(email || '').trim() || !String(password || '').trim()) {
+  const trimmedEmail = String(email || '').trim().toLowerCase();
+  const trimmedPassword = String(password || '').trim();
+
+  if (!trimmedEmail || !trimmedPassword) {
     return { success: false, error: 'Vui lòng nhập email và mật khẩu.' };
   }
 
-  const preferred = getApiBaseUrl() || resolveConfiguredApiBase();
+  // Máy thật: bỏ cache cũ (có thể còn localhost từ lần chạy web)
+  if (isNativeRuntime()) {
+    const cached = getApiBaseUrl();
+    if (cached && /localhost|127\.0\.0\.1/i.test(cached)) {
+      resetApiBaseCache();
+    }
+  }
 
-  // 1) Thử URL đã biết trước — không chờ probe toàn bộ LAN
-  if (preferred) {
+  const preferred =
+    getApiBaseUrl() ||
+    resolveConfiguredApiBase() ||
+    (isNativeRuntime() ? buildNativeDevApiUrl() : null);
+  const preferredIsLoopback = preferred && /localhost|127\.0\.0\.1/i.test(preferred);
+
+  // 1) Thử URL đã cấu hình — bỏ qua localhost trên điện thoại
+  if (preferred && !(isNativeRuntime() && preferredIsLoopback)) {
+    setApiBaseUrl(preferred);
     try {
-      const result = await postLogin(preferred, email, password);
+      if (__DEV__) console.log('[login] try', preferred);
+      const result = await postLogin(preferred, trimmedEmail, trimmedPassword);
       if (result.success || (result.status && result.status < 500 && result.status !== 0)) {
         return result;
       }
-    } catch {
+    } catch (err) {
+      if (__DEV__) console.warn('[login] preferred failed', preferred, err?.message || err);
       // thử bước 2
     }
   }
 
-  // 2) Probe nhanh rồi login
+  // 2) Probe LAN (IP Expo / EXPO_PUBLIC_DEV_API_HOST) rồi login
   try {
+    if (isNativeRuntime()) {
+      resetApiBaseCache();
+    }
     const base = await ensureApiBase();
     if (!base) {
-      return { success: false, error: backendUnreachableMessage() };
+      const lan = resolveDevHost();
+      return {
+        success: false,
+        error:
+          formatBackendUnreachableMessage(getLastApiProbeAttempts()) +
+          (isNativeRuntime()
+            ? ` Điện thoại cần IP máy dev (hiện: ${lan}). Cùng Wi‑Fi, mở firewall cổng 5001, hoặc set EXPO_PUBLIC_DEV_API_HOST trong mobile/.env rồi restart Expo.`
+            : ''),
+      };
     }
-    return await postLogin(base, email, password);
+    if (__DEV__) console.log('[login] using probed base', base);
+    return await postLogin(base, trimmedEmail, trimmedPassword);
   } catch (err) {
     const aborted = err?.name === 'AbortError' || err?.name === 'TimeoutError';
     return {
       success: false,
       error: aborted
-        ? 'Đăng nhập quá lâu — kiểm tra backend (port 5001) và Wi‑Fi.'
-        : 'Không thể kết nối tới server Backend.',
+        ? 'Đăng nhập quá lâu — kiểm tra backend (port 5001), cùng Wi‑Fi và firewall.'
+        : 'Không kết nối được backend từ điện thoại. Cùng Wi‑Fi với máy dev, chạy backend :5001, mở firewall.',
     };
   }
 }
@@ -199,16 +268,31 @@ export async function registerAccount(payload) {
 }
 
 export async function loginWithGoogleCredential(credentialOrBody) {
-  const credential =
+  const raw =
     typeof credentialOrBody === 'string'
       ? credentialOrBody
-      : credentialOrBody?.credential || credentialOrBody?.idToken;
+      : credentialOrBody?.credential || credentialOrBody?.idToken || credentialOrBody?.accessToken;
 
-  if (!credential) {
+  const accessToken =
+    typeof credentialOrBody === 'object' && credentialOrBody?.accessToken
+      ? credentialOrBody.accessToken
+      : null;
+
+  const credential =
+    typeof credentialOrBody === 'object'
+      ? credentialOrBody?.credential || credentialOrBody?.idToken
+      : typeof raw === 'string' && raw.startsWith('eyJ')
+        ? raw
+        : null;
+
+  const accessTokenParam =
+    accessToken || (typeof raw === 'string' && raw && !raw.startsWith('eyJ') ? raw : null);
+
+  if (!credential && !accessTokenParam) {
     return { success: false, error: 'Thiếu Google ID token (credential).' };
   }
 
-  const preferred = getApiBaseUrl() || resolveConfiguredApiBase();
+  const preferred = getApiBaseUrl() || resolveConfiguredApiBase() || (isNativeRuntime() ? buildNativeDevApiUrl() : null);
   if (preferred) setApiBaseUrl(preferred);
 
   const base = preferred || (await ensureApiBase());
@@ -219,11 +303,15 @@ export async function loginWithGoogleCredential(credentialOrBody) {
     };
   }
 
+  const loginBody = credential
+    ? { credential }
+    : { accessToken: accessTokenParam };
+
   try {
     const res = await fetchWithTimeout(`${base}/api/auth/google`, {
       method: 'POST',
       headers: jsonHeaders,
-      body: JSON.stringify({ credential }),
+      body: JSON.stringify(loginBody),
     });
     const body = await res.json().catch(() => ({}));
 
@@ -269,6 +357,91 @@ export async function patchCurrentUser(payload) {
     await persistLoginPayload({ token, user: body.user });
   }
   return { success: true, user: body.user, token: body.token, refreshToken: body.refreshToken };
+}
+
+export async function logoutSession() {
+  try {
+    if (await hasAuthCredentials()) {
+      await authFetch('/api/auth/logout', { method: 'POST' });
+    }
+  } catch {
+    /* ignore network */
+  }
+  await clearAuthStorage();
+  return { success: true };
+}
+
+export async function requestPasswordReset(email) {
+  const preferred = getApiBaseUrl() || resolveConfiguredApiBase();
+  if (preferred) setApiBaseUrl(preferred);
+  const base = preferred || (await ensureApiBase());
+  if (!base) {
+    return { success: false, error: backendUnreachableMessage() };
+  }
+  try {
+    const res = await fetchWithTimeout(`${base}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({ email: String(email || '').trim().toLowerCase() }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { success: false, error: parseApiError(body, 'Không gửi được yêu cầu đặt lại mật khẩu.') };
+    }
+    return {
+      success: true,
+      message:
+        body.message ||
+        'Nếu email tồn tại trong hệ thống, một liên kết đặt lại mật khẩu đã được gửi đi.',
+      resetToken: body.resetToken,
+      resetUrl: body.resetUrl,
+      mailSent: Boolean(body.mailSent),
+      mailConfigured: Boolean(body.mailConfigured),
+      mailError: typeof body.mailError === 'string' ? body.mailError : '',
+    };
+  } catch {
+    return { success: false, error: 'Không kết nối được backend.' };
+  }
+}
+
+export async function resetPasswordWithToken(token, password) {
+  const preferred = getApiBaseUrl() || resolveConfiguredApiBase();
+  if (preferred) setApiBaseUrl(preferred);
+  const base = preferred || (await ensureApiBase());
+  if (!base) {
+    return { success: false, error: backendUnreachableMessage() };
+  }
+  try {
+    const res = await fetchWithTimeout(`${base}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        token: String(token || '').trim(),
+        password: String(password || '').trim(),
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.success === false) {
+      return { success: false, error: parseApiError(body, 'Đặt lại mật khẩu thất bại.') };
+    }
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Không kết nối được backend.' };
+  }
+}
+
+export async function deleteAccount() {
+  try {
+    const res = await authFetch('/api/auth/me', { method: 'DELETE' });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { success: false, error: parseApiError(body, 'Không xóa được tài khoản.') };
+    }
+    await clearAuthStorage();
+    return { success: true, message: body.message || 'Đã xóa tài khoản.' };
+  } catch {
+    return { success: false, error: 'Không kết nối được backend.' };
+  }
 }
 
 export { clearAuthStorage, getAccessToken, getStoredUser, hasAuthCredentials, persistLoginPayload };

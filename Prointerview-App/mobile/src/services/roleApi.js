@@ -34,24 +34,48 @@ export const adminApi = {
     const q = month ? `?month=${encodeURIComponent(month)}` : '';
     return authedJson(`/api/admin/finance/platform-summary${q}`);
   },
+  getCourseFinance: () => authedJson('/api/admin/finance/courses'),
+  getSystemOverview: () => authedJson('/api/admin/system/overview'),
+  getTransactionSupport: () => authedJson('/api/admin/system/transaction-support'),
+  getContentStats: () => authedJson('/api/admin/content/stats'),
+  getInterviewSessions: () => authedJson('/api/admin/content/interview-sessions'),
+  getCourseMedia: () => authedJson('/api/admin/content/course-media'),
+  getInterviewMetrics: () => authedJson('/api/admin/interview-metrics'),
+
   getUsers: () => authedJson('/api/admin/users'),
-  getMentors: () => authedJson('/api/admin/mentors'),
+  getUserById: (id) => authedJson(`/api/admin/users/${encodeURIComponent(id)}`),
   updateUserStatus: (id, isActive) =>
     authedJson(`/api/admin/users/${encodeURIComponent(id)}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ isActive }),
     }),
+  /** PATCH /api/users/:id/role — customer | mentor */
+  updateUserRole: (id, role) =>
+    authedJson(`/api/users/${encodeURIComponent(id)}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role }),
+    }),
+
+  getMentors: () => authedJson('/api/admin/mentors'),
+  getMentorById: (id) => authedJson(`/api/admin/mentors/${encodeURIComponent(id)}`),
   updateMentorStatus: (id, isActive) =>
     authedJson(`/api/admin/mentors/${encodeURIComponent(id)}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ isActive }),
+    }),
+  updateMentorCommission: (id, { bookingPlatformFeeRate, coursePlatformFeeRate } = {}) =>
+    authedJson(`/api/admin/mentors/${encodeURIComponent(id)}/commission`, {
+      method: 'PATCH',
+      body: JSON.stringify({ bookingPlatformFeeRate, coursePlatformFeeRate }),
     }),
   rejectMentor: (id, reason = '') =>
     authedJson(`/api/admin/mentors/${encodeURIComponent(id)}/reject`, {
       method: 'PATCH',
       body: JSON.stringify({ reason }),
     }),
+
   getBookings: () => authedJson('/api/admin/bookings'),
+  getBookingById: (id) => authedJson(`/api/admin/bookings/${encodeURIComponent(id)}`),
   updateBookingStatus: (id, status, reason = '') =>
     authedJson(`/api/admin/bookings/${encodeURIComponent(id)}/status`, {
       method: 'PATCH',
@@ -67,7 +91,9 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({}),
     }),
+
   getCoursePayments: () => authedJson('/api/admin/enrollments/course-payments'),
+  getPendingEnrollmentTransfers: () => authedJson('/api/admin/enrollments/pending-transfer'),
   confirmEnrollmentTransfer: (id, body = {}) =>
     authedJson(`/api/admin/enrollments/${encodeURIComponent(id)}/confirm-transfer-payment`, {
       method: 'PATCH',
@@ -79,6 +105,12 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  normalizeTransferRefs: (dryRun = false) =>
+    authedJson('/api/admin/payments/normalize-transfer-refs', {
+      method: 'POST',
+      body: JSON.stringify({ dryRun }),
+    }),
+
   getPayouts: () => authedJson('/api/admin/payouts'),
   approvePayout: (id, note = '') =>
     authedJson(`/api/admin/payouts/${encodeURIComponent(id)}/approve`, {
@@ -95,7 +127,10 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+
   getPendingCourses: () => authedJson('/api/admin/courses/pending'),
+  getPublishedCourses: (limit = 50) =>
+    authedJson(`/api/admin/courses/published?limit=${encodeURIComponent(limit)}`),
   approveCourse: (id) =>
     authedJson(`/api/admin/courses/${encodeURIComponent(id)}/approve`, { method: 'PATCH' }),
   rejectCourse: (id, reason = '') =>
@@ -103,13 +138,20 @@ export const adminApi = {
       method: 'PATCH',
       body: JSON.stringify({ reason }),
     }),
+  archiveCourse: (id, reason = '') =>
+    authedJson(`/api/admin/courses/${encodeURIComponent(id)}/archive`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    }),
+
   getReviews: () => authedJson('/api/admin/reviews?limit=40'),
   setReviewVisibility: (id, isVisible) =>
     authedJson(`/api/admin/reviews/${encodeURIComponent(id)}/visibility`, {
       method: 'PATCH',
       body: JSON.stringify({ isVisible }),
     }),
-  getReports: () => authedJson('/api/admin/reports?open=true&limit=40'),
+  getReports: (query = 'open=true&limit=40') =>
+    authedJson(`/api/admin/reports?${query}`),
   updateReportStatus: (id, body) =>
     authedJson(`/api/admin/reports/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -150,6 +192,16 @@ export const mentorApi = {
       body: JSON.stringify(payload ?? {}),
     }),
   getMyCourses: () => authedJson('/api/courses/me'),
+  createCourse: (payload) =>
+    authedJson('/api/courses', {
+      method: 'POST',
+      body: JSON.stringify(payload ?? {}),
+    }),
+  updateCourse: (id, payload) =>
+    authedJson(`/api/courses/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload ?? {}),
+    }),
   publishCourse: (id) =>
     authedJson(`/api/courses/${encodeURIComponent(id)}/publish`, { method: 'PATCH' }),
   archiveCourse: (id) =>
@@ -165,10 +217,20 @@ export const mentorApi = {
       method: 'PATCH',
       body: JSON.stringify({ reason }),
     }),
+  rescheduleBooking: (id, payload) =>
+    authedJson(`/api/bookings/mentor/${encodeURIComponent(id)}/reschedule`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload ?? {}),
+    }),
   updateNotes: (id, notes) =>
     authedJson(`/api/bookings/${encodeURIComponent(id)}/notes`, {
       method: 'PATCH',
       body: JSON.stringify({ notes: String(notes || '') }),
+    }),
+  replyToReview: (id, reply) =>
+    authedJson(`/api/reviews/${encodeURIComponent(id)}/reply`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reply: String(reply || '') }),
     }),
 };
 
@@ -179,24 +241,36 @@ export async function loadAdminPortalData() {
     mentors,
     bookings,
     coursePayments,
+    pendingTransfers,
     subscriptionPayments,
     payouts,
     pendingCourses,
+    publishedCourses,
     reviews,
     reports,
     financeRes,
+    courseFinanceRes,
+    contentRes,
+    metricsRes,
+    systemRes,
   ] = await Promise.all([
     adminApi.getStats(),
     adminApi.getUsers(),
     adminApi.getMentors(),
     adminApi.getBookings(),
     adminApi.getCoursePayments(),
+    adminApi.getPendingEnrollmentTransfers(),
     adminApi.getSubscriptionPayments(),
     adminApi.getPayouts(),
     adminApi.getPendingCourses(),
+    adminApi.getPublishedCourses(),
     adminApi.getReviews(),
     adminApi.getReports(),
     adminApi.getPlatformFinance(),
+    adminApi.getCourseFinance(),
+    adminApi.getContentStats(),
+    adminApi.getInterviewMetrics(),
+    adminApi.getSystemOverview(),
   ]);
 
   if (statsRes.unauthorized || users.unauthorized) {
@@ -213,9 +287,17 @@ export async function loadAdminPortalData() {
   );
   const payoutList = payouts.payouts || [];
   const coursePayList = coursePayments.enrollments || coursePayments.payments || [];
+  const pendingTransferList = pendingTransfers.enrollments || [];
   const subPayList = subscriptionPayments.payments || [];
-  const pendingCourseList = pendingCourses.courses || [];
-  const reportList = reports.reports || [];
+  const pendingCourseList = pendingCourses.success === false
+    ? []
+    : (pendingCourses.courses || []);
+  const publishedCourseList = publishedCourses.success === false
+    ? []
+    : (publishedCourses.courses || []);
+  const reviewList = reviews.success === false ? [] : (reviews.reviews || []);
+  const reportList = reports.success === false ? [] : (reports.reports || []);
+  const userList = users.success === false ? [] : (users.users || []);
 
   return {
     sessionValid: true,
@@ -224,27 +306,56 @@ export async function loadAdminPortalData() {
       mentors: stats.mentors ?? 0,
       bookings: stats.bookings ?? 0,
       enrollmentsPaid: stats.enrollmentsPaid ?? 0,
-      coursesPublished: stats.courses?.published ?? 0,
-      coursesPending: stats.courses?.pendingReview ?? 0,
+      coursesPublished: stats.courses?.published ?? publishedCourseList.length,
+      coursesPending: stats.courses?.pendingReview ?? pendingCourseList.length,
       reportsOpen: stats.reportsOpen ?? reportList.length,
       plans: stats.plans || {},
       bookingsByStatus: stats.bookingsByStatus || {},
       recentBookings: stats.recentBookings || [],
     },
     finance: financeRes.platformFinance || null,
-    users: users.users || [],
+    courseFinance: courseFinanceRes.courseFinance || null,
+    content: contentRes.content || null,
+    interviewMetrics: metricsRes.success
+      ? {
+          period: metricsRes.period,
+          sessionsByStatus: metricsRes.sessionsByStatus || [],
+          evalDuration: metricsRes.evalDuration || null,
+          scoreStats: metricsRes.scoreStats || null,
+          sessionsByDay: metricsRes.sessionsByDay || [],
+          topRoles: metricsRes.topRoles || [],
+          fewShotReadyCount: metricsRes.fewShotReadyCount ?? 0,
+          totalAllTime: metricsRes.totalAllTime ?? 0,
+        }
+      : null,
+    system: systemRes.overview || null,
+    users: userList,
     mentors: mentorList,
     pendingMentors,
     bookings: bookings.bookings || [],
     coursePayments: coursePayList,
+    pendingEnrollmentTransfers: pendingTransferList,
     subscriptionPayments: subPayList,
     payouts: payoutList,
     pendingCourses: pendingCourseList,
-    reviews: reviews.reviews || [],
+    publishedCourses: publishedCourseList,
+    reviews: reviewList,
     reports: reportList,
+    loadErrors: {
+      users: users.success === false ? users.error : null,
+      courses:
+        pendingCourses.success === false || publishedCourses.success === false
+          ? (pendingCourses.error || publishedCourses.error || 'Lỗi tải khóa học')
+          : null,
+      reviews: reviews.success === false ? reviews.error : null,
+      reports: reports.success === false ? reports.error : null,
+    },
     queues: {
       pendingMentors: pendingMentors.length,
-      coursePayments: coursePayList.length,
+      coursePayments: coursePayList.filter((e) => e.paymentStatus === 'pending').length
+        || pendingTransferList.length
+        || coursePayList.length,
+      pendingTransfers: pendingTransferList.length,
       subscriptionPayments: subPayList.length,
       payoutsPending: payoutList.filter((p) => p.status === 'pending' || p.status === 'approved').length,
       coursesPending: pendingCourseList.length,

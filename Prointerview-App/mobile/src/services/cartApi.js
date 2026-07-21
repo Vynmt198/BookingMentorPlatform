@@ -200,6 +200,37 @@ export async function removeFromCart(itemId) {
   }
 }
 
+export async function updateCartItemQty(itemId, quantity) {
+  const qty = Math.max(1, Math.min(99, Math.round(Number(quantity) || 1)));
+  const blocked = await ensureBackend();
+  const hasServer = !blocked && (await detectServerCart());
+
+  if (!hasServer) {
+    const cart = await loadLocalCart();
+    const items = (cart?.items || []).map((it) =>
+      String(it._id) === String(itemId) ? { ...it, quantity: qty } : it,
+    );
+    const next = { ...(cart || {}), items };
+    await saveLocalCart(next);
+    return { success: true, cart: next, local: true };
+  }
+
+  try {
+    const res = await authFetch(`/api/cart/${encodeURIComponent(itemId)}`, {
+      method: 'PUT',
+      headers: jsonHeaders,
+      body: JSON.stringify({ quantity: qty }),
+    });
+    if (res.status === 404) {
+      serverCartAvailable = false;
+      return updateCartItemQty(itemId, qty);
+    }
+    return parseBody(res);
+  } catch (e) {
+    return { success: false, error: e?.message || 'Không cập nhật số lượng.' };
+  }
+}
+
 export async function clearCart() {
   const hasServer = await detectServerCart();
   if (!hasServer) {

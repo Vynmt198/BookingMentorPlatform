@@ -9,34 +9,36 @@ import {
   SafeAreaView,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { GOOGLE_AUTH_CONFIG } from '../config/googleAuth';
+import { GOOGLE_AUTH_CONFIG, GOOGLE_WEBVIEW_REDIRECT_URI } from '../config/googleAuth';
 
 interface GoogleAuthWebViewProps {
   visible: boolean;
-  onSuccess: (accessToken: string) => void;
+  onSuccess: (token: string, kind?: 'id_token' | 'access_token') => void;
   onCancel: () => void;
   onError: (error: string) => void;
 }
 
-// URI redirect — phải có trong Google Console > "Authorized redirect URIs"
-// Dùng http://localhost:8081 vì Google không chấp nhận http://localhost (không có port) cho Web client
-const REDIRECT_URI = 'http://localhost:8081';
-
 function buildGoogleAuthUrl(): string {
+  const nonce = Math.random().toString(36).slice(2);
   const params = new URLSearchParams({
     client_id: GOOGLE_AUTH_CONFIG.webClientId,
-    redirect_uri: REDIRECT_URI,
-    response_type: 'token',
-    scope: 'profile email',
+    redirect_uri: GOOGLE_WEBVIEW_REDIRECT_URI,
+    response_type: 'id_token token',
+    scope: 'openid profile email',
     prompt: 'select_account',
+    nonce,
   });
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
+function isOAuthRedirectUrl(url: string) {
+  if (!url) return false;
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(url)) return true;
+  return /[#?&](id_token|access_token)=/i.test(url);
+}
+
 /**
- * Modal WebView đăng nhập Google trực tiếp trong app.
- * Tải trang OAuth của Google, tự chặn redirect và trích xuất access_token.
- * Hoạt động hoàn toàn trên Expo Go — không cần scheme hay proxy.
+ * Modal WebView — chặn redirect localhost TRONG app, không mở Safari.
  */
 export function GoogleAuthWebView({
   visible,
@@ -47,61 +49,74 @@ export function GoogleAuthWebView({
   const [loading, setLoading] = useState(true);
   const handled = useRef(false);
 
-  const handleNavigationChange = (navState: { url: string }) => {
-    const { url } = navState;
-    if (!url) return;
-
-    // Khi Google redirect về http://localhost:8081 hoặc http://localhost, bắt URL và trích xuất token
-    if (url.startsWith('http://localhost')) {
-      if (handled.current) return;
-      extractTokenFromUrl(url);
-    }
-  };
-
-  // Chặn WebView tải http://localhost:8081 — trích xuất token ngay, không để tải trang
-  const handleShouldStartLoad = (request: { url: string }) => {
-    const { url } = request;
-    if (url.startsWith('http://localhost')) {
-      if (!handled.current) {
-        extractTokenFromUrl(url);
-      }
-      return false; // CHẶN — không tải trang
-    }
-    return true; // Cho phép tải trang Google
-  };
-
   const extractTokenFromUrl = (url: string) => {
-    // Thử lấy từ fragment (#access_token=...)
-    const fragmentIndex = url.indexOf('#');
-    if (fragmentIndex !== -1) {
-      const fragment = url.substring(fragmentIndex + 1);
-      const params = new URLSearchParams(fragment);
-      const accessToken = params.get('access_token');
-      const idToken = params.get('id_token');
-      const error = params.get('error');
+    const tryParams = (raw: string) => {
+      const params = new URLSearchParams(raw);
+      return {
+        accessToken: params.get('access_token'),
+        idToken: params.get('id_token'),
+        error: params.get('error'),
+      };
+    };
 
-      if (error) { handled.current = true; onError(`Google lỗi: ${error}`); return; }
-      if (idToken)  { handled.current = true; onSuccess(idToken); return; }
-      if (accessToken) { handled.current = true; onSuccess(accessToken); return; }
+    const hashIndex = url.indexOf('#');
+    if (hashIndex !== -1) {
+      const { accessToken, idToken, error } = tryParams(url.substring(hashIndex + 1));
+      if (error) {
+        handled.current = true;
+        onError(`Google lỗi: ${error}`);
+        return;
+      }
+      if (idToken) {
+        handled.current = true;
+        onSuccess(idToken, 'id_token');
+        return;
+      }
+      if (accessToken) {
+        handled.current = true;
+        onSuccess(accessToken, 'access_token');
+        return;
+      }
     }
 
-    // Thử lấy từ query string (?access_token=...)
     const queryIndex = url.indexOf('?');
     if (queryIndex !== -1) {
-      const query = url.substring(queryIndex + 1);
-      const params = new URLSearchParams(query);
-      const accessToken = params.get('access_token');
-      const idToken = params.get('id_token');
-      const error = params.get('error');
-
-      if (error) { handled.current = true; onError(`Google lỗi: ${error}`); return; }
-      if (idToken) { handled.current = true; onSuccess(idToken); return; }
-      if (accessToken) { handled.current = true; onSuccess(accessToken); return; }
+      const query = url.substring(queryIndex + 1).split('#')[0];
+      const { accessToken, idToken, error } = tryParams(query);
+      if (error) {
+        handled.current = true;
+        onError(`Google lỗi: ${error}`);
+        return;
+      }
+      if (idToken) {
+        handled.current = true;
+        onSuccess(idToken, 'id_token');
+        return;
+      }
+      if (accessToken) {
+        handled.current = true;
+        onSuccess(accessToken, 'access_token');
+        return;
+      }
     }
 
-    // Không tìm được token
     handled.current = true;
-    onError('Không nhận được token từ Google. Kiểm tra lại Redirect URI trong Google Console.');
+    onError('Không nhận được token từ Google. Kiểm tra Redirect URI http://localhost:8081 trong Google Console.');
+  };
+
+  const handleNavigationChange = (navState: { url: string }) => {
+    const { url } = navState;
+    if (!url || !isOAuthRedirectUrl(url) || handled.current) return;
+    extractTokenFromUrl(url);
+  };
+
+  const handleShouldStartLoad = (request: { url: string }) => {
+    const { url } = request;
+    if (isOAuthRedirectUrl(url)) {
+      if (!handled.current) extractTokenFromUrl(url);
+      return false;
+    }
+    return true;
   };
 
   const handleClose = () => {
@@ -122,7 +137,6 @@ export function GoogleAuthWebView({
       onRequestClose={handleClose}
     >
       <SafeAreaView style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Đăng nhập với Google</Text>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
@@ -130,7 +144,6 @@ export function GoogleAuthWebView({
           </TouchableOpacity>
         </View>
 
-        {/* Loading indicator */}
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4285F4" />
@@ -138,7 +151,6 @@ export function GoogleAuthWebView({
           </View>
         )}
 
-        {/* Google OAuth WebView */}
         <WebView
           source={{ uri: buildGoogleAuthUrl() }}
           onNavigationStateChange={handleNavigationChange}
@@ -149,8 +161,6 @@ export function GoogleAuthWebView({
           javaScriptEnabled
           domStorageEnabled
           startInLoadingState
-          // Xóa cookies cũ khi mở lại để luôn hỏi chọn tài khoản
-          incognito={false}
           userAgent="Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"
         />
       </SafeAreaView>

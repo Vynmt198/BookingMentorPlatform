@@ -17,17 +17,11 @@ import {
   isGoogleAuthConfigured,
   resolveGoogleRedirectUri,
 } from '../config/googleAuth';
+import { signInWithGoogleBrowser } from '../services/googleBrowserAuth';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const isExpoGo = Constants.appOwnership === 'expo';
-
-const EXPO_GO_GOOGLE_MSG =
-  'Đăng nhập Google không chạy ổn định trên Expo Go (proxy auth.expo.io đã lỗi thời).\n\n' +
-  'Cách dùng được:\n' +
-  '• Email / mật khẩu trên Expo Go\n' +
-  '• Hoặc chạy development build: npx expo run:ios / run:android\n' +
-  '• Hoặc thử trên web: npx expo start --web';
 
 function loadGoogleScript(): Promise<void> {
   if (typeof document === 'undefined') return Promise.reject(new Error('no document'));
@@ -80,6 +74,59 @@ function tryNativeGoogleIdToken(): Promise<string | null> {
   }
 }
 
+/** Expo Go: Safari + localhost redirect (Google Web Client không chấp nhận exp://). */
+function ExpoGoGoogleButton({ onCredential, onError, disabled, loading }: Props) {
+  const busyRef = useRef(false);
+  const [opening, setOpening] = useState(false);
+
+  const handlePress = useCallback(async () => {
+    if (busyRef.current || disabled || loading) return;
+    if (!isGoogleAuthConfigured()) {
+      onError?.('Thiếu EXPO_PUBLIC_GOOGLE_CLIENT_ID trong mobile/.env');
+      return;
+    }
+
+    busyRef.current = true;
+    setOpening(true);
+    try {
+      const result = await signInWithGoogleBrowser();
+      if (result.cancelled) return;
+
+      if (result.success) {
+        const token = result.idToken || result.accessToken;
+        if (token) {
+          await onCredential(token);
+          return;
+        }
+      }
+
+      onError?.(
+        result.error ||
+          'Đăng nhập Google thất bại. Kiểm tra Google Console có http://localhost:8081',
+      );
+    } catch (err: unknown) {
+      onError?.(err instanceof Error ? err.message : 'Lỗi kết nối Google.');
+    } finally {
+      busyRef.current = false;
+      setOpening(false);
+    }
+  }, [disabled, loading, onCredential, onError]);
+
+  return (
+    <TouchableOpacity
+      style={[styles.btn, (disabled || loading || opening) && styles.btnDisabled]}
+      onPress={handlePress}
+      disabled={disabled || loading || opening}
+    >
+      {loading || opening ? (
+        <ActivityIndicator color="#1f2937" />
+      ) : (
+        <Text style={styles.btnText}>Tiếp tục với Google</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
+
 function NativeGoogleButton({ onCredential, onError, disabled, loading }: Props) {
   const redirectUri = resolveGoogleRedirectUri();
 
@@ -96,16 +143,9 @@ function NativeGoogleButton({ onCredential, onError, disabled, loading }: Props)
 
   const handlePress = useCallback(async () => {
     try {
-      // Development build: native SDK ổn định hơn expo-auth-session
       const nativeToken = await tryNativeGoogleIdToken();
       if (nativeToken) {
         await onCredential(nativeToken);
-        return;
-      }
-
-      // Expo Go + auth.expo.io: proxy đã lỗi thời → báo rõ, tránh màn "Something went wrong"
-      if (isExpoGo) {
-        onError?.(EXPO_GO_GOOGLE_MSG);
         return;
       }
 
@@ -114,7 +154,6 @@ function NativeGoogleButton({ onCredential, onError, disabled, loading }: Props)
         return;
       }
 
-      console.log('[GoogleAuth] redirectUri:', redirectUri);
       const result = await promptAsync();
       if (result.type === 'cancel' || result.type === 'dismiss') return;
 
@@ -145,6 +184,17 @@ function NativeGoogleButton({ onCredential, onError, disabled, loading }: Props)
     }
   }, [request, promptAsync, onCredential, onError, redirectUri]);
 
+  if (isExpoGo) {
+    return (
+      <ExpoGoGoogleButton
+        onCredential={onCredential}
+        onError={onError}
+        disabled={disabled}
+        loading={loading}
+      />
+    );
+  }
+
   return (
     <TouchableOpacity
       style={[styles.btn, disabled && styles.btnDisabled]}
@@ -152,7 +202,7 @@ function NativeGoogleButton({ onCredential, onError, disabled, loading }: Props)
       disabled={disabled || loading}
     >
       {loading ? (
-        <ActivityIndicator color="#ffffff" />
+        <ActivityIndicator color="#1f2937" />
       ) : (
         <Text style={styles.btnText}>Tiếp tục với Google</Text>
       )}
@@ -161,10 +211,6 @@ function NativeGoogleButton({ onCredential, onError, disabled, loading }: Props)
 }
 
 function WebGoogleButton({ onCredential, onError, disabled, loading }: Props) {
-  const buttonRef = useRef<HTMLDivElement | null>(null);
-  const [gsiReady, setGsiReady] = useState(false);
-  const [gsiFailed, setGsiFailed] = useState(false);
-
   const onCredentialRef = useRef(onCredential);
   const onErrorRef = useRef(onError);
   onCredentialRef.current = onCredential;
@@ -191,23 +237,8 @@ function WebGoogleButton({ onCredential, onError, disabled, loading }: Props) {
           },
           auto_select: false,
         });
-
-        if (buttonRef.current) {
-          buttonRef.current.innerHTML = '';
-          (window as any).google.accounts.id.renderButton(buttonRef.current, {
-            type: 'standard',
-            theme: 'filled_black',
-            size: 'large',
-            text: 'continue_with',
-            shape: 'pill',
-            width: Math.min(buttonRef.current.offsetWidth || 320, 360),
-            locale: 'vi',
-          });
-        }
-
-        if (!cancelled) setGsiReady(true);
       } catch {
-        if (!cancelled) setGsiFailed(true);
+        // fallback popup
       }
     })();
 
@@ -241,6 +272,23 @@ function WebGoogleButton({ onCredential, onError, disabled, loading }: Props) {
     window.addEventListener('message', onMessage);
   }, [onCredential, onError]);
 
+  const handlePress = useCallback(() => {
+    try {
+      const gsi = (window as any).google?.accounts?.id;
+      if (gsi?.prompt) {
+        gsi.prompt((notification: { isNotDisplayed?: () => boolean; isSkippedMoment?: () => boolean }) => {
+          if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+            openOAuthPopup();
+          }
+        });
+        return;
+      }
+    } catch {
+      // fallback
+    }
+    openOAuthPopup();
+  }, [openOAuthPopup]);
+
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return;
     const hash = window.location.hash?.substring(1);
@@ -261,35 +309,19 @@ function WebGoogleButton({ onCredential, onError, disabled, loading }: Props) {
     );
   }
 
-  if (loading) {
-    return (
-      <View style={[styles.btn, styles.btnDisabled]}>
-        <ActivityIndicator color="#ffffff" />
-      </View>
-    );
-  }
-
-  if (gsiFailed) {
-    return (
-      <TouchableOpacity style={styles.btn} onPress={openOAuthPopup} disabled={disabled}>
-        <Text style={styles.btnText}>Tiếp tục với Google</Text>
-      </TouchableOpacity>
-    );
-  }
-
   return (
-    <View style={[styles.webWrap, disabled && { opacity: 0.5 }]} pointerEvents={disabled ? 'none' : 'auto'}>
-      {!gsiReady ? (
-        <View style={[styles.btn, styles.btnDisabled]}>
-          <ActivityIndicator color="#ffffff" />
-        </View>
+    <TouchableOpacity
+      style={[styles.btn, (disabled || loading) && styles.btnDisabled]}
+      onPress={handlePress}
+      disabled={disabled || loading}
+      activeOpacity={0.88}
+    >
+      {loading ? (
+        <ActivityIndicator color="#1f2937" />
       ) : (
-        <div
-          ref={buttonRef as any}
-          style={{ width: '100%', minHeight: 44, display: 'flex', justifyContent: 'center' }}
-        />
+        <Text style={styles.btnText}>Tiếp tục với Google</Text>
       )}
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -302,9 +334,9 @@ export default function GoogleSignInButton(props: Props) {
 
 const styles = StyleSheet.create({
   btn: {
-    backgroundColor: '#1a1a2e',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.9)',
     borderRadius: 999,
     paddingVertical: 14,
     alignItems: 'center',
@@ -312,8 +344,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   btnDisabled: { opacity: 0.6 },
-  btnText: { color: '#ffffff', fontSize: 15, fontWeight: '600' },
-  webWrap: { width: '100%' },
+  btnText: { color: '#1f2937', fontSize: 15, fontWeight: '700' },
   warnBox: {
     padding: 12,
     borderRadius: 8,

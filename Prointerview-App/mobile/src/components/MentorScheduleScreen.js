@@ -14,10 +14,20 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+  Platform,
   Image,
   RefreshControl,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+
+function showMsg(title, message) {
+  const text = [title, message].filter(Boolean).join('\n');
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.alert(text);
+    return;
+  }
+  Alert.alert(title || 'Thông báo', message || '');
+}
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mentorApi } from '../services/roleApi';
 import { resolveMediaUrl } from '../utils/mediaUrl';
@@ -150,10 +160,10 @@ function AvailabilityEditor({ visible, onClose, availability, onSaved }) {
     const result = await mentorApi.updateAvailability({ recurringSchedule });
     setSaving(false);
     if (!result.success) {
-      Alert.alert('Không lưu được', result.error || 'API lịch trống lỗi.');
+      showMsg('Không lưu được', result.error || 'API lịch trống lỗi.');
       return;
     }
-    Alert.alert('Thành công', 'Đã lưu lịch rảnh lên server.');
+    showMsg('Thành công', 'Đã lưu lịch rảnh lên server.');
     onSaved?.(result.availability || { recurringSchedule });
     onClose?.();
   };

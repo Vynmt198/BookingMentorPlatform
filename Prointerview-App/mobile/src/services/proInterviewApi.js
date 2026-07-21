@@ -277,6 +277,61 @@ export async function analyzeAndSaveCv(file, opts = {}) {
     };
   }
 
+  return persistCvAnalyzeResult(file, raw, { mode: 'field', field, onProgress });
+}
+
+/**
+ * Phân tích CV + JD qua /api/cv/analyze rồi lưu MongoDB.
+ * @param {{ uri: string, name?: string, mimeType?: string }} resumeFile
+ * @param {{ uri: string, name?: string, mimeType?: string }} jdFile
+ * @param {{ onProgress?: (n:number)=>void }} [opts]
+ */
+export async function analyzeAndSaveCvWithJd(resumeFile, jdFile, opts = {}) {
+  const onProgress = typeof opts.onProgress === 'function' ? opts.onProgress : () => {};
+  if (!resumeFile?.uri) return { success: false, error: 'Thiếu file CV.' };
+  if (!jdFile?.uri) return { success: false, error: 'Thiếu file JD (job description).' };
+
+  onProgress(12);
+  const form = new FormData();
+  form.append('resume', {
+    uri: resumeFile.uri,
+    name: resumeFile.name || 'cv.pdf',
+    type: resumeFile.mimeType || 'application/pdf',
+  });
+  form.append('jd', {
+    uri: jdFile.uri,
+    name: jdFile.name || 'jd.pdf',
+    type: jdFile.mimeType || 'application/pdf',
+  });
+
+  onProgress(35);
+  let analyzeRes;
+  try {
+    analyzeRes = await authFetch('/api/cv/analyze', {
+      method: 'POST',
+      body: form,
+    });
+  } catch {
+    return { success: false, error: 'Không gọi được máy phân tích CV.' };
+  }
+
+  onProgress(70);
+  const raw = await analyzeRes.json().catch(() => ({}));
+  if (!analyzeRes.ok) {
+    return {
+      success: false,
+      error: raw.error || raw.message || `Phân tích CV+JD thất bại (${analyzeRes.status})`,
+    };
+  }
+
+  return persistCvAnalyzeResult(resumeFile, raw, {
+    mode: 'jd',
+    field: jdFile.name || 'JD',
+    onProgress,
+  });
+}
+
+async function persistCvAnalyzeResult(file, raw, { mode, field, onProgress }) {
   const match = raw.match || {};
   const matched = match.matching || match.matched || raw.matchedKeywords || [];
   const missing = match.missing || raw.missingKeywords || [];
@@ -291,8 +346,8 @@ export async function analyzeAndSaveCv(file, opts = {}) {
 
   const payload = {
     cvFileName: file.name || 'cv.pdf',
-    mode: 'field',
-    field,
+    mode: mode || 'field',
+    field: field || '',
     tier: scores && Object.keys(scores).length ? 'full' : 'basic',
     result: {
       matchScore,
@@ -315,9 +370,9 @@ export async function analyzeAndSaveCv(file, opts = {}) {
     },
   };
 
-  onProgress(88);
+  onProgress?.(88);
   const saved = await saveCvAnalysis(payload);
-  onProgress(100);
+  onProgress?.(100);
   if (!saved.success) {
     return { success: false, error: saved.error || 'Không lưu được kết quả.', analysis: payload.result };
   }
@@ -332,4 +387,71 @@ export async function markAllNotificationsRead() {
   return res.ok;
 }
 
-export { ensureApiBase, getApiBaseUrl } from '../utils/api';
+export async function markNotificationRead(id) {
+  if (!id) return { success: false };
+  const res = await authFetch(`/api/notifications/${encodeURIComponent(id)}/read`, {
+    method: 'PATCH',
+    headers: jsonHeaders,
+  });
+  return { success: res.ok };
+}
+
+export async function deleteNotification(id) {
+  if (!id) return { success: false };
+  const res = await authFetch(`/api/notifications/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: jsonHeaders,
+  });
+  return { success: res.ok };
+}
+
+/** Customer hủy booking của mình */
+export async function cancelCustomerBooking(id, reason = '') {
+  if (!id) return { success: false, error: 'Thiếu booking id.' };
+  const res = await authFetch(`/api/bookings/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: jsonHeaders,
+    body: JSON.stringify({ reason: reason || 'Khách hủy lịch trên app.' }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { success: false, error: body.error || body.message || 'Không hủy được lịch.' };
+  return { success: true, booking: body.booking, ...body };
+}
+
+/** Đánh giá sau buổi mentoring */
+export async function createBookingReview(bookingId, { rating = 5, comment = '' } = {}) {
+  if (!bookingId) return { success: false, error: 'Thiếu booking id.' };
+  const res = await authFetch(`/api/bookings/${encodeURIComponent(bookingId)}/review`, {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ rating: Math.min(5, Math.max(1, Number(rating) || 5)), comment }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { success: false, error: body.error || body.message || 'Không gửi được đánh giá.' };
+  return { success: true, ...body };
+}
+
+export async function deleteCvAnalysis(id) {
+  if (!id) return { success: false, error: 'Thiếu id.' };
+  const res = await authFetch(`/api/cv/analyses/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: jsonHeaders,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { success: false, error: body.error || 'Không xóa được.' };
+  return { success: true, ...body };
+}
+
+export async function createReport({ targetType, targetId, reason, description }) {
+  const res = await authFetch('/api/reports', {
+    method: 'POST',
+    headers: jsonHeaders,
+    body: JSON.stringify({ targetType, targetId, reason, description }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) return { success: false, error: body.error || body.message || 'Không gửi báo cáo.' };
+  return { success: true, ...body };
+}
+export { ensureApiBase, getApiBaseUrl, resetApiBaseCache } from '../utils/api';
+export { getConfiguredApiBase, resolveConfiguredApiBase } from '../config/apiConfig';
+
