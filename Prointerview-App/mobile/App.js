@@ -55,6 +55,7 @@ import CourseLearningScreen from './src/components/CourseLearningScreen';
 import CourseDetailScreen from './src/components/CourseDetailScreen';
 import ProfileScreen from './src/components/ProfileScreen';
 import CvAnalysisHubScreen from './src/components/CvAnalysisHubScreen';
+import CvJdUploadScreen from './src/components/CvJdUploadScreen';
 import MentorsScreen from './src/components/MentorsScreen';
 import MentorBookingScreen from './src/components/MentorBookingScreen';
 import {
@@ -608,6 +609,7 @@ function AppInner() {
   const [detailCourseId, setDetailCourseId] = useState(null);
   const [tabBeforeCourseDetail, setTabBeforeCourseDetail] = useState('courses');
   const [tabBeforeBooking, setTabBeforeBooking] = useState('mentors');
+  const [tabBeforeCvJd, setTabBeforeCvJd] = useState('cv');
   const [addingCourseId, setAddingCourseId] = useState(null);
   const [cartToast, setCartToast] = useState('');
   const [paymentResult, setPaymentResult] = useState(null);
@@ -1251,6 +1253,7 @@ function AppInner() {
           uri: file.uri,
           name: file.name || 'cv.pdf',
           mimeType: file.mimeType || 'application/pdf',
+          file: file.file, // web: File thật từ <input type=file> (RN native không có field này)
         },
         {
           field: 'IT / Công nghệ',
@@ -1276,26 +1279,19 @@ function AppInner() {
     }
   };
 
-  // Tối ưu CV theo JD thật (CV + file JD) qua /api/cv/analyze/suggestions rồi lưu MongoDB
-  const triggerCvAnalysisJd = async () => {
+  // Mở màn hình tải CV + JD (giống web /cv-analysis/jd) từ nút "Tối ưu CV theo vị trí ứng tuyển"
+  const openCvJdUploadScreen = () => {
+    if (!userToken) {
+      Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để phân tích CV.');
+      return;
+    }
+    setTabBeforeCvJd(activeTab === 'cv_jd_upload' ? tabBeforeCvJd : activeTab);
+    setActiveTab('cv_jd_upload');
+  };
+
+  // Tối ưu CV theo JD thật (CV + file JD đã chọn từ CvJdUploadScreen) qua /api/cv/analyze/suggestions rồi lưu MongoDB
+  const runCvJdAnalysis = async (cvPicked, jdPicked) => {
     try {
-      if (!userToken) {
-        Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để phân tích CV.');
-        return;
-      }
-
-      const cvResult = await pickCvDocument();
-      if (cvResult.canceled) return;
-      const cvPicked = cvResult.assets[0];
-
-      Alert.alert(
-        'Chọn JD',
-        'Tiếp theo, chọn file mô tả công việc (JD) dạng PDF để đối chiếu với CV.',
-      );
-      const jdResult = await pickCvDocument();
-      if (jdResult.canceled) return;
-      const jdPicked = jdResult.assets[0];
-
       const fileSizeInMB = cvPicked.size != null ? (cvPicked.size / (1024 * 1024)).toFixed(2) : '?';
       setCvFile({ name: cvPicked.name, size: `${fileSizeInMB} MB` });
       setAnalyzingStatus('loading');
@@ -1306,11 +1302,13 @@ function AppInner() {
           uri: cvPicked.uri,
           name: cvPicked.name || 'cv.pdf',
           mimeType: cvPicked.mimeType || 'application/pdf',
+          file: cvPicked.file, // web: File thật từ <input type=file>
         },
         {
           uri: jdPicked.uri,
           name: jdPicked.name || 'jd.pdf',
           mimeType: jdPicked.mimeType || 'application/pdf',
+          file: jdPicked.file,
         },
         { onProgress: (n) => setAnalysisProgress(Math.min(100, Math.max(0, Number(n) || 0))) },
       );
@@ -1325,6 +1323,7 @@ function AppInner() {
       setAnalysisProgress(100);
       setAnalyzingStatus('success');
       await loadUserData();
+      setActiveTab('cv');
       if (out.note) {
         Alert.alert('Phân tích CV theo JD', out.note);
       }
@@ -2923,7 +2922,7 @@ function AppInner() {
         cvFile={cvFile}
         cvAnalyses={cvAnalyses}
         bottomPadding={HOME_NAV_CLEARANCE + 16}
-        onAnalyzeJd={triggerCvAnalysisJd}
+        onAnalyzeJd={openCvJdUploadScreen}
         onAnalyzeField={triggerCvAnalysisField}
       />
     </View>
@@ -3513,6 +3512,16 @@ function AppInner() {
         />
       );
     }
+    if (activeTab === 'cv_jd_upload') {
+      return (
+        <CvJdUploadScreen
+          analyzingStatus={analyzingStatus}
+          analysisProgress={analysisProgress}
+          onBack={() => setActiveTab(tabBeforeCvJd || 'cv')}
+          onSubmit={runCvJdAnalysis}
+        />
+      );
+    }
     return null;
   };
 
@@ -3563,7 +3572,7 @@ function AppInner() {
           <View style={styles.appShellContent}>
             {renderMainContent()}
           </View>
-          {activeTab !== 'checkout' && activeTab !== 'course_learning' && activeTab !== 'course_detail' && activeTab !== 'cart' && activeTab !== 'mentor_booking' ? (
+          {activeTab !== 'checkout' && activeTab !== 'course_learning' && activeTab !== 'course_detail' && activeTab !== 'cart' && activeTab !== 'mentor_booking' && activeTab !== 'cv_jd_upload' ? (
             <View style={styles.bottomNavDock} pointerEvents="box-none">
               {renderRoleBottomNav()}
             </View>

@@ -9,6 +9,7 @@ import { resolveMediaUrl, mentorAvatarFallback } from '../utils/mediaUrl';
 const jsonHeaders = {
   Accept: 'application/json',
   'Content-Type': 'application/json',
+
 };
 
 function mapMentorCard(m) {
@@ -247,6 +248,26 @@ function clampText(value, max) {
 }
 
 /**
+ * DocumentPicker trên React Native (native) trả về { uri: "file://..." } — fetch/FormData của RN
+ * hiểu shape { uri, name, type } và tự đọc file từ URI đó.
+ * Trên web, DocumentPicker trả về { uri: "blob:...", file: <File thật> } — FormData của trình
+ * duyệt KHÔNG hiểu shape { uri, name, type } (chỉ stringify thành "[object Object]"), phải append
+ * thẳng object File/Blob thật thì mới gửi đúng nội dung file lên server.
+ */
+function appendFilePart(form, fieldName, pickedFile) {
+  const realFile = pickedFile?.file;
+  if (typeof Blob !== 'undefined' && realFile instanceof Blob) {
+    form.append(fieldName, realFile, pickedFile.name || realFile.name || fieldName);
+    return;
+  }
+  form.append(fieldName, {
+    uri: pickedFile.uri,
+    name: pickedFile.name || fieldName,
+    type: pickedFile.mimeType || 'application/pdf',
+  });
+}
+
+/**
  * Backend/DB chỉ chấp nhận điểm AI thang 0-5 (Joi + Mongoose), nhưng LLM (cv_jd_matching)
  * luôn chấm theo thang 0-10 — quy đổi giống hệt web (`normalizeDimensionScore` trong
  * frontend/src/app/utils/cvMappers.js) để không bị lệch giữa 2 nền tảng.
@@ -338,11 +359,7 @@ export async function analyzeAndSaveCv(file, opts = {}) {
 
   onProgress(15);
   const form = new FormData();
-  form.append('resume', {
-    uri: file.uri,
-    name: file.name || 'cv.pdf',
-    type: file.mimeType || 'application/pdf',
-  });
+  appendFilePart(form, 'resume', file);
   form.append('field', field);
 
   onProgress(35);
@@ -413,16 +430,8 @@ export async function analyzeCvAgainstJd(cvFile, jdFile, opts = {}) {
 
   const buildForm = () => {
     const form = new FormData();
-    form.append('resume', {
-      uri: cvFile.uri,
-      name: cvFile.name || 'cv.pdf',
-      type: cvFile.mimeType || 'application/pdf',
-    });
-    form.append('jd', {
-      uri: jdFile.uri,
-      name: jdFile.name || 'jd.pdf',
-      type: jdFile.mimeType || 'application/pdf',
-    });
+    appendFilePart(form, 'resume', cvFile);
+    appendFilePart(form, 'jd', jdFile);
     return form;
   };
 
