@@ -4,9 +4,6 @@ const ROUTE_LABELS = {
   "/dashboard": "Bảng điều khiển",
   "/cv-analysis": "Phân tích CV",
   "/cv-analysis/history": "Lịch sử phân tích CV",
-  "/interview": "Phỏng vấn AI",
-  "/interview/room": "Phòng phỏng vấn",
-  "/interview/feedback": "Kết quả phỏng vấn",
   "/mentors": "Danh sách cố vấn",
   "/booking": "Đặt lịch",
   "/checkout": "Thanh toán",
@@ -23,8 +20,6 @@ const ROUTE_LABELS = {
 const ACTION_LABELS = {
   cv_analyze_start: "Bắt đầu phân tích CV",
   cv_analyze_done: "Hoàn thành phân tích CV",
-  interview_start: "Bắt đầu phỏng vấn AI",
-  interview_complete: "Hoàn thành phỏng vấn AI",
   checkout_open: "Mở trang thanh toán",
   booking_submit: "Gửi đặt lịch",
   course_enroll: "Mua khóa học",

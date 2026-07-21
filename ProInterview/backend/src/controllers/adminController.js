@@ -9,7 +9,6 @@ import { getPlatformBehavior, getUserJourney } from "../services/analyticsServic
 
 import { PayoutRequest } from "../models/PayoutRequest.js";
 import { Enrollment } from "../models/Enrollment.js";
-import { InterviewSession } from "../models/InterviewSession.js";
 import { Notification } from "../models/index.js";
 import { deliverNotification } from "../services/notificationDeliveryService.js";
 import { activateMentorCommissionPolicy } from "../services/mentorCommissionService.js";
@@ -84,32 +83,6 @@ function serializeRecentBookingForAdmin(booking) {
       booking.mentorId?.title ||
       "—",
   };
-}
-
-/** Câu hỏi từ mảng LLM hoặc fallback questionText trong answers (phiên cũ). */
-function resolveAdminSessionQuestions(session) {
-  const fromBank = (session.questions || []).filter((q) => String(q?.question || "").trim());
-  if (fromBank.length) {
-    return fromBank.map((q, i) => ({
-      index: i + 1,
-      layer: q.layer || "",
-      question: q.question,
-      competencyName: q.competencyName || "",
-      source: "llm",
-    }));
-  }
-  const answers = Array.isArray(session.answers) ? session.answers : [];
-  return [...answers]
-    .sort((a, b) => (a.questionIndex ?? 0) - (b.questionIndex ?? 0))
-    .filter((a) => String(a?.questionText || "").trim())
-    .map((a, i) => ({
-      index: (a.questionIndex ?? i) + 1,
-      layer: "",
-      question: a.questionText,
-      competencyName: "",
-      source: "answer",
-      transcriptPreview: String(a.transcript || "").trim().slice(0, 160) || null,
-    }));
 }
 
 export const AdminController = {
@@ -845,98 +818,13 @@ export const AdminController = {
   getContentStats: async (_req, res, next) => {
     try {
       const CVAnalysis = mongoose.model("CVAnalysis");
-      const since7d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const [
-        interviews,
-        cvAnalyses,
-        publishedCourses,
-        completedInterviews,
-        sessions7d,
-        completed7d,
-        scoreAgg7d,
-        fewShotReadyCount,
-      ] = await Promise.all([
-        InterviewSession.countDocuments(),
+      const [cvAnalyses, publishedCourses] = await Promise.all([
         CVAnalysis.countDocuments(),
         Course.countDocuments({ status: "published" }),
-        InterviewSession.countDocuments({ status: "completed" }),
-        InterviewSession.countDocuments({ createdAt: { $gte: since7d } }),
-        InterviewSession.countDocuments({ status: "completed", createdAt: { $gte: since7d } }),
-        InterviewSession.aggregate([
-          {
-            $match: {
-              status: "completed",
-              "feedback.overallScore": { $exists: true, $gt: 0 },
-              createdAt: { $gte: since7d },
-            },
-          },
-          { $group: { _id: null, avgScore: { $avg: "$feedback.overallScore" }, count: { $sum: 1 } } },
-        ]),
-        InterviewSession.countDocuments({
-          status: "completed",
-          "feedback.overallScore": { $gte: 80 },
-        }),
       ]);
-      const scoreRow = scoreAgg7d[0] ?? null;
       res.json({
         success: true,
-        content: {
-          interviewSessions: interviews,
-          completedInterviews,
-          cvAnalyses,
-          publishedCourses,
-          interviewOps: {
-            periodDays: 7,
-            sessions7d,
-            completed7d,
-            avgScore7d: scoreRow?.avgScore != null ? Math.round(scoreRow.avgScore * 10) / 10 : null,
-            scoredSessions7d: scoreRow?.count ?? 0,
-            fewShotReadyCount,
-          },
-        },
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  /** GET /api/admin/content/interview-sessions — phiên gần đây + câu hỏi LLM đã lưu */
-  getRecentInterviewSessions: async (req, res, next) => {
-    try {
-      const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
-      const sessions = await InterviewSession.find()
-        .sort({ createdAt: -1 })
-        .limit(limit)
-        .populate("userId", "name email")
-        .select(
-          "userId status inferredRole inferredSeniority competencyProfile questions answers questionsAllowed createdAt completedAt",
-        )
-        .lean();
-
-      res.json({
-        success: true,
-        sessions: sessions.map((s) => {
-          const questions = resolveAdminSessionQuestions(s);
-          const roleParts = [
-            s.inferredRole,
-            s.inferredSeniority,
-            s.competencyProfile?.roleCategory,
-          ].filter(Boolean);
-          return {
-            id: String(s._id),
-            user: s.userId
-              ? { name: s.userId.name || "", email: s.userId.email || "" }
-              : null,
-            status: s.status,
-            role: roleParts.length ? roleParts.join(" · ") : "—",
-            questionCount: questions.length,
-            questionsAllowed: s.questionsAllowed ?? null,
-            questions,
-            answerCount: Array.isArray(s.answers) ? s.answers.length : 0,
-            createdAt: s.createdAt,
-            completedAt: s.completedAt || null,
-          };
-        }),
+        content: { cvAnalyses, publishedCourses },
       });
     } catch (error) {
       next(error);
@@ -1016,8 +904,8 @@ export const AdminController = {
           },
           plans: [
             { key: "free", label: "Miễn phí", cvAnalysisLimit: 3, mentorSessionLimit: 0, price: 0 },
-            { key: "student", label: "Student", cvAnalysisLimit: 10, mentorSessionLimit: 0, price: 150000 },
-            { key: "professional", label: "Professional", cvAnalysisLimit: 30, mentorSessionLimit: 0, price: 500000 },
+            { key: "student", label: "Student", cvAnalysisLimit: 50, mentorSessionLimit: 0, price: 150000 },
+            { key: "professional", label: "Professional", cvAnalysisLimit: 999, mentorSessionLimit: 0, price: 500000 },
           ],
           payments: {
             primaryChannel: "bank_transfer",
@@ -1471,108 +1359,6 @@ export const AdminController = {
       res.json({ success: true, payout });
     } catch (error) {
       next(error);
-    }
-  },
-
-  /** GET /api/admin/interview-metrics — 7-day operational snapshot */
-  getInterviewMetrics: async (req, res) => {
-    try {
-      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-
-      const [
-        sessionsByStatus,
-        evalDurationStats,
-        scoreStats,
-        sessionsByDay,
-        topRoles,
-        fewShotReadyCount,
-        totalAllTime,
-      ] = await Promise.all([
-        // Sessions by status — last 7 days
-        InterviewSession.aggregate([
-          { $match: { createdAt: { $gte: since } } },
-          { $group: { _id: "$status", count: { $sum: 1 } } },
-        ]),
-
-        // Avg LLM evaluation latency (feedbackGeneratedAt − completedAt)
-        InterviewSession.aggregate([
-          { $match: {
-            feedbackGeneratedAt: { $exists: true },
-            completedAt:         { $exists: true },
-            createdAt:           { $gte: since },
-          }},
-          { $project: {
-            evalMs: { $subtract: ["$feedbackGeneratedAt", "$completedAt"] },
-          }},
-          { $group: {
-            _id:   null,
-            avgMs: { $avg: "$evalMs" },
-            count: { $sum: 1 },
-          }},
-        ]),
-
-        // Avg overall score for evaluated sessions
-        InterviewSession.aggregate([
-          { $match: {
-            status: "completed",
-            "feedback.overallScore": { $exists: true, $gt: 0 },
-            createdAt: { $gte: since },
-          }},
-          { $group: {
-            _id:      null,
-            avgScore: { $avg: "$feedback.overallScore" },
-            count:    { $sum: 1 },
-          }},
-        ]),
-
-        // Daily session count — last 7 days
-        InterviewSession.aggregate([
-          { $match: { createdAt: { $gte: since } } },
-          { $group: {
-            _id:   { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-            count: { $sum: 1 },
-          }},
-          { $sort: { _id: 1 } },
-        ]),
-
-        // Top role categories in completed sessions
-        InterviewSession.aggregate([
-          { $match: {
-            status: "completed",
-            "competencyProfile.roleCategory": { $exists: true, $ne: "" },
-            createdAt: { $gte: since },
-          }},
-          { $group: {
-            _id:   "$competencyProfile.roleCategory",
-            count: { $sum: 1 },
-          }},
-          { $sort: { count: -1 } },
-          { $limit: 5 },
-        ]),
-
-        // Few-shot pool: completed sessions with high scores (eligible as training examples)
-        InterviewSession.countDocuments({
-          status: "completed",
-          "feedback.overallScore": { $gte: 80 },
-        }),
-
-        // All-time total
-        InterviewSession.countDocuments(),
-      ]);
-
-      res.json({
-        success: true,
-        period: "7d",
-        sessionsByStatus,
-        evalDuration: evalDurationStats[0] ?? { avgMs: null, count: 0 },
-        scoreStats:   scoreStats[0]        ?? { avgScore: null, count: 0 },
-        sessionsByDay,
-        topRoles,
-        fewShotReadyCount,
-        totalAllTime,
-      });
-    } catch (error) {
-      res.status(500).json({ success: false, error: error.message });
     }
   },
 

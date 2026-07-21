@@ -485,7 +485,8 @@ export function MentorDashboard() {
   const sevenDaysLater = now + 7 * 24 * 60 * 60 * 1000;
   const ratingMap = dashboard?.ratingByBookingId || {};
   const apiUpcoming = mentorBookings.filter((m) => {
-    const statusOk = ["pending", "confirmed", "in_progress"].includes(String(m.status || "").toLowerCase());
+    // Chưa thanh toán ("pending") thì chưa tính là buổi hẹn thật — không hiện cho mentor.
+    const statusOk = ["confirmed", "in_progress"].includes(String(m.status || "").toLowerCase());
     if (!statusOk) return false;
     const dt = parseBookingDateTime(m.scheduledDate, m.scheduledTime);
     return dt && dt.getTime() > now && dt.getTime() <= sevenDaysLater;

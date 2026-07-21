@@ -34,4 +34,5 @@ uploadRouter.post("/jd", authJwt, handleMulterError(upload.single("file")), asyn
 uploadRouter.post("/course-thumbnail", authJwt, requireMentor, handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadCourseThumbnail));
 uploadRouter.post("/course-video", authJwt, requireMentor, handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadCourseVideo));
 uploadRouter.post("/sign-video", authJwt, requireMentor, asyncHandler(UploadController.signCourseVideoUpload));
+uploadRouter.post("/meeting-checkin", authJwt, requireMentor, handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadMeetingCheckin));
 

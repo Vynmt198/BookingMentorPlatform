@@ -7,7 +7,6 @@ import {
   Zap,
   AlertTriangle as Warning,
   Info,
-  Mic,
   Users,
   PlusCircle,
   RotateCcw as History,
@@ -554,7 +553,7 @@ export function CVAnalysisResultContent({
           </h3>
           <p className="max-w-md text-sm text-slate-500">
             {matchScore >= 80
-              ? "CV của bạn đã rất ấn tượng. Bước tiếp theo là rèn luyện phản xạ thực tế trong phòng phỏng vấn AI, hoặc kết nối với Mentor để được góp ý chuyên sâu trước khi ứng tuyển."
+              ? "CV của bạn đã rất ấn tượng. Bước tiếp theo là kết nối với Mentor để được góp ý chuyên sâu trước khi ứng tuyển."
               : matchScore >= 50
                 ? "Hãy chỉnh sửa lại CV theo các góp ý trên. Nếu gặp khó khăn, các Mentor luôn sẵn sàng hỗ trợ bạn."
                 : "Bạn có thể kết nối với Mentor để định hướng lại lộ trình, hoặc thử phân tích với một JD khác phù hợp hơn."}
@@ -562,32 +561,13 @@ export function CVAnalysisResultContent({
         </div>
 
         <div className="flex flex-wrap justify-center gap-4">
-          {matchScore >= 80 ? (
-            <>
-              <button
-                type="button"
-                onClick={() => navigate("/interview")}
-                className="flex items-center justify-center gap-2 rounded-xl bg-[#a3e635] px-8 py-3.5 text-base font-bold text-slate-900 shadow-sm transition hover:bg-[#84cc16]"
-              >
-                <Mic className="h-5 w-5 shrink-0" /> Phỏng vấn AI
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate("/mentors")}
-                className="flex items-center justify-center gap-2 rounded-xl border border-violet-200 bg-white px-8 py-3.5 text-base font-bold text-violet-700 shadow-sm transition hover:bg-violet-50"
-              >
-                <Users className="h-5 w-5 shrink-0" /> Gặp Mentor
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => navigate("/mentors")}
-              className="flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-8 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-violet-700"
-            >
-              <Users className="h-5 w-5 shrink-0" /> Gặp Mentor
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => navigate("/mentors")}
+            className="flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-8 py-3.5 text-base font-bold text-white shadow-sm transition hover:bg-violet-700"
+          >
+            <Users className="h-5 w-5 shrink-0" /> Gặp Mentor
+          </button>
           <button
             type="button"
             onClick={() => navigate(resolvedAnalysisPath)}

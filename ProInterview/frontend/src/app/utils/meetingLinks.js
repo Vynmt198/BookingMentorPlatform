@@ -41,7 +41,19 @@ export function buildJitsiMeetUrl(roomName, displayName) {
     .replace(/-+/g, "-")
     .slice(0, 80) || "ProInterview";
   const name = encodeURIComponent(displayName || "User");
-  return `https://meet.jit.si/${room}#config.prejoinPageEnabled=false&userInfo.displayName="${name}"`;
+  const config = [
+    "config.prejoinPageEnabled=false",
+    "config.enableWelcomePage=false",
+    "config.disableDeepLinking=true",
+    "config.startWithAudioMuted=false",
+    "config.startWithVideoMuted=false",
+    "config.hideConferenceSubject=true",
+    "interfaceConfig.SHOW_JITSI_WATERMARK=false",
+    "interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false",
+    "interfaceConfig.DEFAULT_BACKGROUND=#f8f9fc",
+    `userInfo.displayName="${name}"`,
+  ].join("&");
+  return `https://meet.jit.si/${room}#${config}`;
 }
 
 /** Tên phòng cố định theo booking — mentor & học viên vào cùng một phòng Jitsi. */
@@ -50,14 +62,24 @@ export function proInterviewRoomName(bookingId) {
 }
 
 /**
- * Link phòng trên nền tảng ProInterview (Jitsi).
- * Bỏ qua meetingLink Google Meet/Zoom cũ trong DB — luôn dùng phòng theo booking id.
+ * Link vào phòng họp qua app ProInterview (Browser Router).
+ * Prod dùng JaaS: user phải vào qua app để nhận JWT từ backend — không trỏ thẳng ra
+ * meet.jit.si (phòng public, không auth, room name đoán được từ bookingId).
  */
 export function resolveProInterviewMeetLink(bookingId, _storedLink = "") {
   const id = String(bookingId || "").trim();
   if (!id) return "";
-  // Luôn theo bookingId — tránh link Jitsi cũ (PI123…) lệch với MeetingRoom
-  return `https://meet.jit.si/${proInterviewRoomName(id)}`;
+
+  const configuredOrigin = String(import.meta.env.VITE_FRONTEND_URL || "").trim().replace(/\/$/, "");
+  if (configuredOrigin) {
+    return `${configuredOrigin}/meeting/${encodeURIComponent(id)}`;
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}/meeting/${encodeURIComponent(id)}`;
+  }
+
+  return `/meeting/${encodeURIComponent(id)}`;
 }
 
 export function buildProInterviewMeetUrl(bookingId, displayName) {
@@ -65,13 +87,23 @@ export function buildProInterviewMeetUrl(bookingId, displayName) {
 }
 
 /** Có được phép mở phòng Jitsi hay không (khớp backend `startBookingMeeting`). */
-/** Parse `date` (DD/MM/YYYY) + `timeSlot` (HH:mm) → timestamp ms. */
+/** Parse `date` (DD/MM/YYYY, YYYY-MM-DD) + `timeSlot` (HH:mm) → timestamp ms. */
 export function parseBookingStartMs(booking) {
   const date = String(booking?.date || "").trim();
   const time = String(booking?.timeSlot || booking?.time || "09:00").trim();
-  const parts = date.split("/").map((p) => parseInt(p, 10));
   const [h, min = 0] = time.split(":").map((p) => parseInt(p, 10));
+
+  const iso = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]), h, min, 0).getTime();
+  }
+
+  const parts = date.split("/").map((p) => parseInt(p, 10));
   if (parts.length >= 3) {
+    if (parts[0] > 1000) {
+      const [y, m, d] = parts;
+      return new Date(y, m - 1, d, h, min, 0).getTime();
+    }
     const [d, m, y] = parts;
     return new Date(y, m - 1, d, h, min, 0).getTime();
   }
@@ -130,7 +162,7 @@ export function formatUntilStart(totalMinutes) {
   return hours ? `${days} ngày ${hours} giờ` : `${days} ngày`;
 }
 
-export function canEnterMeetingRoom(booking) {
+export function canEnterMeetingRoom(booking, { asMentor = false } = {}) {
   if (!booking) {
     return { ok: false, message: "Không tìm thấy buổi hẹn." };
   }
@@ -140,13 +172,36 @@ export function canEnterMeetingRoom(booking) {
     return { ok: false, message: "Buổi hẹn đã kết thúc hoặc đã bị hủy." };
   }
   if (!["confirmed", "in_progress"].includes(st)) {
+    if (asMentor && st === "pending" && pst === "paid") {
+      return { ok: true, message: "", mentorAutoConfirm: true };
+    }
+    if (asMentor && st === "pending") {
+      return {
+        ok: false,
+        message: "Học viên chưa hoàn tất thanh toán. Bạn có thể vào phòng sau khi đơn được thanh toán (admin xác nhận CK).",
+      };
+    }
+    if (asMentor) {
+      return {
+        ok: false,
+        message: "Buổi hẹn chưa sẵn sàng. Kiểm tra trạng thái trong Lịch mentor.",
+      };
+    }
     return {
       ok: false,
-      message: "Buổi hẹn chưa được xác nhận. Hoàn tất thanh toán hoặc chờ mentor xác nhận.",
+      message:
+        pst === "paid"
+          ? "Chờ mentor xác nhận buổi hẹn trước khi vào phòng."
+          : "Buổi hẹn chưa được xác nhận. Hoàn tất thanh toán hoặc chờ mentor xác nhận.",
     };
   }
   if (pst !== "paid") {
-    return { ok: false, message: "Buổi hẹn chưa được thanh toán." };
+    return {
+      ok: false,
+      message: asMentor
+        ? "Học viên chưa thanh toán buổi này."
+        : "Buổi hẹn chưa được thanh toán.",
+    };
   }
   return { ok: true, message: "" };
 }

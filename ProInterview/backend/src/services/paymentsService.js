@@ -800,8 +800,8 @@ async function applySubscriptionPlanFromPayment(pay) {
     planExpiresAt.setMonth(planExpiresAt.getMonth() + 1);
   }
   const QUOTA_MAP = {
-    student:      { cvAnalysisLimit: 10, mentorSessionLimit: 0 },
-    professional: { cvAnalysisLimit: 30, mentorSessionLimit: 0 },
+    student:      { cvAnalysisLimit: 50, mentorSessionLimit: 0 },
+    professional: { cvAnalysisLimit: 999, mentorSessionLimit: 0 }, // không giới hạn
   };
   const quota = QUOTA_MAP[plan] || QUOTA_MAP.student;
   await User.findByIdAndUpdate(pay.userId, {

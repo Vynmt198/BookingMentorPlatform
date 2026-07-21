@@ -24,7 +24,6 @@ const ROUTE_TITLES = {
   "/cv-analysis/jd": "Phân tích CV + JD",
   "/cv-analysis/field/history": "Lịch sử CV theo ngành",
   "/cv-analysis/field": "Phân tích CV theo ngành",
-  "/interview": "Phỏng vấn AI",
   "/mentors": "Tìm mentor",
   "/courses": "Khóa học",
   "/pricing": "Bảng giá",

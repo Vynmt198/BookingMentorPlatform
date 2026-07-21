@@ -435,7 +435,7 @@ export function Profile() {
       nameIcon: Medal,
       badge: { bg: "bg-[#6d2fd6]/20", border: "border-[#6d2fd6]/40", icon: "text-[#6d2fd6]", text: "text-[#6d2fd6]" },
       cardGrad: "linear-gradient(145deg, #1a0d35 0%, #2D1B69 100%)",
-      desc: "Phân tích CV/JD 30 lần/tháng · Ưu tiên đặt lịch · Giảm 10% khi đặt Mentor",
+      desc: "Phân tích CV/JD không giới hạn · Ưu tiên đặt lịch · Giảm 10% khi đặt Mentor",
       progress: null,
       isPaid: true,
       accent: "#6d2fd6"
@@ -445,7 +445,7 @@ export function Profile() {
       nameIcon: Lightning,
       badge: { bg: "bg-[#93f72b]/20", border: "border-[#93f72b]/40", icon: "text-[#7fe015]", text: "text-[#8037f4]" },
       cardGrad: "#8037f4",
-      desc: "CV/JD 10 lần/tháng · Giảm 5% khi đặt Mentor",
+      desc: "CV/JD 50 lần/tháng · Giảm 5% khi đặt Mentor",
       progress: { used: 0, max: 20 },
 
       isPaid: true,
