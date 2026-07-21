@@ -166,8 +166,10 @@ export function isSafeAppRedirect(path, user) {
   if (AUTH_ONLY_PATHS.some((b) => r === b || r.startsWith(`${b}?`) || r.startsWith(`${b}/`))) {
     return false;
   }
-  if (r.startsWith("/admin") && user?.role !== "admin") return false;
-  if (r.startsWith("/mentor") && user?.role !== "mentor") return false;
+  const isAdminPath = r === "/admin" || r.startsWith("/admin/");
+  const isMentorPath = r === "/mentor" || r.startsWith("/mentor/");
+  if (isAdminPath && user?.role !== "admin") return false;
+  if (isMentorPath && user?.role !== "mentor") return false;
   return true;
 }
 
@@ -191,7 +193,7 @@ function isCustomerHubRedirect(path) {
 /** Mentor sau login chỉ giữ redirect thuộc khu mentor hoặc phòng họp. */
 function isMentorPostLoginRedirect(path) {
   const r = typeof path === "string" ? path.trim() : "";
-  return r.startsWith("/mentor") || r.startsWith("/meeting/");
+  return r === "/mentor" || r.startsWith("/mentor/") || r.startsWith("/meeting/");
 }
 
 /** Đường dẫn sau đăng nhập: admin → /admin, mentor → /mentor/dashboard, customer → ?redirect hoặc /. */
