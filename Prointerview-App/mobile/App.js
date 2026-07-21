@@ -39,6 +39,7 @@ import {
   fetchPublicCatalog,
   loadAuthenticatedUserData,
   analyzeAndSaveCv,
+  analyzeCvAgainstJd,
   markAllNotificationsRead,
   ensureApiBase,
   getApiBaseUrl,
@@ -1222,19 +1223,21 @@ function AppInner() {
     goToCheckout({ mode: 'booking', booking: bookingDraft, fromTab: 'mentor_booking' });
   };
 
-  // Phân tích CV thật qua /api/cv/analyze/field rồi lưu MongoDB
-  const triggerCvAnalysis = async () => {
+  const pickCvDocument = () =>
+    DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      copyToCacheDirectory: true,
+    });
+
+  // Phân tích CV theo ngành nghề (không cần JD) qua /api/cv/analyze/field rồi lưu MongoDB
+  const triggerCvAnalysisField = async () => {
     try {
       if (!userToken) {
         Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để phân tích CV.');
         return;
       }
 
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-        copyToCacheDirectory: true,
-      });
-
+      const result = await pickCvDocument();
       if (result.canceled) return;
 
       const file = result.assets[0];
@@ -1270,6 +1273,66 @@ function AppInner() {
       setAnalyzingStatus('idle');
       setAnalysisProgress(0);
       Alert.alert('Phân tích CV', 'Có lỗi khi tải hoặc phân tích file.');
+    }
+  };
+
+  // Tối ưu CV theo JD thật (CV + file JD) qua /api/cv/analyze/suggestions rồi lưu MongoDB
+  const triggerCvAnalysisJd = async () => {
+    try {
+      if (!userToken) {
+        Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để phân tích CV.');
+        return;
+      }
+
+      const cvResult = await pickCvDocument();
+      if (cvResult.canceled) return;
+      const cvPicked = cvResult.assets[0];
+
+      Alert.alert(
+        'Chọn JD',
+        'Tiếp theo, chọn file mô tả công việc (JD) dạng PDF để đối chiếu với CV.',
+      );
+      const jdResult = await pickCvDocument();
+      if (jdResult.canceled) return;
+      const jdPicked = jdResult.assets[0];
+
+      const fileSizeInMB = cvPicked.size != null ? (cvPicked.size / (1024 * 1024)).toFixed(2) : '?';
+      setCvFile({ name: cvPicked.name, size: `${fileSizeInMB} MB` });
+      setAnalyzingStatus('loading');
+      setAnalysisProgress(5);
+
+      const out = await analyzeCvAgainstJd(
+        {
+          uri: cvPicked.uri,
+          name: cvPicked.name || 'cv.pdf',
+          mimeType: cvPicked.mimeType || 'application/pdf',
+        },
+        {
+          uri: jdPicked.uri,
+          name: jdPicked.name || 'jd.pdf',
+          mimeType: jdPicked.mimeType || 'application/pdf',
+        },
+        { onProgress: (n) => setAnalysisProgress(Math.min(100, Math.max(0, Number(n) || 0))) },
+      );
+
+      if (!out.success) {
+        setAnalyzingStatus('idle');
+        setAnalysisProgress(0);
+        Alert.alert('Phân tích CV theo JD', out.error || 'Không phân tích được CV theo JD.');
+        return;
+      }
+
+      setAnalysisProgress(100);
+      setAnalyzingStatus('success');
+      await loadUserData();
+      if (out.note) {
+        Alert.alert('Phân tích CV theo JD', out.note);
+      }
+    } catch (error) {
+      console.error('Lỗi khi phân tích CV theo JD:', error);
+      setAnalyzingStatus('idle');
+      setAnalysisProgress(0);
+      Alert.alert('Phân tích CV theo JD', 'Có lỗi khi tải hoặc phân tích file.');
     }
   };
 
@@ -2860,8 +2923,8 @@ function AppInner() {
         cvFile={cvFile}
         cvAnalyses={cvAnalyses}
         bottomPadding={HOME_NAV_CLEARANCE + 16}
-        onAnalyzeJd={triggerCvAnalysis}
-        onAnalyzeField={triggerCvAnalysis}
+        onAnalyzeJd={triggerCvAnalysisJd}
+        onAnalyzeField={triggerCvAnalysisField}
       />
     </View>
   );

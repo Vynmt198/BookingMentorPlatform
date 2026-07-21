@@ -25,10 +25,12 @@ function buildScoreRows(latest) {
     { key: 'relevance', label: 'Relevance (Liên quan JD)', color: '#8037f4' },
     { key: 'credibility', label: 'Credibility (Thuyết phục)', color: '#8037f4' },
   ];
+  // Lưu ý: điểm lưu trong DB luôn ở thang 0-5 (Joi + Mongoose ở backend chuẩn hoá về 0-5
+  // dù LLM chấm gốc theo thang 0-10) — không phải 0-10.
   return rows.map((row) => ({
     ...row,
     score: Number(scores[row.key] ?? latest?.[row.key] ?? 0),
-    max: 10,
+    max: 5,
   }));
 }
 
@@ -173,6 +175,7 @@ export default function CvAnalysisHubScreen({
       missing: latestResult.missingKeywords || latestResult.skills?.missing || [],
       summary:
         latestResult.summary ||
+        latestResult.suggestions?.executiveSummary ||
         latestResult.feedback ||
         (isSuccess ? 'Kết quả phân tích từ API.' : EMPTY_MATCH.summary),
     };
