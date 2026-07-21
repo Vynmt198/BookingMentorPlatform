@@ -13,7 +13,7 @@ services:
     # Muốn đổi region: xóa web service cũ trên Dashboard rồi tạo lại, hoặc tạo service mới tên khác.
     region: singapore
     branch: main
-    rootDir: backend
+    rootDir: ProInterview/backend
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
