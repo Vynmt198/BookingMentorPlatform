@@ -73,7 +73,7 @@ export async function getDashboardStats(userId) {
   };
 }
 
-async function collectLearningActiveDays(userId) {
+export async function collectLearningActiveDays(userId) {
   const keys = new Set();
   const add = (d) => {
     if (!d) return;

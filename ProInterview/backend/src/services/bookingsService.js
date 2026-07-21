@@ -11,6 +11,7 @@ import { ensureMentorProfilesForAllMentorUsers } from "./mentorProfileService.js
 import { recordAdminTransferSuccess, recordTransferPending, recordTransferSubmitted } from "./paymentsService.js";
 import { tryCreditMentorForCompletedBooking } from "./mentorEarningsService.js";
 import { deliverNotification } from "./notificationDeliveryService.js";
+import { mergeNotificationPrefs } from "../constants/notificationPrefs.js";
 import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
 import { isBookingInLiveWindow, isBookingSlotInFuture } from "../utils/bookingSchedule.js";
 import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
@@ -123,10 +124,22 @@ function parseBookingDateTime(dateRaw, timeRaw) {
   return new Date(year, month - 1, day, hour, minute, 0, 0);
 }
 
+/**
+ * Map loại sự kiện → key cài đặt thông báo của học viên. "booking_confirmed" (xác nhận thanh
+ * toán/lịch) dùng interview_reminder; "booking_reminder" (nhắc trước giờ hẹn) dùng session_upcoming;
+ * "feedback" dùng mentor_feedback; mọi sự kiện hủy/đổi lịch/hoàn tiền còn lại (booking_cancelled và
+ * các thông báo "system" liên quan reschedule/refund) dùng chung booking_change.
+ */
+function customerBookingPrefKey(type) {
+  if (type === "feedback") return "mentor_feedback";
+  if (type === "booking_reminder") return "session_upcoming";
+  if (type === "booking_confirmed") return "interview_reminder";
+  return "booking_change";
+}
+
 async function notifyBookingOwner(userId, payload) {
   if (!mongoose.isValidObjectId(String(userId || ""))) return;
-  const customerPrefKey =
-    payload.type === "feedback" ? "mentor_feedback" : "interview_reminder";
+  const customerPrefKey = customerBookingPrefKey(payload.type);
   await deliverNotification(userId, {
     customerPrefKey,
     type: payload.type || "system",
@@ -1477,6 +1490,19 @@ export async function confirmBankTransferPaymentByAdmin(bookingId, options = {})
     });
   }
 
+  if (!options?._skipSiblingConfirm) {
+    await notifyBookingOwner(booking.userId?._id || booking.userId, {
+      type: "booking_confirmed",
+      title: "Lịch hẹn đã được xác nhận",
+      body: `Thanh toán đã được duyệt — buổi với ${booking.mentorId?.name || "mentor"} lúc ${booking.date} ${booking.timeSlot} đã xác nhận.`,
+      metadata: {
+        bookingId: booking._id,
+        mentorId: booking.mentorId?._id,
+        actionUrl: `/session/${booking._id}`,
+      },
+    });
+  }
+
   return { ok: true, booking: toPublicBooking(booking) };
 }
 
@@ -1768,7 +1794,7 @@ export async function updateMentorNotes(mentorUserId, rawId, body) {
   booking.mentorNotes = notes;
   await booking.save();
   await booking.populate([
-    { path: "userId", select: "name email avatar" },
+    { path: "userId", select: "name email avatar settings.notificationPrefs" },
     { path: "mentorId", select: "name title company avatar publicId userId", populate: { path: "userId", select: "email" } }
   ]);
 
@@ -1797,18 +1823,23 @@ export async function updateMentorNotes(mentorUserId, rawId, body) {
       console.error(`Notification error: ${err.message}`);
     }
 
-    // 2. Gửi Email (Cần await để server không ngắt kết nối trước khi gửi xong trên production)
-    try {
-      const emailRes = await sendMentorFeedbackEmail(
-        student.email,
-        student.name || "Bạn",
-        mentorData?.name || "Mentor",
-        booking.sessionType,
-        notes
-      );
-      console.log(`Email send result: ${JSON.stringify(emailRes)}`);
-    } catch (err) {
-      console.error(`Email send error: ${err.message}`);
+    // 2. Gửi Email — chỉ gửi nếu học viên chưa tắt "Phản hồi từ mentor" trong Cài đặt.
+    const studentPrefs = mergeNotificationPrefs("customer", student.settings?.notificationPrefs);
+    if (studentPrefs.mentor_feedback === false) {
+      console.log(`SKIP EMAIL: student turned off mentor_feedback notifications.`);
+    } else {
+      try {
+        const emailRes = await sendMentorFeedbackEmail(
+          student.email,
+          student.name || "Bạn",
+          mentorData?.name || "Mentor",
+          booking.sessionType,
+          notes
+        );
+        console.log(`Email send result: ${JSON.stringify(emailRes)}`);
+      } catch (err) {
+        console.error(`Email send error: ${err.message}`);
+      }
     }
   } else {
     console.log(`SKIP EMAIL: Student or Email is missing.`);
