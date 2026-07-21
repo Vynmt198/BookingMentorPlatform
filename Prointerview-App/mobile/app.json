@@ -6,6 +6,15 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "backgroundColor": "#f5f0fc",
+    "icon": "./assets/logo-mark-circle.png",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "platforms": [
       "android",
       "ios",
@@ -14,13 +23,24 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.prointerview.app",
-      "backgroundColor": "#f5f0fc"
+      "buildNumber": "1",
+      "backgroundColor": "#f5f0fc",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
       "packageName": "com.prointerview.app",
       "package": "com.prointerview.app",
+      "versionCode": 1,
       "backgroundColor": "#f5f0fc",
       "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo-mark-circle.png",
+        "backgroundColor": "#f5f0fc"
+      },
       "navigationBar": {
         "backgroundColor": "#f5f0fc",
         "barStyle": "dark-content"
@@ -30,8 +50,12 @@
     "owner": "vietvan",
     "plugins": [
       [
-        "@react-native-google-signin/google-signin"
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.956250299695-4sqi587k4p3ubtrpcchhjvhkfats7nbe"
+        }
       ],
+      "expo-updates",
       "expo-web-browser",
       "expo-font",
       [

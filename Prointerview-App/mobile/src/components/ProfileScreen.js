@@ -108,12 +108,17 @@ export default function ProfileScreen({
   user,
   onUserUpdated,
   onOpenLearning,
-  onOpenHistory,
+  onOpenHistoryPayments,
+  onOpenHistoryBookings,
+  onOpenHistoryCv,
+  onOpenProfileInfo,
   onOpenRoleCourses,
   onOpenRoleFinance,
   onOpenRoleSessions,
   onLogout,
   ownedCourseCount = 0,
+  /** 'hub' = avatar + menu; 'edit' = form hồ sơ đầy đủ */
+  mode = 'hub',
 }) {
   const isMentor = user?.role === 'mentor';
   const isAdmin = user?.role === 'admin';
@@ -335,6 +340,8 @@ export default function ProfileScreen({
       nestedScrollEnabled
       keyboardShouldPersistTaps="handled"
     >
+      {mode === 'hub' ? (
+      <>
       {/* Sidebar card */}
       <View style={styles.summaryCard}>
         <TouchableOpacity
@@ -370,10 +377,37 @@ export default function ProfileScreen({
           <Text style={styles.mentorPendingHint}>Tài khoản quản trị hệ thống</Text>
         ) : null}
 
-        {isCustomer && (onOpenLearning || onOpenHistory) ? (
+        {(onOpenProfileInfo ||
+          (isCustomer &&
+            (onOpenLearning ||
+              onOpenHistoryPayments ||
+              onOpenHistoryBookings ||
+              onOpenHistoryCv))) ? (
           <View style={styles.libraryMenu}>
-            {onOpenLearning ? (
-              <TouchableOpacity style={styles.libraryMenuRow} onPress={onOpenLearning} activeOpacity={0.85}>
+            {onOpenProfileInfo ? (
+              <TouchableOpacity
+                style={styles.libraryMenuRow}
+                onPress={onOpenProfileInfo}
+                activeOpacity={0.85}
+              >
+                <View style={styles.libraryMenuLeft}>
+                  <View style={styles.libraryMenuIcon}>
+                    <Ionicons name="person-outline" size={17} color="#8037f4" />
+                  </View>
+                  <View>
+                    <Text style={styles.libraryMenuLabel}>Thông tin cá nhân</Text>
+                    <Text style={styles.libraryMenuSub}>Giới thiệu, kinh nghiệm & kỹ năng</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+              </TouchableOpacity>
+            ) : null}
+            {isCustomer && onOpenLearning ? (
+              <TouchableOpacity
+                style={styles.libraryMenuRow}
+                onPress={onOpenLearning}
+                activeOpacity={0.85}
+              >
                 <View style={styles.libraryMenuLeft}>
                   <View style={styles.libraryMenuIcon}>
                     <Ionicons name="play-circle-outline" size={17} color="#8037f4" />
@@ -388,19 +422,55 @@ export default function ProfileScreen({
                 <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
               </TouchableOpacity>
             ) : null}
-            {onOpenHistory ? (
+            {isCustomer && onOpenHistoryPayments ? (
               <TouchableOpacity
-                style={[styles.libraryMenuRow, styles.libraryMenuRowLast]}
-                onPress={onOpenHistory}
+                style={styles.libraryMenuRow}
+                onPress={onOpenHistoryPayments}
                 activeOpacity={0.85}
               >
                 <View style={styles.libraryMenuLeft}>
                   <View style={styles.libraryMenuIcon}>
-                    <Ionicons name="time-outline" size={17} color="#8037f4" />
+                    <Ionicons name="wallet-outline" size={17} color="#8037f4" />
                   </View>
                   <View>
-                    <Text style={styles.libraryMenuLabel}>Lịch sử hoạt động</Text>
-                    <Text style={styles.libraryMenuSub}>Giao dịch, lịch hẹn & CV</Text>
+                    <Text style={styles.libraryMenuLabel}>Lịch sử giao dịch</Text>
+                    <Text style={styles.libraryMenuSub}>Thanh toán khóa học & gói</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+              </TouchableOpacity>
+            ) : null}
+            {isCustomer && onOpenHistoryBookings ? (
+              <TouchableOpacity
+                style={styles.libraryMenuRow}
+                onPress={onOpenHistoryBookings}
+                activeOpacity={0.85}
+              >
+                <View style={styles.libraryMenuLeft}>
+                  <View style={styles.libraryMenuIcon}>
+                    <Ionicons name="calendar-outline" size={17} color="#8037f4" />
+                  </View>
+                  <View>
+                    <Text style={styles.libraryMenuLabel}>Lịch sử phỏng vấn</Text>
+                    <Text style={styles.libraryMenuSub}>Buổi hẹn mentor đã đặt</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+              </TouchableOpacity>
+            ) : null}
+            {isCustomer && onOpenHistoryCv ? (
+              <TouchableOpacity
+                style={[styles.libraryMenuRow, styles.libraryMenuRowLast]}
+                onPress={onOpenHistoryCv}
+                activeOpacity={0.85}
+              >
+                <View style={styles.libraryMenuLeft}>
+                  <View style={styles.libraryMenuIcon}>
+                    <Ionicons name="document-text-outline" size={17} color="#8037f4" />
+                  </View>
+                  <View>
+                    <Text style={styles.libraryMenuLabel}>Lịch sử CV</Text>
+                    <Text style={styles.libraryMenuSub}>Các lần phân tích hồ sơ</Text>
                   </View>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
@@ -502,6 +572,16 @@ export default function ProfileScreen({
         ) : null}
       </View>
 
+      {onLogout ? (
+        <TouchableOpacity style={styles.logoutFooterButton} onPress={onLogout} activeOpacity={0.88}>
+          <Text style={styles.logoutFooterTitle}>Đăng xuất</Text>
+        </TouchableOpacity>
+      ) : null}
+      </>
+      ) : null}
+
+      {mode === 'edit' ? (
+      <>
       {/* Main form card */}
       <View style={styles.formCard}>
         <View style={styles.formHeader}>
@@ -527,13 +607,11 @@ export default function ProfileScreen({
           <Text style={styles.mentorApplyError}>{mentorApplyError}</Text>
         ) : null}
 
-        {/* THÔNG TIN */}
+        {/* THÔNG TIN CƠ BẢN */}
         <View style={styles.staticSection}>
           <Text style={styles.sectionHeading}>THÔNG TIN</Text>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>
-              <Ionicons name="person-outline" size={11} color="#64748b" /> Họ và tên *
-            </Text>
+            <Text style={styles.fieldLabelSmall}>Họ và tên *</Text>
             <TextInput
               style={styles.input}
               value={form.name}
@@ -543,9 +621,7 @@ export default function ProfileScreen({
             />
           </View>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>
-              <Ionicons name="mail-outline" size={11} color="#64748b" /> Email *
-            </Text>
+            <Text style={styles.fieldLabelSmall}>Email *</Text>
             <TextInput
               style={styles.input}
               value={form.email}
@@ -557,9 +633,7 @@ export default function ProfileScreen({
             />
           </View>
           <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>
-              <Ionicons name="call-outline" size={11} color="#64748b" /> Số điện thoại
-            </Text>
+            <Text style={styles.fieldLabelSmall}>Số điện thoại</Text>
             <TextInput
               style={styles.input}
               value={form.phone}
@@ -778,11 +852,7 @@ export default function ProfileScreen({
           ) : null}
         </View>
       </View>
-
-      {onLogout ? (
-        <TouchableOpacity style={styles.logoutFooterButton} onPress={onLogout} activeOpacity={0.88}>
-          <Text style={styles.logoutFooterTitle}>Đăng xuất</Text>
-        </TouchableOpacity>
+      </>
       ) : null}
     </ScrollView>
   );

@@ -54,7 +54,17 @@ export default function CheckoutScreen({
         ? Number(booking?.amount || booking?.mentor?.price) || 0
         : (course?.priceNum || 0);
 
-  const paymentMethods = useMemo(() => getAvailablePaymentMethods(), []);
+  const paymentMethods = useMemo(() => {
+    const methods = getAvailablePaymentMethods();
+    if (mode === 'cart') {
+      return methods.map((m) =>
+        m.id === 'vnpay'
+          ? { ...m, available: false, badge: 'Chỉ CK', subtitle: 'Giỏ hàng hiện hỗ trợ chuyển khoản' }
+          : m,
+      );
+    }
+    return methods;
+  }, [mode]);
   const [stepIndex, setStepIndex] = useState(0);
   const [payStep, setPayStep] = useState('idle');
   const [selectedMethod, setSelectedMethod] = useState(getDefaultPaymentMethod);
@@ -356,7 +366,7 @@ export default function CheckoutScreen({
     if (!method?.available) {
       Alert.alert(
         'Không khả dụng',
-        `${method?.label || 'Phương thức này'} chưa sẵn sàng. Chọn VNPay để thanh toán.`,
+        `${method?.label || 'Phương thức này'} chưa sẵn sàng. Chọn chuyển khoản ngân hàng (khuyến nghị) hoặc VNPay.`,
       );
       return;
     }

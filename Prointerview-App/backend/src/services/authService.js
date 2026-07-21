@@ -345,17 +345,22 @@ export async function revokeAuthSession(userId, sessionIdStr, accessMeta = {}) {
  * Quên mật khẩu:
  * - Luôn trả ok=true để tránh lộ email có tồn tại hay không.
  * - Nếu có user + có passwordHash (không phải tài khoản Google-only) → lưu token hash + hạn.
- * - Không gửi email ở bản demo này; ở dev trả về resetUrl để FE hiển thị.
+ * - Cố gắng gửi email nếu đã cấu hình MAIL_USER/MAIL_PASS.
+ * - Dev: trả resetToken/resetUrl + mailSent để FE hiển thị khi SMTP chưa có.
  */
 export async function requestPasswordReset(emailRaw, req) {
   const email = typeof emailRaw === "string" ? emailRaw.trim().toLowerCase() : "";
-  if (!email) return { ok: true };
+  if (!email) return { ok: true, mailConfigured: emailService.isMailConfigured(), mailSent: false };
 
   const user = await User.findOne({ email }).select("+passwordHash +resetPasswordTokenHash +resetPasswordExpiresAt");
-  if (!user) return { ok: true };
+  if (!user) {
+    return { ok: true, mailConfigured: emailService.isMailConfigured(), mailSent: false };
+  }
 
   // Nếu user chưa có mật khẩu (Google-only) thì không cho reset qua email/password.
-  if (!user.passwordHash) return { ok: true };
+  if (!user.passwordHash) {
+    return { ok: true, mailConfigured: emailService.isMailConfigured(), mailSent: false };
+  }
 
   const token = crypto.randomBytes(32).toString("hex");
   user.resetPasswordTokenHash = sha256Hex(token);
@@ -366,13 +371,31 @@ export async function requestPasswordReset(emailRaw, req) {
   const origin = typeof process.env.CORS_ORIGIN === "string" ? process.env.CORS_ORIGIN.split(",")[0].trim() : "http://localhost:5173";
   const resetUrl = `${origin.replace(/\/$/, "")}/#/reset-password?token=${encodeURIComponent(token)}`;
 
-  // Gửi email thực tế
-  await emailService.sendResetPasswordEmail(user.email, user.name, resetUrl);
+  let mailSent = false;
+  let mailError = "";
+  if (!emailService.isMailConfigured()) {
+    mailError = "SMTP chưa cấu hình (thiếu MAIL_USER / MAIL_PASS trong backend/.env).";
+    console.warn(`[auth] forgot-password: ${mailError}`);
+  } else {
+    const mailRes = await emailService.sendResetPasswordEmail(user.email, user.name, resetUrl);
+    mailSent = Boolean(mailRes?.ok);
+    if (!mailSent) {
+      mailError = mailRes?.error || "Gửi email thất bại.";
+      console.error("[auth] forgot-password mail failed:", mailError);
+    }
+  }
 
-  if (isProd) return { ok: true };
+  if (isProd) return { ok: true, mailSent, mailConfigured: emailService.isMailConfigured() };
 
   // Dev convenience: FE có thể hiển thị link reset trực tiếp trong response
-  return { ok: true, resetToken: token, resetUrl };
+  return {
+    ok: true,
+    resetToken: token,
+    resetUrl,
+    mailSent,
+    mailConfigured: emailService.isMailConfigured(),
+    mailError: mailError || undefined,
+  };
 }
 
 export async function resetPasswordWithToken(body) {

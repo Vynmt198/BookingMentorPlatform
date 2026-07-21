@@ -26,6 +26,7 @@ export default function CartScreen({
   bottomPadding = 24,
   onBack,
   onRemove,
+  onUpdateQty,
   onCheckout,
   onRefresh,
   onContinueShopping,
@@ -95,7 +96,23 @@ export default function CartScreen({
                     <Text style={styles.itemType}>{itemTypeLabel(item.itemType)}</Text>
                     <View style={styles.itemFooter}>
                       <Text style={styles.itemPrice}>{formatVnd(item.price)}</Text>
-                      <Text style={styles.itemQty}>x{item.quantity || 1}</Text>
+                      <View style={styles.qtyRow}>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => onUpdateQty?.(item._id, Math.max(1, (item.quantity || 1) - 1))}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <Ionicons name="remove" size={14} color="#8037f4" />
+                        </TouchableOpacity>
+                        <Text style={styles.itemQty}>{item.quantity || 1}</Text>
+                        <TouchableOpacity
+                          style={styles.qtyBtn}
+                          onPress={() => onUpdateQty?.(item._id, (item.quantity || 1) + 1)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <Ionicons name="add" size={14} color="#8037f4" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
                   <TouchableOpacity
@@ -287,9 +304,24 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   itemQty: {
-    color: '#64748b',
+    color: '#2D1B69',
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
+    minWidth: 22,
+    textAlign: 'center',
+  },
+  qtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  qtyBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(128,55,244,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   removeBtn: {
     width: 34,

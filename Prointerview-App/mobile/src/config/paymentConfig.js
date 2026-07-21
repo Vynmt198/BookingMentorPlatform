@@ -38,47 +38,23 @@ export function formatVnd(amount) {
   return `${n.toLocaleString('vi-VN')}đ`;
 }
 
-/** Phương thức mặc định — VNPay (đã cấu hình Sandbox). */
-export function getDefaultPaymentMethod() {
-  return 'vnpay';
-}
-
-/** Lọc phương thức khả dụng (CK chỉ khi đã cấu hình STK). */
-export function getAvailablePaymentMethods() {
-  const hasBank = Boolean(BANK_TRANSFER.accountNumber?.trim());
-  return PAYMENT_METHODS.map((m) => {
-    if (m.id === 'vnpay') {
-      return { ...m, available: true, recommended: true };
-    }
-    if (m.id === 'transfer') {
-      return {
-        ...m,
-        available: hasBank,
-        recommended: false,
-        badge: hasBank ? undefined : 'Chưa cấu hình TK',
-      };
-    }
-    return m;
-  });
-}
-
-/** Phương thức thanh toán — khớp backend ProInterview. */
+/** Phương thức thanh toán — khớp backend ProInterview (web ưu tiên transfer). */
 export const PAYMENT_METHODS = [
-  {
-    id: 'vnpay',
-    label: 'VNPay',
-    subtitle: 'Thẻ ATM / Visa / Mastercard · Sandbox',
-    icon: 'card-outline',
-    color: '#3b82f6',
-    available: true,
-    recommended: true,
-  },
   {
     id: 'transfer',
     label: 'Chuyển khoản ngân hàng',
     subtitle: 'Quét VietQR · SePay tự xác nhận',
     icon: 'business-outline',
-    color: '#93f72b',
+    color: '#8037f4',
+    available: true,
+    recommended: true,
+  },
+  {
+    id: 'vnpay',
+    label: 'VNPay',
+    subtitle: 'Thẻ ATM / Visa / Mastercard',
+    icon: 'card-outline',
+    color: '#3b82f6',
     available: true,
   },
   {
@@ -99,13 +75,28 @@ export const PAYMENT_METHODS = [
     available: false,
     badge: 'Sắp có',
   },
-  {
-    id: 'card',
-    label: 'Thẻ quốc tế',
-    subtitle: 'Visa, Mastercard, JCB',
-    icon: 'globe-outline',
-    color: '#a78bfa',
-    available: false,
-    badge: 'Sắp có',
-  },
 ];
+
+/** Phương thức mặc định — chuyển khoản (khớp ProInterview web Checkout). */
+export function getDefaultPaymentMethod() {
+  return 'transfer';
+}
+
+/** Lọc phương thức khả dụng (CK ưu tiên như web; VNPay phụ). */
+export function getAvailablePaymentMethods() {
+  const hasBank = Boolean(BANK_TRANSFER.accountNumber?.trim());
+  return PAYMENT_METHODS.map((m) => {
+    if (m.id === 'transfer') {
+      return {
+        ...m,
+        available: true,
+        recommended: true,
+        badge: hasBank ? 'Khuyến nghị' : 'Cấu hình STK trong .env',
+      };
+    }
+    if (m.id === 'vnpay') {
+      return { ...m, available: true, recommended: false };
+    }
+    return m;
+  });
+}
