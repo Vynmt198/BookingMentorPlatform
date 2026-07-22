@@ -1,7 +1,9 @@
 import {
+  buildNativeDevApiUrl,
   DEV_API_PORTS,
   getConfiguredApiBase,
   getDevHostCandidates,
+  isNativeRuntime,
   resolveConfiguredApiBase,
   resolveDevHost,
 } from '../config/apiConfig';
@@ -11,9 +13,9 @@ let cachedApiBase = null;
 let lastProbeAttempts = [];
 let probeInFlight = null;
 
-const PROBE_TIMEOUT_MS = 1200;
-const ENSURE_BUDGET_MS = 4500;
-const MAX_CANDIDATES = 6;
+const PROBE_TIMEOUT_MS = Platform.OS === 'web' ? 1500 : 3500;
+const ENSURE_BUDGET_MS = Platform.OS === 'web' ? 8000 : 6000;
+const MAX_CANDIDATES = 12;
 
 export function getApiBaseUrl() {
   return cachedApiBase;
@@ -28,7 +30,12 @@ export function getLastApiProbeAttempts() {
 }
 
 export function apiUrl(path) {
-  const base = cachedApiBase || resolveConfiguredApiBase() || getConfiguredApiBase() || '';
+  const base =
+    cachedApiBase ||
+    resolveConfiguredApiBase() ||
+    buildNativeDevApiUrl() ||
+    getConfiguredApiBase() ||
+    '';
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${base}${p}`;
 }
@@ -77,7 +84,7 @@ async function probeHealth(base) {
         if (abortTimer) clearTimeout(abortTimer);
       }
     })(),
-    PROBE_TIMEOUT_MS + 150,
+    PROBE_TIMEOUT_MS + 300,
   );
 }
 
@@ -86,12 +93,17 @@ function buildDevApiBases() {
   for (const host of getDevHostCandidates()) {
     hosts.add(host);
   }
-  hosts.add(resolveDevHost());
+
+  const resolved = resolveDevHost();
+  if (resolved && resolved !== 'localhost' && resolved !== '127.0.0.1') {
+    hosts.add(resolved);
+  }
+
   if (Platform.OS === 'android') {
     hosts.add('10.0.2.2');
   }
-  // localhost chỉ hữu ích trên simulator/web — để cuối để khỏi treo máy thật
-  if (Platform.OS === 'web' || Platform.OS === 'ios') {
+
+  if (Platform.OS === 'web') {
     hosts.add('localhost');
     hosts.add('127.0.0.1');
   }
@@ -107,50 +119,128 @@ function buildDevApiBases() {
 }
 
 function buildCandidates() {
-  const configured = resolveConfiguredApiBase();
   const list = [];
+  const configured = resolveConfiguredApiBase();
   if (configured) list.push(configured);
-  if (__DEV__) list.push(...buildDevApiBases());
+
+  const nativeGuess = isNativeRuntime() ? buildNativeDevApiUrl() : null;
+  if (nativeGuess) list.push(nativeGuess);
+
+  if (__DEV__) {
+    list.push(...buildDevApiBases());
+  }
+
   return [...new Set(list.filter(Boolean))].slice(0, MAX_CANDIDATES);
+}
+
+async function probeFirstAvailable(candidates, budgetMs = ENSURE_BUDGET_MS) {
+  if (!candidates.length) return null;
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let pending = candidates.length;
+
+    const finish = (base) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(base);
+    };
+
+    const timer = setTimeout(() => finish(null), budgetMs);
+
+    candidates.forEach((base) => {
+      probeHealth(base)
+        .then((ok) => {
+          if (ok) finish(base);
+        })
+        .finally(() => {
+          pending -= 1;
+          if (pending <= 0 && !settled) finish(null);
+        });
+    });
+  });
+}
+
+function getNativeOptimisticBase() {
+  if (!isNativeRuntime() || !__DEV__) return null;
+  return resolveConfiguredApiBase() || buildNativeDevApiUrl();
+}
+
+async function runProbe() {
+  const started = Date.now();
+  const candidates = buildCandidates();
+  lastProbeAttempts = candidates;
+
+  const found = await probeFirstAvailable(candidates, ENSURE_BUDGET_MS);
+  if (found) {
+    cachedApiBase = found;
+    if (__DEV__) {
+      console.log('[API] backend OK:', found);
+    }
+    return found;
+  }
+
+  if (Date.now() - started > ENSURE_BUDGET_MS && isNativeRuntime()) {
+    const optimistic = getNativeOptimisticBase();
+    if (optimistic) {
+      cachedApiBase = optimistic;
+      if (__DEV__) {
+        console.warn('[API] probe timeout — dùng URL cấu hình:', optimistic);
+      }
+      return optimistic;
+    }
+  }
+
+  if (!isNativeRuntime()) {
+    const fallback = resolveConfiguredApiBase() || getConfiguredApiBase();
+    if (fallback) {
+      cachedApiBase = fallback;
+      return fallback;
+    }
+  }
+
+  return null;
+}
+
+function verifyInBackground(preferred) {
+  void (async () => {
+    const ok = await probeHealth(preferred);
+    if (ok) {
+      cachedApiBase = preferred;
+      if (__DEV__) console.log('[API] verified:', preferred);
+      return;
+    }
+
+    const found = await probeFirstAvailable(
+      buildCandidates().filter((base) => base !== preferred),
+      ENSURE_BUDGET_MS,
+    );
+    if (found) {
+      cachedApiBase = found;
+      if (__DEV__) console.log('[API] switched to:', found);
+    }
+  })();
 }
 
 /**
  * Tìm backend đang chạy. Cache kết quả.
- * Có ngân sách thời gian — không probe vô hạn.
+ * Trên điện thoại: trả URL LAN ngay, probe song song ở nền.
  */
 export async function ensureApiBase() {
   if (cachedApiBase) return cachedApiBase;
   if (probeInFlight) return probeInFlight;
 
-  probeInFlight = (async () => {
-    const started = Date.now();
-    try {
-      const candidates = buildCandidates();
-      lastProbeAttempts = candidates;
+  const optimistic = getNativeOptimisticBase();
+  if (optimistic) {
+    cachedApiBase = optimistic;
+    verifyInBackground(optimistic);
+    return optimistic;
+  }
 
-      for (const base of candidates) {
-        if (Date.now() - started > ENSURE_BUDGET_MS) break;
-        try {
-          if (await probeHealth(base)) {
-            cachedApiBase = base;
-            return base;
-          }
-        } catch {
-          // next
-        }
-      }
-
-      // Dev: nếu có URL cấu hình, dùng luôn (login sẽ báo lỗi nếu sai)
-      const fallback = resolveConfiguredApiBase();
-      if (fallback) {
-        cachedApiBase = fallback;
-        return fallback;
-      }
-      return null;
-    } finally {
-      probeInFlight = null;
-    }
-  })();
+  probeInFlight = runProbe().finally(() => {
+    probeInFlight = null;
+  });
 
   return probeInFlight;
 }

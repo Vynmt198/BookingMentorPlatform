@@ -10,11 +10,11 @@ const FREE_QUOTA = {
 
 const PLAN_QUOTA_MAP = {
   student: {
-    cvAnalysisLimit: 10,
+    cvAnalysisLimit: 50,
     mentorSessionLimit: 0,
   },
   professional: {
-    cvAnalysisLimit: 30,
+    cvAnalysisLimit: 999, // "không giới hạn" — xem quy ước ở Dashboard.jsx (cvLimit >= 999)
     mentorSessionLimit: 0,
   },
 };

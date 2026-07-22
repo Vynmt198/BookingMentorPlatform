@@ -505,7 +505,6 @@ export function isProtectedAppPath(pathname) {
     "/my-bookings",
     "/my-courses",
     "/cv-analysis",
-    "/interview",
     "/booking",
   ];
   if (roots.some((root) => p === root || p.startsWith(`${root}/`))) return true;

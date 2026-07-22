@@ -14,7 +14,7 @@ import { deliverNotification } from "./notificationDeliveryService.js";
 import { mergeNotificationPrefs } from "../constants/notificationPrefs.js";
 import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
 import { isBookingInLiveWindow, isBookingSlotInFuture } from "../utils/bookingSchedule.js";
-import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
+import { newPaymentExpiresAt, TRANSFER_PAYMENT_TIMEOUT_MS } from "../utils/transferPaymentExpiry.js";
 import { expireBookingTransferIfNeeded } from "./transferPaymentExpiryService.js";
 import { resolveBookingPlatformFeeRate } from "./mentorCommissionService.js";
 import { releaseMentorSessionQuota, resolveMentorBookingDiscountForUser } from "../utils/planGuard.js";
@@ -30,6 +30,32 @@ function userCancellationFeePercent(hoursUntilStart) {
   if (hoursUntilStart < 12) return 100;
   if (hoursUntilStart < 24) return 50;
   return 0;
+}
+
+/**
+ * Hủy các booking CK "pending" đã quá hạn 15' trước khi trả danh sách — tránh đơn chưa
+ * thanh toán (chỉ giữ chỗ tạm) hiển thị như buổi hẹn thật mãi mãi ở "Sắp tới" (customer)
+ * hay lịch mentor, dù không ai chuyển khoản đúng hạn (trước đây chỉ được dọn lúc đặt trùng
+ * slot hoặc qua webhook SePay — không tự dọn khi chỉ load danh sách).
+ */
+async function sweepExpiredTransferBookings(filter) {
+  const now = new Date();
+  const stale = await Booking.find({
+    ...filter,
+    status: "pending",
+    paymentStatus: "pending",
+    paymentMethod: "transfer",
+    // Đơn cũ tạo trước khi có field `paymentExpiresAt` sẽ không khớp `paymentExpiresAt: {$lt}`
+    // (Mongo không so khớp field thiếu) — fallback theo createdAt + timeout, khớp đúng logic
+    // resolvePaymentExpiresAt() dùng khi expire từng booking lẻ.
+    $or: [
+      { paymentExpiresAt: { $lt: now } },
+      { paymentExpiresAt: { $exists: false }, createdAt: { $lt: new Date(now.getTime() - TRANSFER_PAYMENT_TIMEOUT_MS) } },
+    ],
+  });
+  for (const booking of stale) {
+    await expireBookingTransferIfNeeded(booking);
+  }
 }
 
 const MONGO_ERR = "MongoDB chưa kết nối. Kiểm tra MONGO_URI trong .env.";
@@ -1173,6 +1199,8 @@ export async function listMyBookings(userId) {
   const uid = String(userId).trim();
   if (!mongoose.isValidObjectId(uid)) return { ok: false, status: 401, error: "Phiên đăng nhập không hợp lệ." };
 
+  await sweepExpiredTransferBookings({ userId: uid });
+
   const rows = await Booking.find({ userId: uid })
     .sort({ createdAt: -1 })
     .populate({ path: "userId", select: "name email avatar" })
@@ -1193,6 +1221,9 @@ export async function listMentorBookings(mentorUserId) {
   if (!mentor?._id) {
     return { ok: false, status: 404, error: "Không tìm thấy hồ sơ mentor." };
   }
+
+  await sweepExpiredTransferBookings({ mentorId: mentor._id });
+
   const rows = await Booking.find({ mentorId: mentor._id })
     .sort({ createdAt: -1 })
     .populate({ 

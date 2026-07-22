@@ -36,10 +36,10 @@ export async function activatePlan(userId, body) {
 
   const updates = { plan, planExpiresAt: expires };
   if (plan === "student") {
-    updates["quota.cvAnalysisLimit"]    = 10;
+    updates["quota.cvAnalysisLimit"]    = 50;
     updates["quota.mentorSessionLimit"] = 0;
   } else if (plan === "professional") {
-    updates["quota.cvAnalysisLimit"]    = 30;
+    updates["quota.cvAnalysisLimit"]    = 999; // không giới hạn
     updates["quota.mentorSessionLimit"] = 0;
   }
 

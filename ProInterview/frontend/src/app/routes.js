@@ -62,7 +62,6 @@ import {
   AdminFinance,
   AdminTransactions,
   AdminPayouts,
-  AdminContentQuestions,
   AdminSystemSettings,
 } from "./pages/admin/AdminPlaceholders.jsx";
 import { AdminContentCourses } from "./pages/admin/AdminContentCourses.jsx";
@@ -196,7 +195,6 @@ export const router = createHashRouter([
       { path: "course-payments", Component: AdminCoursePayments },
       { path: "subscription-payments", Component: AdminSubscriptionPayments },
       { path: "bookings/:id", Component: AdminBookingDetail },
-      { path: "content/questions", Component: AdminContentQuestions },
       {
         path: "content/videos",
         loader: () => redirect("/admin/content/courses?view=incomplete"),
@@ -206,7 +204,7 @@ export const router = createHashRouter([
       { path: "reviews", Component: AdminReviews },
       { path: "support", Component: AdminSupport },
       { path: "achievements", Component: AdminAchievements },
-      { path: "interview-metrics", loader: () => redirect("/admin/content/questions") },
+      { path: "interview-metrics", loader: () => redirect("/admin") },
     ],
   },
   { path: "*", loader: () => redirect("/") },

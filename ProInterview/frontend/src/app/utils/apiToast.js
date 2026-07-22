@@ -19,7 +19,7 @@ export function isCvQuotaError(message) {
 
 /** @param {() => void} [goPricing] */
 export function toastCvQuotaExceeded(goPricing) {
-  toast.error("Bạn đã hết lượt phân tích CV. Nâng cấp gói Pro để tiếp tục.", {
+  toast.error("Bạn đã hết lượt phân tích CV. Nâng cấp gói để tiếp tục.", {
     duration: 6000,
     action: goPricing
       ? { label: "Xem gói", onClick: goPricing }

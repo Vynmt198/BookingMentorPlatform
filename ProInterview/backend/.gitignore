@@ -14,3 +14,6 @@ pnpm-debug.log*
 # runtime
 dist/
 coverage/
+
+# secrets
+keys/

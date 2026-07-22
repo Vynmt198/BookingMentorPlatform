@@ -1,35 +1,35 @@
-# ProInterview
+# Prointerview-App
 
-> Nền tảng SaaS luyện phỏng vấn xin việc với AI avatar, đặt lịch mentor, phân tích CV/JD và khóa học trực tuyến.
+> Bản **mobile** (Expo/React Native) của nền tảng ProInterview, cùng một **backend Express riêng** (fork độc lập của `ProInterview/backend`, đã phân kỳ tính năng).
 
-[![Node](https://img.shields.io/badge/Node-%3E%3D20-brightgreen)](https://nodejs.org/)
-[![React](https://img.shields.io/badge/React-18-blue)](https://react.dev/)
+[![Expo](https://img.shields.io/badge/Expo-54-000020)](https://expo.dev/)
+[![React Native](https://img.shields.io/badge/React_Native-0.81-61DAFB)](https://reactnative.dev/)
 [![Express](https://img.shields.io/badge/Express-5-lightgrey)](https://expressjs.com/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose_9-green)](https://mongoosejs.com/)
-[![Python](https://img.shields.io/badge/Python-FastAPI-009688)](https://fastapi.tiangolo.com/)
 
 ---
 
-## Tổng quan
+## Quan hệ với `ProInterview/`
 
-**ProInterview** là ứng dụng web giúp ứng viên chuẩn bị phỏng vấn xin việc thông qua:
+Thư mục này **không phải** bản build lại của web app — nó là một sản phẩm riêng, chia sẻ cùng domain nghiệp vụ (mentor, booking, course, CV) nhưng:
 
-- **Phỏng vấn AI** — avatar D-ID đặt câu hỏi, nhận diện khuôn mặt, đánh giá phản hồi
-- **Đặt lịch mentor** — booking 1-1 với mentor, thanh toán, đánh giá sau buổi
-- **Phân tích CV/JD** — matching CV với mô tả công việc, trích xuất kỹ năng
-- **Khóa học** — mua và học khóa học video do mentor tạo
-- **Dashboard** — theo dõi tiến trình, lịch sử phỏng vấn, thống kê
+- `mobile/` là app Expo/React Native độc lập, không dùng chung code với `frontend/` của bản web.
+- `backend/` ở đây là **bản fork riêng** của backend web, đã tách ra và phát triển song song — không đồng bộ tự động. Một số tính năng chỉ có ở bản này (route `/api/cart` đã mount), một số tính năng chỉ có ở bản web (`ProInterview/backend`) và **chưa tồn tại ở đây**: analytics/user-journey tracking, JaaS video meeting, booking check-in.
+
+Xem [../README.md](../README.md) để biết tổng quan cả hai sản phẩm.
 
 ---
 
-## Kiến trúc Monorepo
+## Kiến trúc
 
 ```
-ProInterview/
-├── frontend/          # Vite + React 18 + Tailwind CSS + shadcn/ui   (port 5173)
-├── backend/           # Express 5 + MongoDB (Mongoose 9) + JWT        (port 5000)
-└── cv_jd_matching/    # Python FastAPI + Uvicorn                      (port 8000)
+Prointerview-App/
+├── mobile/            # Expo 54 + React Native 0.81 + React 19 (không dùng React Navigation)
+├── backend/           # Express 5 + MongoDB (Mongoose 9) + JWT — fork riêng, khác ProInterview/backend
+└── cv_jd_matching/     # Python FastAPI + Uvicorn (dùng chung kiến trúc với bản web)
 ```
+
+`mobile/` không tách theo `screens/` + navigator chuẩn — toàn bộ điều hướng nằm trong một file `mobile/App.js` (~8800 dòng) quản lý bằng state nội bộ, các "màn hình" là component trong `mobile/src/components/` (`CartScreen`, `CheckoutScreen`, `MentorBookingScreen`, `MentorScheduleScreen`, `CourseDetailScreen`, `CourseLearningScreen`, `CvAnalysisHubScreen`, `ProfileScreen`, `RolePortal`, `GoogleSignInButton`...).
 
 ---
 
@@ -40,83 +40,41 @@ ProInterview/
 | Node.js | ≥ 20 |
 | npm | ≥ 10 |
 | MongoDB | ≥ 6 (local hoặc Atlas) |
+| Expo CLI / Expo Go | để chạy mobile trên thiết bị/emulator |
 | Python | ≥ 3.10 (chỉ cho CV/JD service) |
 
 ---
 
 ## Cài đặt & Chạy Dev
 
-### 1. Clone repo
-
-```bash
-git clone https://github.com/<your-org>/prointerview.git
-cd prointerview
-```
-
-### 2. Cấu hình môi trường
-
-**Backend** — tạo `backend/.env` từ template:
-
-```bash
-cp backend/.env.example backend/.env
-```
-
-Điền các biến bắt buộc:
-
-```env
-MONGO_URI=mongodb://127.0.0.1:27017/prointerview
-JWT_SECRET=<chuỗi ngẫu nhiên dài ≥ 32 ký tự>
-CORS_ORIGIN=http://localhost:5173
-JWT_EXPIRES_IN=7d
-GOOGLE_CLIENT_ID=<từ Google Cloud Console>
-LLM_API_KEY=<OpenAI hoặc compatible>
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4o-mini
-CV_ANALYZER_URL=http://localhost:8000   # Python service (dev)
-```
-
-**Frontend** — tạo `frontend/.env.local`:
-
-```env
-VITE_GOOGLE_CLIENT_ID=<giống backend>
-```
-
-### 3. Cài dependencies
-
-```bash
-# Backend
-cd backend && npm install
-
-# Frontend
-cd ../frontend && npm install
-```
-
-### 4. Seed dữ liệu dev
+### Backend
 
 ```bash
 cd backend
-npm run seed:all
+cp .env.example .env   # điền MONGO_URI, JWT_SECRET, CORS_ORIGIN, ...
+npm install
+npm run dev             # nodemon → src/server.js
+npm run seed:all        # seed dữ liệu dev (tuỳ chọn)
 ```
 
-### 5. Khởi động
-
-**Chạy đồng thời toàn bộ stack (khuyến nghị):**
+### Mobile
 
 ```bash
-cd frontend
-npm run dev:full
+cd mobile
+npm install
+npm start               # Expo dev server — quét QR bằng Expo Go, hoặc:
+npm run android         # / npm run ios / npm run web
 ```
 
-Hoặc chạy riêng từng service:
+Base URL API mobile cấu hình tại `mobile/src/config/apiConfig.js`:
+- **Prod:** mặc định trỏ `https://prointerview-backend.onrender.com`.
+- **Dev:** tự dò IP LAN qua Expo debugger host, thử lần lượt cổng `5001`, `5000`.
+
+Token lưu bằng `expo-secure-store`, tự refresh khi 401 (`mobile/src/utils/mobileAuth.js`).
+
+### CV/JD Matcher (tuỳ chọn)
 
 ```bash
-# Terminal 1 — Backend
-cd backend && npm run dev
-
-# Terminal 2 — Frontend
-cd frontend && npm run dev
-
-# Terminal 3 — CV/JD Service (tuỳ chọn)
 cd cv_jd_matching
 pip install -r requirements.txt
 python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
@@ -128,53 +86,30 @@ Mật khẩu: **`Dev123456`**
 
 | Email | Role |
 |:------|:-----|
-| `customer@dev.local` | Customer (plan: free) |
+| `customer@dev.local` | Customer |
 | `mentor@dev.local` | Mentor |
 | `admin@dev.local` | Admin |
 
 ---
 
-## Tính năng chính
+## Tính năng mobile hiện có
 
-### Người dùng (Customer)
-- Đăng ký / đăng nhập email, Google OAuth
-- Luyện phỏng vấn với AI avatar (D-ID streaming)
-- Upload CV, phân tích và đối chiếu với JD
-- Tìm kiếm và đặt lịch mentor
-- Mua và học khóa học video
-- Lịch sử phỏng vấn, dashboard cá nhân
+- Đăng nhập/đăng ký, Google Sign-In (native + WebView fallback)
+- Danh sách mentor, đặt lịch booking (`MentorBookingScreen`, `MentorScheduleScreen`)
+- Khoá học: xem chi tiết, học video (`CourseDetailScreen`, `CourseLearningScreen`)
+- CV/JD analysis hub (`CvAnalysisHubScreen`)
+- **Giỏ hàng** (`CartScreen`, thay thế `CartModal` cũ) — full-screen, có fallback lưu local (AsyncStorage) khi backend không có `/api/cart` hoặc offline, tự enroll từng khoá học khi checkout không qua server cart
+- Thanh toán, xem kết quả thanh toán (`CheckoutScreen`, `PaymentResultScreen`)
+- Hồ sơ cá nhân (`ProfileScreen`), cổng chọn vai trò (`RolePortal`)
 
-### Mentor
-- Quản lý lịch, booking, thu nhập
-- Tạo và quản lý khóa học
-- Peer review với mentor khác
-- Analytics buổi tư vấn
+## Tính năng backend hiện có (khác biệt so với `ProInterview/backend`)
 
-### Admin
-- Quản lý người dùng, mentor, bookings
-- Xét duyệt mentor mới
-- Dashboard thống kê toàn hệ thống
-
----
-
-## API
-
-Base URL: `/api` · Auth: `Authorization: Bearer <jwt>`
-
-| Nhóm | Endpoint |
-|:-----|:---------|
-| Auth | `/api/auth/*` |
-| Mentors | `/api/mentors/*` |
-| Bookings | `/api/bookings/*` |
-| Courses | `/api/courses/*`, `/api/enrollments/*` |
-| CV & JD | `/api/cv/*` |
-| Interviews | `/api/interviews/*` |
-| Payments | `/api/payments/*` |
-| Admin | `/api/admin/*` |
-| Health | `GET /api/health` |
-
-Xem toàn bộ contract tại [API_INDEX.md](./API_INDEX.md).  
-Docs CV/JD service (khi chạy local): `http://127.0.0.1:8000/docs`
+| Có ở đây | Chưa có ở đây (chỉ có ở bản web) |
+|:---------|:----------------------------------|
+| `/api/cart` (giỏ hàng — mount đầy đủ) | Analytics/user-journey tracking (`/api/analytics`, model `UserEvent`) |
+| `/api/interviews`, `/api/ai` (giống bản web) | JaaS video meeting (`jaasService.js`) |
+| 21 model Mongoose (không có `UserEvent`) | Booking check-in |
+| Script `backfillMediaUrls.js` — vá avatar/thumbnail thiếu cho mentor/course | Script `verify:jaas`, `encode:jaas-key`, `seed:mentor-courses-ui` |
 
 ---
 
@@ -182,9 +117,9 @@ Docs CV/JD service (khi chạy local): `http://127.0.0.1:8000/docs`
 
 | File | Nội dung |
 |:-----|:---------|
-| [API_INDEX.md](./API_INDEX.md) | Contract đầy đủ tất cả endpoints (đang chạy + roadmap) |
-| [ROADMAP.md](./ROADMAP.md) | Lộ trình theo phase, trạng thái từng endpoint |
-| [backend/DATABASE.md](./backend/DATABASE.md) | Schema MongoDB chi tiết, seed scripts |
+| [CLAUDE.md](./CLAUDE.md) | Kiến trúc chi tiết backend + mobile cho AI coding agent |
+| [API_INDEX.md](./API_INDEX.md) | Contract endpoint (lưu ý: viết cho bản web, chưa cập nhật đầy đủ cho fork này) |
+| [ROADMAP.md](./ROADMAP.md) | Lộ trình theo phase (idem — tham khảo, không phải nguồn chân lý) |
 | [POSTMAN_TESTING.md](./POSTMAN_TESTING.md) | Hướng dẫn test API với Postman |
 
 ---
@@ -193,35 +128,9 @@ Docs CV/JD service (khi chạy local): `http://127.0.0.1:8000/docs`
 
 | Service | Platform | Ghi chú |
 |:--------|:---------|:--------|
-| Backend | Render | `render.yaml` có sẵn; region: Singapore |
-| Frontend | Vercel | `vercel.json` có sẵn; cần set `VITE_API_URL` |
+| Backend | Render | `render.yaml` có sẵn |
+| Mobile | Expo (EAS Build) | chưa cấu hình EAS trong repo — build thủ công qua `expo` CLI |
 | CV Service | Heroku / Render | `Procfile` + `runtime.txt` có sẵn |
-
-Sau khi deploy, đặt `CV_ANALYZER_URL` trong backend env trỏ về URL Python service.
-
----
-
-## Tech Stack
-
-| Layer | Công nghệ |
-|:------|:----------|
-| Frontend | React 18, Vite, React Router v7, Tailwind CSS, shadcn/ui, Recharts |
-| Backend | Express 5 (ESM), Node ≥ 20, Mongoose 9, JWT, bcrypt, Multer |
-| Database | MongoDB |
-| AI / CV | Python FastAPI, pdf parsing, NLP |
-| Avatar AI | D-ID Streaming API |
-| Auth | Google Identity Services (FedCM), JWT refresh sessions |
-| Payments | Chuyển khoản ngân hàng (chính); MoMo / ZaloPay (sandbox) |
-
----
-
-## Đóng góp
-
-1. Fork repo và tạo branch từ `main`
-2. Khi thêm API mới: cập nhật [API_INDEX.md](./API_INDEX.md) và [ROADMAP.md](./ROADMAP.md)
-3. Dùng `apiUrl()` từ `frontend/src/app/utils/api.js`, không hardcode URL
-4. Response shape chuẩn: `{ success: true, <key>: data }` / `{ success: false, error: "msg" }`
-5. Tạo Pull Request vào `main` với mô tả rõ ràng
 
 ---
 

@@ -56,7 +56,6 @@ const userSchema = new Schema(
     settings: {
       emailNotifications: { type: Boolean, default: true },
       profileVisibility: { type: String, enum: ["public", "private"], default: "public" },
-      shareInterviewResults: { type: Boolean, default: false },
       /** Bật/tắt loại thông báo in-app — { mentor: {...}, customer: {...} } */
       notificationPrefs: { type: Schema.Types.Mixed, default: () => ({}) },
     },
@@ -78,7 +77,6 @@ const userSchema = new Schema(
     journeyProgress: {
       uploadedCV: { type: Boolean, default: false },
       analyzedCVJD: { type: Boolean, default: false },
-      completedInterview: { type: Boolean, default: false },
       bookedMentor: { type: Boolean, default: false },
       receivedOffer: { type: Boolean, default: false },
     },

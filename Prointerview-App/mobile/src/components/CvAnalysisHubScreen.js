@@ -25,10 +25,12 @@ function buildScoreRows(latest) {
     { key: 'relevance', label: 'Relevance (Liên quan JD)', color: '#8037f4' },
     { key: 'credibility', label: 'Credibility (Thuyết phục)', color: '#8037f4' },
   ];
+  // Lưu ý: điểm lưu trong DB luôn ở thang 0-5 (Joi + Mongoose ở backend chuẩn hoá về 0-5
+  // dù LLM chấm gốc theo thang 0-10) — không phải 0-10.
   return rows.map((row) => ({
     ...row,
     score: Number(scores[row.key] ?? latest?.[row.key] ?? 0),
-    max: 10,
+    max: 5,
   }));
 }
 
@@ -173,6 +175,7 @@ export default function CvAnalysisHubScreen({
       missing: latestResult.missingKeywords || latestResult.skills?.missing || [],
       summary:
         latestResult.summary ||
+        latestResult.suggestions?.executiveSummary ||
         latestResult.feedback ||
         (isSuccess ? 'Kết quả phân tích từ API.' : EMPTY_MATCH.summary),
     };
@@ -193,12 +196,8 @@ export default function CvAnalysisHubScreen({
       <View style={styles.ambientOrbBottom} pointerEvents="none" />
 
       <View style={styles.hero}>
-        <View style={styles.heroBadge}>
-          <Ionicons name="scan-outline" size={12} color="#630ed4" />
-          <Text style={styles.heroBadgeText}>PHÂN TÍCH CV</Text>
-        </View>
-        <Text style={styles.heroAccent}>Làm sao để CV ấn tượng</Text>
-        <Text style={styles.heroTitle}>trong mắt nhà tuyển dụng?</Text>
+        <Text style={styles.pageEyebrow}>PHÂN TÍCH CV</Text>
+        <Text style={styles.pageTitle}>Quét CV</Text>
         <Text style={styles.heroBody}>
           ProInterview giúp bạn kiểm tra, góp ý và cải thiện CV trước khi gửi đến nhà tuyển dụng.
         </Text>
@@ -316,39 +315,20 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 1,
   },
-  heroBadge: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.72)',
-    borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.16)',
-    marginBottom: 2,
+  pageEyebrow: {
+    color: 'rgba(45, 27, 105, 0.58)',
+    fontSize: 8,
+    fontFamily: 'Manrope_600SemiBold',
+    letterSpacing: 1.3,
+    marginBottom: 1,
   },
-  heroBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#630ed4',
-    letterSpacing: 0.8,
-  },
-  heroAccent: {
-    fontSize: 23,
-    fontWeight: '800',
-    color: '#630ed4',
-    letterSpacing: -0.5,
-    lineHeight: 29,
-  },
-  heroTitle: {
-    fontSize: 23,
-    fontWeight: '800',
-    color: '#1a1b23',
-    letterSpacing: -0.5,
-    lineHeight: 29,
-    marginTop: -4,
+  pageTitle: {
+    color: '#2D1B69',
+    fontSize: 24,
+    fontFamily: 'Manrope_700Bold',
+    letterSpacing: -0.7,
+    lineHeight: 30,
+    marginBottom: 4,
   },
   heroBody: {
     fontSize: 13,

@@ -12,7 +12,7 @@ import {
   Landmark,
   X,
 } from "lucide-react";
-import { getUser, isLoggedIn, setLoggedIn } from "../../utils/auth";
+import { getUser, isLoggedIn, setLoggedIn, getPlans } from "../../utils/auth";
 import { fetchCurrentPlan } from "../../utils/plansApi";
 import { landingLimeButtonClass } from "../../constants/landingTheme";
 import { fetchMentor } from "../../utils/mentorApi";
@@ -38,7 +38,7 @@ const PLANS = {
     yearlyTotal: 1440000,
     badge: "PHỔ BIẾN",
     accentColor: "#8037f4",
-    features: ["Phân tích CV/JD 10 lần/tháng", "Ưu đãi 5% khi đặt lịch Mentor", "Giảm 5% khi mua khóa học", "Phản hồi CV chi tiết"],
+    features: ["Phân tích CV/JD 50 lần/tháng", "Ưu đãi 5% khi đặt lịch Mentor", "Giảm 5% khi mua khóa học", "Phản hồi CV chi tiết"],
   },
   professional: {
     name: "Chuyên Nghiệp",
@@ -48,7 +48,7 @@ const PLANS = {
     yearlyTotal: 4800000,
     badge: "TỐT NHẤT",
     accentColor: "#6d2fd6",
-    features: ["Phân tích CV/JD 30 lần/tháng", "Ưu đãi 10% khi đặt lịch Mentor", "Giảm 10% khi mua khóa học", "Đặt lịch mentor ưu tiên"],
+    features: ["Phân tích CV/JD không giới hạn", "Ưu đãi 10% khi đặt lịch Mentor", "Giảm 10% khi mua khóa học", "Đặt lịch mentor ưu tiên"],
   },
   // backward-compat aliases
   starterPro: null,
@@ -58,6 +58,7 @@ const PLANS = {
 function fmt(n) {
   return new Intl.NumberFormat("vi-VN").format(n) + "đ";
 }
+
 
 /** Thời hạn chờ CK hiển thị ở FE — khớp mặc định backend (TRANSFER_PAYMENT_TIMEOUT_MINUTES). */
 const TRANSFER_TIMEOUT_MINUTES = 15;
@@ -294,7 +295,41 @@ function CheckoutPayPanel({ mode, fmt, rebookCreditVnd, bookingTotalEstimate, bo
   return null;
 }
 
-function OrderLineItem({ isBooking, isCourse, isCartItem, bookingMentor, courseInfo, plan, billing, bookingDate, bookingTime, bookingSlots, baseTotal, fmt }) {
+function OrderLineItem({
+  isBooking,
+  isCourse,
+  isCartItem,
+  bookingMentor,
+  courseInfo,
+  plan,
+  billing,
+  bookingDate,
+  bookingTime,
+  bookingSlots,
+  baseTotal,
+  discountedTotal,
+  discountPercent,
+  discountLabel,
+  fmt,
+}) {
+  const hasDiscount = discountedTotal != null && discountedTotal < baseTotal;
+  // Cùng kiểu badge + màu giá đã dùng ở header mentor trang Booking.jsx (bước Chọn lịch) để 2 trang nhất quán.
+  const PriceTag = ({ className = "" }) =>
+    hasDiscount ? (
+      <div className={className}>
+        <p className="flex items-center justify-end gap-1.5">
+          {discountPercent > 0 && (
+            <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[9px] font-bold text-white">
+              -{discountPercent}% {discountLabel}
+            </span>
+          )}
+          <span className="text-lg font-black text-[#3d5200]">{fmt(discountedTotal)}</span>
+        </p>
+        <p className="text-xs text-slate-400 line-through">{fmt(baseTotal)}</p>
+      </div>
+    ) : (
+      <p className={`text-lg font-bold text-[#8037f4] ${className}`}>{fmt(baseTotal)}</p>
+    );
   if (isCartItem) {
     return (
       <div className={`${checkoutCard} flex gap-4 p-4 sm:p-5 mb-4`}>
@@ -332,7 +367,7 @@ function OrderLineItem({ isBooking, isCourse, isCartItem, bookingMentor, courseI
             <p className={`mt-1 ${labelMuted}`}>Giảng viên: {courseInfo.mentorId.userId.name}</p>
           )}
         </div>
-        <p className="shrink-0 text-right text-lg font-bold text-[#8037f4]">{fmt(baseTotal)}</p>
+        <PriceTag className="shrink-0 text-right" />
       </div>
     );
   }
@@ -392,7 +427,7 @@ function OrderLineItem({ isBooking, isCourse, isCartItem, bookingMentor, courseI
             )}
           </div>
           <div className="shrink-0 text-right">
-            <p className="text-lg font-bold text-[#8037f4]">{fmt(baseTotal)}</p>
+            <PriceTag />
             {slots.length > 1 && <p className="text-xs text-slate-500">{slots.length} buổi</p>}
           </div>
         </div>
@@ -724,6 +759,12 @@ export function Checkout() {
     })();
   }, [isCourse, courseId]);
 
+  // Ưu đãi % theo gói hiện tại của user — đọc từ cache local (getPlans(), đồng bộ, không gọi API) giống hệt
+  // cách trang Booking.jsx (bước THÔNG TIN) tính, để số hiển thị ở 2 bước luôn khớp nhau, không lệch/nhấp nháy.
+  const currentPlans = getPlans();
+  const planDiscountPercent = currentPlans.professional ? 10 : currentPlans.student ? 5 : 0;
+  const planDiscountName = currentPlans.professional ? "Chuyên Nghiệp" : currentPlans.student ? "Sinh Viên" : "";
+
   // Đặt nhiều buổi cùng lúc (Booking.jsx) — mảng [{dateKey, dayFull, time}] gửi qua URL dạng JSON.
   const bookingSlots = useMemo(() => {
     if (!isBooking) return null;
@@ -743,7 +784,14 @@ export function Checkout() {
   // Khi có nhiều slot, đây là TỔNG tiền của cả nhóm (cộng dồn totalAmount từng booking con).
   const [bookingChargeOverride, setBookingChargeOverride] = useState(() => restoredOrder?.bookingChargeOverride ?? null);
   const bookingPricePerSlot = Number(bookingMentor?.price ?? searchParams.get("price") ?? 0);
-  const bookingPrice = Number(bookingChargeOverride ?? bookingPricePerSlot * bookingSlotCount);
+  const bookingRawTotal = bookingPricePerSlot * bookingSlotCount;
+  // Ước tính giá đã áp ưu đãi gói (student/professional) để hiển thị ngay tại bước Thanh toán — cùng công thức
+  // làm tròn theo từng buổi như backend (bookingsService.js) nên khi tạo booking thật, số sẽ khớp, không đổi đột ngột.
+  const bookingPricePerSlotDiscounted =
+    planDiscountPercent > 0
+      ? Math.round(bookingPricePerSlot * (1 - planDiscountPercent / 100))
+      : bookingPricePerSlot;
+  const bookingPrice = Number(bookingChargeOverride ?? bookingPricePerSlotDiscounted * bookingSlotCount);
   const bookingDate = bookingSlots?.[0]?.dateKey ?? searchParams.get("date") ?? "";
   const bookingTime = bookingSlots?.[0]?.time ?? searchParams.get("time") ?? "";
 
@@ -757,12 +805,15 @@ export function Checkout() {
   const courseUrlPrice = Number(searchParams.get("price") ?? "0");
   // Sau khi ghi danh, giá thực tế cần trả (đã áp giảm giá/miễn phí theo gói) do backend trả về — ưu tiên số này cho QR.
   const [courseChargeOverride, setCourseChargeOverride] = useState(() => restoredOrder?.courseChargeOverride ?? null);
-  const coursePriceNum = isCourse
-    ? Number(courseChargeOverride ?? (courseInfo?.price ?? courseUrlPrice) ?? 0)
-    : 0;
+  const courseRawPrice = Number(courseInfo?.price ?? courseUrlPrice ?? 0);
+  const coursePriceDiscounted =
+    planDiscountPercent > 0 ? Math.round(courseRawPrice * (1 - planDiscountPercent / 100)) : courseRawPrice;
+  const coursePriceNum = isCourse ? Number(courseChargeOverride ?? coursePriceDiscounted) : 0;
   const planListPrice =
     billing === "yearly" ? plan.monthlyPrice * 12 : plan.monthlyPrice;
-  const baseTotal = isBooking ? bookingPrice : isCourse ? coursePriceNum : isCart ? displayCartTotal : planListPrice;
+  // baseTotal = giá niêm yết gốc (chưa giảm), total = giá thực trả (đã áp ưu đãi gói nếu có) — dùng để hiện dòng
+  // "Ưu đãi gói ..." trong tóm tắt đơn hàng, cùng cơ chế với "Giảm gói năm" của Plan checkout.
+  const baseTotal = isBooking ? bookingRawTotal : isCourse ? courseRawPrice : isCart ? displayCartTotal : planListPrice;
   const total = isBooking ? bookingPrice : isCourse ? coursePriceNum : isCart ? displayCartTotal : price;
 
   const [transferOrderNum, setTransferOrderNum] = useState(
@@ -1296,7 +1347,11 @@ export function Checkout() {
   // Chỉ tạo đơn + hiện QR sau khi người dùng xác nhận hóa đơn (hoặc đơn đã tạo từ trước, vd sau F5).
   const showBankQr = payMode === PAY_MODE.BANK && payAmount > 0 && (invoiceConfirmed || orderCreated);
   const stepCurrent = paymentConfirmed || orderCreated ? 2 : 1;
-  const showPriceBreakdown = billing === "yearly" && !isCourse && !isBooking && baseTotal > total;
+  const showPriceBreakdown = baseTotal > total;
+  const planDiscountLabel =
+    (isBooking || isCourse) && planDiscountPercent > 0
+      ? `Ưu đãi ${planDiscountName} (-${planDiscountPercent}%)`
+      : "Giảm gói năm";
 
   const resolvePaidRedirect = (apiRedirect) => {
     if (apiRedirect) return apiRedirect;
@@ -1476,16 +1531,9 @@ export function Checkout() {
       `}</style>
 
       <div className="fade-in relative z-10 mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        {orderCreated ? null : (
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Thanh toán</h1>
-            </div>
-            {showStepBar ? (
-              <div className="mr-16">
-                <StepBar current={stepCurrent} steps={stepLabels} />
-              </div>
-            ) : null}
+        {orderCreated || !showStepBar ? null : (
+          <div className="flex justify-center">
+            <StepBar current={stepCurrent} steps={stepLabels} />
           </div>
         )}
 
@@ -1508,6 +1556,9 @@ export function Checkout() {
                 bookingTime={bookingTime}
                 bookingSlots={bookingSlots}
                 baseTotal={baseTotal}
+                discountedTotal={isBooking || isCourse ? total : undefined}
+                discountPercent={planDiscountPercent}
+                discountLabel={planDiscountName}
                 fmt={fmt}
               />
             )}
@@ -1607,12 +1658,10 @@ export function Checkout() {
 
                 {showPriceBreakdown ? (
                   <div className="space-y-2 px-5 py-4 sm:px-6">
-                    {billing === "yearly" && !isCourse && !isBooking && baseTotal > total && (
-                      <div className="flex justify-between text-sm">
-                        <span className={labelMuted}>Giảm gói năm</span>
-                        <span className="font-medium text-emerald-600">−{fmt(baseTotal - total)}</span>
-                      </div>
-                    )}
+                    <div className="flex justify-between text-sm">
+                      <span className={labelMuted}>{planDiscountLabel}</span>
+                      <span className="font-medium text-emerald-600">−{fmt(baseTotal - total)}</span>
+                    </div>
                   </div>
                 ) : null}
 

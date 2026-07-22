@@ -97,7 +97,7 @@ export function AdminSubscriptionPayments() {
       >
         <div className="min-w-0 flex-1">
           <h2 className="font-headline text-3xl font-black uppercase tracking-tighter text-slate-900">
-            <span className="text-violet-700">Gói</span> Pro / Elite
+            <span className="text-violet-700">Gói</span> Sinh Viên / Chuyên Nghiệp
           </h2>
         </div>
         <div className="flex w-full min-w-0 flex-wrap items-center gap-3 sm:w-auto sm:justify-end">

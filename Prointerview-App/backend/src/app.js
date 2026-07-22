@@ -74,6 +74,7 @@ export function createApp() {
 
   app.use(helmet({
     crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
   }));
   app.use(hpp());
   app.use((req, _res, next) => {

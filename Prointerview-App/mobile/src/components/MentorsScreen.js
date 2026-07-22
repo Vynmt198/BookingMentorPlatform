@@ -72,7 +72,8 @@ export default function MentorsScreen({
   return (
     <View style={[styles.container, { paddingTop: topInset }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Mentor</Text>
+        <Text style={styles.pageEyebrow}>DANH SÁCH MENTOR</Text>
+        <Text style={styles.title}>Mentors</Text>
       </View>
 
       <View style={styles.searchBar}>
@@ -185,12 +186,22 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 14,
+    paddingTop: 4,
+    paddingBottom: 2,
+  },
+  pageEyebrow: {
+    color: 'rgba(45, 27, 105, 0.58)',
+    fontSize: 8,
+    fontFamily: 'Manrope_600SemiBold',
+    letterSpacing: 1.3,
+    marginBottom: 5,
   },
   title: {
-    color: '#1e1b4b',
+    color: '#2D1B69',
     fontSize: 24,
-    letterSpacing: -0.5,
-    fontFamily: 'Manrope_800ExtraBold',
+    fontFamily: 'Manrope_700Bold',
+    letterSpacing: -0.7,
+    lineHeight: 30,
   },
   searchBar: {
     flexDirection: 'row',

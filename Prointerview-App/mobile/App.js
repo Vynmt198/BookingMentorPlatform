@@ -23,7 +23,6 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import * as SystemUI from 'expo-system-ui';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import {
   Manrope_400Regular,
   Manrope_500Medium,
@@ -39,9 +38,19 @@ import {
   fetchPublicCatalog,
   loadAuthenticatedUserData,
   analyzeAndSaveCv,
+  analyzeCvAgainstJd,
   markAllNotificationsRead,
+  markNotificationRead,
+  deleteNotification,
+  cancelCustomerBooking,
+  createBookingReview,
+  deleteCvAnalysis,
+  createReport,
   ensureApiBase,
   getApiBaseUrl,
+  resetApiBaseCache,
+  getConfiguredApiBase,
+  resolveConfiguredApiBase,
 } from './src/services/proInterviewApi';
 import { BACKEND_DEV_HINT } from './src/utils/backendErrors';
 import { loadAdminPortalData, loadMentorPortalData } from './src/services/roleApi';
@@ -54,12 +63,14 @@ import CourseLearningScreen from './src/components/CourseLearningScreen';
 import CourseDetailScreen from './src/components/CourseDetailScreen';
 import ProfileScreen from './src/components/ProfileScreen';
 import CvAnalysisHubScreen from './src/components/CvAnalysisHubScreen';
+import CvJdUploadScreen from './src/components/CvJdUploadScreen';
 import MentorsScreen from './src/components/MentorsScreen';
 import MentorBookingScreen from './src/components/MentorBookingScreen';
 import {
   fetchCart,
   addToCart,
   removeFromCart,
+  updateCartItemQty,
   calcCartSummary,
 } from './src/services/cartApi';
 import { enrollCourse, verifyVnpayReturn, fetchPaymentStatus } from './src/services/paymentApi';
@@ -71,6 +82,9 @@ import {
   getAccessToken,
   fetchCurrentUser,
   loginWithGoogleCredential,
+  requestPasswordReset,
+  resetPasswordWithToken,
+  deleteAccount,
 } from './src/utils/mobileAuth';
 import { resolveMediaUrl, DEFAULT_COURSE_THUMB, mentorAvatarFallback } from './src/utils/mediaUrl';
 import * as DocumentPicker from 'expo-document-picker';
@@ -242,12 +256,44 @@ function AppInner() {
   useEffect(() => {
     if (appUser) return;
     let cancelled = false;
+
+    if (Platform.OS !== 'web') {
+      const guess =
+        resolveConfiguredApiBase() ||
+        getConfiguredApiBase() ||
+        null;
+      if (guess) {
+        setApiBaseLabel(guess);
+        setApiReachable(true);
+        setApiConnected(true);
+      }
+    }
+
     (async () => {
-      const base = await ensureApiBase();
-      if (cancelled) return;
-      setApiConnected(Boolean(base));
-      if (!base && __DEV__) {
-        console.warn('[API] Không tìm thấy backend. Thử EXPO_PUBLIC_DEV_API_HOST trong .env');
+      try {
+        if (Platform.OS === 'web') {
+          resetApiBaseCache();
+        }
+        const base = await ensureApiBase();
+        if (cancelled) return;
+        setApiConnected(Boolean(base));
+        setApiReachable(Boolean(base));
+        setApiBaseLabel(
+          base ||
+            resolveConfiguredApiBase() ||
+            getConfiguredApiBase() ||
+            '(chưa có URL)',
+        );
+        if (!base && __DEV__) {
+          console.warn('[API] Không tìm thấy backend. Thử EXPO_PUBLIC_DEV_API_HOST trong .env');
+        } else if (base && __DEV__) {
+          console.log('[API] connected:', base);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setApiReachable(false);
+          console.warn('[API] probe failed:', err?.message || err);
+        }
       }
     })();
     return () => {
@@ -399,11 +445,11 @@ function AppInner() {
 
   const handleAddCourseToCart = async (course) => {
     if (!appUser) {
-      Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để thêm vào giỏ hàng.');
+      notifyUser('Đăng nhập', 'Vui lòng đăng nhập để thêm vào giỏ hàng.');
       return;
     }
     if (!course?.id) {
-      Alert.alert('Lỗi', 'Khóa học thiếu mã ID. Kéo xuống để tải lại danh sách.');
+      notifyUser('Lỗi', 'Khóa học thiếu mã ID. Kéo xuống để tải lại danh sách.');
       return;
     }
     if (course.isFree || !course.priceNum) {
@@ -415,7 +461,7 @@ function AppInner() {
     try {
       const base = await ensureApiBase();
       if (!base) {
-        Alert.alert('Backend', `Không kết nối backend. ${BACKEND_DEV_HINT}`);
+        notifyUser('Backend', `Không kết nối backend. ${BACKEND_DEV_HINT}`);
         return;
       }
 
@@ -434,7 +480,7 @@ function AppInner() {
         setActiveTab('cart');
         showCartToast(`Đã thêm "${course.title}" vào giỏ (${calcCartSummary(res.cart).count} món)`);
       } else {
-        Alert.alert('Không thêm được', res.error || 'Lỗi giỏ hàng.');
+        notifyUser('Không thêm được', res.error || 'Lỗi giỏ hàng.');
       }
     } finally {
       setAddingCourseId(null);
@@ -444,7 +490,14 @@ function AppInner() {
   const handleRemoveCartItem = async (itemId) => {
     const res = await removeFromCart(itemId);
     if (res.success) setCart(res.cart);
-    else Alert.alert('Lỗi', res.error || 'Không xóa được sản phẩm.');
+    else notifyUser('Lỗi', res.error || 'Không xóa được sản phẩm.');
+  };
+
+  const handleUpdateCartQty = async (itemId, quantity) => {
+    const qty = Math.max(1, Number(quantity) || 1);
+    const res = await updateCartItemQty(itemId, qty);
+    if (res.success) setCart(res.cart);
+    else notifyUser('Lỗi', res.error || 'Không cập nhật số lượng.');
   };
 
   const goToCheckout = ({ mode, course, booking, fromTab }) => {
@@ -457,7 +510,7 @@ function AppInner() {
 
   const handleStartCartCheckout = () => {
     if (!cartSummary.count) {
-      Alert.alert('Giỏ hàng trống', 'Hãy thêm khóa học trước khi thanh toán.');
+      notifyUser('Giỏ hàng trống', 'Hãy thêm khóa học trước khi thanh toán.');
       return;
     }
     goToCheckout({ mode: 'cart', fromTab: 'cart' });
@@ -568,7 +621,7 @@ function AppInner() {
 
   const openCartPage = () => {
     if (!appUser) {
-      Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để xem giỏ hàng.');
+      notifyUser('Đăng nhập', 'Vui lòng đăng nhập để xem giỏ hàng.');
       return;
     }
     setTabBeforeCart(activeTab === 'cart' ? tabBeforeCart : activeTab);
@@ -577,13 +630,15 @@ function AppInner() {
   };
 
   // Form Đăng Nhập
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(__DEV__ ? 'customer@dev.local' : '');
+  const [password, setPassword] = useState(__DEV__ ? 'Dev123456' : '');
+  const [apiReachable, setApiReachable] = useState(null); // null | true | false
+  const [apiBaseLabel, setApiBaseLabel] = useState('');
   const [authError, setAuthError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
   // Form Đăng Ký (Native)
-  const [authScreen, setAuthScreen] = useState('login'); // 'login' or 'register'
+  const [authScreen, setAuthScreen] = useState('login'); // login | register | forgot | reset
   const [regName, setRegName] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
@@ -591,6 +646,23 @@ function AppInner() {
   const [regError, setRegError] = useState('');
   const [registering, setRegistering] = useState(false);
   const [regSuccessMessage, setRegSuccessMessage] = useState('');
+
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMailSent, setForgotMailSent] = useState(false);
+  const [forgotMailConfigured, setForgotMailConfigured] = useState(false);
+  const [forgotMailError, setForgotMailError] = useState('');
+  const [devResetToken, setDevResetToken] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [resetPassword, setResetPassword] = useState('');
+  const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [resetError, setResetError] = useState('');
+  const [resetDone, setResetDone] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showResetPass, setShowResetPass] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const [loggingInGoogle, setLoggingInGoogle] = useState(false);
 
@@ -607,6 +679,7 @@ function AppInner() {
   const [detailCourseId, setDetailCourseId] = useState(null);
   const [tabBeforeCourseDetail, setTabBeforeCourseDetail] = useState('courses');
   const [tabBeforeBooking, setTabBeforeBooking] = useState('mentors');
+  const [tabBeforeCvJd, setTabBeforeCvJd] = useState('cv');
   const [addingCourseId, setAddingCourseId] = useState(null);
   const [cartToast, setCartToast] = useState('');
   const [paymentResult, setPaymentResult] = useState(null);
@@ -627,6 +700,20 @@ function AppInner() {
     caretRight: 22,
   });
 
+  // Modal Cài đặt (kiểu dropdown thông báo)
+  const [settingsModalVisible, setSettingsModalVisible] = useState(false);
+  const settingsBtnRef = useRef(null);
+  const settingsOverlayAnim = useRef(new Animated.Value(0)).current;
+  const settingsPanelAnim = useRef(new Animated.Value(0)).current;
+  const settingsClosingRef = useRef(false);
+  const SETTINGS_PANEL_WIDTH = Math.min(width - 24, 340);
+  const [settingsAnchor, setSettingsAnchor] = useState({
+    top: Platform.OS === 'ios' ? 100 : 88,
+    right: 12,
+    caretRight: 22,
+  });
+  const [settingsPanelView, setSettingsPanelView] = useState('menu'); // menu | security
+
   // Bộ lọc tìm kiếm cho Mentors & Courses
   const [searchMentorQuery, setSearchMentorQuery] = useState('');
   const [selectedMentorCategory, setSelectedMentorCategory] = useState('Tất cả');
@@ -636,6 +723,7 @@ function AppInner() {
 
   // Trạng thái Mô phỏng Phân tích CV
   const [cvFile, setCvFile] = useState(null);
+  const [cvFieldPickerVisible, setCvFieldPickerVisible] = useState(false);
   const [analyzingStatus, setAnalyzingStatus] = useState(''); 
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
@@ -650,6 +738,12 @@ function AppInner() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changePasswordError, setChangePasswordError] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  // Xóa tài khoản (nhập email + xác nhận 2 bước như web)
+  const [deleteAccountModalVisible, setDeleteAccountModalVisible] = useState(false);
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('');
+  const [deleteAccountError, setDeleteAccountError] = useState('');
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   // Dialog xác nhận sáng (thông báo / đăng xuất)
   const [confirmDialog, setConfirmDialog] = useState(null);
@@ -752,6 +846,126 @@ function AppInner() {
       confirmText: 'Đăng xuất',
       confirmTone: 'danger',
       onConfirm: performLogout,
+    });
+  };
+
+  const openForgotPassword = () => {
+    setForgotEmail(email.trim());
+    setForgotError('');
+    setForgotSent(false);
+    setForgotMailSent(false);
+    setForgotMailConfigured(false);
+    setForgotMailError('');
+    setDevResetToken('');
+    setAuthScreen('forgot');
+  };
+
+  const openResetFromDevLink = () => {
+    if (!devResetToken) return;
+    setResetToken(devResetToken);
+    setResetPassword('');
+    setResetConfirmPassword('');
+    setResetError('');
+    setResetDone(false);
+    setAuthScreen('reset');
+  };
+
+  const handleForgotPassword = async () => {
+    setForgotError('');
+    const trimmed = forgotEmail.trim().toLowerCase();
+    if (!trimmed) {
+      setForgotError('Vui lòng nhập email.');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const result = await requestPasswordReset(trimmed);
+      if (!result.success) {
+        setForgotError(result.error || 'Không thể gửi yêu cầu. Vui lòng thử lại.');
+        return;
+      }
+      setForgotEmail(trimmed);
+      setForgotSent(true);
+      setForgotMailSent(Boolean(result.mailSent));
+      setForgotMailConfigured(Boolean(result.mailConfigured));
+      setForgotMailError(result.mailError || '');
+      setDevResetToken(result.resetToken ? String(result.resetToken) : '');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    setResetError('');
+    if (!resetToken.trim()) {
+      setResetError('Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại link mới.');
+      return;
+    }
+    if (!resetPassword || resetPassword.length < 6) {
+      setResetError('Mật khẩu mới phải có ít nhất 6 ký tự.');
+      return;
+    }
+    if (resetPassword !== resetConfirmPassword) {
+      setResetError('Mật khẩu xác nhận không khớp.');
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const result = await resetPasswordWithToken(resetToken.trim(), resetPassword);
+      if (!result.success) {
+        setResetError(result.error || 'Có lỗi xảy ra. Vui lòng thử lại sau.');
+        return;
+      }
+      setResetDone(true);
+      setPassword('');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const openDeleteAccountModal = () => {
+    setDeleteConfirmEmail('');
+    setDeleteAccountError('');
+    setDeleteAccountModalVisible(true);
+  };
+
+  const handleDeleteAccountRequest = () => {
+    setDeleteAccountError('');
+    const expected = String(appUser?.email || '').trim().toLowerCase();
+    const typed = deleteConfirmEmail.trim().toLowerCase();
+    if (!expected || typed !== expected) {
+      setDeleteAccountError('Nhập đúng email tài khoản để xác nhận.');
+      return;
+    }
+    setDeleteAccountModalVisible(false);
+    setConfirmDialog({
+      icon: 'trash-outline',
+      title: 'Xóa vĩnh viễn?',
+      message:
+        'Xóa tài khoản, hồ sơ liên quan và phiên đăng nhập. Hành động không thể hoàn tác.',
+      cancelText: 'Hủy',
+      confirmText: 'Xóa tài khoản',
+      confirmTone: 'danger',
+      onCancel: () => setDeleteAccountModalVisible(true),
+      onConfirm: async () => {
+        setDeletingAccount(true);
+        try {
+          const result = await deleteAccount();
+          if (!result.success) {
+            setDeleteAccountError(result.error || 'Không xóa được tài khoản.');
+            setDeleteAccountModalVisible(true);
+            return;
+          }
+          try {
+            await authContextLogout();
+          } catch (e) {}
+          clearLocalSession();
+          setJustLoggedOut(true);
+          setAuthScreen('login');
+        } finally {
+          setDeletingAccount(false);
+        }
+      },
     });
   };
 
@@ -1092,24 +1306,30 @@ function AppInner() {
 
   const handleAuthLogin = async () => {
     setAuthError('');
+    const trimmedEmail = String(email || '').trim().toLowerCase();
+    const trimmedPassword = String(password || '').trim();
+    if (!trimmedEmail || !trimmedPassword) {
+      setAuthError('Vui lòng nhập email và mật khẩu.');
+      return;
+    }
+
     setLoggingIn(true);
 
     try {
+      // Cùng API với ProInterview web: POST /api/auth/login
       const result = await Promise.race([
-        loginWithEmail(email, password),
+        loginWithEmail(trimmedEmail, trimmedPassword),
         new Promise((resolve) => {
           setTimeout(() => {
             resolve({
               success: false,
               error: 'Đăng nhập quá lâu. Kiểm tra backend port 5001, Wi-Fi và reload Expo.',
             });
-          }, 9000);
+          }, 12000);
         }),
       ]);
 
       if (result.success && result.token) {
-        // Set user ngay trong handler để thoát màn login trong cùng tick.
-        // Dữ liệu phụ và lưu storage chạy nền, tránh kẹt spinner trên Expo Go.
         if (result.user && typeof result.user === 'object') {
           applyLoggedInUser(result.user, result.token);
           setAuthError('');
@@ -1122,11 +1342,11 @@ function AppInner() {
           }
         }
       } else {
-        setAuthError(result.error || 'Email hoặc mật khẩu không hợp lệ.');
+        setAuthError(result.error || 'Email hoặc mật khẩu không đúng.');
       }
     } catch (err) {
       console.warn('handleAuthLogin:', err);
-      setAuthError('Không thể đăng nhập. Kiểm tra kết nối và thử lại.');
+      setAuthError('Không kết nối được backend. Hãy chạy backend cổng 5001 rồi thử lại.');
     } finally {
       setLoggingIn(false);
     }
@@ -1216,52 +1436,37 @@ function AppInner() {
 
   const handleMentorBookingConfirm = (bookingDraft) => {
     if (!userToken) {
-      Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để đặt lịch với mentor.');
+      notifyUser('Đăng nhập', 'Vui lòng đăng nhập để đặt lịch với mentor.');
       return;
     }
     goToCheckout({ mode: 'booking', booking: bookingDraft, fromTab: 'mentor_booking' });
   };
 
-  // Phân tích CV thật qua /api/cv/analyze/field rồi lưu MongoDB
-  const triggerCvAnalysis = async () => {
+  // Phân tích CV: JD (màn hình riêng CvJdUploadScreen) hoặc theo ngành (field picker + 1 file)
+  const pickCvDocument = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return null;
+    return result.assets?.[0] || null;
+  };
+
+  const runCvPipeline = async (runner) => {
     try {
       if (!userToken) {
-        Alert.alert('Đăng nhập', 'Vui lòng đăng nhập để phân tích CV.');
+        notifyUser('Đăng nhập', 'Vui lòng đăng nhập để phân tích CV.');
         return;
       }
-
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-        copyToCacheDirectory: true,
-      });
-
-      if (result.canceled) return;
-
-      const file = result.assets[0];
-      const fileSizeInMB = file.size != null ? (file.size / (1024 * 1024)).toFixed(2) : '?';
-      setCvFile({ name: file.name, size: `${fileSizeInMB} MB` });
       setAnalyzingStatus('loading');
       setAnalysisProgress(5);
-
-      const out = await analyzeAndSaveCv(
-        {
-          uri: file.uri,
-          name: file.name || 'cv.pdf',
-          mimeType: file.mimeType || 'application/pdf',
-        },
-        {
-          field: 'IT / Công nghệ',
-          onProgress: (n) => setAnalysisProgress(Math.min(100, Math.max(0, Number(n) || 0))),
-        },
-      );
-
+      const out = await runner((n) => setAnalysisProgress(Math.min(100, Math.max(0, Number(n) || 0))));
       if (!out.success) {
         setAnalyzingStatus('idle');
         setAnalysisProgress(0);
-        Alert.alert('Phân tích CV', out.error || 'Không phân tích được CV.');
+        notifyUser('Phân tích CV', out.error || 'Không phân tích được CV.');
         return;
       }
-
       setAnalysisProgress(100);
       setAnalyzingStatus('success');
       await loadUserData();
@@ -1269,7 +1474,90 @@ function AppInner() {
       console.error('Lỗi khi phân tích CV:', error);
       setAnalyzingStatus('idle');
       setAnalysisProgress(0);
-      Alert.alert('Phân tích CV', 'Có lỗi khi tải hoặc phân tích file.');
+      notifyUser('Phân tích CV', 'Có lỗi khi tải hoặc phân tích file.');
+    }
+  };
+
+  // Phân tích CV theo ngành nghề đã chọn (không cần JD) qua /api/cv/analyze/field rồi lưu MongoDB
+  const analyzeCvWithField = async (field) => {
+    const resume = await pickCvDocument();
+    if (!resume) return;
+    const fileSizeInMB = resume.size != null ? (resume.size / (1024 * 1024)).toFixed(2) : '?';
+    setCvFile({ name: resume.name, size: `${fileSizeInMB} MB` });
+    await runCvPipeline((onProgress) =>
+      analyzeAndSaveCv(
+        {
+          uri: resume.uri,
+          name: resume.name || 'cv.pdf',
+          mimeType: resume.mimeType || 'application/pdf',
+          file: resume.file, // web: File thật từ <input type=file> (RN native không có field này)
+        },
+        { field, onProgress },
+      ),
+    );
+  };
+
+  const triggerCvAnalysisField = () => {
+    if (!userToken) {
+      notifyUser('Đăng nhập', 'Vui lòng đăng nhập để phân tích CV.');
+      return;
+    }
+    setCvFieldPickerVisible(true);
+  };
+
+  // Mở màn hình tải CV + JD (giống web /cv-analysis/jd) từ nút "Tối ưu CV theo vị trí ứng tuyển"
+  const openCvJdUploadScreen = () => {
+    if (!userToken) {
+      notifyUser('Đăng nhập', 'Vui lòng đăng nhập để phân tích CV.');
+      return;
+    }
+    setTabBeforeCvJd(activeTab === 'cv_jd_upload' ? tabBeforeCvJd : activeTab);
+    setActiveTab('cv_jd_upload');
+  };
+
+  // Tối ưu CV theo JD thật (CV + file JD đã chọn từ CvJdUploadScreen) qua /api/cv/analyze/suggestions rồi lưu MongoDB
+  const runCvJdAnalysis = async (cvPicked, jdPicked) => {
+    try {
+      const fileSizeInMB = cvPicked.size != null ? (cvPicked.size / (1024 * 1024)).toFixed(2) : '?';
+      setCvFile({ name: cvPicked.name, size: `${fileSizeInMB} MB` });
+      setAnalyzingStatus('loading');
+      setAnalysisProgress(5);
+
+      const out = await analyzeCvAgainstJd(
+        {
+          uri: cvPicked.uri,
+          name: cvPicked.name || 'cv.pdf',
+          mimeType: cvPicked.mimeType || 'application/pdf',
+          file: cvPicked.file, // web: File thật từ <input type=file>
+        },
+        {
+          uri: jdPicked.uri,
+          name: jdPicked.name || 'jd.pdf',
+          mimeType: jdPicked.mimeType || 'application/pdf',
+          file: jdPicked.file,
+        },
+        { onProgress: (n) => setAnalysisProgress(Math.min(100, Math.max(0, Number(n) || 0))) },
+      );
+
+      if (!out.success) {
+        setAnalyzingStatus('idle');
+        setAnalysisProgress(0);
+        notifyUser('Phân tích CV theo JD', out.error || 'Không phân tích được CV theo JD.');
+        return;
+      }
+
+      setAnalysisProgress(100);
+      setAnalyzingStatus('success');
+      await loadUserData();
+      setActiveTab('cv');
+      if (out.note) {
+        notifyUser('Phân tích CV theo JD', out.note);
+      }
+    } catch (error) {
+      console.error('Lỗi khi phân tích CV theo JD:', error);
+      setAnalyzingStatus('idle');
+      setAnalysisProgress(0);
+      notifyUser('Phân tích CV theo JD', 'Có lỗi khi tải hoặc phân tích file.');
     }
   };
 
@@ -1387,6 +1675,101 @@ function AppInner() {
     runNotifOpenAnimation();
   }, [notifModalVisible]);
 
+  const computeSettingsAnchor = (btnX, btnY, btnW, btnH) => {
+    const panelRight = 12;
+    const panelLeft = width - panelRight - SETTINGS_PANEL_WIDTH;
+    const btnCenterX = btnX + btnW / 2;
+    const caretRight = Math.max(
+      16,
+      Math.min(SETTINGS_PANEL_WIDTH - 16, SETTINGS_PANEL_WIDTH - (btnCenterX - panelLeft) - 5),
+    );
+    return {
+      top: btnY + btnH + 10,
+      right: panelRight,
+      caretRight,
+    };
+  };
+
+  const runSettingsOpenAnimation = () => {
+    settingsOverlayAnim.setValue(0);
+    settingsPanelAnim.setValue(0);
+    Animated.parallel([
+      Animated.timing(settingsOverlayAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(settingsPanelAnim, {
+        toValue: 1,
+        friction: 7,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const runSettingsCloseAnimation = (onDone) => {
+    Animated.parallel([
+      Animated.timing(settingsOverlayAnim, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+      Animated.timing(settingsPanelAnim, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      if (finished && onDone) onDone();
+    });
+  };
+
+  const openSettingsModal = () => {
+    setSettingsPanelView('menu');
+
+    const showPanel = (anchor) => {
+      setSettingsAnchor(anchor);
+      setSettingsModalVisible(true);
+    };
+
+    if (settingsBtnRef.current?.measureInWindow) {
+      settingsBtnRef.current.measureInWindow((x, y, w, h) => {
+        if (w > 0 && h > 0) {
+          showPanel(computeSettingsAnchor(x, y, w, h));
+          return;
+        }
+        showPanel({
+          top: Platform.OS === 'ios' ? 100 : 88,
+          right: 12,
+          caretRight: 22,
+        });
+      });
+      return;
+    }
+
+    showPanel({
+      top: Platform.OS === 'ios' ? 100 : 88,
+      right: 12,
+      caretRight: 22,
+    });
+  };
+
+  const closeSettingsModal = () => {
+    if (settingsClosingRef.current) return;
+    settingsClosingRef.current = true;
+    runSettingsCloseAnimation(() => {
+      setSettingsModalVisible(false);
+      setSettingsPanelView('menu');
+      settingsClosingRef.current = false;
+    });
+  };
+
+  useEffect(() => {
+    if (!settingsModalVisible) return;
+    runSettingsOpenAnimation();
+  }, [settingsModalVisible]);
+
   const unreadNotifCount = notifications.filter(n => !n.isRead).length;
 
   // SCREEN LOGIN SYSTEM
@@ -1435,7 +1818,25 @@ function AppInner() {
 
           <View style={styles.authCard}>
             <Text style={styles.authCardTitle}>Đăng nhập</Text>
-            <Text style={styles.authCardSubtitle}>Chào bạn trở lại! Tiếp tục luyện cùng ProInterview nhé.</Text>
+            <Text style={styles.authCardSubtitle}>
+              Cùng tài khoản ProInterview với bản web — đăng nhập bằng email và mật khẩu.
+            </Text>
+            {__DEV__ ? (
+              <Text
+                style={{
+                  fontSize: 10,
+                  color: apiReachable === false ? '#fecaca' : 'rgba(255,255,255,0.75)',
+                  marginBottom: 10,
+                  lineHeight: 14,
+                }}
+              >
+                {apiReachable === null
+                  ? 'Đang kiểm tra backend…'
+                  : apiReachable
+                    ? `API OK · ${apiBaseLabel}`
+                    : `API lỗi · ${apiBaseLabel}\nCùng Wi‑Fi, restart Expo (-c), firewall cổng 5001`}
+              </Text>
+            ) : null}
 
             {/* Error */}
             {(authError || authContextError) ? (
@@ -1449,18 +1850,27 @@ function AppInner() {
             <Text style={styles.authLabel}>Email</Text>
             <TextInput
               style={styles.authInput}
-              placeholder="email@example.com"
+              placeholder="customer@dev.local"
               placeholderTextColor="#9ca3af"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(v) => {
+                setEmail(v);
+                if (authError) setAuthError('');
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              textContentType="emailAddress"
+              returnKeyType="next"
             />
 
             {/* Password */}
             <View style={styles.authLabelRow}>
               <Text style={styles.authLabel}>Mật khẩu</Text>
-              <Text style={styles.authForgot}>Quên mật khẩu?</Text>
+              <TouchableOpacity onPress={openForgotPassword} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.authForgot}>Quên mật khẩu?</Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.authInputWrap}>
               <TextInput
@@ -1469,8 +1879,16 @@ function AppInner() {
                 placeholderTextColor="#9ca3af"
                 secureTextEntry={!showPass}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(v) => {
+                  setPassword(v);
+                  if (authError) setAuthError('');
+                }}
                 autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="password"
+                textContentType="password"
+                returnKeyType="done"
+                onSubmitEditing={handleAuthLogin}
               />
               <TouchableOpacity style={styles.authEyeBtn} onPress={() => setShowPass(v => !v)}>
                 <Ionicons name={showPass ? 'eye-off-outline' : 'eye-outline'} size={18} color="#9ca3af" />
@@ -1645,6 +2063,311 @@ function AppInner() {
             </View>
           </View>
         </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+
+  const renderForgotPasswordScreen = () => (
+    <View style={styles.authPageBg}>
+      <View
+        style={[
+          styles.authPageBleed,
+          { top: -insets.top, bottom: -insets.bottom },
+        ]}
+        pointerEvents="none"
+      >
+        <LinearGradient
+          colors={['#f5f0fc', '#efe6fa', '#f7f3fd', '#fdfcff']}
+          locations={[0, 0.35, 0.7, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.authBlobTop} />
+        <View style={styles.authBlobBottom} />
+      </View>
+
+      <KeyboardAvoidingView
+        style={styles.authKeyboardWrap}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={authTopPad}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.authScrollContainer,
+            { paddingTop: authTopPad, paddingBottom: authBottomPad },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          <View style={styles.authTopBar}>
+            <Image source={require('./assets/Logo.png')} style={styles.authLogoImg} resizeMode="contain" />
+          </View>
+
+          <View style={[styles.authCardArea, { maxWidth: AUTH_CARD_MAX_WIDTH }]}>
+            <View style={styles.authCard}>
+              {forgotSent ? (
+                <>
+                  <View style={styles.authSuccessIconWrap}>
+                    <Ionicons
+                      name={forgotMailSent ? 'checkmark-circle' : 'mail-unread-outline'}
+                      size={40}
+                      color="#8037f4"
+                    />
+                  </View>
+                  <Text style={[styles.authCardTitle, { textAlign: 'center' }]}>
+                    {forgotMailSent ? 'Kiểm tra hộp thư' : 'Chưa gửi được email'}
+                  </Text>
+                  <Text style={[styles.authCardSubtitle, { textAlign: 'center' }]}>
+                    {forgotMailSent
+                      ? 'Nếu email tồn tại và tài khoản có mật khẩu, bạn sẽ nhận hướng dẫn đặt lại trong vài phút. Nhớ kiểm tra cả hộp thư spam.'
+                      : !forgotMailConfigured
+                        ? 'Backend chưa cấu hình SMTP (MAIL_USER / MAIL_PASS trong backend/.env), nên không gửi được mail thật.'
+                        : forgotMailError ||
+                          'Không gửi được mail. Nếu email chưa có trong DB local hoặc là tài khoản Google-only thì cũng không có link reset.'}
+                  </Text>
+                  {forgotEmail ? (
+                    <View style={styles.authEmailChip}>
+                      <Ionicons name="mail-outline" size={14} color="#8037f4" />
+                      <Text style={styles.authEmailChipText} numberOfLines={1}>{forgotEmail}</Text>
+                    </View>
+                  ) : null}
+
+                  {devResetToken ? (
+                    <View style={styles.authDevResetBox}>
+                      <Text style={styles.authDevResetTitle}>
+                        {forgotMailSent ? 'Dev — mở link đặt lại' : 'Dev — đặt lại không cần mail'}
+                      </Text>
+                      <TouchableOpacity onPress={openResetFromDevLink} activeOpacity={0.85}>
+                        <Text style={styles.authDevResetLink}>Mở màn đặt lại mật khẩu →</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={styles.authDevResetBox}>
+                      <Text style={styles.authDevResetTitle}>Không có link reset</Text>
+                      <Text style={[styles.authInfoText, { color: 'rgba(255,255,255,0.85)' }]}>
+                        Email chưa có trong MongoDB local, hoặc tài khoản chỉ đăng nhập Google (chưa có mật khẩu). Thử `customer@dev.local` hoặc đăng ký email này trước.
+                      </Text>
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    style={[styles.authSubmitBtn, { backgroundColor: '#8037f4' }]}
+                    onPress={() => setAuthScreen('login')}
+                    activeOpacity={0.88}
+                  >
+                    <Text style={[styles.authSubmitBtnText, { color: '#fff' }]}>Về trang đăng nhập</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.authCardTitle}>Quên mật khẩu</Text>
+                  <Text style={styles.authCardSubtitle}>
+                    Nhập email đã đăng ký. Nếu tài khoản có mật khẩu, ProInterview sẽ gửi link đặt lại qua email.
+                  </Text>
+
+                  {forgotError ? (
+                    <View style={styles.authErrorBox}>
+                      <Ionicons name="alert-circle" size={15} color="#fca5a5" style={{ marginRight: 6 }} />
+                      <Text style={styles.authErrorText}>{forgotError}</Text>
+                    </View>
+                  ) : null}
+
+                  <Text style={styles.authLabel}>Email</Text>
+                  <TextInput
+                    style={styles.authInput}
+                    placeholder="email@example.com"
+                    placeholderTextColor="#9ca3af"
+                    value={forgotEmail}
+                    onChangeText={setForgotEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                  />
+
+                  <TouchableOpacity
+                    style={[styles.authSubmitBtn, { backgroundColor: '#8037f4' }]}
+                    onPress={handleForgotPassword}
+                    disabled={forgotLoading}
+                    activeOpacity={0.88}
+                  >
+                    {forgotLoading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={[styles.authSubmitBtnText, { color: '#fff' }]}>Gửi link đặt lại</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <View style={styles.authInfoBox}>
+                    <Ionicons name="information-circle-outline" size={16} color="#8037f4" style={{ marginTop: 1 }} />
+                    <Text style={styles.authInfoText}>
+                      Nếu bạn đăng nhập bằng Google và chưa đặt mật khẩu, dùng nút Google ở trang đăng nhập hoặc đặt mật khẩu trong Cài đặt.
+                    </Text>
+                  </View>
+
+                  <View style={styles.authFooterRow}>
+                    <Text style={styles.authFooterText}>Nhớ mật khẩu? </Text>
+                    <TouchableOpacity onPress={() => setAuthScreen('login')}>
+                      <Text style={styles.authFooterLink}>Đăng nhập</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  );
+
+  const renderResetPasswordScreen = () => (
+    <View style={styles.authPageBg}>
+      <View
+        style={[
+          styles.authPageBleed,
+          { top: -insets.top, bottom: -insets.bottom },
+        ]}
+        pointerEvents="none"
+      >
+        <LinearGradient
+          colors={['#f5f0fc', '#efe6fa', '#f7f3fd', '#fdfcff']}
+          locations={[0, 0.35, 0.7, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.authBlobTop} />
+        <View style={styles.authBlobBottom} />
+      </View>
+
+      <KeyboardAvoidingView
+        style={styles.authKeyboardWrap}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={authTopPad}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.authScrollContainer,
+            { paddingTop: authTopPad, paddingBottom: authBottomPad },
+          ]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          <View style={styles.authTopBar}>
+            <Image source={require('./assets/Logo.png')} style={styles.authLogoImg} resizeMode="contain" />
+          </View>
+
+          <View style={[styles.authCardArea, { maxWidth: AUTH_CARD_MAX_WIDTH }]}>
+            <View style={styles.authCard}>
+              {resetDone ? (
+                <>
+                  <View style={styles.authSuccessIconWrap}>
+                    <Ionicons name="checkmark-circle" size={40} color="#8037f4" />
+                  </View>
+                  <Text style={[styles.authCardTitle, { textAlign: 'center' }]}>Mật khẩu đã được cập nhật</Text>
+                  <Text style={[styles.authCardSubtitle, { textAlign: 'center' }]}>
+                    Bạn có thể đăng nhập ngay bằng mật khẩu mới.
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.authSubmitBtn, { backgroundColor: '#8037f4' }]}
+                    onPress={() => {
+                      setAuthScreen('login');
+                      setResetToken('');
+                      setResetPassword('');
+                      setResetConfirmPassword('');
+                      setResetDone(false);
+                      setDevResetToken('');
+                    }}
+                    activeOpacity={0.88}
+                  >
+                    <Text style={[styles.authSubmitBtnText, { color: '#fff' }]}>Đăng nhập ngay</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.authCardTitle}>Đặt lại mật khẩu</Text>
+                  <Text style={styles.authCardSubtitle}>
+                    Nhập mật khẩu mới cho tài khoản ProInterview của bạn.
+                  </Text>
+
+                  {resetError ? (
+                    <View style={styles.authErrorBox}>
+                      <Ionicons name="alert-circle" size={15} color="#fca5a5" style={{ marginRight: 6 }} />
+                      <Text style={styles.authErrorText}>{resetError}</Text>
+                    </View>
+                  ) : null}
+
+                  {!resetToken.trim() ? (
+                    <View style={styles.authWarnBox}>
+                      <Ionicons name="information-circle-outline" size={16} color="#d97706" style={{ marginTop: 1 }} />
+                      <Text style={styles.authWarnText}>
+                        Bạn cần mở link từ email để có mã xác thực hợp lệ.{' '}
+                        <Text style={styles.authFooterLink} onPress={() => setAuthScreen('forgot')}>
+                          Yêu cầu link mới
+                        </Text>
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  <Text style={styles.authLabel}>Mật khẩu mới</Text>
+                  <View style={styles.authInputWrap}>
+                    <TextInput
+                      style={[styles.authInput, { flex: 1, marginBottom: 0 }]}
+                      placeholder="Ít nhất 6 ký tự"
+                      placeholderTextColor="#9ca3af"
+                      secureTextEntry={!showResetPass}
+                      value={resetPassword}
+                      onChangeText={setResetPassword}
+                      autoCapitalize="none"
+                      autoComplete="new-password"
+                    />
+                    <TouchableOpacity style={styles.authEyeBtn} onPress={() => setShowResetPass((v) => !v)}>
+                      <Ionicons name={showResetPass ? 'eye-off-outline' : 'eye-outline'} size={18} color="#9ca3af" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={[styles.authLabel, { marginTop: 12 }]}>Xác nhận mật khẩu</Text>
+                  <View style={styles.authInputWrap}>
+                    <TextInput
+                      style={[styles.authInput, { flex: 1, marginBottom: 0 }]}
+                      placeholder="Nhập lại mật khẩu"
+                      placeholderTextColor="#9ca3af"
+                      secureTextEntry={!showResetConfirm}
+                      value={resetConfirmPassword}
+                      onChangeText={setResetConfirmPassword}
+                      autoCapitalize="none"
+                      autoComplete="new-password"
+                    />
+                    <TouchableOpacity style={styles.authEyeBtn} onPress={() => setShowResetConfirm((v) => !v)}>
+                      <Ionicons name={showResetConfirm ? 'eye-off-outline' : 'eye-outline'} size={18} color="#9ca3af" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.authSubmitBtn,
+                      { backgroundColor: '#8037f4', marginTop: 14, opacity: !resetToken.trim() || resetLoading ? 0.55 : 1 },
+                    ]}
+                    onPress={handleResetPassword}
+                    disabled={resetLoading || !resetToken.trim()}
+                    activeOpacity={0.88}
+                  >
+                    {resetLoading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={[styles.authSubmitBtnText, { color: '#fff' }]}>Cập nhật mật khẩu</Text>
+                    )}
+                  </TouchableOpacity>
+
+                  <View style={styles.authFooterRow}>
+                    <Text style={styles.authFooterText}>Đã có mật khẩu? </Text>
+                    <TouchableOpacity onPress={() => setAuthScreen('login')}>
+                      <Text style={styles.authFooterLink}>Đăng nhập</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -2122,7 +2845,7 @@ function AppInner() {
                     if (nextBooking.meetingLink) {
                       Linking.openURL(nextBooking.meetingLink);
                     } else {
-                      setProfileSubTab('history');
+                      setProfileSubTab('history_bookings');
                       setActiveTab('profile');
                     }
                   }}
@@ -2706,11 +3429,10 @@ function AppInner() {
 
     return (
       <View style={[styles.tabContentContainer, styles.coursesTabContainer, { paddingTop: shellTopPad }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <View style={styles.profilePageHeading}>
           <View style={{ flex: 1, paddingRight: 12 }}>
-            <Text style={styles.coursesEyebrow}>KHÓA HỌC KỸ NĂNG</Text>
-            <Text style={styles.tabTitle}>Khóa học tối ưu</Text>
-            <Text style={styles.tabSubtitle}>Biên soạn bởi chuyên gia, học thử bài giảng chuẩn</Text>
+            <Text style={styles.profilePageEyebrow}>DANH SÁCH KHÓA HỌC</Text>
+            <Text style={[styles.tabTitle, styles.profilePageTitle]}>Khóa học</Text>
           </View>
           <TouchableOpacity style={styles.cleanHomeHeaderIcon} onPress={openCartPage}>
             <Ionicons name="cart-outline" size={20} color="#8037f4" />
@@ -2860,8 +3582,8 @@ function AppInner() {
         cvFile={cvFile}
         cvAnalyses={cvAnalyses}
         bottomPadding={HOME_NAV_CLEARANCE + 16}
-        onAnalyzeJd={triggerCvAnalysis}
-        onAnalyzeField={triggerCvAnalysis}
+        onAnalyzeJd={openCvJdUploadScreen}
+        onAnalyzeField={triggerCvAnalysisField}
       />
     </View>
   );
@@ -2911,16 +3633,24 @@ function AppInner() {
                 <Text style={styles.profilePageEyebrow}>
                   {profileSubTab === 'learning'
                     ? 'THƯ VIỆN'
-                    : profileSubTab === 'history'
-                      ? 'HOẠT ĐỘNG'
-                      : 'CÀI ĐẶT'}
+                    : profileSubTab === 'history_payments'
+                      ? 'THANH TOÁN'
+                      : profileSubTab === 'history_bookings'
+                        ? 'LỊCH HẸN'
+                        : profileSubTab === 'history_cv'
+                          ? 'HỒ SƠ CV'
+                          : 'HỒ SƠ'}
                 </Text>
                 <Text style={[styles.tabTitle, styles.profilePageTitle]}>
                   {profileSubTab === 'learning'
                     ? 'Khóa đã mua'
-                    : profileSubTab === 'history'
-                      ? 'Lịch sử'
-                      : 'Cài đặt'}
+                    : profileSubTab === 'history_payments'
+                      ? 'Lịch sử giao dịch'
+                      : profileSubTab === 'history_bookings'
+                        ? 'Lịch sử phỏng vấn'
+                        : profileSubTab === 'history_cv'
+                          ? 'Lịch sử CV'
+                          : 'Thông tin cá nhân'}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -2937,22 +3667,40 @@ function AppInner() {
             </View>
           )}
           {profileSubTab === 'profile' ? (
-            <TouchableOpacity style={styles.profileEditButton} onPress={() => setProfileSubTab('settings')}>
+            <TouchableOpacity
+              ref={settingsBtnRef}
+              style={styles.profileEditButton}
+              onPress={() => {
+                if (settingsModalVisible) {
+                  closeSettingsModal();
+                  return;
+                }
+                openSettingsModal();
+              }}
+            >
               <Ionicons name="settings-outline" size={18} color="#8037f4" />
             </TouchableOpacity>
           ) : null}
         </View>
 
         <Animated.View style={[styles.profileTabBody, { opacity: profileTabEntrance }]}>
-        {profileSubTab !== 'learning' && profileSubTab !== 'history' && profileSubTab !== 'settings' && (
+        {(profileSubTab === 'profile' || profileSubTab === 'info') && (
           <ProfileScreen
             user={profile}
+            mode={profileSubTab === 'info' ? 'edit' : 'hub'}
             ownedCourseCount={userRole === 'customer' ? paidCourses : 0}
+            onOpenProfileInfo={() => setProfileSubTab('info')}
             onOpenLearning={
               userRole === 'customer' ? () => setProfileSubTab('learning') : undefined
             }
-            onOpenHistory={
-              userRole === 'customer' ? () => setProfileSubTab('history') : undefined
+            onOpenHistoryPayments={
+              userRole === 'customer' ? () => setProfileSubTab('history_payments') : undefined
+            }
+            onOpenHistoryBookings={
+              userRole === 'customer' ? () => setProfileSubTab('history_bookings') : undefined
+            }
+            onOpenHistoryCv={
+              userRole === 'customer' ? () => setProfileSubTab('history_cv') : undefined
             }
             onOpenRoleSessions={
               userRole === 'mentor'
@@ -2978,7 +3726,10 @@ function AppInner() {
           />
         )}
 
-        {(profileSubTab === 'learning' || profileSubTab === 'history' || profileSubTab === 'settings') && (
+        {(profileSubTab === 'learning' ||
+          profileSubTab === 'history_payments' ||
+          profileSubTab === 'history_bookings' ||
+          profileSubTab === 'history_cv') && (
             <ScrollView
               style={styles.tabBodyScroll}
               showsVerticalScrollIndicator={false}
@@ -2989,7 +3740,7 @@ function AppInner() {
           {profileSubTab === 'learning' && (
             <View style={styles.learningTab}>
               <LinearGradient
-                colors={['rgba(233,207,139,0.18)', 'rgba(109,40,217,0.24)']}
+                colors={['#e8ddf5', '#efe6fa', '#f5f0fc']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.learningOverview}
@@ -3023,7 +3774,7 @@ function AppInner() {
                             { backgroundColor: paid ? 'rgba(147,247,43,0.12)' : 'rgba(251,191,36,0.12)' },
                           ]}>
                             <View style={[styles.ownedCourseStatusDot, { backgroundColor: paid ? '#93f72b' : '#fbbf24' }]} />
-                            <Text style={[styles.ownedCourseStatusText, { color: paid ? '#93f72b' : '#fbbf24' }]}>
+                            <Text style={[styles.ownedCourseStatusText, { color: paid ? '#3f6212' : '#a16207' }]}>
                               {paid ? 'ĐÃ SỞ HỮU' : 'CHỜ THANH TOÁN'}
                             </Text>
                           </View>
@@ -3084,30 +3835,7 @@ function AppInner() {
             </View>
           )}
 
-          {profileSubTab === 'settings' && (
-            <View style={styles.profileSettingsWrap}>
-            <View style={styles.profileOptionsList}>
-              <TouchableOpacity style={styles.profileOptionRow} onPress={handleToggleInAppNotifications}>
-                <View style={styles.profileOptionLeft}>
-                  <Ionicons name="notifications-outline" size={18} color="#8037f4" />
-                  <Text style={styles.profileOptionLabel}>Thông báo đẩy (In-app)</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.profileOptionRow} onPress={() => setChangePasswordModalVisible(true)}>
-                <View style={styles.profileOptionLeft}>
-                  <Ionicons name="lock-closed-outline" size={18} color="#8037f4" />
-                  <Text style={styles.profileOptionLabel}>Thay đổi mật khẩu</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
-              </TouchableOpacity>
-
-            </View>
-            </View>
-          )}
-
-          {profileSubTab === 'history' && (
+          {profileSubTab === 'history_payments' && (
             <View style={styles.profileHistoryContent}>
               <View style={styles.historySummaryCard}>
                 <View>
@@ -3163,12 +3891,16 @@ function AppInner() {
                   <Text style={styles.historyEmptyText}>Chưa có giao dịch</Text>
                 </View>
               )}
+            </View>
+          )}
 
-              {/* HIỂN THỊ DANH SÁCH LỊCH HẸN TỪ MONGODB */}
-              {bookings.length > 0 && (
-                <View style={styles.historySection}>
-              <Text style={styles.cvResultSectionTitle}>Lịch hẹn phỏng vấn đã đặt</Text>
-              {bookings.map((booking, idx) => (
+          {profileSubTab === 'history_bookings' && (
+            <View style={styles.profileHistoryContent}>
+              <View style={styles.historySectionHeader}>
+                <Text style={styles.cvResultSectionTitle}>Lịch hẹn đã đặt</Text>
+                <Text style={styles.historyCount}>{bookings.length}</Text>
+              </View>
+              {bookings.length > 0 ? bookings.map((booking, idx) => (
                 <View key={booking._id || idx} style={styles.bookingHistoryCard}>
                   <View style={styles.bookingHistoryTop}>
                     <Text style={styles.bookingSessionType}>
@@ -3187,72 +3919,174 @@ function AppInner() {
                   <Text style={styles.bookingMentorName}>Chuyên gia: {booking.mentorId?.name || 'Đang cập nhật'}</Text>
                   <Text style={styles.bookingTimeText}>⏱ Ngày {booking.date} · Khung giờ: {booking.timeSlot}</Text>
                   {booking.meetingLink ? (
-                    <TouchableOpacity style={styles.joinMeetingBtn} onPress={() => alert(`Đang truy cập: ${booking.meetingLink}`)}>
+                    <TouchableOpacity
+                      style={styles.joinMeetingBtn}
+                      onPress={() => {
+                        const url = String(booking.meetingLink || '').trim();
+                        if (!url) {
+                          notifyUser('Phòng họp', 'Chưa có link meeting cho buổi này.');
+                          return;
+                        }
+                        Linking.openURL(url).catch(() => {
+                          notifyUser('Phòng họp', 'Không mở được link meeting.');
+                        });
+                      }}
+                    >
                       <Text style={styles.joinMeetingBtnText}>Vào Zoom Meeting</Text>
                     </TouchableOpacity>
                   ) : null}
-                </View>
-              ))}
-                </View>
-              )}
-
-              {enrollments.length > 0 && (
-                <View style={styles.historySection}>
-              <Text style={styles.cvResultSectionTitle}>Khóa học của tôi</Text>
-              {enrollments.map((enrollment, idx) => {
-                const course = enrollment.courseId || {};
-                const title = getCourseDisplayTitle(course.title);
-                const paid = enrollment.paymentStatus === 'paid' || !enrollment.paymentStatus;
-                const pending = enrollment.paymentStatus === 'pending';
-                return (
-                  <View key={enrollment._id || idx} style={styles.bookingHistoryCard}>
-                    <View style={styles.bookingHistoryTop}>
-                      <Text style={styles.bookingSessionType} numberOfLines={2}>{title}</Text>
-                      <View style={[
-                        styles.bookingStatusBadge,
-                        paid
-                          ? { backgroundColor: 'rgba(16,185,129,0.1)', borderColor: '#10b981' }
-                          : { backgroundColor: 'rgba(245,158,11,0.1)', borderColor: '#f59e0b' },
-                      ]}>
-                        <Text style={[
-                          styles.bookingStatusBadgeText,
-                          paid ? { color: '#10b981' } : { color: '#f59e0b' },
-                        ]}>
-                          {paid ? 'ĐÃ MUA' : 'CHỜ TT'}
-                        </Text>
-                      </View>
-                    </View>
-                    {pending && enrollment.paymentRef ? (
-                      <Text style={styles.bookingTimeText}>Mã CK: {enrollment.paymentRef}</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+                    {booking.status !== 'cancelled' && booking.status !== 'completed' ? (
+                      <TouchableOpacity
+                        style={[styles.joinMeetingBtn, { backgroundColor: '#fee2e2' }]}
+                        onPress={() => {
+                          setConfirmDialog({
+                            icon: 'close-circle-outline',
+                            title: 'Hủy lịch hẹn?',
+                            message: `Hủy buổi ${booking.date || ''} ${booking.timeSlot || ''} với ${booking.mentorId?.name || 'mentor'}?`,
+                            cancelText: 'Không',
+                            confirmText: 'Hủy lịch',
+                            confirmTone: 'danger',
+                            onConfirm: async () => {
+                              const id = booking._id || booking.id;
+                              const r = await cancelCustomerBooking(id);
+                              if (!r.success) {
+                                notifyUser('Lỗi', r.error || 'Không hủy được.');
+                                return;
+                              }
+                              notifyUser('Đã hủy', 'Lịch hẹn đã được hủy.');
+                              await loadUserData();
+                            },
+                          });
+                        }}
+                      >
+                        <Text style={[styles.joinMeetingBtnText, { color: '#b91c1c' }]}>Hủy lịch</Text>
+                      </TouchableOpacity>
                     ) : null}
-                    {paid && enrollment.progressPercent != null ? (
-                      <Text style={styles.bookingTimeText}>Tiến độ: {enrollment.progressPercent}%</Text>
+                    {booking.status === 'completed' ? (
+                      <TouchableOpacity
+                        style={[styles.joinMeetingBtn, { backgroundColor: 'rgba(128,55,244,0.12)' }]}
+                        onPress={() => {
+                          setConfirmDialog({
+                            icon: 'star-outline',
+                            title: 'Đánh giá buổi mentoring',
+                            message: 'Gửi đánh giá 5★ với nhận xét ngắn? (Có thể sửa nhận xét sau trên web.)',
+                            cancelText: 'Hủy',
+                            confirmText: 'Gửi 5★',
+                            onConfirm: async () => {
+                              const id = booking._id || booking.id;
+                              const r = await createBookingReview(id, {
+                                rating: 5,
+                                comment: 'Buổi mentoring hữu ích.',
+                              });
+                              if (!r.success) {
+                                notifyUser('Lỗi', r.error || 'Không gửi được đánh giá.');
+                                return;
+                              }
+                              notifyUser('Cảm ơn!', 'Đã gửi đánh giá.');
+                              await loadUserData();
+                            },
+                          });
+                        }}
+                      >
+                        <Text style={[styles.joinMeetingBtnText, { color: '#8037f4' }]}>Đánh giá</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                    {booking.mentorId?._id || booking.mentorId?.id || booking.mentorId ? (
+                      <TouchableOpacity
+                        style={[styles.joinMeetingBtn, { backgroundColor: 'rgba(245,158,11,0.15)' }]}
+                        onPress={() => {
+                          const mentorId =
+                            booking.mentorId?._id || booking.mentorId?.id || booking.mentorId;
+                          setConfirmDialog({
+                            icon: 'flag-outline',
+                            title: 'Báo cáo mentor?',
+                            message: 'Gửi báo cáo về buổi/mentor này tới admin.',
+                            cancelText: 'Không',
+                            confirmText: 'Gửi báo cáo',
+                            confirmTone: 'danger',
+                            onConfirm: async () => {
+                              const r = await createReport({
+                                targetType: 'booking',
+                                targetId: String(booking._id || booking.id),
+                                reason: 'other',
+                                description: `Báo cáo từ mobile về booking với mentor ${booking.mentorId?.name || mentorId}.`,
+                              });
+                              if (!r.success) {
+                                notifyUser('Lỗi', r.error || 'Không gửi được báo cáo.');
+                                return;
+                              }
+                              notifyUser('Đã gửi', 'Admin sẽ xem xét báo cáo của bạn.');
+                            },
+                          });
+                        }}
+                      >
+                        <Text style={[styles.joinMeetingBtnText, { color: '#b45309' }]}>Báo cáo</Text>
+                      </TouchableOpacity>
                     ) : null}
                   </View>
-                );
-              })}
+                </View>
+              )) : (
+                <View style={styles.historyEmpty}>
+                  <Ionicons name="calendar-outline" size={26} color="#64748b" />
+                  <Text style={styles.historyEmptyText}>Chưa có lịch hẹn phỏng vấn</Text>
                 </View>
               )}
+            </View>
+          )}
 
-              {cvAnalyses.length > 0 && (
-                <View style={styles.historySection}>
-                  <Text style={styles.cvResultSectionTitle}>CV đã phân tích</Text>
-                  {cvAnalyses.map((item, idx) => (
-                    <View key={item._id || idx} style={styles.cvHistoryCard}>
-                      <View style={styles.cvHistoryLeft}>
-                        <View style={styles.historyItemIcon}>
-                          <Ionicons name="document-text-outline" size={18} color="#a78bfa" />
-                        </View>
-                        <View style={{ marginLeft: 10, flex: 1 }}>
-                          <Text style={styles.cvHistoryName} numberOfLines={1}>{item.cvFileName || 'Hồ sơ CV'}</Text>
-                          <Text style={styles.cvHistoryDate}>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.cvHistoryScore}>
-                        <Text style={styles.cvHistoryScoreTxt}>{item.result?.match?.score || 70}%</Text>
-                      </View>
+          {profileSubTab === 'history_cv' && (
+            <View style={styles.profileHistoryContent}>
+              <View style={styles.historySectionHeader}>
+                <Text style={styles.cvResultSectionTitle}>CV đã phân tích</Text>
+                <Text style={styles.historyCount}>{cvAnalyses.length}</Text>
+              </View>
+              {cvAnalyses.length > 0 ? cvAnalyses.map((item, idx) => (
+                <View key={item._id || idx} style={styles.cvHistoryCard}>
+                  <View style={styles.cvHistoryLeft}>
+                    <View style={styles.historyItemIcon}>
+                      <Ionicons name="document-text-outline" size={18} color="#a78bfa" />
                     </View>
-                  ))}
+                    <View style={{ marginLeft: 10, flex: 1 }}>
+                      <Text style={styles.cvHistoryName} numberOfLines={1}>{item.cvFileName || 'Hồ sơ CV'}</Text>
+                      <Text style={styles.cvHistoryDate}>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</Text>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: 'flex-end', gap: 8 }}>
+                    <View style={styles.cvHistoryScore}>
+                      <Text style={styles.cvHistoryScoreTxt}>{item.result?.match?.score || 70}%</Text>
+                    </View>
+                    <TouchableOpacity
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      onPress={() => {
+                        const id = item._id || item.id;
+                        setConfirmDialog({
+                          icon: 'trash-outline',
+                          title: 'Xóa phân tích CV?',
+                          message: 'Không thể hoàn tác sau khi xóa.',
+                          cancelText: 'Không',
+                          confirmText: 'Xóa',
+                          confirmTone: 'danger',
+                          onConfirm: async () => {
+                            const r = await deleteCvAnalysis(id);
+                            if (!r.success) {
+                              notifyUser('Lỗi', r.error || 'Không xóa được.');
+                              return;
+                            }
+                            notifyUser('Đã xóa', 'Đã xóa bản phân tích.');
+                            await loadUserData();
+                          },
+                        });
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )) : (
+                <View style={styles.historyEmpty}>
+                  <Ionicons name="document-text-outline" size={26} color="#64748b" />
+                  <Text style={styles.historyEmptyText}>Chưa có lần phân tích CV nào</Text>
                 </View>
               )}
             </View>
@@ -3307,16 +4141,13 @@ function AppInner() {
     const BottomNavShell = ({ children }) => (
       <View style={styles.bottomNavFloating}>
         <View style={styles.bottomNavBackgroundClip} pointerEvents="none">
-          {Platform.OS === 'web' ? (
-            <View style={styles.bottomNavGlassWeb} />
-          ) : (
-            <BlurView
-              intensity={Platform.OS === 'ios' ? 78 : 56}
-              tint="light"
-              style={styles.bottomNavBlur}
-              experimentalBlurMethod={Platform.OS === 'android' ? 'dimezisBlurView' : undefined}
-            />
-          )}
+          <LinearGradient
+            colors={['#f5f0fc', '#efe6fa', '#f5f0fc']}
+            locations={[0, 0.5, 1]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.bottomNavShellFill}
+          />
           <View style={styles.bottomNavGlassTint} />
         </View>
         {children}
@@ -3326,10 +4157,9 @@ function AppInner() {
     if (userRole === 'admin') {
       return (
         <BottomNavShell>
-          <TabBtn tab="admin_home" icon="grid" label="Home" />
           <TabBtn tab="admin_ops" icon="construct" label="Vận hành" />
           <TabBtn tab="admin_mentors" icon="school" label="Mentor" />
-          <TabBtn tab="admin_finance" icon="wallet" label="Tài chính" />
+          <TabBtn tab="admin_home" icon="home" label="Trang chủ" center />
           <TabBtn tab="admin_content" icon="documents" label="Quản lý" />
           <TabBtn tab="profile" icon="person" label="Cá nhân" />
         </BottomNavShell>
@@ -3339,11 +4169,10 @@ function AppInner() {
     if (userRole === 'mentor') {
       return (
         <BottomNavShell>
-          <TabBtn tab="mentor_home" icon="speedometer" label="Home" />
           <TabBtn tab="mentor_sessions" icon="calendar" label="Lịch hẹn" />
           <TabBtn tab="mentor_schedule" icon="time" label="Lịch trống" />
+          <TabBtn tab="mentor_home" icon="home" label="Trang chủ" center />
           <TabBtn tab="mentor_courses" icon="school" label="Khóa học" />
-          <TabBtn tab="mentor_finance" icon="wallet" label="Tài chính" />
           <TabBtn tab="profile" icon="person" label="Cá nhân" />
         </BottomNavShell>
       );
@@ -3420,6 +4249,7 @@ function AppInner() {
           bottomPadding={16}
           onBack={() => setActiveTab(tabBeforeCart || 'courses')}
           onRemove={handleRemoveCartItem}
+          onUpdateQty={handleUpdateCartQty}
           onCheckout={handleStartCartCheckout}
           onRefresh={refreshCart}
           onContinueShopping={() => setActiveTab('courses')}
@@ -3447,6 +4277,16 @@ function AppInner() {
           cart={cart}
           onBack={() => setActiveTab(tabBeforeCheckout || 'courses')}
           onSuccess={handlePaymentSuccess}
+        />
+      );
+    }
+    if (activeTab === 'cv_jd_upload') {
+      return (
+        <CvJdUploadScreen
+          analyzingStatus={analyzingStatus}
+          analysisProgress={analysisProgress}
+          onBack={() => setActiveTab(tabBeforeCvJd || 'cv')}
+          onSubmit={runCvJdAnalysis}
         />
       );
     }
@@ -3483,7 +4323,7 @@ function AppInner() {
           onContinue={() => {
             const nextTab = paymentResult.status === 'success' ? 'profile' : 'home';
             if (paymentResult.status === 'success') {
-              setProfileSubTab(paymentResult.type === 'booking' ? 'history' : 'learning');
+              setProfileSubTab(paymentResult.type === 'booking' ? 'history_bookings' : 'learning');
             }
             setPaymentResult(null);
             setActiveTab(nextTab);
@@ -3494,13 +4334,19 @@ function AppInner() {
           }}
         />
       ) : appUser == null ? (
-        authScreen === 'login' ? renderLoginScreen() : renderRegisterScreen()
+        authScreen === 'forgot'
+          ? renderForgotPasswordScreen()
+          : authScreen === 'reset'
+            ? renderResetPasswordScreen()
+            : authScreen === 'login'
+              ? renderLoginScreen()
+              : renderRegisterScreen()
       ) : (
         <View style={styles.appShell}>
           <View style={styles.appShellContent}>
             {renderMainContent()}
           </View>
-          {activeTab !== 'checkout' && activeTab !== 'course_learning' && activeTab !== 'course_detail' && activeTab !== 'cart' && activeTab !== 'mentor_booking' ? (
+          {activeTab !== 'checkout' && activeTab !== 'course_learning' && activeTab !== 'course_detail' && activeTab !== 'cart' && activeTab !== 'mentor_booking' && activeTab !== 'cv_jd_upload' ? (
             <View style={styles.bottomNavDock} pointerEvents="box-none">
               {renderRoleBottomNav()}
             </View>
@@ -3547,12 +4393,7 @@ function AppInner() {
           >
             <View style={[styles.notifDropdownCaret, { right: notifAnchor.caretRight }]} />
             <View style={styles.notifDropdownPanel}>
-              <LinearGradient
-                colors={['rgba(128, 55, 244, 0.18)', 'rgba(20, 16, 31, 0.98)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.notifDropdownHeader}
-              >
+              <View style={styles.notifDropdownHeader}>
                 <View>
                   <Text style={styles.notifDropdownTitle}>Thông báo</Text>
                   {unreadNotifCount > 0 ? (
@@ -3566,14 +4407,27 @@ function AppInner() {
                     </TouchableOpacity>
                   ) : null}
                   <TouchableOpacity style={styles.notifDropdownCloseBtn} onPress={closeNotifDropdown}>
-                    <Ionicons name="close" size={15} color="#cbd5e1" />
+                    <Ionicons name="close" size={15} color="#2D1B69" />
                   </TouchableOpacity>
                 </View>
-              </LinearGradient>
+              </View>
 
               <ScrollView
-                showsVerticalScrollIndicator={false}
-                style={styles.notifDropdownScroll}
+                showsVerticalScrollIndicator
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+                style={[
+                  styles.notifDropdownScroll,
+                  {
+                    height: Math.min(
+                      height * 0.45,
+                      Math.max(
+                        notifications.length === 0 ? 110 : 96,
+                        notifications.length * 92 + 12,
+                      ),
+                    ),
+                  },
+                ]}
                 contentContainerStyle={styles.notifsScrollList}
                 bounces={false}
               >
@@ -3584,8 +4438,21 @@ function AppInner() {
                   </View>
                 ) : (
                   notifications.map((item, index) => (
-                    <View
+                    <TouchableOpacity
                       key={item._id || index}
+                      activeOpacity={0.85}
+                      onPress={async () => {
+                        const id = item._id || item.id;
+                        if (!id || item.isRead) return;
+                        const r = await markNotificationRead(id);
+                        if (r.success) {
+                          setNotifications((prev) =>
+                            prev.map((n) =>
+                              (n._id || n.id) === id ? { ...n, isRead: true } : n,
+                            ),
+                          );
+                        }
+                      }}
                       style={[
                         styles.notifItemRow,
                         index < notifications.length - 1 ? styles.notifItemDivider : null,
@@ -3602,9 +4469,198 @@ function AppInner() {
                         <Text style={styles.notifBodyMsg} numberOfLines={2}>{item.body || item.message}</Text>
                         <Text style={styles.notifBodyDate}>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</Text>
                       </View>
-                    </View>
+                      <TouchableOpacity
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        onPress={async (e) => {
+                          e?.stopPropagation?.();
+                          const id = item._id || item.id;
+                          if (!id) return;
+                          const r = await deleteNotification(id);
+                          if (!r.success) {
+                            notifyUser('Lỗi', r.error || 'Không xóa được thông báo.');
+                            return;
+                          }
+                          setNotifications((prev) => prev.filter((n) => (n._id || n.id) !== id));
+                        }}
+                      >
+                        <Ionicons name="close" size={16} color="#94a3b8" />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
                   ))
                 )}
+              </ScrollView>
+            </View>
+          </Animated.View>
+        </View>
+      </Modal>
+
+      {/* DROPDOWN CÀI ĐẶT (từ icon bánh răng — giống thông báo) */}
+      <Modal visible={settingsModalVisible} transparent animationType="none" onRequestClose={closeSettingsModal}>
+        <View style={styles.notifDropdownOverlay}>
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              styles.notifDropdownBackdrop,
+              { opacity: settingsOverlayAnim },
+            ]}
+          />
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeSettingsModal} />
+
+          <Animated.View
+            style={[
+              styles.notifDropdownAnchor,
+              {
+                top: settingsAnchor.top,
+                right: settingsAnchor.right,
+                width: SETTINGS_PANEL_WIDTH,
+                opacity: settingsPanelAnim,
+                transform: [
+                  {
+                    translateY: settingsPanelAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-8, 0],
+                    }),
+                  },
+                  {
+                    scale: settingsPanelAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.94, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={[styles.notifDropdownCaret, { right: settingsAnchor.caretRight }]} />
+            <View style={styles.settingsDropdownPanel}>
+              <View style={styles.settingsDropdownHeader}>
+                <View style={styles.settingsHeaderLeft}>
+                  {settingsPanelView !== 'menu' ? (
+                    <TouchableOpacity
+                      style={styles.settingsBackBtn}
+                      onPress={() => setSettingsPanelView('menu')}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="arrow-back" size={18} color="#2D1B69" />
+                    </TouchableOpacity>
+                  ) : null}
+                  <View>
+                    <Text style={styles.settingsDropdownEyebrow}>CÀI ĐẶT</Text>
+                    <Text style={styles.settingsDropdownTitle}>
+                      {settingsPanelView === 'security' ? 'Thông báo & bảo mật' : 'Cài đặt'}
+                    </Text>
+                  </View>
+                </View>
+                <TouchableOpacity style={styles.notifDropdownCloseBtn} onPress={closeSettingsModal}>
+                  <Ionicons name="close" size={15} color="#2D1B69" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                showsVerticalScrollIndicator={settingsPanelView !== 'menu'}
+                nestedScrollEnabled
+                keyboardShouldPersistTaps="handled"
+                style={styles.settingsDropdownScroll}
+                contentContainerStyle={styles.settingsDropdownScrollContent}
+                bounces={false}
+              >
+                {settingsPanelView === 'menu' ? (
+                  <View style={styles.settingsOptionsCard}>
+                    <TouchableOpacity
+                      style={styles.profileOptionRow}
+                      onPress={() => {
+                        closeSettingsModal();
+                        setTimeout(() => {
+                          setActiveTab('profile');
+                          setProfileSubTab('info');
+                        }, 180);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.profileOptionLeft}>
+                        <Ionicons name="person-outline" size={18} color="#8037f4" />
+                        <Text style={styles.profileOptionLabel}>Thông tin cá nhân</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.profileOptionRow}
+                      onPress={() => setSettingsPanelView('security')}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.profileOptionLeft}>
+                        <Ionicons name="shield-checkmark-outline" size={18} color="#8037f4" />
+                        <Text style={styles.profileOptionLabel}>Cài đặt thông báo & bảo mật</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.profileOptionRow}
+                      onPress={() => {
+                        closeSettingsModal();
+                        setTimeout(() => openDeleteAccountModal(), 180);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.profileOptionLeft}>
+                        <Ionicons name="trash-outline" size={18} color="#dc2626" />
+                        <Text style={[styles.profileOptionLabel, { color: '#dc2626' }]}>Xóa tài khoản</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="rgba(220,38,38,0.45)" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.profileOptionRow, { borderBottomWidth: 0 }]}
+                      onPress={() => {
+                        closeSettingsModal();
+                        setTimeout(() => handleRealLogout(), 180);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.profileOptionLeft}>
+                        <Ionicons name="log-out-outline" size={18} color="#8037f4" />
+                        <Text style={styles.profileOptionLabel}>Đăng xuất</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                {settingsPanelView === 'security' ? (
+                  <View style={styles.settingsOptionsCard}>
+                    <TouchableOpacity
+                      style={styles.profileOptionRow}
+                      onPress={() => {
+                        closeSettingsModal();
+                        setTimeout(() => handleToggleInAppNotifications(), 180);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.profileOptionLeft}>
+                        <Ionicons name="notifications-outline" size={18} color="#8037f4" />
+                        <Text style={styles.profileOptionLabel}>Thông báo đẩy (In-app)</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[styles.profileOptionRow, { borderBottomWidth: 0 }]}
+                      onPress={() => {
+                        closeSettingsModal();
+                        setTimeout(() => setChangePasswordModalVisible(true), 180);
+                      }}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.profileOptionLeft}>
+                        <Ionicons name="lock-closed-outline" size={18} color="#8037f4" />
+                        <Text style={styles.profileOptionLabel}>Thay đổi mật khẩu</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </ScrollView>
             </View>
           </Animated.View>
@@ -3709,6 +4765,79 @@ function AppInner() {
         </View>
       </Modal>
 
+      {/* MODAL XÓA TÀI KHOẢN — nhập email xác nhận như ProInterview web */}
+      <Modal
+        visible={deleteAccountModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !deletingAccount && setDeleteAccountModalVisible(false)}
+      >
+        <View style={styles.elegantModalOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => !deletingAccount && setDeleteAccountModalVisible(false)}
+          />
+          <View style={styles.elegantSheet}>
+            <View style={styles.elegantSheetHandle} />
+            <View style={styles.elegantSheetHeader}>
+              <View style={[styles.elegantIconBadge, { backgroundColor: 'rgba(220,38,38,0.12)' }]}>
+                <Ionicons name="trash" size={22} color="#dc2626" />
+              </View>
+              <Text style={styles.elegantSheetTitle}>Xóa tài khoản</Text>
+              <Text style={styles.elegantSheetSubtitle}>
+                Xóa vĩnh viễn tài khoản và dữ liệu liên quan. Nhập email{' '}
+                {appUser?.email || 'của bạn'} để xác nhận.
+              </Text>
+            </View>
+
+            {deleteAccountError ? (
+              <Text style={styles.elegantErrorText}>{deleteAccountError}</Text>
+            ) : null}
+
+            <View style={styles.elegantFieldGroup}>
+              <View>
+                <Text style={styles.elegantFieldLabel}>Email xác nhận</Text>
+                <TextInput
+                  style={styles.elegantInput}
+                  placeholder={appUser?.email || 'email@example.com'}
+                  placeholderTextColor="#94a3b8"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  value={deleteConfirmEmail}
+                  onChangeText={setDeleteConfirmEmail}
+                  editable={!deletingAccount}
+                />
+              </View>
+            </View>
+
+            <View style={styles.elegantBtnRow}>
+              <TouchableOpacity
+                style={styles.elegantBtnGhost}
+                onPress={() => {
+                  if (deletingAccount) return;
+                  setDeleteAccountModalVisible(false);
+                  setDeleteConfirmEmail('');
+                  setDeleteAccountError('');
+                }}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.elegantBtnGhostText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.elegantBtnPrimary, { backgroundColor: '#dc2626' }]}
+                onPress={handleDeleteAccountRequest}
+                disabled={deletingAccount}
+                activeOpacity={0.88}
+              >
+                <Text style={[styles.elegantBtnPrimaryText, { color: '#fff' }]}>
+                  {deletingAccount ? 'Đang xóa...' : 'Tiếp tục'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Dialog xác nhận sáng (thông báo / đăng xuất) */}
       <Modal
         visible={!!confirmDialog}
@@ -3738,7 +4867,11 @@ function AppInner() {
             <View style={styles.elegantConfirmBtnRow}>
               <TouchableOpacity
                 style={styles.elegantConfirmBtnCancel}
-                onPress={closeConfirmDialog}
+                onPress={() => {
+                  const cancelAction = confirmDialog?.onCancel;
+                  closeConfirmDialog();
+                  if (typeof cancelAction === 'function') cancelAction();
+                }}
                 activeOpacity={0.88}
               >
                 <Text style={styles.elegantConfirmBtnCancelText}>
@@ -3767,6 +4900,51 @@ function AppInner() {
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={cvFieldPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCvFieldPickerVisible(false)}
+      >
+        <View style={styles.elegantModalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setCvFieldPickerVisible(false)} />
+          <View style={styles.elegantSheet}>
+            <View style={styles.elegantSheetHandle} />
+            <Text style={styles.elegantSheetTitle}>Chọn ngành nghề</Text>
+            <Text style={styles.elegantSheetSubtitle}>
+              CV sẽ được phân tích theo ngành bạn chọn (không cần JD).
+            </Text>
+            {[
+              'IT / Công nghệ',
+              'Marketing',
+              'Kế toán / Tài chính',
+              'Nhân sự',
+              'Kinh doanh',
+              'Thiết kế',
+            ].map((field) => (
+              <TouchableOpacity
+                key={field}
+                style={styles.profileOptionRow}
+                onPress={() => {
+                  setCvFieldPickerVisible(false);
+                  analyzeCvWithField(field);
+                }}
+                activeOpacity={0.88}
+              >
+                <Text style={styles.profileOptionLabel}>{field}</Text>
+                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[styles.elegantBtnGhost, { marginTop: 12 }]}
+              onPress={() => setCvFieldPickerVisible(false)}
+            >
+              <Text style={styles.elegantBtnGhostText}>Hủy</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -5683,6 +6861,99 @@ const styles = StyleSheet.create({
     color: '#93f72b',
     fontFamily: 'Manrope_600SemiBold',
   },
+  authSuccessIconWrap: {
+    alignSelf: 'center',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(128, 55, 244, 0.12)',
+    marginBottom: 12,
+  },
+  authEmailChip: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '100%',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(128, 55, 244, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.2)',
+    marginBottom: 14,
+  },
+  authEmailChipText: {
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2D1B69',
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  authDevResetBox: {
+    marginBottom: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(128, 55, 244, 0.35)',
+    backgroundColor: 'rgba(128, 55, 244, 0.08)',
+  },
+  authDevResetTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6d28d9',
+    marginBottom: 6,
+    fontFamily: 'Manrope_600SemiBold',
+  },
+  authDevResetLink: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8037f4',
+    fontFamily: 'Manrope_700Bold',
+  },
+  authInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(128, 55, 244, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.14)',
+  },
+  authInfoText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    color: 'rgba(255,255,255,0.78)',
+    fontFamily: 'Manrope_500Medium',
+  },
+  authWarnBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.28)',
+  },
+  authWarnText: {
+    flex: 1,
+    fontSize: 11,
+    lineHeight: 16,
+    color: 'rgba(255,255,255,0.88)',
+    fontFamily: 'Manrope_500Medium',
+  },
   authInput: {
     width: '100%',
     height: 44,
@@ -7229,34 +8500,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: 'rgba(196,181,253,0.18)',
+    borderColor: 'rgba(128, 55, 244, 0.14)',
   },
   learningOverviewEyebrow: {
-    color: '#c4b5fd',
+    color: '#7c3aed',
     fontSize: 8,
     fontWeight: '900',
     letterSpacing: 1.2,
   },
-  learningOverviewTitle: { color: '#fff', fontSize: 17, fontWeight: '900', marginTop: 5 },
-  learningOverviewSub: { color: '#94a3b8', fontSize: 10, marginTop: 4 },
+  learningOverviewTitle: { color: '#1e1b4b', fontSize: 17, fontWeight: '900', marginTop: 5 },
+  learningOverviewSub: { color: '#64748b', fontSize: 10, marginTop: 4 },
   learningRing: {
     width: 58,
     height: 58,
     borderRadius: 29,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(12,8,30,0.56)',
+    backgroundColor: 'rgba(255,255,255,0.72)',
     borderWidth: 5,
     borderColor: '#93f72b',
   },
-  learningRingValue: { color: '#fff', fontSize: 13, fontWeight: '900' },
+  learningRingValue: { color: '#1e1b4b', fontSize: 13, fontWeight: '900' },
   ownedCourseCard: {
-    borderRadius: 24,
+    borderRadius: 26,
     padding: 14,
-    backgroundColor: 'rgba(22,17,41,0.84)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(196,181,253,0.14)',
-    ...createShadow('#4c1d95', 0, 9, 0.14, 19),
+    borderColor: 'rgba(128, 55, 244, 0.1)',
+    ...createShadow('#8037f4', 0, 6, 0.08, 16, 3),
   },
   ownedCourseTop: { flexDirection: 'row', gap: 12 },
   ownedCourseImage: { width: 82, height: 70, borderRadius: 18, backgroundColor: '#21183b' },
@@ -7279,7 +8550,7 @@ const styles = StyleSheet.create({
   },
   ownedCourseStatusDot: { width: 5, height: 5, borderRadius: 3 },
   ownedCourseStatusText: { fontSize: 7, fontWeight: '900', letterSpacing: 0.5 },
-  ownedCourseTitle: { color: '#fff', fontSize: 13, lineHeight: 17, fontWeight: '900' },
+  ownedCourseTitle: { color: '#0f172a', fontSize: 13, lineHeight: 17, fontWeight: '900' },
   ownedCourseMeta: { color: '#64748b', fontSize: 9, marginTop: 4 },
   ownedCourseProgressHeader: {
     flexDirection: 'row',
@@ -7287,13 +8558,13 @@ const styles = StyleSheet.create({
     marginTop: 13,
     marginBottom: 5,
   },
-  ownedCourseProgressLabel: { color: '#94a3b8', fontSize: 9, fontWeight: '600' },
-  ownedCourseProgressValue: { color: '#b7ff68', fontSize: 9, fontWeight: '900' },
+  ownedCourseProgressLabel: { color: '#64748b', fontSize: 9, fontWeight: '600' },
+  ownedCourseProgressValue: { color: '#65a30d', fontSize: 9, fontWeight: '900' },
   ownedCourseProgressTrack: {
     height: 5,
     borderRadius: 3,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: 'rgba(128, 55, 244, 0.08)',
   },
   ownedCourseProgressFill: { height: '100%', borderRadius: 3 },
   ownedCourseFooter: {
@@ -7303,14 +8574,14 @@ const styles = StyleSheet.create({
     marginTop: 13,
     paddingTop: 11,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
+    borderTopColor: 'rgba(128, 55, 244, 0.08)',
   },
   ownedCoursePurchaseLabel: { color: '#64748b', fontSize: 8, fontWeight: '600' },
-  ownedCoursePurchaseValue: { color: '#cbd5e1', fontSize: 9, fontWeight: '700', marginTop: 2 },
+  ownedCoursePurchaseValue: { color: '#334155', fontSize: 9, fontWeight: '700', marginTop: 2 },
   continueLearningButton: {
     minHeight: 34,
     paddingHorizontal: 13,
-    borderRadius: 11,
+    borderRadius: 999,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -7324,10 +8595,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    borderRadius: 20,
-    backgroundColor: 'rgba(22,17,41,0.7)',
+    borderRadius: 24,
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(196,181,253,0.12)',
+    borderColor: 'rgba(128, 55, 244, 0.1)',
   },
   learningEmptyIcon: {
     width: 64,
@@ -7335,19 +8606,19 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(112,0,255,0.14)',
+    backgroundColor: 'rgba(112,0,255,0.1)',
     marginBottom: 14,
   },
-  learningEmptyTitle: { color: '#fff', fontSize: 16, fontWeight: '900' },
-  learningEmptyText: { color: '#94a3b8', fontSize: 11, textAlign: 'center', marginTop: 6 },
+  learningEmptyTitle: { color: '#1e1b4b', fontSize: 16, fontWeight: '900' },
+  learningEmptyText: { color: '#64748b', fontSize: 11, textAlign: 'center', marginTop: 6 },
   learningExploreButton: {
     marginTop: 18,
     minHeight: 38,
     paddingHorizontal: 18,
-    borderRadius: 12,
+    borderRadius: 999,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#6d28d9',
+    backgroundColor: '#7000ff',
   },
   learningExploreText: { color: '#fff', fontSize: 11, fontWeight: '800' },
 
@@ -7364,15 +8635,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(147,247,43,0.22)',
   },
-  historySummaryLabel: { color: '#94a3b8', fontSize: 11, fontWeight: '600' },
-  historySummaryValue: { color: '#93f72b', fontSize: 22, fontWeight: '900', marginTop: 3 },
+  historySummaryLabel: { color: '#64748b', fontSize: 11, fontWeight: '600' },
+  historySummaryValue: { color: '#1e1b4b', fontSize: 22, fontWeight: '900', marginTop: 3 },
   historySummaryIcon: {
     width: 46,
     height: 46,
     borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(147,247,43,0.12)',
+    backgroundColor: 'rgba(147,247,43,0.18)',
   },
   historySectionHeader: {
     flexDirection: 'row',
@@ -7387,8 +8658,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     textAlignVertical: 'center',
     paddingTop: Platform.OS === 'web' ? 3 : 0,
-    color: '#c4b5fd',
-    backgroundColor: 'rgba(112,0,255,0.18)',
+    color: '#6d28d9',
+    backgroundColor: 'rgba(112,0,255,0.1)',
     fontSize: 11,
     fontWeight: '800',
   },
@@ -7399,9 +8670,9 @@ const styles = StyleSheet.create({
     gap: 11,
     padding: 12,
     borderRadius: 20,
-    backgroundColor: 'rgba(22,17,41,0.82)',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: 'rgba(128,55,244,0.18)',
+    borderColor: 'rgba(128,55,244,0.1)',
     marginBottom: 9,
   },
   historyItemIcon: {
@@ -7410,33 +8681,35 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(112,0,255,0.13)',
+    backgroundColor: 'rgba(112,0,255,0.1)',
   },
   paymentHistoryMain: { flex: 1, minWidth: 0 },
-  paymentHistoryTitle: { color: '#f8fafc', fontSize: 12, fontWeight: '800' },
+  paymentHistoryTitle: { color: '#0f172a', fontSize: 12, fontWeight: '800' },
   paymentHistoryMeta: { color: '#64748b', fontSize: 9, marginTop: 3 },
   paymentHistoryRight: { alignItems: 'flex-end' },
-  paymentHistoryAmount: { color: '#fff', fontSize: 12, fontWeight: '900' },
+  paymentHistoryAmount: { color: '#0f172a', fontSize: 12, fontWeight: '900' },
   paymentHistoryStatus: { fontSize: 9, fontWeight: '800', marginTop: 3 },
   historyEmpty: {
     minHeight: 100,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderRadius: 15,
-    backgroundColor: 'rgba(22,17,41,0.55)',
+    borderRadius: 20,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: 'rgba(128,55,244,0.1)',
   },
   historyEmptyText: { color: '#64748b', fontSize: 12 },
 
   // BOOKING HISTORY CARDS
   bookingHistoryCard: {
-    backgroundColor: 'rgba(22, 17, 41, 0.8)',
+    backgroundColor: '#ffffff',
     borderRadius: 21,
     padding: 13,
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.25)',
+    borderColor: 'rgba(128, 55, 244, 0.1)',
     marginBottom: 9,
-    ...createShadow('#7000ff', 0, 4, 0.08, 8),
+    ...createShadow('#8037f4', 0, 4, 0.06, 12, 2),
   },
   bookingHistoryTop: {
     flexDirection: 'row',
@@ -7447,7 +8720,7 @@ const styles = StyleSheet.create({
   bookingSessionType: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#0f172a',
   },
   bookingStatusBadge: {
     borderRadius: 8,
@@ -7461,7 +8734,7 @@ const styles = StyleSheet.create({
   },
   bookingMentorName: {
     fontSize: 12,
-    color: '#cbd5e1',
+    color: '#475569',
     marginBottom: 4,
   },
   bookingTimeText: {
@@ -7487,11 +8760,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(22, 17, 41, 0.8)',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.25)',
+    borderColor: 'rgba(128, 55, 244, 0.1)',
     marginBottom: 12,
   },
   cvHistoryLeft: {
@@ -7500,13 +8773,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   cvHistoryName: {
-    color: '#ffffff',
+    color: '#0f172a',
     fontSize: 13,
     fontWeight: 'bold',
     maxWidth: width * 0.5,
   },
   cvHistoryDate: {
-    color: '#cbd5e1',
+    color: '#64748b',
     fontSize: 10,
     marginTop: 2,
   },
@@ -7529,7 +8802,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notifDropdownBackdrop: {
-    backgroundColor: 'rgba(4, 3, 10, 0.55)',
+    backgroundColor: 'rgba(45, 27, 105, 0.18)',
   },
   notifDropdownAnchor: {
     position: 'absolute',
@@ -7541,25 +8814,25 @@ const styles = StyleSheet.create({
     top: -5,
     width: 10,
     height: 10,
-    backgroundColor: '#171322',
+    backgroundColor: PI_SHELL_BG,
     transform: [{ rotate: '45deg' }],
     borderLeftWidth: 1,
     borderTopWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.28)',
+    borderColor: 'rgba(128, 55, 244, 0.18)',
     zIndex: 2,
   },
   notifDropdownPanel: {
-    backgroundColor: '#14101f',
+    backgroundColor: PI_SHELL_BG,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(128, 55, 244, 0.28)',
+    borderColor: 'rgba(128, 55, 244, 0.16)',
     overflow: 'hidden',
     maxHeight: height * 0.52,
-    shadowColor: '#8037f4',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.22,
-    shadowRadius: 24,
-    elevation: 18,
+    shadowColor: '#2D1B69',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 12,
   },
   notifDropdownHeader: {
     flexDirection: 'row',
@@ -7567,18 +8840,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    borderBottomColor: 'rgba(45, 27, 105, 0.08)',
   },
   notifDropdownTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#2D1B69',
   },
   notifDropdownSubtitle: {
     marginTop: 2,
     fontSize: 10,
-    color: '#93f72b',
+    color: '#8037f4',
     fontWeight: '600',
   },
   notifDropdownHeaderActions: {
@@ -7590,7 +8864,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
-    backgroundColor: 'rgba(147, 247, 43, 0.1)',
+    backgroundColor: 'rgba(128, 55, 244, 0.1)',
   },
   notifDropdownCloseBtn: {
     width: 24,
@@ -7598,10 +8872,142 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(45, 27, 105, 0.06)',
   },
   notifDropdownScroll: {
-    maxHeight: height * 0.42,
+    width: '100%',
+  },
+
+  settingsDropdownPanel: {
+    backgroundColor: PI_SHELL_BG,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.16)',
+    overflow: 'hidden',
+    maxHeight: height * 0.72,
+    shadowColor: '#2D1B69',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  settingsDropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(45, 27, 105, 0.08)',
+  },
+  settingsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 8,
+  },
+  settingsBackBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(45, 27, 105, 0.06)',
+  },
+  settingsDropdownEyebrow: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: 'rgba(45, 27, 105, 0.45)',
+    fontFamily: 'Manrope_700Bold',
+  },
+  settingsDropdownTitle: {
+    marginTop: 2,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#2D1B69',
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  settingsDropdownScroll: {
+    width: '100%',
+    maxHeight: height * 0.62,
+  },
+  settingsDropdownScrollContent: {
+    padding: 14,
+    paddingBottom: 18,
+    gap: 12,
+  },
+  settingsInfoSection: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+    padding: 14,
+  },
+  settingsInfoHeading: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    color: '#2D1B69',
+    fontFamily: 'Manrope_800ExtraBold',
+  },
+  settingsInfoAccent: {
+    width: 36,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: '#93f72b',
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  settingsInfoError: {
+    color: '#dc2626',
+    fontSize: 12,
+    marginBottom: 8,
+    fontFamily: 'Manrope_500Medium',
+  },
+  settingsFieldLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    color: '#64748b',
+    marginBottom: 6,
+    fontFamily: 'Manrope_700Bold',
+  },
+  settingsFieldInput: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.45)',
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: '#2D1B69',
+    marginBottom: 12,
+    fontFamily: 'Manrope_500Medium',
+  },
+  settingsSaveBtn: {
+    marginTop: 2,
+    height: 42,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#8037f4',
+  },
+  settingsSaveBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Manrope_700Bold',
+  },
+  settingsOptionsCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+    overflow: 'hidden',
   },
 
   // NOTIFICATION SHEET STYLES (legacy helpers)
@@ -7611,17 +9017,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    borderBottomColor: 'rgba(45, 27, 105, 0.08)',
     paddingBottom: 16,
     marginBottom: 16,
   },
   notifSheetTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#ffffff',
+    color: '#2D1B69',
   },
   markAllReadText: {
-    color: '#93f72b',
+    color: '#8037f4',
     fontSize: 12,
     fontWeight: 'bold',
   },
@@ -7635,7 +9041,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   emptyNotifsTxt: {
-    color: '#cbd5e1',
+    color: '#64748b',
     fontSize: 13,
   },
   notifItemRow: {
@@ -7644,10 +9050,10 @@ const styles = StyleSheet.create({
   },
   notifItemDivider: {
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+    borderBottomColor: 'rgba(45, 27, 105, 0.08)',
   },
   notifUnreadRow: {
-    backgroundColor: 'rgba(128, 55, 244, 0.08)',
+    backgroundColor: 'rgba(128, 55, 244, 0.06)',
   },
   notifTitleRow: {
     flexDirection: 'row',
@@ -7658,20 +9064,20 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#93f72b',
+    backgroundColor: '#8037f4',
     flexShrink: 0,
   },
   notifUnreadBg: {
-    backgroundColor: 'rgba(128, 55, 244, 0.08)',
+    backgroundColor: 'rgba(128, 55, 244, 0.06)',
   },
   notifBodyTitleUnread: {
-    color: '#ffffff',
+    color: '#2D1B69',
   },
   notifIconCircle: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(112, 0, 255, 0.15)',
+    backgroundColor: 'rgba(128, 55, 244, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -7684,17 +9090,17 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 12,
     fontWeight: '600',
-    color: '#d7dce8',
+    color: '#2D1B69',
   },
   notifBodyMsg: {
     fontSize: 11,
-    color: '#9aa3b7',
+    color: '#64748b',
     lineHeight: 15,
     marginTop: 2,
   },
   notifBodyDate: {
     fontSize: 9,
-    color: '#6b7288',
+    color: '#94a3b8',
     marginTop: 4,
   },
 
@@ -8053,8 +9459,12 @@ const styles = StyleSheet.create({
     borderRadius: 31,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.72)',
-    ...createShadow('#8037f4', 0, 10, 0.14, 22, 8),
+    borderColor: 'rgba(128, 55, 244, 0.12)',
+    backgroundColor: PI_SHELL_BG,
+    ...createShadow('#8037f4', 0, 10, 0.12, 22, 8),
+  },
+  bottomNavShellFill: {
+    ...StyleSheet.absoluteFillObject,
   },
   bottomNavBlur: {
     ...StyleSheet.absoluteFillObject,
@@ -8064,7 +9474,7 @@ const styles = StyleSheet.create({
     web: {
       ...StyleSheet.absoluteFillObject,
       borderRadius: 31,
-      backgroundColor: 'rgba(255, 255, 255, 0.62)',
+      backgroundColor: 'rgba(245, 240, 252, 0.96)',
       backdropFilter: 'blur(20px)',
       WebkitBackdropFilter: 'blur(20px)',
     },
@@ -8072,7 +9482,7 @@ const styles = StyleSheet.create({
   }),
   bottomNavGlassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.42)',
+    backgroundColor: 'rgba(255, 255, 255, 0.55)',
   },
   navItemFloating: {
     alignItems: 'center',
@@ -8246,13 +9656,6 @@ const styles = StyleSheet.create({
   },
   coursesTabContainer: {
     backgroundColor: '#f5f0fc',
-  },
-  coursesEyebrow: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#8037f4',
-    letterSpacing: 1.2,
-    marginBottom: 4,
   },
   coursesSearchBar: {
     flexDirection: 'row',

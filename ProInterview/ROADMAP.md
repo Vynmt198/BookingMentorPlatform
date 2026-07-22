@@ -12,7 +12,7 @@ Hai file dùng **cùng contract**: mọi endpoint 📋 trong các bảng phase b
 |:--|:-------------|:---------------|
 | **Roadmap** | Bảng theo **phase + màn FE** | **Phần C** — cùng path/method |
 | **Đã chạy** | Bảng “API đã có” | **Phần A** |
-| **Ngoài Express** | Ghi nhắc Supabase / D-ID | **Phần B** |
+| **Ngoài Express** | Ghi nhắc Supabase | **Phần B** |
 
 Khi merge xong một route: cập nhật **Phần A** trong `API_INDEX`, đổi **📋 → ✅** ở đây.
 
@@ -67,7 +67,7 @@ Khi merge xong một route: cập nhật **Phần A** trong `API_INDEX`, đổi 
 
 Các nhóm endpoint theo phase (bookings, payments, plans, courses, enrollments, mentor, reviews, reports, notifications, …): xem **bảng Phase 1–4** bên dưới — cột **Trạng thái** đã đồng bộ với code hiện tại.
 
-**Ngoài Express:** Avatar stream — D-ID (`API_INDEX.md` phần B). **CV:** Express `/api/cv/*` + proxy Python `cv_jd_matching` (FE: `cvApi.js`, `CVAnalysis.jsx`).
+**CV:** Express `/api/cv/*` + proxy Python `cv_jd_matching` (FE: `cvApi.js`, `CVAnalysis.jsx`).
 
 ---
 
@@ -154,9 +154,11 @@ Các nhóm endpoint theo phase (bookings, payments, plans, courses, enrollments,
 
 ---
 
-## Phase 4 — CV trên BE + interview session + thông báo + upload
+## Phase 4 — CV trên BE + thông báo + upload
 
-**FE cần nối:** `CVAnalysis.jsx` (migrate), `Interview*`, `AnalysisHistory`, `Settings`
+**FE cần nối:** `CVAnalysis.jsx` (migrate), `AnalysisHistory`, `Settings`
+
+> Tính năng "Phỏng vấn AI" (avatar D-ID, `/api/interviews/*`, `/api/ai/*`) đã được gỡ bỏ hoàn toàn khỏi codebase.
 
 | Trạng thái | Method | Endpoint | Auth | Mô tả ngắn |
 |:-----------|:-------|:---------|:-----|:-----------|
@@ -165,11 +167,6 @@ Các nhóm endpoint theo phase (bookings, payments, plans, courses, enrollments,
 | ✅ | GET | `/api/cv/analyses/:id` | `[AUTH]` | Chi tiết |
 | ✅ | DELETE | `/api/cv/analyses/:id` | `[AUTH]` | Xóa |
 | ✅ | GET | `/api/cv/quota` | `[AUTH]` | Quota còn — đồng bộ với `User.quota` |
-| ✅ | POST | `/api/interviews/sessions` | `[AUTH]` | Tạo session phỏng vấn AI |
-| ✅ | PATCH | `/api/interviews/sessions/:id` | `[AUTH]` | Cập nhật câu trả lời / transcript |
-| ✅ | POST | `/api/interviews/sessions/:id/complete` | `[AUTH]` | Kết thúc + feedback |
-| ✅ | GET | `/api/interviews/sessions` | `[AUTH]` | Lịch sử |
-| ✅ | GET | `/api/interviews/sessions/:id` | `[AUTH]` | Chi tiết một session (khớp C.5) |
 | ✅ | GET | `/api/notifications` | `[AUTH]` | Danh sách thông báo |
 | ✅ | PATCH | `/api/notifications/:id/read` | `[AUTH]` | Đã đọc |
 | ✅ | POST | `/api/notifications/read-all` | `[AUTH]` | Đánh dấu tất cả đã đọc *(trong code là `POST`, không phải `PATCH`)* |
@@ -324,7 +321,7 @@ Chi tiết response lỗi / thành công: tham chiếu `API_INDEX.md` (phần đ
 
 | File | Nội dung |
 |:-----|:---------|
-| [API_INDEX.md](./API_INDEX.md) | API đang chạy + Supabase + D-ID |
+| [API_INDEX.md](./API_INDEX.md) | API đang chạy + Supabase |
 | [backend/DATABASE.md](./backend/DATABASE.md) | Collection / field MongoDB |
 
 ---

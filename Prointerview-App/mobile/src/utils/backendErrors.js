@@ -2,7 +2,7 @@
 export const BACKEND_DEV_FOLDER = 'Prointerview-App/backend';
 
 export const BACKEND_DEV_HINT =
-  `Chạy ${BACKEND_DEV_FOLDER} (npm run dev), cùng Wi‑Fi với điện thoại, mở firewall cổng 5001.`;
+  `Chạy ${BACKEND_DEV_FOLDER} (npm run start), cùng Wi‑Fi với điện thoại, mở firewall cổng 5001, set EXPO_PUBLIC_DEV_API_HOST=IP_máy_dev trong mobile/.env rồi restart Expo.`;
 
 export function formatBackendUnreachableMessage(triedBases = []) {
   const tried = (triedBases || []).filter(Boolean).slice(0, 4);

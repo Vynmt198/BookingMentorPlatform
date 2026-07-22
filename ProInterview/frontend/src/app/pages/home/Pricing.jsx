@@ -19,7 +19,7 @@ import { trackAction } from "../../utils/analytics/analyticsApi";
 const FAQ_DATA = [
   {
     q: "Các gói khác nhau như thế nào?",
-    a: "Gói Sinh viên mở phân tích CV/JD 10 lần/tháng, ưu đãi 5% khi đặt lịch mentor và mua khóa học. Gói Chuyên nghiệp phân tích CV/JD 30 lần/tháng, ưu đãi 10% khi đặt lịch mentor và mua khóa học, cùng đặt lịch mentor ưu tiên.",
+    a: "Gói Sinh viên mở phân tích CV/JD 50 lần/tháng, ưu đãi 5% khi đặt lịch mentor và mua khóa học. Gói Chuyên nghiệp phân tích CV/JD không giới hạn, ưu đãi 10% khi đặt lịch mentor và mua khóa học, cùng đặt lịch mentor ưu tiên.",
   },
   {
     q: "Tôi có thể hủy gói đăng ký bất cứ lúc nào không?",
@@ -64,7 +64,7 @@ const PLANS = [
     yearlyTotal: 1440000,
     yearlySave: 360000,
     features: [
-      "Phân tích CV/JD 10 lần/tháng",
+      "Phân tích CV/JD 50 lần/tháng",
       "Ưu đãi 5% khi đặt lịch Mentor",
       "Giảm 5% khi mua khóa học",
       "Phản hồi CV chi tiết",
@@ -84,7 +84,7 @@ const PLANS = [
     yearlyTotal: 4800000,
     yearlySave: 1200000,
     features: [
-      "Phân tích CV/JD 30 lần/tháng",
+      "Phân tích CV/JD không giới hạn",
       "Ưu đãi 10% khi đặt lịch Mentor",
       "Giảm 10% khi mua khóa học",
       "Đặt lịch mentor ưu tiên",
@@ -96,6 +96,9 @@ const PLANS = [
     variant: "elite",
   },
 ];
+
+/** Thứ bậc gói — dùng để khóa các gói thấp hơn gói đang dùng (không cho "hạ cấp" qua trang giá). */
+const PLAN_TIER = { free: 0, student: 1, professional: 2 };
 
 /** % tiết kiệm khi trả năm (so với 12 × giá tháng). Pro & Elite đều = 20%. */
 function yearlySavePercent(monthlyPerMonth, yearlyPerMonth) {
@@ -112,7 +115,7 @@ function fmtVnd(amount) {
   return new Intl.NumberFormat("vi-VN").format(amount) + "đ";
 }
 
-const FEATURE_HIGHLIGHTS = ["10 lần/tháng", "30 lần/tháng", "Ưu đãi 5%", "Ưu đãi 10%", "Giảm 5%", "Giảm 10%"];
+const FEATURE_HIGHLIGHTS = ["50 lần/tháng", "không giới hạn", "Ưu đãi 5%", "Ưu đãi 10%", "Giảm 5%", "Giảm 10%"];
 
 function FeatureLabel({ text }) {
   const highlight = FEATURE_HIGHLIGHTS.find((h) => text.includes(h));
@@ -205,6 +208,7 @@ export function Pricing() {
       return;
     }
     if (currentPlan === plan.id) return;
+    if (PLAN_TIER[currentPlan] > PLAN_TIER[plan.id]) return;
     const path = billing === "yearly" ? plan.checkoutYearly : plan.checkoutMonthly;
     trackAction("plan_checkout_start", "/pricing", {
       planKey: plan.id,
@@ -244,6 +248,9 @@ export function Pricing() {
               const displayAmount = isYearly ? plan.yearlyDisplay : plan.monthlyDisplay;
               const isFree = plan.id === "free";
               const variant = plan.variant;
+              /** Đã dùng gói cao hơn (vd. professional) → khóa các gói thấp hơn (vd. student), không cho "hạ cấp". */
+              const isDowngrade = !isFree && PLAN_TIER[currentPlan] > PLAN_TIER[plan.id];
+              const isLocked = isCurrent || isDowngrade;
               /** Cùng chiều cao khối giá → vạch ngăn & list thẳng hàng (Basic 0đ = Pro/Elite) */
               const priceBlockMin = isYearly ? "min-h-[5.125rem]" : "min-h-[2.75rem]";
               return (
@@ -379,14 +386,16 @@ export function Pricing() {
                   <div className="mt-auto w-full shrink-0 pt-4">
                   <button
                     type="button"
-                    disabled={isCurrent}
+                    disabled={isLocked}
                     onClick={() => handleCta(plan)}
                     className={`flex w-full items-center justify-center rounded-full py-3 text-center text-sm font-bold transition-all ${
                       isCurrent
                         ? "cursor-not-allowed border border-slate-200 bg-slate-50 text-slate-400"
-                        : variant === "outline"
-                          ? "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
-                          : "font-black hover:brightness-105 active:scale-[0.99]"
+                        : isDowngrade
+                          ? "cursor-not-allowed opacity-60"
+                          : variant === "outline"
+                            ? "border border-slate-200 bg-white text-slate-900 hover:bg-slate-50"
+                            : "font-black hover:brightness-105 active:scale-[0.99]"
                     }`}
                     style={
                       isCurrent || variant === "outline"

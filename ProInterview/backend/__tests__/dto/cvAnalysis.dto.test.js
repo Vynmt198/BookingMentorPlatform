@@ -370,12 +370,12 @@ describe("CV Analysis DTO Validator", () => {
       expect(validateSaveAnalysis(payload).error).toBeDefined();
     });
 
-    test("rejects skill name > 100 chars", () => {
+    test("rejects skill name > 200 chars", () => {
       const { error } = validateSaveAnalysis({
         cvFileName: "cv.pdf",
         mode: "jd",
         tier: "basic",
-        result: { matchScore: 70, skills: { cv: ["A".repeat(101)] } },
+        result: { matchScore: 70, skills: { cv: ["A".repeat(201)] } },
       });
       expect(error).toBeDefined();
     });
