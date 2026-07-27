@@ -1620,6 +1620,68 @@ export async function completeMentorBooking(mentorUserId, rawId) {
   return { ok: true, booking: toPublicBooking(booking) };
 }
 
+/**
+ * Mentor báo học viên không tham gia buổi hẹn (customer no-show).
+ * Khác `processBookingNoShow` (mentor no-show): ở đây lỗi thuộc về học viên nên
+ * KHÔNG hoàn tiền, KHÔNG cộng vi phạm cho mentor — buổi được tính như đã hoàn
+ * thành bình thường (mentor vẫn nhận đủ thu nhập, cộng vào số dư khả dụng).
+ */
+export async function processCustomerNoShow(mentorUserId, rawId, body = {}) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  const mentor = await getMentorByUserId(mentorUserId);
+  if (!mentor?._id) return { ok: false, status: 404, error: "Không tìm thấy hồ sơ mentor." };
+  if (!mongoose.isValidObjectId(rawId)) return { ok: false, status: 400, error: "id booking không hợp lệ." };
+
+  const booking = await Booking.findOne({ _id: rawId, mentorId: mentor._id });
+  if (!booking) return { ok: false, status: 404, error: "Không tìm thấy booking." };
+
+  if (["cancelled", "completed", "no_show"].includes(booking.status)) {
+    return { ok: false, status: 400, error: "Booking đã ở trạng thái kết thúc, không thể báo no-show." };
+  }
+  if (!["confirmed", "in_progress"].includes(booking.status)) {
+    return { ok: false, status: 400, error: "Chỉ báo no-show khi booking đã xác nhận hoặc đang diễn ra." };
+  }
+
+  const startAt = parseBookingDateTime(booking.date, booking.timeSlot);
+  const graceMs = 15 * 60 * 1000;
+  if (startAt && Number.isFinite(startAt.getTime()) && startAt.getTime() + graceMs > Date.now()) {
+    return { ok: false, status: 400, error: "Chỉ báo no-show sau khi buổi đã bắt đầu (tối thiểu 15 phút)." };
+  }
+
+  const note = typeof body?.note === "string" ? body.note.trim().slice(0, 2000) : "";
+
+  booking.status = "completed";
+  booking.completedAt = new Date();
+  booking.noShowBy = "customer";
+  booking.mentorNotes = note || booking.mentorNotes || "Học viên không tham gia buổi hẹn (no-show).";
+  await booking.save();
+
+  const credit = await tryCreditMentorForCompletedBooking(booking._id);
+  if (!credit.ok) {
+    console.error("[processCustomerNoShow] mentor earnings:", credit.error || credit);
+  } else if (credit.credited > 0) {
+    await notifyMentorBooking(mentorUserId, "payout_update", {
+      type: "payment_success",
+      title: "Đã ghi nhận thu nhập buổi mentor",
+      body: `+${Math.round(credit.credited).toLocaleString("vi-VN")}₫ đã vào số dư khả dụng (học viên không tham gia).`,
+      metadata: { bookingId: booking._id, actionUrl: "/mentor/finance" },
+    });
+  }
+
+  await notifyBookingOwner(booking.userId, {
+    type: "system",
+    title: "Buổi hẹn được đánh dấu vắng mặt",
+    body: "Bạn đã không tham gia buổi hẹn đúng giờ nên buổi học này không được hoàn tiền.",
+    metadata: { bookingId: booking._id },
+  });
+
+  await booking.populate([
+    { path: "userId", select: "name email avatar" },
+    { path: "mentorId", select: "name title company avatar publicId userId", populate: { path: "userId", select: "email" } }
+  ]);
+  return { ok: true, booking: toPublicBooking(booking) };
+}
+
 function meetingEntryBlockedReason(booking, { asMentor = false } = {}) {
   const st = String(booking?.status || "").toLowerCase();
   const pst = String(booking?.paymentStatus || "").toLowerCase();
@@ -2299,6 +2361,7 @@ export async function processBookingNoShow(rawId, body = {}, { markedBy = "admin
   booking.cancelledBy = "mentor";
   booking.cancelReason = note || "Mentor không tham gia buổi hẹn (no-show).";
   booking.cancelledAt = booking.cancelledAt || new Date();
+  booking.noShowBy = "mentor";
   booking.mentorCancelResolution = "no_show_refund";
   booking.mentorCancelResolutionAt = new Date();
 

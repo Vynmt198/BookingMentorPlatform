@@ -75,6 +75,8 @@ const bookingSchema = new Schema(
     cancelledBy: { type: String, enum: ["user", "mentor", "system", ""], default: "" },
     cancelReason: { type: String, default: "" },
     cancelledAt: { type: Date },
+    /** Bên vắng mặt buổi hẹn — khác nhau về hệ quả tài chính/vi phạm. */
+    noShowBy: { type: String, enum: ["mentor", "customer", ""], default: "" },
     /** Sau mentor hủy (đã thanh toán): HV chọn đổi lịch / đổi mentor / hoàn tiền. */
     mentorCancelResolution: {
       type: String,

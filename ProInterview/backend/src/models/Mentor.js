@@ -89,6 +89,9 @@ const mentorSchema = new Schema(
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
     verifiedAt: { type: Date },
+    /** Tự động tạm khoá khi bị nhiều report cùng lúc — chờ admin xem xét. */
+    autoSuspended: { type: Boolean, default: false },
+    autoSuspendedAt: { type: Date },
     adminReview: {
       status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
       reason: { type: String, default: "" },

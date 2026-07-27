@@ -32,11 +32,25 @@ export async function createReport(userId, body) {
   }
   if (!mongoose.isValidObjectId(targetIdRaw)) return { ok: false, status: 400, error: "targetId không hợp lệ." };
 
+  const ENDED_STATUSES = ["completed", "no_show"];
+
   if (targetType === "mentor") {
     const m = await Mentor.findById(targetIdRaw).select("_id").lean();
     if (!m) return { ok: false, status: 404, error: "Không tìm thấy mentor." };
+    const hadSession = await Booking.exists({
+      userId: uid,
+      mentorId: targetIdRaw,
+      status: { $in: ENDED_STATUSES },
+    });
+    if (!hadSession) {
+      return {
+        ok: false,
+        status: 403,
+        error: "Bạn cần đã học ít nhất 1 buổi với mentor này (đã hoàn thành hoặc no-show) mới báo cáo được.",
+      };
+    }
   } else if (targetType === "booking") {
-    const b = await Booking.findById(targetIdRaw).select("userId mentorId").lean();
+    const b = await Booking.findById(targetIdRaw).select("userId mentorId status").lean();
     if (!b) return { ok: false, status: 404, error: "Không tìm thấy booking." };
     const isCustomer = String(b.userId) === uid;
     let isTheirMentor = false;
@@ -46,6 +60,9 @@ export async function createReport(userId, body) {
     }
     if (!isCustomer && !isTheirMentor) {
       return { ok: false, status: 403, error: "Chỉ báo cáo booking mà bạn tham gia (với tư cách khách hoặc mentor)." };
+    }
+    if (!ENDED_STATUSES.includes(b.status)) {
+      return { ok: false, status: 400, error: "Chỉ báo cáo buổi hẹn đã diễn ra (hoàn thành hoặc no-show)." };
     }
   } else if (targetType === "review") {
     const rev = await Review.findById(targetIdRaw).select("userId").lean();
@@ -83,7 +100,79 @@ export async function createReport(userId, body) {
     evidenceUrls,
   });
 
+  if (targetType === "mentor") {
+    await maybeAutoPauseMentor(targetIdRaw);
+  }
+
   return { ok: true, reportId: String(doc._id) };
+}
+
+/** Số người khác nhau đã report 1 mentor mà report còn đang mở (chưa xử lý). */
+const AUTO_PAUSE_REPORTER_THRESHOLD = 3;
+
+/**
+ * Nhiều người report cùng 1 mentor (còn mở, chưa admin xử lý) → tự tạm khoá
+ * (isActive=false) chờ admin xem xét. KHÔNG tự ban vĩnh viễn — chỉ tạm dừng
+ * nhận lịch mới để tránh rủi ro report giả/report phối hợp hại mentor tốt.
+ * Admin xem chi tiết & quyết định mở lại hoặc khoá hẳn ở trang gộp báo cáo.
+ */
+async function maybeAutoPauseMentor(mentorId) {
+  if (!mongoose.isValidObjectId(mentorId)) return;
+  const mentor = await Mentor.findById(mentorId).select("isActive userId").lean();
+  if (!mentor || mentor.isActive === false) return; // đã bị khoá rồi (auto hoặc admin), khỏi đếm lại
+
+  const distinctReporters = await Report.distinct("reportedBy", {
+    targetType: "mentor",
+    targetId: mentorId,
+    status: { $in: ["pending", "reviewing"] },
+  });
+  if (distinctReporters.length < AUTO_PAUSE_REPORTER_THRESHOLD) return;
+
+  await Mentor.updateOne(
+    { _id: mentorId },
+    { $set: { isActive: false, autoSuspended: true, autoSuspendedAt: new Date() } },
+  );
+  if (mentor.userId) {
+    await Notification.create({
+      userId: mentor.userId,
+      type: "system",
+      title: "Hồ sơ tạm ngưng nhận lịch mới",
+      body: `Hồ sơ của bạn nhận được ${distinctReporters.length} báo cáo từ những người khác nhau và đang được admin xem xét. Bạn tạm thời không nhận lịch mới cho tới khi có kết luận.`,
+      metadata: { mentorId, reason: "auto_pause_reports" },
+    });
+  }
+}
+
+/**
+ * Sau khi admin xử lý xong 1 report mentor: nếu không còn report mở nào dưới
+ * ngưỡng auto-pause nữa VÀ việc khoá trước đó là do hệ thống tự làm (không
+ * phải admin chủ động khoá tay) → tự mở lại. Admin chủ động khoá thì phải tự mở lại.
+ */
+async function maybeAutoResumeMentor(mentorId) {
+  if (!mongoose.isValidObjectId(mentorId)) return;
+  const mentor = await Mentor.findById(mentorId).select("autoSuspended userId").lean();
+  if (!mentor || !mentor.autoSuspended) return;
+
+  const distinctReporters = await Report.distinct("reportedBy", {
+    targetType: "mentor",
+    targetId: mentorId,
+    status: { $in: ["pending", "reviewing"] },
+  });
+  if (distinctReporters.length >= AUTO_PAUSE_REPORTER_THRESHOLD) return;
+
+  await Mentor.updateOne(
+    { _id: mentorId },
+    { $set: { isActive: true, autoSuspended: false }, $unset: { autoSuspendedAt: "" } },
+  );
+  if (mentor.userId) {
+    await Notification.create({
+      userId: mentor.userId,
+      type: "system",
+      title: "Hồ sơ đã được mở lại",
+      body: "Các báo cáo trước đó đã được admin xử lý xong — bạn có thể nhận lịch bình thường trở lại.",
+      metadata: { mentorId, reason: "auto_resume_reports" },
+    });
+  }
 }
 
 async function notifyReporterOnReportClosed(report, status, resolution) {
@@ -126,6 +215,10 @@ export async function listReportsForAdmin(query = {}) {
   const targetType = String(query?.targetType ?? "").trim();
   if (targetType && ["mentor", "booking", "review", "course"].includes(targetType)) {
     filter.targetType = targetType;
+  }
+  const targetId = String(query?.targetId ?? "").trim();
+  if (targetId && mongoose.isValidObjectId(targetId)) {
+    filter.targetId = targetId;
   }
 
   const [rows, total, openCount, pendingCount] = await Promise.all([
@@ -198,6 +291,88 @@ export async function listReportsForAdmin(query = {}) {
   };
 }
 
+/**
+ * Gộp report theo từng đối tượng bị báo cáo (mặc định mentor) — để admin thấy
+ * "Mentor X — 5 báo cáo, 4 người khác nhau" thay vì phải mở từng report rời rạc.
+ */
+export async function listReportsGroupedForAdmin(query = {}) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+
+  const targetType = String(query?.targetType ?? "mentor").trim();
+  if (!["mentor", "booking", "review", "course"].includes(targetType)) {
+    return { ok: false, status: 400, error: "targetType không hợp lệ." };
+  }
+  const openOnly = ["true", "1", "yes"].includes(String(query?.open ?? "").trim().toLowerCase());
+
+  const groups = await Report.aggregate([
+    { $match: { targetType } },
+    {
+      $group: {
+        _id: "$targetId",
+        totalCount: { $sum: 1 },
+        openCount: {
+          $sum: { $cond: [{ $in: ["$status", ["pending", "reviewing"]] }, 1, 0] },
+        },
+        reporters: { $addToSet: "$reportedBy" },
+        latestAt: { $max: "$createdAt" },
+      },
+    },
+    ...(openOnly ? [{ $match: { openCount: { $gt: 0 } } }] : []),
+    { $addFields: { reporterCount: { $size: "$reporters" } } },
+    { $sort: { openCount: -1, totalCount: -1, latestAt: -1 } },
+    { $limit: 200 },
+  ]);
+
+  const targetIds = groups.map((g) => String(g._id));
+  const labelMap = new Map();
+  if (targetType === "mentor") {
+    const mentors = targetIds.length
+      ? await Mentor.find({ _id: { $in: targetIds } })
+          .populate({ path: "userId", select: "name email isActive" })
+          .select("userId title isActive isVerified")
+          .lean()
+      : [];
+    mentors.forEach((m) =>
+      labelMap.set(String(m._id), {
+        label: m.userId?.name || m.title || "Cố vấn",
+        isActive: m.isActive !== false && m.userId?.isActive !== false,
+      }),
+    );
+  } else if (targetType === "course") {
+    const courses = targetIds.length
+      ? await Course.find({ _id: { $in: targetIds } }).select("title").lean()
+      : [];
+    courses.forEach((c) => labelMap.set(String(c._id), { label: c.title || "Khóa học" }));
+  } else if (targetType === "booking") {
+    const bookings = targetIds.length
+      ? await Booking.find({ _id: { $in: targetIds } }).select("scheduledAt status").lean()
+      : [];
+    bookings.forEach((b) =>
+      labelMap.set(String(b._id), {
+        label: b.scheduledAt
+          ? `Buổi ${new Date(b.scheduledAt).toLocaleDateString("vi-VN")} (${b.status || "—"})`
+          : `Booking ${String(b._id).slice(-6)}`,
+      }),
+    );
+  }
+
+  const groupsOut = groups.map((g) => {
+    const meta = labelMap.get(String(g._id)) || {};
+    return {
+      targetType,
+      targetId: String(g._id),
+      targetLabel: meta.label || (targetType === "review" ? `Review ${String(g._id).slice(-6)}` : "—"),
+      isActive: meta.isActive,
+      totalCount: g.totalCount,
+      openCount: g.openCount,
+      reporterCount: g.reporterCount,
+      latestAt: g.latestAt,
+    };
+  });
+
+  return { ok: true, groups: groupsOut };
+}
+
 export async function updateReportStatusForAdmin(adminUserId, reportId, body = {}) {
   if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
   if (!mongoose.isValidObjectId(reportId)) {
@@ -233,6 +408,9 @@ export async function updateReportStatusForAdmin(adminUserId, reportId, body = {
 
   if (status === "resolved" || status === "dismissed") {
     await notifyReporterOnReportClosed(report, status, doc.resolution);
+    if (doc.targetType === "mentor") {
+      await maybeAutoResumeMentor(doc.targetId);
+    }
   }
 
   return { ok: true, report };

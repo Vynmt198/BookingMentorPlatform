@@ -24,6 +24,7 @@ bookingsRouter.patch("/:id/reschedule", authJwt, asyncHandler(BookingsController
 bookingsRouter.patch("/:id/refund-destination", authJwt, asyncHandler(BookingsController.updateRefundDestination));
 bookingsRouter.patch("/:id/mentor-cancel-resolution", authJwt, asyncHandler(BookingsController.resolveMentorCancel));
 bookingsRouter.post("/:id/report-no-show", authJwt, asyncHandler(BookingsController.reportNoShow));
+bookingsRouter.post("/:id/report-customer-no-show", authJwt, requireMentor, asyncHandler(BookingsController.reportCustomerNoShow));
 bookingsRouter.get("/:id/rebook-credit", authJwt, asyncHandler(BookingsController.getRebookCredit));
 bookingsRouter.post("/:id/review", authJwt, asyncHandler(BookingsController.createReviewForBooking));
 bookingsRouter.post("/:id/mentor-knowledge", authJwt, requireMentor, asyncHandler(BookingsController.saveMentorKnowledge));
