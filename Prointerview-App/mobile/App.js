@@ -354,6 +354,16 @@ function AppInner() {
 
   const applyLoggedInUser = (user, token) => {
     const role = user?.role || 'customer';
+    if (role === 'admin') {
+      notifyUser(
+        'Không hỗ trợ trên di động',
+        'Tài khoản Admin chỉ đăng nhập được trên website ProInterview (chức năng thống kê, vận hành chỉ có ở web).',
+      );
+      void logoutSession();
+      clearLocalSession();
+      setJustLoggedOut(true);
+      return;
+    }
     const safeUser = user && typeof user === 'object'
       ? { ...user, role }
       : { name: 'Bạn học', role: 'customer' };
@@ -1199,11 +1209,9 @@ function AppInner() {
                   hasGoogleLogin: true,
                   quota: { ...(parsedUser?.quota || {}) },
                 };
-                setCurrentUser(fullUserProfile);
-                setUserToken(params.token);
-                setJustLoggedOut(false);
+                applyLoggedInUser(fullUserProfile, params.token);
                 loadData();
-                loadUserData();
+                loadUserData(fullUserProfile.role, fullUserProfile);
               }
             }
           }
@@ -4181,8 +4189,8 @@ function AppInner() {
     return (
       <BottomNavShell>
         <TabBtn tab="mentors" icon="people" label="Mentors" />
-        <TabBtn tab="cv" icon="scan-outline" label="Quét CV" />
-        <TabBtn tab="home" icon="home" label="Trang chủ" center />
+        <TabBtn tab="home" icon="home" label="Trang chủ" />
+        <TabBtn tab="cv" icon="scan-outline" label="Quét CV" center />
         <TabBtn tab="courses" icon="school" label="Khóa học" />
         <TabBtn tab="profile" icon="person" label="Cá nhân" />
       </BottomNavShell>

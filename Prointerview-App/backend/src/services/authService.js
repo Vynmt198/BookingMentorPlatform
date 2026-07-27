@@ -27,6 +27,17 @@ function sha256Hex(input) {
   return crypto.createHash("sha256").update(String(input ?? ""), "utf8").digest("hex");
 }
 
+/** Sinh mật khẩu khởi tạo dễ đọc (bỏ ký tự dễ nhầm 0/O, 1/l/I) cho tài khoản tạo qua Google. */
+function generateInitialPassword(length = 10) {
+  const charset = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += charset[bytes[i] % charset.length];
+  }
+  return out;
+}
+
 function accessExpiresIn() {
   return process.env.JWT_ACCESS_EXPIRES_IN || process.env.JWT_EXPIRES_IN || "15m";
 }
@@ -766,7 +777,8 @@ export async function loginWithGoogle(body, req) {
   }
 
   if (!user) {
-    const passwordHash = await bcrypt.hash(crypto.randomBytes(48).toString("hex"), SALT_ROUNDS);
+    const initialPassword = generateInitialPassword();
+    const passwordHash = await bcrypt.hash(initialPassword, SALT_ROUNDS);
     user = await User.create({
       email,
       passwordHash,
@@ -776,6 +788,7 @@ export async function loginWithGoogle(body, req) {
       avatar: typeof payload.picture === "string" ? upgradeGooglePhotoRes(payload.picture) : undefined,
     });
     user = await User.findById(user._id).select("+googleSub +authSessions");
+    await emailService.sendInitialPasswordEmail(email, name, initialPassword);
   }
 
   if (user.isActive === false) {
