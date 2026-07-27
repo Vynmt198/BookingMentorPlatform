@@ -20,6 +20,8 @@ const userSchema = new Schema(
     role: { type: String, enum: ["customer", "mentor", "admin"], default: "customer" },
     plan: { type: String, enum: ["free", "student", "professional"], default: "free" },
     planExpiresAt: { type: Date, default: null },
+    /** Chu kỳ gói hiện tại — cần để quy đổi giá trị còn lại khi đổi hạng gói giữa chừng. */
+    planBilling: { type: String, enum: ["monthly", "yearly", ""], default: "" },
 
     quota: {
       cvAnalysisUsed: { type: Number, default: 0 },

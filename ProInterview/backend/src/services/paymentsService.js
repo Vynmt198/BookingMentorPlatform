@@ -7,7 +7,7 @@ import { User } from "../models/User.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Cart } from "../models/Cart.js";
 import { planKeyFromSubscriptionMeta } from "../utils/planKeys.js";
-import { getPlanPrice } from "../utils/planPricing.js";
+import { getPlanPrice, computeUpgradeCredit } from "../utils/planPricing.js";
 import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
 import {
   expireSubscriptionTransferIfNeeded,
@@ -446,8 +446,20 @@ export async function createSubscriptionTransferPending(userId, { planKey, order
   const plan = normalizeSubscriptionPlanKey(planKey);
   const cycle = billing === "yearly" ? "yearly" : "monthly";
   // Giá luôn tính từ bảng giá chuẩn server-side — không tin `amount` client gửi lên (chặn tamper URL/body).
-  const amount = getPlanPrice(plan, cycle);
-  if (!amount) return { ok: false, status: 400, error: "Gói hoặc chu kỳ thanh toán không hợp lệ." };
+  const fullPrice = getPlanPrice(plan, cycle);
+  if (!fullPrice) return { ok: false, status: 400, error: "Gói hoặc chu kỳ thanh toán không hợp lệ." };
+
+  // Đổi hạng gói (student ↔ professional) giữa chừng khi gói cũ còn hạn → quy đổi
+  // giá trị ngày chưa dùng thành khoản giảm trừ, tránh cộng "free" ngày dư khi xác nhận.
+  const currentUser = await User.findById(userId).select("plan planExpiresAt planBilling").lean();
+  const { creditVnd, isTierChange } = computeUpgradeCredit({
+    currentPlan: currentUser?.plan,
+    currentBilling: currentUser?.planBilling,
+    currentExpiresAt: currentUser?.planExpiresAt,
+    newPlan: plan,
+    newBilling: cycle,
+  });
+  const amount = fullPrice - creditVnd;
   const expiresAt = newPaymentExpiresAt();
 
   const pendingRow = await Payment.findOne({
@@ -793,7 +805,18 @@ async function applySubscriptionPlanFromPayment(pay) {
   if (!pay || pay.type !== "subscription") return;
   const plan = planKeyFromSubscriptionMeta(pay.providerResponse?.plan) || "student";
   const billing = pay.providerResponse?.billing === "yearly" ? "yearly" : "monthly";
-  const planExpiresAt = new Date();
+
+  const current = await User.findById(pay.userId).select("plan planExpiresAt").lean();
+  const now = new Date();
+  const currentExpiresAt = current?.planExpiresAt ? new Date(current.planExpiresAt) : null;
+  // Đổi hạng gói (student ↔ professional): giá trị ngày dư đã được trừ vào tiền lúc
+  // tạo hóa đơn (`createSubscriptionTransferPending`) → tính hạn mới từ HÔM NAY, không
+  // cộng dồn nữa (tránh cộng 2 lần). Gia hạn cùng hạng: cộng dồn từ hạn cũ như trước giờ.
+  const isTierChange = Boolean(current?.plan) && current.plan !== "free" && current.plan !== plan;
+  const base = !isTierChange && currentExpiresAt && currentExpiresAt.getTime() > now.getTime()
+    ? currentExpiresAt
+    : now;
+  const planExpiresAt = new Date(base);
   if (billing === "yearly") {
     planExpiresAt.setFullYear(planExpiresAt.getFullYear() + 1);
   } else {
@@ -808,6 +831,7 @@ async function applySubscriptionPlanFromPayment(pay) {
     $set: {
       plan,
       planExpiresAt,
+      planBilling: billing,
       "quota.cvAnalysisLimit": quota.cvAnalysisLimit,
       "quota.mentorSessionLimit": quota.mentorSessionLimit,
     },
