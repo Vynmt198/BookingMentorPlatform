@@ -154,10 +154,18 @@ export const adminApi = {
     if (params.open) q.set("open", "true");
     if (params.closed) q.set("closed", "true");
     if (params.targetType) q.set("targetType", params.targetType);
+    if (params.targetId) q.set("targetId", params.targetId);
     if (params.page) q.set("page", String(params.page));
     if (params.limit) q.set("limit", String(params.limit));
     const qs = q.toString();
     return authedFetch(`/api/admin/reports${qs ? `?${qs}` : ""}`);
+  },
+  getReportsGrouped: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.targetType) q.set("targetType", params.targetType);
+    if (params.open) q.set("open", "true");
+    const qs = q.toString();
+    return authedFetch(`/api/admin/reports/grouped${qs ? `?${qs}` : ""}`);
   },
   updateReportStatus: (id, body) =>
     authedFetch(`/api/admin/reports/${encodeURIComponent(id)}`, {

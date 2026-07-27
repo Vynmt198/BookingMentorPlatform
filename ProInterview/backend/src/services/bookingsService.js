@@ -645,6 +645,13 @@ export async function createBooking(userId, body) {
       error: "Mentor đang tạm ngưng. Liên hệ quản trị để kích hoạt.",
     };
   }
+  if (mentor.autoSuspended === true) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Mentor đang tạm ngưng nhận lịch mới do đang được xem xét báo cáo.",
+    };
+  }
   if (mentor.isVerified === false) {
     return {
       ok: false,

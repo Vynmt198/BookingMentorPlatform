@@ -16,6 +16,7 @@ function isBookableMentorDoc(m) {
   if (u.isActive === false) return false;
   if (m.isActive !== true) return false;
   if (m.isVerified !== true) return false;
+  if (m.autoSuspended === true) return false;
   return true;
 }
 

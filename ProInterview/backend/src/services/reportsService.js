@@ -111,15 +111,17 @@ export async function createReport(userId, body) {
 const AUTO_PAUSE_REPORTER_THRESHOLD = 3;
 
 /**
- * Nhiều người report cùng 1 mentor (còn mở, chưa admin xử lý) → tự tạm khoá
- * (isActive=false) chờ admin xem xét. KHÔNG tự ban vĩnh viễn — chỉ tạm dừng
- * nhận lịch mới để tránh rủi ro report giả/report phối hợp hại mentor tốt.
- * Admin xem chi tiết & quyết định mở lại hoặc khoá hẳn ở trang gộp báo cáo.
+ * Nhiều người report cùng 1 mentor (còn mở, chưa admin xử lý) → tự đặt cờ
+ * `autoSuspended` chờ admin xem xét. CHỈ chặn *lịch mới* + ẩn khỏi danh sách
+ * tìm mentor (`isBookableMentorDoc`, `createBooking`) — KHÔNG đụng `isActive`,
+ * nên buổi học đã đặt lịch từ trước (học viên đã trả tiền) vẫn vào họp/hoàn
+ * thành bình thường, và mentor vẫn rút được tiền đã kiếm hợp lệ trước đó.
+ * Admin xem chi tiết & quyết định mở lại hoặc khoá hẳn (`isActive`) ở trang gộp báo cáo.
  */
 async function maybeAutoPauseMentor(mentorId) {
   if (!mongoose.isValidObjectId(mentorId)) return;
-  const mentor = await Mentor.findById(mentorId).select("isActive userId").lean();
-  if (!mentor || mentor.isActive === false) return; // đã bị khoá rồi (auto hoặc admin), khỏi đếm lại
+  const mentor = await Mentor.findById(mentorId).select("autoSuspended userId").lean();
+  if (!mentor || mentor.autoSuspended === true) return; // đã bị auto-suspend rồi, khỏi đếm lại
 
   const distinctReporters = await Report.distinct("reportedBy", {
     targetType: "mentor",
@@ -130,14 +132,14 @@ async function maybeAutoPauseMentor(mentorId) {
 
   await Mentor.updateOne(
     { _id: mentorId },
-    { $set: { isActive: false, autoSuspended: true, autoSuspendedAt: new Date() } },
+    { $set: { autoSuspended: true, autoSuspendedAt: new Date() } },
   );
   if (mentor.userId) {
     await Notification.create({
       userId: mentor.userId,
       type: "system",
       title: "Hồ sơ tạm ngưng nhận lịch mới",
-      body: `Hồ sơ của bạn nhận được ${distinctReporters.length} báo cáo từ những người khác nhau và đang được admin xem xét. Bạn tạm thời không nhận lịch mới cho tới khi có kết luận.`,
+      body: `Hồ sơ của bạn nhận được ${distinctReporters.length} báo cáo từ những người khác nhau và đang được admin xem xét. Bạn tạm thời không nhận lịch mới, nhưng vẫn vào họp/rút tiền các buổi đã đặt trước đó bình thường.`,
       metadata: { mentorId, reason: "auto_pause_reports" },
     });
   }
@@ -145,8 +147,8 @@ async function maybeAutoPauseMentor(mentorId) {
 
 /**
  * Sau khi admin xử lý xong 1 report mentor: nếu không còn report mở nào dưới
- * ngưỡng auto-pause nữa VÀ việc khoá trước đó là do hệ thống tự làm (không
- * phải admin chủ động khoá tay) → tự mở lại. Admin chủ động khoá thì phải tự mở lại.
+ * ngưỡng auto-pause nữa VÀ việc tạm khoá trước đó là do hệ thống tự làm →
+ * tự bỏ cờ `autoSuspended`. Admin khoá tay (`isActive=false`) thì tự xử lý riêng.
  */
 async function maybeAutoResumeMentor(mentorId) {
   if (!mongoose.isValidObjectId(mentorId)) return;
@@ -162,7 +164,7 @@ async function maybeAutoResumeMentor(mentorId) {
 
   await Mentor.updateOne(
     { _id: mentorId },
-    { $set: { isActive: true, autoSuspended: false }, $unset: { autoSuspendedAt: "" } },
+    { $set: { autoSuspended: false }, $unset: { autoSuspendedAt: "" } },
   );
   if (mentor.userId) {
     await Notification.create({

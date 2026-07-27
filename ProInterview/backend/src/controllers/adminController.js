@@ -1141,6 +1141,17 @@ export const AdminController = {
     }
   },
 
+  getReportsGrouped: async (req, res, next) => {
+    try {
+      const { listReportsGroupedForAdmin } = await import("../services/reportsService.js");
+      const result = await listReportsGroupedForAdmin(req.query ?? {});
+      if (!result.ok) return res.status(result.status || 500).json({ success: false, error: result.error });
+      res.json({ success: true, groups: result.groups });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   getReviews: async (req, res, next) => {
     try {
       const { listReviewsForAdmin } = await import("../services/reviewsService.js");

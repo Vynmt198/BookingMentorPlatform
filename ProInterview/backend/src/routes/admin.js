@@ -10,6 +10,7 @@ adminRouter.use(authJwt, requireAdmin);
 
 adminRouter.get("/stats", asyncHandler(AdminController.getStats));
 adminRouter.get("/reports", asyncHandler(AdminController.getReports));
+adminRouter.get("/reports/grouped", asyncHandler(AdminController.getReportsGrouped));
 adminRouter.patch("/reports/:id", asyncHandler(AdminController.updateReport));
 adminRouter.get("/reviews", asyncHandler(AdminController.getReviews));
 adminRouter.patch("/reviews/:id/visibility", asyncHandler(AdminController.setReviewVisibility));

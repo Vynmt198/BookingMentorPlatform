@@ -31,7 +31,13 @@ export async function activatePlan(userId, body) {
   }
 
   const months = Math.min(36, Math.max(1, Number(body?.months) || 1));
-  const expires = new Date();
+
+  // Còn hạn gói cũ (kể cả khác tier) thì cộng dồn từ đó, không mất thời gian đã trả tiền.
+  const current = await User.findById(userId).select("planExpiresAt").lean();
+  const now = new Date();
+  const currentExpiresAt = current?.planExpiresAt ? new Date(current.planExpiresAt) : null;
+  const base = currentExpiresAt && currentExpiresAt.getTime() > now.getTime() ? currentExpiresAt : now;
+  const expires = new Date(base);
   expires.setMonth(expires.getMonth() + months);
 
   const updates = { plan, planExpiresAt: expires };

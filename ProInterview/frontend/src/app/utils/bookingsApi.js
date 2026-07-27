@@ -123,6 +123,12 @@ export async function reportBookingNoShow(bookingId, body = {}) {
   return authedSend("POST", `/api/bookings/${encodeURIComponent(bookingId)}/report-no-show`, body);
 }
 
+/** Mentor báo học viên no-show (sau giờ họp + 15 phút) — buổi tính như hoàn thành, không hoàn tiền. */
+export async function reportCustomerNoShow(bookingId, body = {}) {
+  if (!bookingId) return { success: false, error: "Thiếu id booking." };
+  return authedSend("POST", `/api/bookings/${encodeURIComponent(bookingId)}/report-customer-no-show`, body);
+}
+
 export async function fetchRebookCredit(sourceBookingId) {
   if (!sourceBookingId) return { success: false, error: "Thiếu id booking nguồn." };
   return authedGet(`/api/bookings/${encodeURIComponent(sourceBookingId)}/rebook-credit`);

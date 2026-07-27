@@ -134,11 +134,14 @@ function reportApiParams(page, statusFilter, typeFilter) {
 }
 
 export function AdminSupport() {
+  const [viewMode, setViewMode] = useState("list"); // "list" | "grouped"
   const [reports, setReports] = useState([]);
   const [counts, setCounts] = useState({ total: 0, open: 0, pending: 0 });
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("open");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [targetIdFilter, setTargetIdFilter] = useState("");
+  const [targetIdFilterLabel, setTargetIdFilterLabel] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState("");
@@ -150,10 +153,14 @@ export function AdminSupport() {
   });
   const [resolveDialog, setResolveDialog] = useState(null);
   const [resolutionNote, setResolutionNote] = useState("");
+  const [groupedRows, setGroupedRows] = useState([]);
+  const [groupedLoading, setGroupedLoading] = useState(false);
 
   const loadReports = useCallback(async () => {
     setLoading(true);
-    const res = await tryApi(() => adminApi.getReports(reportApiParams(page, statusFilter, typeFilter)), {
+    const params = reportApiParams(page, statusFilter, typeFilter);
+    if (targetIdFilter) params.targetId = targetIdFilter;
+    const res = await tryApi(() => adminApi.getReports(params), {
       fallback: "Không tải được danh sách báo cáo.",
     });
     if (res.success) {
@@ -169,15 +176,41 @@ export function AdminSupport() {
       );
     }
     setLoading(false);
-  }, [page, statusFilter, typeFilter]);
+  }, [page, statusFilter, typeFilter, targetIdFilter]);
+
+  const loadGrouped = useCallback(async () => {
+    setGroupedLoading(true);
+    const res = await tryApi(() => adminApi.getReportsGrouped({ targetType: "mentor" }), {
+      fallback: "Không tải được danh sách gộp theo mentor.",
+    });
+    if (res.success) setGroupedRows(res.groups || []);
+    setGroupedLoading(false);
+  }, []);
 
   useEffect(() => {
-    void loadReports();
-  }, [loadReports]);
+    if (viewMode === "list") void loadReports();
+  }, [viewMode, loadReports]);
+
+  useEffect(() => {
+    if (viewMode === "grouped") void loadGrouped();
+  }, [viewMode, loadGrouped]);
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, typeFilter]);
+  }, [statusFilter, typeFilter, targetIdFilter]);
+
+  const viewMentorReports = (mentorId, mentorLabel) => {
+    setTargetIdFilter(mentorId);
+    setTargetIdFilterLabel(mentorLabel);
+    setTypeFilter("mentor");
+    setStatusFilter("all");
+    setViewMode("list");
+  };
+
+  const clearTargetIdFilter = () => {
+    setTargetIdFilter("");
+    setTargetIdFilterLabel("");
+  };
 
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -261,35 +294,163 @@ export function AdminSupport() {
         </div>
       </motion.div>
 
-      <AdminListFilterBar
-        countText={
-          searchTerm.trim()
-            ? `Tìm trong trang: ${filtered.length} / ${reports.length} · Tổng ${pagination.total ?? counts.total ?? 0}`
-            : `Trang ${pagination.page}/${pagination.totalPages || 1} · ${reports.length} mục · Tổng ${pagination.total ?? counts.total ?? 0}`
-        }
-        showReset={statusFilter !== "open" || typeFilter !== "all"}
-        onReset={() => {
-          setStatusFilter("open");
-          setTypeFilter("all");
-          setPage(1);
-        }}
-      >
-        <AdminFilterSelect
-          id="support-status"
-          label="Trạng thái"
-          value={statusFilter}
-          onChange={setStatusFilter}
-          options={STATUS_TABS}
-        />
-        <AdminFilterSelect
-          id="support-type"
-          label="Đối tượng"
-          value={typeFilter}
-          onChange={setTypeFilter}
-          options={TYPE_TABS}
-        />
-      </AdminListFilterBar>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => setViewMode("list")}
+          className={`rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider ${
+            viewMode === "list"
+              ? "bg-violet-700 text-white"
+              : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Theo báo cáo
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode("grouped")}
+          className={`rounded-lg px-4 py-2 text-xs font-black uppercase tracking-wider ${
+            viewMode === "grouped"
+              ? "bg-violet-700 text-white"
+              : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+          }`}
+        >
+          Theo mentor
+        </button>
+      </div>
 
+      {viewMode === "list" && targetIdFilter ? (
+        <div className="flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900">
+          <span>
+            Đang lọc báo cáo của: <strong>{targetIdFilterLabel || targetIdFilter}</strong>
+          </span>
+          <button
+            type="button"
+            onClick={clearTargetIdFilter}
+            className="ml-auto rounded-md border border-violet-300 bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-violet-700 hover:bg-violet-100"
+          >
+            Bỏ lọc
+          </button>
+        </div>
+      ) : null}
+
+      {viewMode === "list" ? (
+        <AdminListFilterBar
+          countText={
+            searchTerm.trim()
+              ? `Tìm trong trang: ${filtered.length} / ${reports.length} · Tổng ${pagination.total ?? counts.total ?? 0}`
+              : `Trang ${pagination.page}/${pagination.totalPages || 1} · ${reports.length} mục · Tổng ${pagination.total ?? counts.total ?? 0}`
+          }
+          showReset={statusFilter !== "open" || typeFilter !== "all" || Boolean(targetIdFilter)}
+          onReset={() => {
+            setStatusFilter("open");
+            setTypeFilter("all");
+            clearTargetIdFilter();
+            setPage(1);
+          }}
+        >
+          <AdminFilterSelect
+            id="support-status"
+            label="Trạng thái"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={STATUS_TABS}
+          />
+          <AdminFilterSelect
+            id="support-type"
+            label="Đối tượng"
+            value={typeFilter}
+            onChange={setTypeFilter}
+            options={TYPE_TABS}
+          />
+        </AdminListFilterBar>
+      ) : null}
+
+      {viewMode === "grouped" ? (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={adminGlassTable}>
+          <div className="max-w-full overflow-x-auto overscroll-x-contain">
+            <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/90">
+                  <th className={adminThCell}>Mentor</th>
+                  <th className={adminThCell}>Tổng báo cáo</th>
+                  <th className={adminThCell}>Đang mở</th>
+                  <th className={adminThCell}>Số người báo cáo</th>
+                  <th className={adminThCell}>Gần nhất</th>
+                  <th className={adminThCell}>Trạng thái mentor</th>
+                  <th className={adminThCell}>Hành động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groupedLoading ? (
+                  <tr>
+                    <td colSpan={7} className={`${adminTdCell} text-center text-slate-500`}>
+                      Đang tải…
+                    </td>
+                  </tr>
+                ) : groupedRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className={`${adminTdCell} text-center text-slate-500`}>
+                      Chưa có mentor nào bị báo cáo.
+                    </td>
+                  </tr>
+                ) : (
+                  groupedRows.map((g) => (
+                    <tr key={g.targetId} className="border-b border-slate-100 last:border-0">
+                      <td className={adminTdCell}>
+                        <Link
+                          to={`/admin/mentors/${g.targetId}`}
+                          className="font-semibold text-slate-900 hover:text-violet-700"
+                        >
+                          {g.targetLabel}
+                        </Link>
+                      </td>
+                      <td className={adminTdCell}>
+                        <span className="font-black text-slate-900">{g.totalCount}</span>
+                      </td>
+                      <td className={adminTdCell}>
+                        <span
+                          className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            g.openCount > 0
+                              ? "bg-orange-500/10 text-orange-900 border border-orange-400/25"
+                              : "bg-slate-100 text-slate-600 border border-slate-200"
+                          }`}
+                        >
+                          {g.openCount}
+                        </span>
+                      </td>
+                      <td className={adminTdCell}>{g.reporterCount}</td>
+                      <td className={`${adminTdCell} text-slate-600`}>{formatDate(g.latestAt)}</td>
+                      <td className={adminTdCell}>
+                        <span
+                          className={`inline-flex px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                            g.isActive === false
+                              ? "bg-slate-100 text-slate-600 border border-slate-200"
+                              : "bg-lime-500/10 text-lime-900 border border-lime-400/25"
+                          }`}
+                        >
+                          {g.isActive === false ? "Đã khoá" : "Đang hoạt động"}
+                        </span>
+                      </td>
+                      <td className={adminTdCell}>
+                        <button
+                          type="button"
+                          onClick={() => viewMentorReports(g.targetId, g.targetLabel)}
+                          className={actionBtn.amber}
+                        >
+                          Xem báo cáo
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+      ) : null}
+
+      {viewMode === "list" ? (
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={adminGlassTable}>
         <div className="max-w-full overflow-x-auto overscroll-x-contain">
           <table className="w-full min-w-[960px] border-collapse text-left text-sm">
@@ -455,6 +616,7 @@ export function AdminSupport() {
           </div>
         ) : null}
       </motion.div>
+      ) : null}
 
       <Dialog open={Boolean(resolveDialog)} onOpenChange={(open) => !open && setResolveDialog(null)}>
         <DialogContent className="border border-slate-200 bg-white sm:max-w-md">

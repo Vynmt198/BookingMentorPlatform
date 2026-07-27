@@ -33,6 +33,7 @@ import {
   mentorRescheduleBooking,
   mentorCancelBooking,
   completeMentorBooking,
+  reportCustomerNoShow,
 } from "../../utils/bookingsApi.js";
 import { loadMentorRescheduleSlotOptions } from "../../utils/bookingRescheduleSlots.js";
 import { isBookingSlotInFuture } from "../../utils/bookingSchedule.js";
@@ -466,6 +467,31 @@ export function MentorMeetingDetail() {
     }
   };
 
+  const handleReportCustomerNoShow = async () => {
+    if (!meeting?.id) return;
+    if (
+      !window.confirm(
+        "Xác nhận học viên KHÔNG tham gia buổi hẹn? Buổi này sẽ được tính như đã hoàn thành (bạn vẫn nhận đủ thu nhập), học viên sẽ không được hoàn tiền.",
+      )
+    ) {
+      return;
+    }
+    setBusyAction("customer-no-show");
+    try {
+      const res = await reportCustomerNoShow(meeting.id);
+      if (res.success) {
+        toastApiSuccess("Đã ghi nhận học viên vắng mặt. Thu nhập buổi này vẫn được cộng vào số dư của bạn.");
+        setMeeting((prev) => (prev ? { ...prev, status: "completed" } : prev));
+      } else {
+        toastApiError(res.error, "Không thể báo học viên vắng mặt.");
+      }
+    } catch {
+      toastApiError("Lỗi kết nối khi báo học viên vắng mặt.");
+    } finally {
+      setBusyAction("");
+    }
+  };
+
   return (
     <MentorPageShell bottomPad="pb-32" extraStyles={MENTOR_MEETING_DETAIL_EXTRA_CSS}>
       <div className="relative z-10 mx-auto max-w-7xl px-10 pb-10">
@@ -535,18 +561,28 @@ export function MentorMeetingDetail() {
               <div>
                 <p className="text-sm font-bold text-orange-900">Buổi đã qua giờ kết thúc</p>
                 <p className="mt-1 text-xs leading-relaxed text-orange-800/90">
-                  Hãy bấm <strong>Kết thúc buổi</strong> để học viên đánh giá và thu nhập được ghi nhận. Nếu quên, hệ thống tự hoàn thành sau 30 phút.
+                  Hãy bấm <strong>Kết thúc buổi</strong> để học viên đánh giá và thu nhập được ghi nhận. Nếu học viên không tham gia, bấm <strong>Học viên vắng mặt</strong> — bạn vẫn nhận đủ thu nhập. Nếu quên, hệ thống tự hoàn thành sau 30 phút.
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleCompleteSession}
-              disabled={busyAction !== "" || !canCompleteSession}
-              className="shrink-0 rounded-xl bg-[#93f72b] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busyAction === "complete" ? "Đang xử lý…" : "Kết thúc buổi"}
-            </button>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={handleReportCustomerNoShow}
+                disabled={busyAction !== "" || !canCompleteSession}
+                className="rounded-xl border border-orange-300 bg-white px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busyAction === "customer-no-show" ? "Đang xử lý…" : "Học viên vắng mặt"}
+              </button>
+              <button
+                type="button"
+                onClick={handleCompleteSession}
+                disabled={busyAction !== "" || !canCompleteSession}
+                className="rounded-xl bg-[#93f72b] px-5 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busyAction === "complete" ? "Đang xử lý…" : "Kết thúc buổi"}
+              </button>
+            </div>
           </div>
         ) : null}
 
@@ -804,6 +840,15 @@ export function MentorMeetingDetail() {
                          {completeBlockedHint ? (
                            <p className="text-center text-[11px] leading-relaxed text-amber-800">{completeBlockedHint}</p>
                          ) : null}
+                         <button
+                            type="button"
+                            onClick={handleReportCustomerNoShow}
+                            disabled={busyAction !== "" || !canCompleteSession}
+                            className="flex w-full items-center justify-center gap-2 py-5 rounded-3xl border border-orange-300 bg-orange-50 text-[10px] font-black uppercase tracking-widest text-orange-700 hover:bg-orange-100 transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                         >
+                            <AlertCircle size={16} />
+                            {busyAction === "customer-no-show" ? "Đang xử lý…" : "Học viên vắng mặt"}
+                         </button>
                          <button
                             onClick={openRescheduleModal}
                             disabled={busyAction !== ""}
