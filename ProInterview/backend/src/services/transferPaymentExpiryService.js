@@ -51,11 +51,19 @@ export async function expireBookingTransferIfNeeded(booking, { session } = {}) {
   return { expired: true };
 }
 
-/** Xóa ghi danh CK pending quá hạn — cho phép ghi danh lại. */
+/**
+ * Đánh dấu ghi danh CK pending quá hạn là "expired" (không xóa document — giữ lại paymentRef
+ * để đối soát webhook SePay đến trễ, xem sepayWebhookService.js). Cho phép ghi danh lại: unique
+ * index (userId, courseId) là partial, loại trừ paymentStatus "expired".
+ */
 export async function expireEnrollmentTransferIfNeeded(enrollment, { session } = {}) {
   if (!enrollment) return { expired: false };
+  const payStatus = String(enrollment.paymentStatus || "").toLowerCase();
+  // Đã expired từ trước (idempotent) — không dựa vào guard "pending" bên dưới để tránh báo sai
+  // expired:false ở những lần gọi sau lần đầu (getMyEnrollments, poll trạng thái, ghi danh lại…).
+  if (payStatus === "expired") return { expired: true };
   if (enrollmentAccessGranted(enrollment)) return { expired: false };
-  if (String(enrollment.paymentStatus || "").toLowerCase() !== "pending") return { expired: false };
+  if (payStatus !== "pending") return { expired: false };
   if (String(enrollment.paymentMethod || "").toLowerCase() !== "transfer") return { expired: false };
   if (!isTransferPaymentExpired(enrollment)) return { expired: false };
 
@@ -65,7 +73,12 @@ export async function expireEnrollmentTransferIfNeeded(enrollment, { session } =
     session,
   });
 
-  await Enrollment.deleteOne({ _id: enrollment._id }, session ? { session } : undefined);
+  await Enrollment.updateOne(
+    { _id: enrollment._id },
+    { $set: { paymentStatus: "expired" } },
+    session ? { session } : {},
+  );
+  enrollment.paymentStatus = "expired";
 
   return { expired: true };
 }

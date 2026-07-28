@@ -20,6 +20,7 @@ import { SessionDetail } from "./pages/booking/SessionDetail";
 import { MyBookings } from "./pages/booking/MyBookings";
 import { Profile } from "./pages/account/Profile";
 import { Settings } from "./pages/account/Settings";
+import { PaymentHistory } from "./pages/account/PaymentHistory";
 import { PaymentReturn } from "./pages/payment/PaymentReturn";
 import { SuccessPage } from "./pages/payment/SuccessPage";
 import { FailurePage } from "./pages/payment/FailurePage";
@@ -135,6 +136,7 @@ export const router = createHashRouter([
           },
           { path: "my-bookings", Component: MyBookings },
           { path: "my-courses", Component: MyCourses },
+          { path: "payment-history", Component: PaymentHistory },
           { path: "booking/:id", Component: Booking },
           { path: "booking", Component: Booking },
           { path: "checkout", Component: Checkout },

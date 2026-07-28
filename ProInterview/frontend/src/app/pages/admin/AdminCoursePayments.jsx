@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clock, User, BookOpen } from "lucide-react";
+import { Clock, User, BookOpen, RotateCcw } from "lucide-react";
 import { motion } from "motion/react";
 import { tryApi } from "../../utils/apiToast";
 import { adminApi } from "../../utils/adminApi";
@@ -47,6 +47,7 @@ export function AdminCoursePayments() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState("all");
   const [busyId, setBusyId] = useState("");
+  const [refundRows, setRefundRows] = useState([]);
 
   const confirmEnrollmentOverride = async (row, confirmBody) => {
     const id = row?._id;
@@ -62,13 +63,26 @@ export function AdminCoursePayments() {
     if (res.success) await loadAll();
   };
 
+  const confirmCourseRefund = async (row) => {
+    const id = row?.id;
+    if (!id) return;
+    setBusyId(id);
+    const res = await tryApi(() => adminApi.confirmCourseRefund(String(id)), {
+      fallback: "Không xác nhận được hoàn tiền.",
+      successMessage: "Đã đánh dấu hoàn tiền xong.",
+    });
+    setBusyId("");
+    if (res.success) await loadAll();
+  };
+
   const loadAll = useCallback(async () => {
     setLoading(true);
-    const [listRes, financeRes] = await Promise.all([
+    const [listRes, financeRes, refundRes] = await Promise.all([
       tryApi(() => adminApi.getCoursePaymentEnrollments(), {
         fallback: "Không tải được danh sách học phí khóa học.",
       }),
       tryApi(() => adminApi.getCourseFinanceSummary(), { silent: true }),
+      tryApi(() => adminApi.getRefundPendingCoursePayments(), { silent: true }),
     ]);
     if (listRes.success) setRows(listRes.enrollments || []);
     if (financeRes.success && financeRes.courseFinance) {
@@ -80,6 +94,7 @@ export function AdminCoursePayments() {
         paidCollectedAmount: cf.paidCollectedAmount ?? 0,
       });
     }
+    if (refundRes.success) setRefundRows(refundRes.payments || []);
     setLoading(false);
   }, []);
 
@@ -131,6 +146,45 @@ export function AdminCoursePayments() {
           <p className="mt-1 text-sm font-semibold text-emerald-900">{vnd(summary.paidCollectedAmount)}</p>
         </div>
       </motion.div>
+
+      {refundRows.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4"
+        >
+          <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-rose-900">
+            Cần hoàn tiền (CK đến trễ, đơn đã hết hạn)
+          </p>
+          <div className="space-y-2">
+            {refundRows.map((r) => (
+              <div
+                key={r.id}
+                className="flex flex-col gap-2 rounded-xl border border-rose-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-slate-900">
+                    {r.user?.name || "Học viên"} · {r.courseTitle || "Khóa học"}
+                  </p>
+                  <p className="truncate font-mono text-xs text-rose-700">{r.providerRef || ""}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="font-black text-slate-900">{vnd(r.amount)}</span>
+                  <button
+                    type="button"
+                    disabled={busyId === r.id}
+                    onClick={() => void confirmCourseRefund(r)}
+                    className="inline-flex items-center gap-2 whitespace-nowrap rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    {busyId === r.id ? "Đang xử lý…" : "Xác nhận đã hoàn"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
       <AdminListFilterBar
         countText={`Hiển thị ${filtered.length} / ${rows.length} ghi danh`}

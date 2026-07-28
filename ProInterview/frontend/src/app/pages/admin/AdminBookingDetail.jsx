@@ -266,7 +266,7 @@ export function AdminBookingDetail() {
             </motion.div>
           </div>
 
-          {(freeNote || parsed.cvFile || parsed.jdFile || booking.mentorNotes) && (
+          {(freeNote || parsed.cvFile || parsed.jdFile || booking.mentorNotes || booking.mentorSummary?.submittedAt) && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={`${adminGlassTable} p-5`}>
               <div className="space-y-3">
                 {freeNote ? (
@@ -278,7 +278,30 @@ export function AdminBookingDetail() {
                     <AttachmentLink label="JD" fileName={parsed.jdFile} />
                   </div>
                 )}
-                {booking.mentorNotes ? (
+                {booking.mentorSummary?.submittedAt ? (
+                  <div className="space-y-2 border-t border-slate-100 pt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Tổng kết từ mentor</p>
+                      {booking.mentorSummary.submittedLate ? (
+                        <span className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                          Gửi trễ
+                        </span>
+                      ) : null}
+                    </div>
+                    {[
+                      { label: "Điểm mạnh", value: booking.mentorSummary.strengths },
+                      { label: "Cần cải thiện", value: booking.mentorSummary.improvements },
+                      { label: "Lời khuyên", value: booking.mentorSummary.recommendation },
+                      { label: "Nhận xét chi tiết", value: booking.mentorSummary.generalNotes },
+                    ]
+                      .filter((s) => s.value)
+                      .map((s) => (
+                        <p key={s.label} className="text-sm text-slate-600">
+                          <span className="font-semibold text-slate-800">{s.label}:</span> {s.value}
+                        </p>
+                      ))}
+                  </div>
+                ) : booking.mentorNotes ? (
                   <p className="whitespace-pre-wrap border-t border-slate-100 pt-3 text-sm text-slate-600">
                     {booking.mentorNotes}
                   </p>

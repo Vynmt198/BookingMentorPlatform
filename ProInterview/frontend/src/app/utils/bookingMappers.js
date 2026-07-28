@@ -85,6 +85,7 @@ export function apiBookingToLocal(b) {
     refundReceiveAccountNumber: b.refundReceiveAccountNumber || "",
     refundReceiveAccountHolder: b.refundReceiveAccountHolder || "",
     mentorNotes: b.mentorNotes || "",
+    mentorSummary: b.mentorSummary || null,
     isReviewed: Boolean(b.reviewId),
     rescheduleHistory: Array.isArray(b.rescheduleHistory) ? b.rescheduleHistory : [],
     rescheduleCount: Array.isArray(b.rescheduleHistory) ? b.rescheduleHistory.length : 0,

@@ -49,8 +49,16 @@ function formatBookingStatus(value) {
   return BOOKING_STATUS_LABELS[key] || "Chưa rõ";
 }
 
+const FEEDBACK_REMINDER_DAYS = 3;
+
 function toMeetingItem(booking) {
   const status = booking.status || "";
+  const needsFeedback = status === "completed" && !booking.mentorSummary;
+  const completedAtMs = booking.completedAt ? new Date(booking.completedAt).getTime() : NaN;
+  const feedbackOverdue =
+    needsFeedback &&
+    Number.isFinite(completedAtMs) &&
+    Date.now() - completedAtMs > FEEDBACK_REMINDER_DAYS * 24 * 60 * 60 * 1000;
   return {
     id: booking.id || booking._id || "",
     status,
@@ -58,6 +66,8 @@ function toMeetingItem(booking) {
     date: booking.date || "",
     scheduledTime: booking.timeSlot || "--:--",
     position: formatSessionType(booking.sessionType),
+    needsFeedback,
+    feedbackOverdue,
     mentee: {
       name: booking.customerName || "Học viên",
       avatar: avatarSrc(booking.customerAvatar) || DEFAULT_AVATAR,
@@ -132,6 +142,12 @@ const MENTOR_SCHEDULE_EXTRA_CSS = `
         }
         .calendar-cell.active.dot::after {
            background: #630ed4;
+        }
+        .calendar-cell.dot-warn::after {
+           background: #f59e0b;
+        }
+        .calendar-cell.dot-danger::after {
+           background: #ef4444;
         }
 `;
 
@@ -451,6 +467,9 @@ export function MentorSchedule() {
   const finalDays = [...calendarDays, ...paddingDays];
   const sourceMeetings = mentorMeetings;
   const selectedDayMeetings = sourceMeetings.filter((m) => bookingOnDate(m.date, selectedDate) || bookingOnDate(m.scheduledDate, selectedDate));
+  const pendingFeedbackMeetings = sourceMeetings
+    .filter((m) => m.needsFeedback)
+    .sort((a, b) => Number(b.feedbackOverdue) - Number(a.feedbackOverdue));
 
   return (
     <MentorPageShell
@@ -515,9 +534,12 @@ export function MentorSchedule() {
                    const isSelected = isSameCalendarDay(selectedDate, cell.date);
                    const isToday = isSameCalendarDay(new Date(), cell.date);
                    const hasMeetings = sourceMeetings.some((m) => bookingOnDate(m.date, cell.date) || bookingOnDate(m.scheduledDate, cell.date));
+                   const hasOverdueFeedback = pendingFeedbackMeetings.some((m) => m.feedbackOverdue && (bookingOnDate(m.date, cell.date) || bookingOnDate(m.scheduledDate, cell.date)));
+                   const hasPendingFeedback = pendingFeedbackMeetings.some((m) => bookingOnDate(m.date, cell.date) || bookingOnDate(m.scheduledDate, cell.date));
+                   const dotClass = hasOverdueFeedback ? "dot-danger" : hasPendingFeedback ? "dot-warn" : hasMeetings ? "dot" : "";
                    return (
-                     <div 
-                        key={i} 
+                     <div
+                        key={i}
                         role="button"
                         tabIndex={0}
                         onClick={() => setSelectedDate(cell.date)}
@@ -527,7 +549,7 @@ export function MentorSchedule() {
                             setSelectedDate(cell.date);
                           }
                         }}
-                        className={`calendar-cell ${isSelected ? "active" : ""} ${isToday ? "today" : ""} ${cell.currentMonth ? "text-slate-900" : "text-zinc-500 opacity-40"} ${hasMeetings ? "dot" : ""}`}
+                        className={`calendar-cell ${isSelected ? "active" : ""} ${isToday ? "today" : ""} ${cell.currentMonth ? "text-slate-900" : "text-zinc-500 opacity-40"} ${dotClass}`}
                      >
                         <span className="text-[11px] font-semibold sm:text-xs">{cell.date.getDate()}</span>
                      </div>
@@ -540,6 +562,12 @@ export function MentorSchedule() {
                  </div>
                  <div className="flex items-center gap-1.5 text-xs font-normal text-zinc-500">
                     <div className="h-2.5 w-2.5 rounded-full bg-[#8037f4]" /> Có lịch hẹn
+                 </div>
+                 <div className="flex items-center gap-1.5 text-xs font-normal text-zinc-500">
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#f59e0b]" /> Chưa gửi feedback
+                 </div>
+                 <div className="flex items-center gap-1.5 text-xs font-normal text-zinc-500">
+                    <div className="h-2.5 w-2.5 rounded-full bg-[#ef4444]" /> Quá hạn 3 ngày
                  </div>
               </div>
            </div>
@@ -559,6 +587,34 @@ export function MentorSchedule() {
                       <Plus size={16} />
                     </button>
                  </div>
+
+                 {pendingFeedbackMeetings.length > 0 && (() => {
+                   const overdueCount = pendingFeedbackMeetings.filter((m) => m.feedbackOverdue).length;
+                   const isEscalated = overdueCount > 0;
+                   return (
+                   <div className={`mb-3 shrink-0 rounded-2xl border p-3 ${isEscalated ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+                     <p className={`mb-2 flex items-center gap-1.5 text-xs font-bold ${isEscalated ? "text-red-900" : "text-amber-900"}`}>
+                       <AlertCircle size={14} />
+                       {isEscalated
+                         ? `${overdueCount}/${pendingFeedbackMeetings.length} buổi đã quá hạn ${FEEDBACK_REMINDER_DAYS} ngày chưa gửi feedback`
+                         : `${pendingFeedbackMeetings.length} buổi đã hoàn thành chưa gửi feedback`}
+                     </p>
+                     <div className="space-y-1.5">
+                       {pendingFeedbackMeetings.slice(0, 4).map((m) => (
+                         <button
+                           key={m.id}
+                           type="button"
+                           onClick={() => navigate(`/mentor/session-feedback/${m.id}`)}
+                           className={`flex w-full items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-left text-xs font-semibold transition-all ${m.feedbackOverdue ? "text-red-900 hover:bg-red-100" : "text-amber-900 hover:bg-amber-100"}`}
+                         >
+                           <span className="truncate">{m.mentee.name} · {m.date} {m.feedbackOverdue ? "· Quá hạn" : ""}</span>
+                           <span className={`shrink-0 ${m.feedbackOverdue ? "text-red-700" : "text-amber-700"}`}>Gửi ngay →</span>
+                         </button>
+                       ))}
+                     </div>
+                   </div>
+                   );
+                 })()}
 
                  <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-0.5 custom-scrollbar">
                     {selectedDayMeetings.map((meeting, i) => (
@@ -595,6 +651,11 @@ export function MentorSchedule() {
                               {meeting.statusLabel}
                             </span>
                          </div>
+                         {meeting.needsFeedback && (
+                           <div className={`mt-2 flex items-center gap-1.5 text-xs font-semibold ${meeting.feedbackOverdue ? "text-red-700" : "text-amber-700"}`}>
+                             <AlertCircle size={12} /> {meeting.feedbackOverdue ? `Quá hạn ${FEEDBACK_REMINDER_DAYS} ngày chưa gửi feedback` : "Chưa gửi feedback"}
+                           </div>
+                         )}
                       </div>
                     ))}
                     {selectedDayMeetings.length === 0 && (

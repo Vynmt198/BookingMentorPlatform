@@ -151,6 +151,164 @@ async function findPendingTargets(orderRef) {
   return targets;
 }
 
+const LATE_TRANSFER_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Tìm booking/enrollment/subscription-payment CK đã hết hạn (hoặc hết hạn về mặt logic nhưng DB
+ * chưa kịp lazy-expire) trong 7 ngày gần nhất khớp mã PI — dùng khi webhook báo tiền vào TRỄ, sau
+ * khi đơn gốc đã bị hệ thống tự hủy.
+ */
+async function findRecentlyExpiredTargets(orderRef) {
+  const norm = normalizePiOrderRef(orderRef);
+  if (!norm) return [];
+  const since = new Date(Date.now() - LATE_TRANSFER_LOOKBACK_MS);
+  const targets = [];
+
+  const bookings = await Booking.find({
+    paymentMethod: "transfer",
+    paymentStatus: { $in: ["pending", "failed"] },
+    createdAt: { $gte: since },
+  })
+    .select("_id userId paymentRef totalAmount price paymentStatus paymentExpiresAt createdAt")
+    .lean();
+  for (const b of bookings) {
+    const isExpired = b.paymentStatus === "failed" || isTransferPaymentExpired(b);
+    if (!isExpired) continue;
+    if (orderRefsMatch(b.paymentRef, norm)) {
+      targets.push({
+        entityType: "booking",
+        entityId: String(b._id),
+        userId: String(b.userId),
+        expectedAmount: expectedBookingAmount(b),
+      });
+    }
+  }
+
+  const enrollments = await Enrollment.find({
+    paymentMethod: "transfer",
+    paymentStatus: { $in: ["pending", "expired"] },
+    createdAt: { $gte: since },
+  })
+    .select("_id userId paymentRef pricePaid paymentStatus paymentExpiresAt createdAt")
+    .lean();
+  for (const e of enrollments) {
+    const isExpired = e.paymentStatus === "expired" || isTransferPaymentExpired(e);
+    if (!isExpired) continue;
+    if (orderRefsMatch(e.paymentRef, norm)) {
+      targets.push({
+        entityType: "course",
+        entityId: String(e._id),
+        userId: String(e.userId),
+        expectedAmount: Math.round(Number(e.pricePaid ?? 0)),
+      });
+    }
+  }
+
+  const payments = await Payment.find({
+    type: "subscription",
+    provider: "transfer",
+    status: { $in: ["pending", "cancelled"] },
+    createdAt: { $gte: since },
+  })
+    .select("_id userId amount providerRef providerResponse status paymentExpiresAt createdAt")
+    .lean();
+  for (const p of payments) {
+    const isExpired = p.status === "cancelled" || isTransferPaymentExpired(p);
+    if (!isExpired) continue;
+    const ref = p.providerRef || p.providerResponse?.paymentRef || "";
+    if (orderRefsMatch(ref, norm)) {
+      targets.push({
+        entityType: "subscription",
+        entityId: String(p._id),
+        userId: String(p.userId),
+        expectedAmount: Math.round(Number(p.amount ?? 0)),
+      });
+    }
+  }
+
+  return targets;
+}
+
+/**
+ * Đánh dấu 1 giao dịch CK trễ (tiền vào sau khi hệ thống đã tự hủy đơn) là cần hoàn tiền —
+ * đưa entity qua đúng state machine hết hạn trước (idempotent, no-op nếu đã hết hạn rồi), sau
+ * đó chuyển sang `refund_pending` để admin xử lý qua luồng hoàn tiền đã có sẵn.
+ */
+async function flagLateTransferForRefund(target, { sepayId, amount }) {
+  const now = new Date();
+  const auditNote = {
+    lateTransferSepayId: sepayId,
+    lateTransferAmount: amount,
+    lateTransferReceivedAt: now.toISOString(),
+  };
+
+  if (target.entityType === "booking") {
+    const booking = await Booking.findById(target.entityId);
+    if (!booking) return { ok: false, error: "Không tìm thấy booking." };
+    await expireBookingTransferIfNeeded(booking);
+
+    // Kiểm tra Payment TRƯỚC khi đụng Booking (giống nhánh course/subscription) — tránh trường
+    // hợp Booking đã bị chuyển refund_pending nhưng Payment lại không ở trạng thái hợp lệ để
+    // cập nhật theo, để lại 2 bản ghi lệch trạng thái nhau.
+    const pay = await Payment.findOne({ type: "booking", referenceModel: "Booking", referenceId: target.entityId, provider: "transfer" });
+    if (!pay) return { ok: false, error: "Không tìm thấy giao dịch thanh toán." };
+    if (pay.status !== "cancelled") return { ok: false, error: "Giao dịch không ở trạng thái có thể đánh dấu hoàn tiền." };
+
+    const updated = await Booking.findOneAndUpdate(
+      { _id: target.entityId, paymentStatus: "failed" },
+      {
+        $set: {
+          paymentStatus: "refund_pending",
+          cancelRefundAmountVnd: amount,
+          cancelRetainedAmountVnd: 0,
+          cancelRefundPercent: 100,
+        },
+      },
+      { new: true },
+    );
+    if (!updated) return { ok: false, error: "Booking không ở trạng thái có thể đánh dấu hoàn tiền." };
+
+    const prev = pay.providerResponse && typeof pay.providerResponse === "object" ? pay.providerResponse : {};
+    pay.status = "refund_pending";
+    pay.providerResponse = { ...prev, ...auditNote };
+    await pay.save();
+    return { ok: true };
+  }
+
+  if (target.entityType === "subscription") {
+    const pay = await Payment.findById(target.entityId);
+    if (!pay) return { ok: false, error: "Không tìm thấy giao dịch." };
+    await expireSubscriptionTransferIfNeeded(pay);
+
+    const prev = pay.providerResponse && typeof pay.providerResponse === "object" ? pay.providerResponse : {};
+    const updated = await Payment.findOneAndUpdate(
+      { _id: target.entityId, status: "cancelled" },
+      { $set: { status: "refund_pending", providerResponse: { ...prev, ...auditNote } } },
+      { new: true },
+    );
+    if (!updated) return { ok: false, error: "Giao dịch không ở trạng thái có thể đánh dấu hoàn tiền." };
+    return { ok: true };
+  }
+
+  if (target.entityType === "course") {
+    const enrollment = await Enrollment.findById(target.entityId);
+    if (!enrollment) return { ok: false, error: "Không tìm thấy ghi danh." };
+    await expireEnrollmentTransferIfNeeded(enrollment);
+    // Enrollment giữ nguyên "expired" (không có khái niệm refund_pending riêng trên Enrollment —
+    // giống subscription, trạng thái hoàn tiền theo dõi hoàn toàn trên Payment ledger).
+    const pay = await Payment.findOne({ type: "course", referenceModel: "Enrollment", referenceId: target.entityId, provider: "transfer" });
+    if (!pay) return { ok: false, error: "Không tìm thấy giao dịch thanh toán." };
+    if (pay.status !== "cancelled") return { ok: false, error: "Giao dịch không ở trạng thái có thể đánh dấu hoàn tiền." };
+    const prev = pay.providerResponse && typeof pay.providerResponse === "object" ? pay.providerResponse : {};
+    pay.status = "refund_pending";
+    pay.providerResponse = { ...prev, ...auditNote };
+    await pay.save();
+    return { ok: true };
+  }
+
+  return { ok: false, error: "Loại đơn không hỗ trợ." };
+}
+
 async function upsertSepayLog(sepayId, patch) {
   await SepayWebhookEvent.findOneAndUpdate(
     { sepayId },
@@ -252,6 +410,25 @@ export async function handleSepayWebhook(body, authHeader) {
   const matched = targets.filter((t) => amountsMatch(t.expectedAmount, amount));
 
   if (matched.length === 0) {
+    // Không khớp đơn còn sống — thử tìm đơn vừa hết hạn (CK đến trễ) trước khi coi là rác.
+    const expiredTargets = await findRecentlyExpiredTargets(orderRef);
+    const expiredMatched = expiredTargets.filter((t) => amountsMatch(t.expectedAmount, amount));
+
+    if (expiredMatched.length === 1) {
+      const target = expiredMatched[0];
+      const flagged = await flagLateTransferForRefund(target, { sepayId, amount });
+      if (flagged.ok) {
+        await upsertSepayLog(sepayId, {
+          status: "refund_flagged",
+          orderRef,
+          entityType: target.entityType,
+          entityId: target.entityId,
+          resultMessage: "CK đến trễ (đơn đã hết hạn) — đã đánh dấu cần hoàn tiền",
+        });
+        return { ok: true, refundFlagged: true, entityType: target.entityType, entityId: target.entityId, orderRef };
+      }
+    }
+
     await upsertSepayLog(sepayId, {
       status: "unmatched",
       orderRef,

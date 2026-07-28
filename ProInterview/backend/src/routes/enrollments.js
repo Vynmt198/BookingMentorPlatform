@@ -10,4 +10,5 @@ enrollmentsRouter.use(authJwt);
 enrollmentsRouter.get("/my", asyncHandler(EnrollmentController.getMyEnrollments));
 enrollmentsRouter.patch("/:id/submit-transfer", asyncHandler(EnrollmentController.submitTransfer));
 enrollmentsRouter.get("/:id/certificate", asyncHandler(EnrollmentController.getCertificate));
+enrollmentsRouter.get("/:id/invoice", asyncHandler(EnrollmentController.invoice));
 enrollmentsRouter.patch("/:id/progress", asyncHandler(EnrollmentController.updateProgress));

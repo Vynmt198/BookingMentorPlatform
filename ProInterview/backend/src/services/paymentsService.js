@@ -540,7 +540,7 @@ export async function listPendingSubscriptionTransfers() {
   const rows = await Payment.find({
     type: "subscription",
     provider: "transfer",
-    status: "pending",
+    status: { $in: ["pending", "refund_pending"] },
   })
     .populate("userId", "name email plan")
     .sort({ createdAt: -1 })
@@ -626,6 +626,130 @@ export async function confirmSubscriptionTransferByAdmin(paymentId, options = {}
   }
   await finalizePaymentSuccess(paymentId);
   const updated = await Payment.findById(paymentId).lean();
+  return { ok: true, payment: updated };
+}
+
+/**
+ * Admin xác nhận đã hoàn tiền cho 1 giao dịch gói cước CK đến trễ (đơn đã hết hạn trước khi
+ * webhook SePay khớp được — xem sepayWebhookService.flagLateTransferForRefund).
+ */
+export async function confirmSubscriptionRefundByAdmin(paymentId, options = {}) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  if (!mongoose.isValidObjectId(paymentId)) {
+    return { ok: false, status: 400, error: "paymentId không hợp lệ." };
+  }
+  const pay = await Payment.findById(paymentId);
+  if (!pay || pay.type !== "subscription" || pay.provider !== "transfer") {
+    return { ok: false, status: 404, error: "Không tìm thấy giao dịch gói cước CK." };
+  }
+  if (pay.status === "refunded") {
+    return { ok: true, idempotent: true, payment: pay.toObject() };
+  }
+  if (pay.status !== "refund_pending") {
+    return { ok: false, status: 400, error: "Giao dịch không ở trạng thái chờ hoàn tiền." };
+  }
+
+  const now = new Date();
+  const prev = pay.providerResponse && typeof pay.providerResponse === "object" ? pay.providerResponse : {};
+  const updated = await Payment.findOneAndUpdate(
+    { _id: paymentId, status: "refund_pending" },
+    {
+      $set: {
+        status: "refunded",
+        refundAmount: pay.amount,
+        refundedAt: now,
+        providerResponse: {
+          ...prev,
+          adminRefundConfirmedAt: now.toISOString(),
+          adminRefundConfirmedBy: String(options?.adminUserId || ""),
+        },
+      },
+    },
+    { new: true },
+  ).lean();
+  if (!updated) {
+    return { ok: false, status: 409, error: "Hoàn tiền đã được xác nhận hoặc giao dịch không còn chờ hoàn." };
+  }
+  return { ok: true, payment: updated };
+}
+
+/**
+ * Admin — danh sách giao dịch học phí khóa CK đến trễ cần hoàn tiền (enrollment đã "expired",
+ * Payment ledger đã được đánh dấu "refund_pending" bởi sepayWebhookService.flagLateTransferForRefund).
+ */
+export async function listRefundPendingCoursePayments() {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  const rows = await Payment.find({ type: "course", provider: "transfer", status: "refund_pending" })
+    .populate("userId", "name email")
+    .sort({ createdAt: -1 })
+    .limit(200)
+    .lean();
+
+  const enrollmentIds = rows.map((r) => r.referenceId).filter(Boolean);
+  const enrollments = await Enrollment.find({ _id: { $in: enrollmentIds } })
+    .select("courseId")
+    .populate("courseId", "title")
+    .lean();
+  const courseByEnrollmentId = new Map(
+    enrollments.map((e) => [String(e._id), e.courseId && typeof e.courseId === "object" ? e.courseId : null]),
+  );
+
+  return {
+    ok: true,
+    payments: rows.map((p) => {
+      const u = p.userId && typeof p.userId === "object" ? p.userId : null;
+      const course = courseByEnrollmentId.get(String(p.referenceId));
+      return {
+        id: String(p._id),
+        amount: p.amount,
+        providerRef: p.providerRef || "",
+        status: p.status,
+        createdAt: p.createdAt,
+        user: u ? { id: String(u._id), name: u.name || "", email: u.email || "" } : null,
+        courseTitle: course?.title || "",
+      };
+    }),
+  };
+}
+
+/** Admin xác nhận đã hoàn tiền cho 1 giao dịch học phí khóa CK đến trễ. */
+export async function confirmCourseRefundByAdmin(paymentId, options = {}) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  if (!mongoose.isValidObjectId(paymentId)) {
+    return { ok: false, status: 400, error: "paymentId không hợp lệ." };
+  }
+  const pay = await Payment.findById(paymentId);
+  if (!pay || pay.type !== "course" || pay.provider !== "transfer") {
+    return { ok: false, status: 404, error: "Không tìm thấy giao dịch học phí khóa CK." };
+  }
+  if (pay.status === "refunded") {
+    return { ok: true, idempotent: true, payment: pay.toObject() };
+  }
+  if (pay.status !== "refund_pending") {
+    return { ok: false, status: 400, error: "Giao dịch không ở trạng thái chờ hoàn tiền." };
+  }
+
+  const now = new Date();
+  const prev = pay.providerResponse && typeof pay.providerResponse === "object" ? pay.providerResponse : {};
+  const updated = await Payment.findOneAndUpdate(
+    { _id: paymentId, status: "refund_pending" },
+    {
+      $set: {
+        status: "refunded",
+        refundAmount: pay.amount,
+        refundedAt: now,
+        providerResponse: {
+          ...prev,
+          adminRefundConfirmedAt: now.toISOString(),
+          adminRefundConfirmedBy: String(options?.adminUserId || ""),
+        },
+      },
+    },
+    { new: true },
+  ).lean();
+  if (!updated) {
+    return { ok: false, status: 409, error: "Hoàn tiền đã được xác nhận hoặc giao dịch không còn chờ hoàn." };
+  }
   return { ok: true, payment: updated };
 }
 

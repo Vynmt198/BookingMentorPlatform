@@ -8,6 +8,7 @@ import { serializeCourseForApi } from "../utils/resolveStoredUploadUrl.js";
 import { newPaymentExpiresAt } from "../utils/transferPaymentExpiry.js";
 import { expireEnrollmentTransferIfNeeded } from "../services/transferPaymentExpiryService.js";
 import { resolveCourseAccessForUser } from "../utils/planGuard.js";
+import { resolveInvoiceContext, buildInvoicePdfBuffer } from "../services/invoiceService.js";
 
 function genOrderRef() {
   return `PI${Math.floor(Math.random() * 900000 + 100000)}`;
@@ -26,6 +27,26 @@ function mergePaymentRef(orderPart, refRaw) {
 }
 
 export const EnrollmentController = {
+  invoice: async (req, res, next) => {
+    try {
+      const result = await resolveInvoiceContext({
+        type: "course",
+        referenceId: req.params.id,
+        requesterUserId: req.userId,
+        requesterIsAdmin: req.userRole === "admin",
+      });
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      const buffer = await buildInvoicePdfBuffer(result);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="invoice-${result.payment._id}.pdf"`);
+      res.send(buffer);
+    } catch (err) {
+      next(err);
+    }
+  },
+
   enroll: async (req, res, next) => {
     try {
       const { id: courseId } = req.params;
@@ -37,7 +58,10 @@ export const EnrollmentController = {
       const price = Number(course.price || 0);
       // Professional: khóa học bao gồm trong gói (miễn phí). Student: giảm giá. Còn lại: giá gốc.
       const access = await resolveCourseAccessForUser(userId, price);
-      const existing = await Enrollment.findOne({ userId, courseId });
+      // Ghi danh "expired" (CK quá hạn) không tính là ghi danh hiện hành — vẫn được giữ lại
+      // document để đối soát webhook trễ, nên phải loại trừ tường minh ở đây (unique index cũng
+      // là partial trên đúng field này — xem models/Enrollment.js).
+      const existing = await Enrollment.findOne({ userId, courseId, paymentStatus: { $ne: "expired" } });
 
       if (existing) {
         if (enrollmentAccessGranted(existing)) {

@@ -32,8 +32,12 @@ const enrollmentSchema = new Schema(
     paymentRef: { type: String, default: "" },
     /** Hết hạn cửa sổ CK SePay (mặc định 15 phút từ lúc tạo ghi danh). */
     paymentExpiresAt: { type: Date },
-    /** pending = chờ CK; paid = đã học được (hoặc khóa miễn phí). Bản ghi cũ không có field → coi như paid. */
-    paymentStatus: { type: String, enum: ["pending", "paid"], required: false },
+    /**
+     * pending = chờ CK; paid = đã học được (hoặc khóa miễn phí); expired = CK quá hạn, không xóa
+     * document (giữ lại paymentRef để đối soát webhook trễ — xem sepayWebhookService.js). Bản ghi
+     * cũ không có field → coi như paid.
+     */
+    paymentStatus: { type: String, enum: ["pending", "paid", "expired"], required: false },
     paymentMethod: { type: String, default: "" },
     transferSubmittedAt: { type: Date },
     /** Audit admin xác nhận CK */
@@ -48,6 +52,15 @@ const enrollmentSchema = new Schema(
   { collection: "enrollments", timestamps: true }
 );
 
-enrollmentSchema.index({ userId: 1, courseId: 1 }, { unique: true });
+/**
+ * Unique theo cặp (userId, courseId) nhưng CHỈ áp dụng cho ghi danh còn "sống" (pending/paid) —
+ * ghi danh "expired" không tính, để user ghi danh lại tạo được document mới (giống cách
+ * Booking dùng partial unique index loại trừ status "cancelled"). MongoDB partial index không
+ * hỗ trợ $ne — dùng $in liệt kê các trạng thái "sống".
+ */
+enrollmentSchema.index(
+  { userId: 1, courseId: 1 },
+  { unique: true, partialFilterExpression: { paymentStatus: { $in: ["pending", "paid"] } } },
+);
 
 export const Enrollment = mongoose.models.Enrollment ?? mongoose.model("Enrollment", enrollmentSchema);

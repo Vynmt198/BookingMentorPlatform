@@ -4,8 +4,29 @@ import * as reviewsService from "../services/reviewsService.js";
 import { Booking } from "../models/Booking.js";
 import { MentorKnowledge } from "../models/MentorKnowledge.js";
 import { Mentor } from "../models/Mentor.js";
+import { resolveInvoiceContext, buildInvoicePdfBuffer } from "../services/invoiceService.js";
 
 export class BookingsController {
+  static async invoice(req, res, next) {
+    try {
+      const result = await resolveInvoiceContext({
+        type: "booking",
+        referenceId: req.params.id,
+        requesterUserId: req.userId,
+        requesterIsAdmin: req.userRole === "admin",
+      });
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      const buffer = await buildInvoicePdfBuffer(result);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="invoice-${result.payment._id}.pdf"`);
+      res.send(buffer);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async list(req, res, next) {
     try {
       const result = await bookingsService.listMyBookings(req.userId);
@@ -114,6 +135,19 @@ export class BookingsController {
   static async updateNotesForMentor(req, res, next) {
     try {
       const result = await bookingsService.updateMentorNotes(req.userId, req.params.id, req.body ?? {});
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, booking: result.booking });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /** PATCH /api/bookings/:id/summary — mentor gửi tổng kết có cấu trúc sau khi buổi đã completed. */
+  static async updateSummaryForMentor(req, res, next) {
+    try {
+      const result = await bookingsService.updateMentorSummary(req.userId, req.params.id, req.body ?? {});
       if (!result.ok) {
         return res.status(result.status).json({ success: false, error: result.error });
       }

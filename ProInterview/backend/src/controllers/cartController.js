@@ -252,7 +252,7 @@ export const checkoutCart = async (req, res) => {
       if (!course) continue;
       const access = await resolveCourseAccessForUser(userId, course.price);
 
-      const existing = await Enrollment.findOne({ userId, courseId: item.itemId });
+      const existing = await Enrollment.findOne({ userId, courseId: item.itemId, paymentStatus: { $ne: "expired" } });
 
       // Đã mua/sở hữu khóa học rồi (paymentStatus "paid") — không tính lại tiền, chỉ đánh dấu
       // để dọn khỏi giỏ. Trường hợp này chỉ xảy ra với giỏ hàng cũ từ trước khi addToCart/getCart

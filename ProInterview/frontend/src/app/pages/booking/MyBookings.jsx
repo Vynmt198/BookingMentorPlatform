@@ -1,16 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
-import { Calendar, Video, Star, FileText, CalendarClock, CalendarCheck, CheckCircle2, CalendarX } from "lucide-react";
+import { Calendar, Video, Star, FileText, Receipt, CalendarClock, CalendarCheck, CheckCircle2, CalendarX } from "lucide-react";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 import { CustomerPageHeader } from "../../components/layout/CustomerPageHeader";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
 import { CustomerStatGrid, CustomerStatCard } from "../../components/shared/CustomerStatCards";
-import { listBookings } from "../../utils/bookingsApi";
+import { listBookings, viewBookingInvoice } from "../../utils/bookingsApi";
 import { apiBookingToLocal } from "../../utils/bookingMappers";
 import { parseDateMs } from "../../utils/bookings";
 import { isLoggedIn } from "../../utils/auth";
-import { toastApiError } from "../../utils/apiToast";
+import { toastApiError, tryApi } from "../../utils/apiToast";
 
 const TABS = [
   { id: "upcoming", label: "Sắp tới" },
@@ -87,6 +87,13 @@ export function MyBookings() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [invoiceBusyId, setInvoiceBusyId] = useState("");
+
+  const handleViewInvoice = useCallback(async (bookingId) => {
+    setInvoiceBusyId(bookingId);
+    await tryApi(() => viewBookingInvoice(bookingId), { fallback: "Không mở được hóa đơn." });
+    setInvoiceBusyId("");
+  }, []);
 
   const load = useCallback(async () => {
     if (!isLoggedIn()) {
@@ -278,6 +285,17 @@ export function MyBookings() {
                       <FileText className="h-3.5 w-3.5" />
                       Chi tiết
                     </button>
+                    {paid && (
+                      <button
+                        type="button"
+                        onClick={() => handleViewInvoice(id)}
+                        disabled={invoiceBusyId === id}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        <Receipt className="h-3.5 w-3.5" />
+                        {invoiceBusyId === id ? "Đang mở…" : "Xem hóa đơn"}
+                      </button>
+                    )}
                     {canMeet && tab === "upcoming" && (
                       <button
                         type="button"

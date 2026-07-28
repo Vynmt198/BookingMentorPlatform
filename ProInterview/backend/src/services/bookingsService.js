@@ -58,6 +58,56 @@ async function sweepExpiredTransferBookings(filter) {
   }
 }
 
+const FEEDBACK_REMINDER_DAYS = 3;
+
+/**
+ * Nhắc mentor (1 lần/booking) khi buổi đã completed quá `FEEDBACK_REMINDER_DAYS` ngày
+ * mà chưa gửi mentorSummary — chỉ nhắc nhở, không khóa hay giữ thu nhập của mentor.
+ */
+async function sweepOverdueMentorFeedback(filter) {
+  const threshold = new Date(Date.now() - FEEDBACK_REMINDER_DAYS * 24 * 60 * 60 * 1000);
+  const overdue = await Booking.find({
+    ...filter,
+    status: "completed",
+    completedAt: { $lt: threshold },
+    "mentorSummary.submittedAt": { $exists: false },
+    feedbackReminderSentAt: { $exists: false },
+  })
+    .populate({ path: "mentorId", select: "userId" })
+    .populate({ path: "userId", select: "name" });
+
+  for (const booking of overdue) {
+    const mentorUserId = booking.mentorId?.userId;
+    booking.feedbackReminderSentAt = new Date();
+    await booking.save();
+
+    if (mentorUserId) {
+      await notifyMentorBooking(mentorUserId, "session_reminder", {
+        type: "feedback_reminder",
+        title: "Quá hạn gửi tổng kết buổi học",
+        body: `Buổi học với ${booking.userId?.name || "học viên"} đã hoàn thành hơn ${FEEDBACK_REMINDER_DAYS} ngày nhưng bạn chưa gửi tổng kết. Hãy gửi sớm để học viên nhận được phản hồi.`,
+        metadata: {
+          bookingId: booking._id,
+          actionUrl: `/mentor/session-feedback/${booking._id}`,
+        },
+      });
+    }
+
+    // Học viên đang chờ mà không biết gì — báo trung tính, không nói mentor "trễ hạn" để tránh mất niềm tin oan.
+    if (booking.userId?._id) {
+      await notifyBookingOwner(booking.userId._id, {
+        type: "feedback",
+        title: "Buổi học của bạn đang được hoàn thiện đánh giá",
+        body: "Buổi học đã hoàn thành và mentor đang chuẩn bị tổng kết cho bạn. Chúng tôi đã nhắc mentor gửi sớm — bạn sẽ nhận được thông báo ngay khi có.",
+        metadata: {
+          bookingId: booking._id,
+          actionUrl: `/session/${booking._id}`,
+        },
+      });
+    }
+  }
+}
+
 const MONGO_ERR = "MongoDB chưa kết nối. Kiểm tra MONGO_URI trong .env.";
 /**
  * Ngưỡng mentor hủy (phân nhánh ≥24h vs <24h) — đồng bộ bookingPolicy MENTOR_CANCEL_POLICY_ROWS.
@@ -1021,6 +1071,18 @@ export function toPublicBooking(doc, mentorLean) {
     cvFileUrl: resolveStoredUploadUrl(b.cvFileUrl ?? ""),
     jdFileUrl: resolveStoredUploadUrl(b.jdFileUrl ?? ""),
     mentorNotes: b.mentorNotes ?? "",
+    mentorSummary: b.mentorSummary?.submittedAt
+      ? {
+          rating: b.mentorSummary.rating ?? null,
+          strengths: b.mentorSummary.strengths ?? "",
+          improvements: b.mentorSummary.improvements ?? "",
+          recommendation: b.mentorSummary.recommendation ?? "",
+          generalNotes: b.mentorSummary.generalNotes ?? "",
+          submittedAt: b.mentorSummary.submittedAt,
+          submittedLate: Boolean(b.mentorSummary.submittedLate),
+        }
+      : null,
+    completedAt: b.completedAt ?? null,
     reviewId: b.reviewId ? String(b.reviewId) : "",
     meetingLink: b.meetingLink ?? "",
     status: b.status,
@@ -1223,11 +1285,12 @@ export async function listMentorBookings(mentorUserId) {
   }
 
   await sweepExpiredTransferBookings({ mentorId: mentor._id });
+  await sweepOverdueMentorFeedback({ mentorId: mentor._id });
 
   const rows = await Booking.find({ mentorId: mentor._id })
     .sort({ createdAt: -1 })
-    .populate({ 
-      path: "mentorId", 
+    .populate({
+      path: "mentorId",
       select: "name title company avatar publicId userId",
       populate: { path: "userId", select: "email" }
     })
@@ -1878,6 +1941,97 @@ export async function updateMentorNotes(mentorUserId, rawId, body) {
 
   return { ok: true, booking: toPublicBooking(booking) };
 
+}
+
+/** Mentor gửi tổng kết có cấu trúc (rating + strengths/improvements/recommendation) sau khi buổi đã completed. */
+export async function updateMentorSummary(mentorUserId, rawId, body) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  const mentor = await getMentorByUserId(mentorUserId);
+  if (!mentor?._id) return { ok: false, status: 404, error: "Không tìm thấy hồ sơ mentor." };
+  if (!mongoose.isValidObjectId(rawId)) return { ok: false, status: 400, error: "id booking không hợp lệ." };
+
+  const rating = Number(body?.rating);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return { ok: false, status: 400, error: "Đánh giá (rating) phải là số nguyên từ 1 đến 5." };
+  }
+
+  const clean = (v) => (typeof v === "string" ? v.trim().slice(0, 2000) : "");
+  const strengths = clean(body?.strengths);
+  const improvements = clean(body?.improvements);
+  const recommendation = clean(body?.recommendation);
+  const generalNotes = clean(body?.generalNotes);
+  if (!strengths && !improvements && !recommendation && !generalNotes) {
+    return { ok: false, status: 400, error: "Cần ít nhất một nội dung nhận xét." };
+  }
+
+  const booking = await Booking.findOne({ _id: rawId, mentorId: mentor._id });
+  if (!booking) return { ok: false, status: 404, error: "Không tìm thấy booking." };
+  if (booking.status !== "completed") {
+    return { ok: false, status: 400, error: "Chỉ gửi tổng kết sau khi buổi học đã hoàn thành." };
+  }
+
+  const now = new Date();
+  const submittedLate =
+    booking.completedAt instanceof Date &&
+    now.getTime() - booking.completedAt.getTime() > FEEDBACK_REMINDER_DAYS * 24 * 60 * 60 * 1000;
+
+  booking.mentorSummary = {
+    rating,
+    strengths,
+    improvements,
+    recommendation,
+    generalNotes,
+    submittedAt: now,
+    submittedLate,
+  };
+  await booking.save();
+  await booking.populate([
+    { path: "userId", select: "name email avatar settings.notificationPrefs" },
+    { path: "mentorId", select: "name title company avatar publicId userId", populate: { path: "userId", select: "email" } }
+  ]);
+
+  const student = booking.userId;
+  const mentorData = booking.mentorId;
+
+  if (student && student.email) {
+    try {
+      await notifyBookingOwner(student._id, {
+        type: "feedback",
+        title: "Tổng kết buổi học từ Mentor",
+        body: `Mentor ${mentorData?.name || "của bạn"} đã gửi tổng kết cho buổi học ${booking.sessionType === "mock_interview" ? "Phỏng vấn giả định" : "Tư vấn lộ trình"}.`,
+        metadata: {
+          bookingId: booking._id,
+          mentorId: mentorData?._id,
+          actionUrl: `/session/${booking._id}`,
+        },
+      });
+    } catch (err) {
+      console.error(`[updateMentorSummary] notify error: ${err.message}`);
+    }
+
+    const studentPrefs = mergeNotificationPrefs("customer", student.settings?.notificationPrefs);
+    if (studentPrefs.mentor_feedback !== false) {
+      const emailNotes = [
+        strengths && `Điểm mạnh: ${strengths}`,
+        improvements && `Cần cải thiện: ${improvements}`,
+        recommendation && `Lời khuyên: ${recommendation}`,
+        generalNotes && `Nhận xét chi tiết: ${generalNotes}`,
+      ].filter(Boolean).join("\n\n");
+      try {
+        await sendMentorFeedbackEmail(
+          student.email,
+          student.name || "Bạn",
+          mentorData?.name || "Mentor",
+          booking.sessionType,
+          emailNotes
+        );
+      } catch (err) {
+        console.error(`[updateMentorSummary] email error: ${err.message}`);
+      }
+    }
+  }
+
+  return { ok: true, booking: toPublicBooking(booking) };
 }
 
 export async function cancelMyBooking(userId, rawId, body) {

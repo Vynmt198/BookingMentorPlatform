@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router";
-import { Bell, BookOpen, Calendar, FileText, LogIn, LogOut, Menu, Settings, Shield, ShoppingCart, User, UserPlus, X } from "lucide-react";
+import { Bell, BookOpen, Calendar, FileText, LogIn, LogOut, Menu, Receipt, Settings, Shield, ShoppingCart, User, UserPlus, X } from "lucide-react";
 import { TopNavShell } from "./TopNavShell";
 import {
   fetchNotifications,
@@ -391,6 +391,10 @@ function CustomerNavbar() {
                   <DropdownMenuItem onClick={() => navigate("/my-bookings")}>
                     <Calendar className="mr-2 size-4" />
                     Lịch hẹn của tôi
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/payment-history")}>
+                    <Receipt className="mr-2 size-4" />
+                    Lịch sử thanh toán
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/settings")}>
                     <Settings className="mr-2 size-4" />

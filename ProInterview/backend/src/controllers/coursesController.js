@@ -147,7 +147,7 @@ export const CoursesController = {
 
       let hasAccess = Boolean(lesson.isFree);
       if (!hasAccess) {
-        const enrolled = await Enrollment.findOne({ userId, courseId });
+        const enrolled = await Enrollment.findOne({ userId, courseId, paymentStatus: { $ne: "expired" } });
         hasAccess = Boolean(enrolled && enrollmentAccessGranted(enrolled));
       }
       if (!hasAccess) {

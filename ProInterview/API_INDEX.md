@@ -364,6 +364,7 @@ Danh sách phẳng method/path (C.1–C.14) để tra cứu nhanh. **Đã có ro
 | PATCH | `/api/bookings/:id/confirm` |
 | PATCH | `/api/bookings/:id/complete` |
 | PATCH | `/api/bookings/:id/notes` |
+| PATCH | `/api/bookings/:id/summary` — mentor gửi tổng kết có cấu trúc (`rating`, `strengths`, `improvements`, `recommendation`, `generalNotes`); chỉ chấp nhận khi booking `status = completed` |
 | PATCH | `/api/bookings/:id/start` — vào phòng họp (mentee); trả kèm `meeting` (JAAS JWT hoặc fallback `jitsi_public`) |
 | PATCH | `/api/bookings/mentor/:id/start` — vào phòng họp (mentor); yêu cầu đã check-in webcam |
 | PATCH | `/api/bookings/mentor/:id/check-in` — mentor check-in webcam trước khi vào phòng |

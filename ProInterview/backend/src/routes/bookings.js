@@ -20,11 +20,13 @@ bookingsRouter.patch("/:id/confirm", authJwt, requireMentor, asyncHandler(Bookin
 bookingsRouter.patch("/:id/start", authJwt, asyncHandler(BookingsController.startMeeting));
 bookingsRouter.patch("/:id/complete", authJwt, requireMentor, asyncHandler(BookingsController.completeForMentor));
 bookingsRouter.patch("/:id/notes", authJwt, requireMentor, asyncHandler(BookingsController.updateNotesForMentor));
+bookingsRouter.patch("/:id/summary", authJwt, requireMentor, asyncHandler(BookingsController.updateSummaryForMentor));
 bookingsRouter.patch("/:id/reschedule", authJwt, asyncHandler(BookingsController.reschedule));
 bookingsRouter.patch("/:id/refund-destination", authJwt, asyncHandler(BookingsController.updateRefundDestination));
 bookingsRouter.patch("/:id/mentor-cancel-resolution", authJwt, asyncHandler(BookingsController.resolveMentorCancel));
 bookingsRouter.post("/:id/report-no-show", authJwt, asyncHandler(BookingsController.reportNoShow));
 bookingsRouter.get("/:id/rebook-credit", authJwt, asyncHandler(BookingsController.getRebookCredit));
+bookingsRouter.get("/:id/invoice", authJwt, asyncHandler(BookingsController.invoice));
 bookingsRouter.post("/:id/review", authJwt, asyncHandler(BookingsController.createReviewForBooking));
 bookingsRouter.post("/:id/mentor-knowledge", authJwt, requireMentor, asyncHandler(BookingsController.saveMentorKnowledge));
 bookingsRouter.get("/:id", authJwt, asyncHandler(BookingsController.getById));

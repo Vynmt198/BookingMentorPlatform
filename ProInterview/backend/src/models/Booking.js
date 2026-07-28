@@ -115,6 +115,19 @@ const bookingSchema = new Schema(
     refundCompletedBy: { type: Schema.Types.ObjectId, ref: "User" },
 
     mentorNotes: { type: String, default: "" },
+    /** Tổng kết buổi học có cấu trúc, mentor gửi sau khi booking đã completed. */
+    mentorSummary: {
+      rating: { type: Number, min: 1, max: 5 },
+      strengths: { type: String, default: "", trim: true },
+      improvements: { type: String, default: "", trim: true },
+      recommendation: { type: String, default: "", trim: true },
+      generalNotes: { type: String, default: "", trim: true },
+      submittedAt: { type: Date },
+      /** True nếu mentor gửi sau khi đã quá hạn FEEDBACK_REMINDER_DAYS kể từ completedAt. */
+      submittedLate: { type: Boolean, default: false },
+    },
+    /** Đã nhắc mentor 1 lần khi quá hạn 3 ngày chưa gửi mentorSummary (tránh nhắc lặp lại mỗi lần load). */
+    feedbackReminderSentAt: { type: Date },
     reviewId: { type: Schema.Types.ObjectId, ref: "Review" },
     completedAt: { type: Date },
     /** Đã ghi có thu nhập vào ví mentor (tránh cộng trùng). */

@@ -21,6 +21,7 @@ import {
   Home,
   LogIn,
   UserPlus,
+  Receipt,
 } from "lucide-react";
 import {
   Sidebar,
@@ -458,6 +459,12 @@ export function AppSidebar() {
                       <Link to="/my-bookings" className="flex items-center gap-2.5 cursor-pointer">
                         <Calendar className="size-4" />
                         Lịch hẹn của tôi
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/payment-history" className="flex items-center gap-2.5 cursor-pointer">
+                        <Receipt className="size-4" />
+                        Lịch sử thanh toán
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
