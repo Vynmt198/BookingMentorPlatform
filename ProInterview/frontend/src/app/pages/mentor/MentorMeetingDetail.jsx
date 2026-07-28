@@ -7,9 +7,8 @@ import {
   Star, 
   FileText, 
   User, 
-  Briefcase, 
-  Target, 
-  CheckCircle2, 
+  Briefcase,
+  CheckCircle2,
   AlertCircle,
   MoreVertical,
   MessageSquare,
@@ -179,15 +178,9 @@ export function MentorMeetingDetail() {
         cvFileUrl: b.cvFileUrl || "",
         jdFileUrl: b.jdFileUrl || "",
         feedback: b.mentorNotes || "",
+        mentorSummary: b.mentorSummary || null,
         position: sessionTypeLabel(b.sessionType),
         company: b.customerEmail || "",
-        overallScore: Number(b.menteeRating || 0),
-        starScores: (() => {
-          const s = Number(b.menteeRating || 0);
-          return s > 0
-            ? { situation: s, task: s, action: s, result: s }
-            : { situation: 0, task: 0, action: 0, result: 0 };
-        })(),
         mentee: {
           name: b.customerName || "Học viên",
           avatar: avatarSrc(b.customerAvatar),
@@ -268,7 +261,50 @@ export function MentorMeetingDetail() {
     );
   }
 
-  const isCompleted = meeting.status === "completed" || meeting.overallScore > 0;
+  const isCompleted = meeting.status === "completed";
+  const sessionPhase = (() => {
+    if (meeting.status === "completed") return "completed";
+    if (meeting.status === "cancelled") return "cancelled";
+    if (meeting.status === "no_show") return "no_show";
+    if (
+      isBookingPastScheduledEnd({
+        date: meeting.scheduledDate,
+        timeSlot: meeting.scheduledTime,
+        durationMinutes: meeting.duration,
+      })
+    ) {
+      return "overdue";
+    }
+    return "upcoming";
+  })();
+  const PHASE_META = {
+    completed: {
+      label: "Đã hoàn thành",
+      badgeClass: "border border-primary-fixed/20 bg-primary-fixed/20 text-violet-700",
+      heading: "Báo cáo chi tiết buổi Mentor",
+    },
+    cancelled: {
+      label: "Đã hủy",
+      badgeClass: "border border-rose-500/20 bg-rose-500/10 text-rose-600",
+      heading: "Buổi hẹn đã bị hủy",
+    },
+    no_show: {
+      label: "Vắng mặt",
+      badgeClass: "border border-rose-500/20 bg-rose-500/10 text-rose-600",
+      heading: "Buổi hẹn không diễn ra (no-show)",
+    },
+    overdue: {
+      label: "Đã quá giờ",
+      badgeClass: "border border-orange-500/20 bg-orange-500/20 text-orange-600",
+      heading: "Đã qua giờ hẹn — chờ xác nhận hoàn thành",
+    },
+    upcoming: {
+      label: "Sắp diễn ra",
+      badgeClass: "border border-orange-500/20 bg-orange-500/20 text-orange-600",
+      heading: "Sẵn sàng phỏng vấn cùng Mentee",
+    },
+  };
+  const isEnded = sessionPhase === "cancelled" || sessionPhase === "no_show";
   const canReschedule = Number(meeting.rescheduleCount || 0) < 1;
   const meetingTypeLabel = sessionTypeLabel(meeting.meetingType);
   const showCompleteReminder =
@@ -497,6 +533,7 @@ export function MentorMeetingDetail() {
       <div className="relative z-10 mx-auto max-w-7xl px-10 pb-10">
         {/* Header Navigation */}
         <div className="mb-16 flex items-center justify-end">
+           {isEnded ? null : (
            <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
@@ -552,6 +589,7 @@ export function MentorMeetingDetail() {
                 )}
               </DropdownMenuContent>
            </DropdownMenu>
+           )}
         </div>
 
         {showCompleteReminder ? (
@@ -596,15 +634,15 @@ export function MentorMeetingDetail() {
                  </div>
                  <div className="relative z-10">
                     <div className="flex items-center gap-4 mb-8">
-                       <span className={`rounded-full px-4 py-1.5 text-xs font-normal ${isCompleted ? "border border-primary-fixed/20 bg-primary-fixed/20 text-violet-700" : "border border-orange-500/20 bg-orange-500/20 text-orange-600"}`}>
-                          {isCompleted ? "Đã hoàn thành" : "Sắp diễn ra"}
+                       <span className={`rounded-full px-4 py-1.5 text-xs font-normal ${PHASE_META[sessionPhase].badgeClass}`}>
+                          {PHASE_META[sessionPhase].label}
                        </span>
                        <span className="flex items-center gap-2 text-xs font-normal text-zinc-500">
                          <Layout size={14} /> {meetingTypeLabel}
                        </span>
                     </div>
                     <h1 className="mb-6 max-w-2xl font-headline text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl">
-                       {isCompleted ? 'Báo cáo chi tiết buổi Mentor' : 'Sẵn sàng phỏng vấn cùng Mentee'}
+                       {PHASE_META[sessionPhase].heading}
                     </h1>
                     
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-10">
@@ -630,79 +668,78 @@ export function MentorMeetingDetail() {
                  </div>
               </div>
 
-              {/* STAR Components Analysis (Visible if completed) */}
-              {isCompleted && (
-                 <div className="glass-card p-12">
-                    <div className="flex items-center justify-between mb-12">
-                       <h4 className="text-2xl font-black text-slate-900 font-headline tracking-tight flex items-center gap-4">
-                          <Target className="text-violet-700" size={24} /> Kết quả STAR Framework
-                       </h4>
-                       <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-slate-50 border border-slate-200">
-                          <Star className="text-[#FFD600] fill-current" size={18} />
-                          <span className="text-lg font-black text-slate-900">{meeting.overallScore?.toFixed(1)}</span>
-                          <span className="text-[10px] font-normal text-zinc-500 uppercase tracking-widest">/ 5.0</span>
-                       </div>
-                    </div>
-
-                    <div className="space-y-10">
-                       {[
-                         { label: "Situation", key: "situation", color: "#8037f4", desc: "Xác định hoàn cảnh và bối cảnh cụ thể" },
-                         { label: "Task", key: "task", color: "#a66ff8", desc: "Nhiệm vụ và mục tiêu cần đạt được" },
-                         { label: "Action", key: "action", color: "#93f72b", desc: "Hành động thực tế đã triển khai" },
-                         { label: "Result", key: "result", color: "#FF8C42", desc: "Kết quả cuối cùng và giá trị đạt được" }
-                       ].map((item) => {
-                         const score = meeting.starScores?.[item.key] || 0;
-                         return (
-                           <div key={item.key} className="group">
-                              <div className="flex items-start justify-between mb-4">
-                                 <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-black text-sm" style={{ background: item.color }}>{item.label[0]}</div>
-                                    <div>
-                                       <p className="text-sm font-black text-slate-900 tracking-tight">{item.label}</p>
-                                       <p className="text-[10px] font-normal text-zinc-600 uppercase tracking-widest">{item.desc}</p>
-                                    </div>
-                                 </div>
-                                 <span className="text-sm font-black text-slate-900">{score.toFixed(1)}/5.0</span>
-                              </div>
-                              <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
-                                 <motion.div 
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${(score / 5) * 100}%` }}
-                                    transition={{ duration: 1.5, ease: "easeOut" }}
-                                    className="h-full rounded-full" 
-                                    style={{ background: item.color, boxShadow: `0 0 15px ${item.color}40` }} 
-                                 />
-                              </div>
-                           </div>
-                         );
-                       })}
-                    </div>
-                 </div>
-              )}
-
               {/* Luxury Minimalist Feedback & Notes */}
               <div className="space-y-10">
                 <div className="relative overflow-hidden bg-white rounded-[2.5rem] p-12 shadow-[0_20px_50px_rgba(0,0,0,0.04)] border border-slate-100">
                   {/* Subtle Gradient Accent */}
                   <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-indigo-50/50 to-violet-50/30 blur-3xl -z-10" />
                   
-                  <div className="mb-12">
-                    <h5 className="mb-3 text-xs font-normal text-indigo-500">Báo cáo phân tích</h5>
-                    <h2 className="text-xl font-black sm:text-2xl text-slate-900 tracking-tight">Đánh giá từ chuyên gia</h2>
+                  <div className="mb-12 flex items-start justify-between gap-4">
+                    <div>
+                      <h5 className="mb-3 text-xs font-normal text-indigo-500">Báo cáo phân tích</h5>
+                      <h2 className="text-xl font-black sm:text-2xl text-slate-900 tracking-tight">Đánh giá từ chuyên gia</h2>
+                    </div>
+                    {isCompleted ? (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/mentor/session-feedback/${meeting.id}`)}
+                        className="shrink-0 rounded-xl border border-slate-200 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50"
+                      >
+                        {meeting.mentorSummary ? "Chỉnh sửa" : "Gửi tổng kết"}
+                      </button>
+                    ) : null}
                   </div>
-                  
+
+                  {meeting.mentorSummary ? (
+                    <div className="space-y-1">
+                      <div className="mb-6 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((value) => (
+                            <Star
+                              key={value}
+                              size={18}
+                              className={value <= (meeting.mentorSummary.rating || 0) ? "fill-amber-400 text-amber-400" : "text-slate-200"}
+                            />
+                          ))}
+                        </div>
+                        {meeting.mentorSummary.submittedLate ? (
+                          <span className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                            Gửi trễ
+                          </span>
+                        ) : null}
+                      </div>
+                      {[
+                        { label: "Điểm mạnh", value: meeting.mentorSummary.strengths },
+                        { label: "Cần cải thiện", value: meeting.mentorSummary.improvements },
+                        { label: "Lời khuyên", value: meeting.mentorSummary.recommendation },
+                        { label: "Nhận xét chi tiết", value: meeting.mentorSummary.generalNotes },
+                      ]
+                        .filter((section) => section.value)
+                        .map((section) => (
+                          <div key={section.label} className="group py-8 first:pt-0 last:pb-0 border-b border-slate-50 last:border-0">
+                            <div className="flex items-baseline gap-6">
+                              <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover:scale-150 transition-transform" />
+                              <div className="flex-1">
+                                <p className="text-[10px] font-normal text-slate-400 uppercase tracking-widest mb-3">{section.label}</p>
+                                <p className="text-lg font-semibold text-slate-800 leading-relaxed tracking-tight">{section.value}</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
                   <div className="space-y-1">
                     {(() => {
                       const raw = meeting.feedback || "";
                       if (!raw) return <p className="text-sm text-slate-400 font-normal">Đang chờ cập nhật nội dung đánh giá...</p>;
-                      
+
                       const sections = raw.split(/\n/);
                       return sections.map((line, idx) => {
                         const trimmed = line.trim();
                         if (!trimmed) return null;
-                        
+
                         const cleanLine = trimmed.replace(/^[🎯💪🚀💡📝]\s*/, "");
-                        
+
                         if (cleanLine.includes(":")) {
                            const [title, ...contentParts] = cleanLine.split(":");
                            const content = contentParts.join(":").trim();
@@ -727,6 +764,7 @@ export function MentorMeetingDetail() {
                       });
                     })()}
                   </div>
+                  )}
                 </div>
 
                 {(() => {
@@ -819,7 +857,11 @@ export function MentorMeetingDetail() {
               <div className="glass-card p-10">
                  <h4 className="mb-8 text-xs font-normal text-zinc-500">Thao tác</h4>
                  <div className="space-y-4">
-                    {!isCompleted ? (
+                    {isEnded ? (
+                       <p className="text-center text-xs font-normal text-slate-500">
+                         {sessionPhase === "cancelled" ? "Buổi hẹn đã bị hủy — không còn thao tác nào khả dụng." : "Học viên đã vắng mặt — không còn thao tác nào khả dụng."}
+                       </p>
+                    ) : !isCompleted ? (
                        <>
                          <button
                             onClick={() => navigate(`/meeting/${meeting.id}`)}

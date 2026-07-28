@@ -63,7 +63,7 @@ export async function getCourseStudentsForMentor(userId, courseId) {
   const gate = await assertMentorOwnsCourse(userId, courseId);
   if (!gate.ok) return gate;
 
-  const rows = await Enrollment.find({ courseId: gate.course._id })
+  const rows = await Enrollment.find({ courseId: gate.course._id, paymentStatus: { $ne: "expired" } })
     .populate({ path: "userId", select: "name avatar email desiredPosition" })
     .sort({ updatedAt: -1 })
     .lean();
@@ -205,7 +205,7 @@ async function assertStudentLessonAccess(userId, courseId, lessonId) {
   if (!lesson) return { ok: false, status: 404, error: "Bài học không tồn tại." };
 
   if (!lesson.isFree) {
-    const enrolled = await Enrollment.findOne({ userId, courseId: course._id }).lean();
+    const enrolled = await Enrollment.findOne({ userId, courseId: course._id, paymentStatus: { $ne: "expired" } }).lean();
     if (!enrolled) {
       return { ok: false, status: 403, error: "Bạn chưa mua khóa học này." };
     }
@@ -293,7 +293,7 @@ export async function getLessonNotesForStudent(userId, courseId, lessonId) {
   const gate = await assertStudentLessonAccess(userId, courseId, lessonId);
   if (!gate.ok) return gate;
 
-  const enrollment = await Enrollment.findOne({ userId, courseId: gate.course._id }).lean();
+  const enrollment = await Enrollment.findOne({ userId, courseId: gate.course._id, paymentStatus: { $ne: "expired" } }).lean();
   if (!enrollment) {
     return { ok: true, content: "", updatedAt: null };
   }
@@ -313,7 +313,7 @@ export async function saveLessonNotesForStudent(userId, courseId, lessonId, cont
   const gate = await assertStudentLessonAccess(userId, courseId, lessonId);
   if (!gate.ok) return gate;
 
-  const enrollment = await Enrollment.findOne({ userId, courseId: gate.course._id });
+  const enrollment = await Enrollment.findOne({ userId, courseId: gate.course._id, paymentStatus: { $ne: "expired" } });
   if (!enrollment) {
     return { ok: false, status: 403, error: "Mua khóa học để lưu ghi chú." };
   }

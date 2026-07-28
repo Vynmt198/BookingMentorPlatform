@@ -1,4 +1,5 @@
 import { authFetch, hasAuthCredentials } from "./auth.js";
+import { viewPaymentInvoice, viewBookingInvoice, viewEnrollmentInvoice } from "./paymentsApi.js";
 
 const jsonHeaders = {
   Accept: "application/json",
@@ -34,6 +35,9 @@ function authedFetch(path, options = {}) {
 }
 
 export const adminApi = {
+  viewPaymentInvoice,
+  viewBookingInvoice,
+  viewEnrollmentInvoice,
   getStats: () => authedFetch("/api/admin/stats"),
   getMentors: () => authedFetch("/api/admin/mentors"),
   getMentorById: (id) => authedFetch(`/api/admin/mentors/${encodeURIComponent(id)}`),
@@ -92,6 +96,9 @@ export const adminApi = {
     }),
   getPendingEnrollmentTransfers: () => authedFetch("/api/admin/enrollments/pending-transfer"),
   getCoursePaymentEnrollments: () => authedFetch("/api/admin/enrollments/course-payments"),
+  getRefundPendingCoursePayments: () => authedFetch("/api/admin/enrollments/refund-pending"),
+  confirmCourseRefund: (paymentId) =>
+    authedFetch(`/api/admin/payments/${paymentId}/confirm-course-refund`, { method: "PATCH" }),
   getCourseFinanceSummary: () => authedFetch("/api/admin/finance/courses"),
   getPlatformFinanceSummary: (params = {}) => {
     const q = new URLSearchParams();
@@ -114,6 +121,10 @@ export const adminApi = {
     authedFetch(`/api/admin/payments/${paymentId}/confirm-subscription-transfer`, {
       method: "PATCH",
       body: JSON.stringify(body ?? {}),
+    }),
+  confirmSubscriptionRefund: (paymentId) =>
+    authedFetch(`/api/admin/payments/${paymentId}/confirm-subscription-refund`, {
+      method: "PATCH",
     }),
   getPayouts: () => authedFetch("/api/admin/payouts"),
   approvePayout: (id, note = "") =>

@@ -107,6 +107,7 @@ Các nhóm endpoint theo phase (bookings, payments, plans, courses, enrollments,
 | ✅ | PATCH | `/api/bookings/:id/confirm` | `[AUTH][MENTOR]` | Xác nhận |
 | ✅ | PATCH | `/api/bookings/:id/complete` | `[AUTH][MENTOR]` | Hoàn thành |
 | ✅ | PATCH | `/api/bookings/:id/notes` | `[AUTH][MENTOR]` | Ghi chú sau buổi |
+| ✅ | PATCH | `/api/bookings/:id/summary` | `[AUTH][MENTOR]` | Tổng kết buổi có cấu trúc (rating + strengths/improvements/recommendation) — chỉ khi booking `completed` |
 | ✅ | POST | `/api/bookings/:id/review` | `[AUTH]` | Alias gửi review theo booking — body `{ rating, comment?, tags? }` |
 | ✅ | GET | `/api/mentors/:id/availability` | Public hoặc `[AUTH]` | Lịch rảnh (khớp C.2) |
 | ✅ | GET | `/api/mentors/:id/reviews` | Public | Review theo mentor (khớp C.2) |

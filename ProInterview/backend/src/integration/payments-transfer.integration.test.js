@@ -197,7 +197,8 @@ describe("Subscription bank transfer (CK)", () => {
     assert.ok(paidRow.paidAt);
 
     const refreshedUser = await User.findById(customer._id);
-    assert.equal(refreshedUser.plan, "starter_pro");
+    // "starter_pro" là alias gói cũ — planKeys.js chuẩn hóa sang "student" khi lưu.
+    assert.equal(refreshedUser.plan, "student");
     assert.ok(refreshedUser.planExpiresAt);
   });
 

@@ -1,5 +1,8 @@
 import { authFetch, hasAuthCredentials } from "./auth.js";
 import { apiUrl } from "./api.js";
+import { viewBookingInvoice } from "./paymentsApi.js";
+
+export { viewBookingInvoice };
 
 const jsonHeaders = {
   Accept: "application/json",
@@ -198,6 +201,16 @@ export async function saveMentorSessionCapture(id, payload) {
 export async function updateMentorNotes(id, body) {
   if (!id) return { success: false, error: "Thiếu id." };
   return authedSend("PATCH", `/api/bookings/${encodeURIComponent(id)}/notes`, body);
+}
+
+/**
+ * Mentor gửi tổng kết có cấu trúc sau khi buổi học đã completed.
+ * @param {string} id
+ * @param {{ rating: number, strengths?: string, improvements?: string, recommendation?: string, generalNotes?: string }} body
+ */
+export async function updateMentorSummary(id, body) {
+  if (!id) return { success: false, error: "Thiếu id." };
+  return authedSend("PATCH", `/api/bookings/${encodeURIComponent(id)}/summary`, body);
 }
 
 /**

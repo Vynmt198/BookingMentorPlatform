@@ -13,6 +13,7 @@ paymentsRouter.patch(
   asyncHandler(PaymentsController.subscriptionSubmitTransfer),
 );
 paymentsRouter.get("/history", authJwt, asyncHandler(PaymentsController.history));
+paymentsRouter.get("/:id/invoice", authJwt, asyncHandler(PaymentsController.invoice));
 paymentsRouter.post("/webhook/momo", asyncHandler(PaymentsController.webhookMomo));
 paymentsRouter.post("/webhook/zalopay", asyncHandler(PaymentsController.webhookZalopay));
 paymentsRouter.post("/webhook/sepay", asyncHandler(PaymentsController.webhookSepay));

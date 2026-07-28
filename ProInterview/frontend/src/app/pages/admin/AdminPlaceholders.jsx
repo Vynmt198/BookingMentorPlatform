@@ -14,6 +14,7 @@ import {
   Copy,
   Crown,
   Eye,
+  Receipt,
   RefreshCw,
   Search,
   Wallet,
@@ -498,6 +499,7 @@ function buildTransactionRows(bookingRes, payoutRes, courseRes) {
     (cf.pendingList || []).forEach((e) => {
       courseRows.push({
         id: `enr-p-${e._id}`,
+        enrollmentId: String(e._id),
         type: "course_fee",
         amount: Number(e.pricePaid || 0),
         paymentStatus: "pending",
@@ -510,6 +512,7 @@ function buildTransactionRows(bookingRes, payoutRes, courseRes) {
     (cf.recentPaidRows || []).forEach((e) => {
       courseRows.push({
         id: `enr-paid-${e._id}`,
+        enrollmentId: String(e._id),
         type: "course_fee",
         amount: Number(e.pricePaid || 0),
         paymentStatus: "paid",
@@ -531,6 +534,17 @@ export function AdminTransactions() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [invoiceBusyId, setInvoiceBusyId] = useState("");
+
+  const handleViewInvoice = useCallback(async (row) => {
+    setInvoiceBusyId(row.id);
+    const call =
+      row.type === "booking"
+        ? adminApi.viewBookingInvoice(row.id)
+        : adminApi.viewEnrollmentInvoice(row.enrollmentId);
+    await tryApi(() => call, { fallback: "Không mở được hóa đơn." });
+    setInvoiceBusyId("");
+  }, []);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -744,7 +758,19 @@ export function AdminTransactions() {
                         <p className="text-xs text-slate-500">{when.toLocaleDateString("vi-VN")}</p>
                       </td>
                       <td className={TX_TD}>
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-2">
+                          {(r.type === "booking" || r.type === "course_fee") &&
+                            String(r.paymentStatus || "").toLowerCase() === "paid" && (
+                              <button
+                                type="button"
+                                title="Xem hóa đơn"
+                                disabled={invoiceBusyId === r.id}
+                                onClick={() => handleViewInvoice(r)}
+                                className="flex size-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-violet-300 hover:bg-violet-50 hover:text-violet-800 disabled:opacity-50"
+                              >
+                                <Receipt className="h-4 w-4" />
+                              </button>
+                            )}
                           <Link
                             to={r.detailTo || meta.to}
                             title={`Mở ${meta.label}`}

@@ -25,7 +25,7 @@ export async function authJwt(req, res, next) {
       console.warn("[Auth] Token missing sub payload");
       return res.status(401).json({ success: false, error: "Token không hợp lệ" });
     }
-    const u = await User.findById(payload.sub).select("isActive tokenVersion").lean();
+    const u = await User.findById(payload.sub).select("isActive tokenVersion role").lean();
     if (!u) {
       console.warn(`[Auth] User not found in DB: ${payload.sub}. Có thể DB local và server khác nhau.`);
       return res.status(401).json({ success: false, error: "Tài khoản không tồn tại." });
@@ -53,6 +53,7 @@ export async function authJwt(req, res, next) {
       }
     }
     req.userId = payload.sub;
+    req.userRole = u.role;
     req.tokenJti = typeof payload.jti === "string" ? payload.jti : "";
     req.tokenExp = typeof payload.exp === "number" ? payload.exp : undefined;
     void touchUserPresence(payload.sub);

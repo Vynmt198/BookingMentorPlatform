@@ -288,7 +288,7 @@ export function MeetingRoom() {
             ? "Đã kết thúc buổi. Ghi chú trong buổi đã được lưu cho AI."
             : "Đã kết thúc buổi học.",
         );
-        navigate("/mentor/dashboard");
+        navigate(`/mentor/session-feedback/${sessionId}`);
       } else {
         toastApiError(res.error, "Không thể kết thúc buổi học.");
       }

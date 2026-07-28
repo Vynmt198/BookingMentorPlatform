@@ -108,6 +108,29 @@ export async function fetchTransferStatus(orderRef) {
   }
 }
 
+/** Mở PDF cần Bearer token: fetch dạng blob rồi mở object URL ở tab mới. */
+export async function openInvoicePdf(path) {
+  if (!hasAuthCredentials()) return { success: false, error: "Chưa đăng nhập." };
+  try {
+    const res = await authFetch(path, { method: "GET" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { success: false, error: body.error || `Lỗi ${res.status}` };
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener");
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return { success: true };
+  } catch {
+    return { success: false, error: "Không kết nối được backend." };
+  }
+}
+
+export const viewPaymentInvoice = (paymentId) => openInvoicePdf(`/api/payments/${paymentId}/invoice`);
+export const viewBookingInvoice = (bookingId) => openInvoicePdf(`/api/bookings/${bookingId}/invoice`);
+export const viewEnrollmentInvoice = (enrollmentId) => openInvoicePdf(`/api/enrollments/${enrollmentId}/invoice`);
+
 export async function fetchPaymentHistory(limit = 50) {
   if (!hasAuthCredentials()) return { success: false, error: "Chưa đăng nhập." };
   try {

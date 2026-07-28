@@ -1,7 +1,27 @@
 import * as paymentsService from "../services/paymentsService.js";
 import * as sepayWebhookService from "../services/sepayWebhookService.js";
+import { resolveInvoiceContext, buildInvoicePdfBuffer } from "../services/invoiceService.js";
 
 export class PaymentsController {
+  static async invoice(req, res, next) {
+    try {
+      const result = await resolveInvoiceContext({
+        paymentId: req.params.id,
+        requesterUserId: req.userId,
+        requesterIsAdmin: req.userRole === "admin",
+      });
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      const buffer = await buildInvoicePdfBuffer(result);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="invoice-${result.payment._id}.pdf"`);
+      res.send(buffer);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   static async initiate(req, res, next) {
     try {
       const ipAddr = req.headers['x-forwarded-for'] || 

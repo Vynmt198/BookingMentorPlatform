@@ -377,7 +377,7 @@ export const AdminController = {
 
       const [bookingsCount, enrollmentsCount] = await Promise.all([
         Booking.countDocuments({ userId: user._id }),
-        Enrollment.countDocuments({ userId: user._id }),
+        Enrollment.countDocuments({ userId: user._id, paymentStatus: { $ne: "expired" } }),
       ]);
 
       res.json({
@@ -559,6 +559,7 @@ export const AdminController = {
       const enrollments = await Enrollment.find({
         pricePaid: { $gt: 0 },
         paymentMethod: "transfer",
+        paymentStatus: { $ne: "expired" },
       })
         .populate("userId", "name email")
         .populate({
@@ -570,6 +571,33 @@ export const AdminController = {
         .limit(200)
         .lean();
       res.json({ success: true, enrollments });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  getRefundPendingCoursePayments: async (_req, res, next) => {
+    try {
+      const result = await paymentsService.listRefundPendingCoursePayments();
+      if (!result.ok) {
+        return res.status(result.status || 400).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, payments: result.payments });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  confirmCourseRefund: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const result = await paymentsService.confirmCourseRefundByAdmin(id, {
+        adminUserId: req.userId,
+      });
+      if (!result.ok) {
+        return res.status(result.status || 400).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, payment: result.payment });
     } catch (error) {
       next(error);
     }
@@ -776,6 +804,21 @@ export const AdminController = {
         adminUserId: req.userId,
         force,
         forceNote,
+      });
+      if (!result.ok) {
+        return res.status(result.status || 400).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, payment: result.payment });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  confirmSubscriptionRefund: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const result = await paymentsService.confirmSubscriptionRefundByAdmin(id, {
+        adminUserId: req.userId,
       });
       if (!result.ok) {
         return res.status(result.status || 400).json({ success: false, error: result.error });

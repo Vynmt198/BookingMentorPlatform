@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Crown, RefreshCw, Search, User } from "lucide-react";
+import { Crown, RefreshCw, RotateCcw, Search, User } from "lucide-react";
 import { motion } from "motion/react";
 import { tryApi } from "../../utils/apiToast";
 import { adminApi } from "../../utils/adminApi";
@@ -55,6 +55,18 @@ export function AdminSubscriptionPayments() {
     if (res.success) await loadAll();
   };
 
+  const confirmSubscriptionRefund = async (row) => {
+    const paymentId = row?.id;
+    if (!paymentId) return;
+    setBusyId(paymentId);
+    const res = await tryApi(() => adminApi.confirmSubscriptionRefund(String(paymentId)), {
+      fallback: "Không xác nhận được hoàn tiền.",
+      successMessage: "Đã đánh dấu hoàn tiền xong.",
+    });
+    setBusyId("");
+    if (res.success) await loadAll();
+  };
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     const res = await tryApi(() => adminApi.getPendingSubscriptionPayments(), {
@@ -71,9 +83,16 @@ export function AdminSubscriptionPayments() {
     void loadAll();
   }, [loadAll]);
 
+  const pendingRows = useMemo(() => rows.filter((r) => r.status !== "refund_pending"), [rows]);
+  const refundPendingRows = useMemo(() => rows.filter((r) => r.status === "refund_pending"), [rows]);
+
   const totalPending = useMemo(
-    () => rows.reduce((s, r) => s + Number(r.amount || 0), 0),
-    [rows],
+    () => pendingRows.reduce((s, r) => s + Number(r.amount || 0), 0),
+    [pendingRows],
+  );
+  const totalRefundPending = useMemo(
+    () => refundPendingRows.reduce((s, r) => s + Number(r.amount || 0), 0),
+    [refundPendingRows],
   );
 
   const filtered = useMemo(() => {
@@ -126,12 +145,17 @@ export function AdminSubscriptionPayments() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid gap-4 sm:grid-cols-2"
+        className="grid gap-4 sm:grid-cols-3"
       >
         <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
           <p className="text-[10px] font-black uppercase tracking-widest text-amber-900">Chờ đối soát</p>
-          <p className="mt-1 text-2xl font-black text-amber-950">{rows.length}</p>
+          <p className="mt-1 text-2xl font-black text-amber-950">{pendingRows.length}</p>
           <p className="mt-1 text-sm font-semibold text-amber-900">{vnd(totalPending)}</p>
+        </div>
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4">
+          <p className="text-[10px] font-black uppercase tracking-widest text-rose-900">Cần hoàn tiền</p>
+          <p className="mt-1 text-2xl font-black text-rose-950">{refundPendingRows.length}</p>
+          <p className="mt-1 text-sm font-semibold text-rose-900">{vnd(totalRefundPending)}</p>
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
           <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900">Đã kích hoạt</p>
@@ -214,19 +238,36 @@ export function AdminSubscriptionPayments() {
                         <p className="mt-0.5 font-mono text-xs font-semibold text-violet-700" title={ref}>
                           {ref}
                         </p>
+                        {row.status === "refund_pending" && (
+                          <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
+                            <RotateCcw className="size-3" />
+                            Cần hoàn tiền
+                          </span>
+                        )}
                       </td>
                       <td className={`${tdCell} whitespace-nowrap text-right font-black text-violet-700`}>
                         {Number(row.amount || 0).toLocaleString("vi-VN")}{" "}
                         <span className="text-[10px] font-medium uppercase tracking-widest text-slate-500">đ</span>
                       </td>
                       <td className={tdCell}>
-                        <div className="relative ml-auto flex w-full max-w-[4.5rem] justify-end gap-1">
-                          <ActionSlot>
-                            <AdminSepayOverrideAction
-                              busy={busyId === row.id}
-                              onConfirm={(body) => confirmSubscriptionOverride(row, body)}
-                            />
-                          </ActionSlot>
+                        <div className="relative ml-auto flex w-full max-w-[8rem] justify-end gap-1">
+                          {row.status === "refund_pending" ? (
+                            <button
+                              type="button"
+                              disabled={busyId === row.id}
+                              onClick={() => void confirmSubscriptionRefund(row)}
+                              className="whitespace-nowrap rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
+                            >
+                              {busyId === row.id ? "Đang xử lý…" : "Xác nhận đã hoàn"}
+                            </button>
+                          ) : (
+                            <ActionSlot>
+                              <AdminSepayOverrideAction
+                                busy={busyId === row.id}
+                                onConfirm={(body) => confirmSubscriptionOverride(row, body)}
+                              />
+                            </ActionSlot>
+                          )}
                         </div>
                       </td>
                     </tr>

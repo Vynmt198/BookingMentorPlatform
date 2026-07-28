@@ -41,6 +41,8 @@ adminRouter.patch(
 adminRouter.patch("/bookings/:id/confirm-refund", asyncHandler(AdminController.confirmBookingRefund));
 adminRouter.get("/enrollments/pending-transfer", asyncHandler(AdminController.getPendingEnrollmentTransfers));
 adminRouter.get("/enrollments/course-payments", asyncHandler(AdminController.getCoursePaymentEnrollments));
+adminRouter.get("/enrollments/refund-pending", asyncHandler(AdminController.getRefundPendingCoursePayments));
+adminRouter.patch("/payments/:id/confirm-course-refund", asyncHandler(AdminController.confirmCourseRefund));
 adminRouter.patch(
   "/enrollments/:id/confirm-transfer-payment",
   asyncHandler(AdminController.confirmEnrollmentTransferPayment),
@@ -50,6 +52,10 @@ adminRouter.get("/payments/subscription-pending", asyncHandler(AdminController.g
 adminRouter.patch(
   "/payments/:id/confirm-subscription-transfer",
   asyncHandler(AdminController.confirmSubscriptionTransferPayment),
+);
+adminRouter.patch(
+  "/payments/:id/confirm-subscription-refund",
+  asyncHandler(AdminController.confirmSubscriptionRefund),
 );
 adminRouter.patch("/bookings/:id/status", asyncHandler(AdminController.updateBookingStatus));
 adminRouter.get("/payouts", asyncHandler(AdminController.getPayoutRequests));

@@ -1497,6 +1497,47 @@ export function SessionDetail() {
                 Kết quả đánh giá
               </p>
               <h2 className="mb-6 text-lg font-bold text-violet-950">Nhận xét từ chuyên gia</h2>
+              {sessionData.mentorSummary ? (
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <Star
+                          key={value}
+                          className={`h-4 w-4 ${
+                            value <= (sessionData.mentorSummary.rating || 0)
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-neutral-200"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    {sessionData.mentorSummary.submittedLate ? (
+                      <span className="rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">
+                        Gửi trễ
+                      </span>
+                    ) : null}
+                  </div>
+                  {[
+                    { label: "Điểm mạnh", value: sessionData.mentorSummary.strengths },
+                    { label: "Cần cải thiện", value: sessionData.mentorSummary.improvements },
+                    { label: "Lời khuyên", value: sessionData.mentorSummary.recommendation },
+                    { label: "Nhận xét chi tiết", value: sessionData.mentorSummary.generalNotes },
+                  ]
+                    .filter((section) => section.value)
+                    .map((section) => (
+                      <div key={section.label} className="border-b border-violet-100 py-4 first:pt-0 last:border-0 last:pb-0">
+                        <div className="flex items-baseline gap-3">
+                          <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: BRAND_PURPLE }} />
+                          <div className="min-w-0 flex-1">
+                            <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-neutral-600">{section.label}</p>
+                            <p className="text-sm font-semibold leading-relaxed text-neutral-900">{section.value}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
               <div className="space-y-1">
                 {(() => {
                   const raw = sessionData.mentorNotes || "";
@@ -1549,6 +1590,7 @@ export function SessionDetail() {
                   });
                 })()}
               </div>
+              )}
             </div>
 
             {/* Next steps */}
