@@ -15,6 +15,7 @@
     "seed": "node src/scripts/seedUsers.js",
     "seed:users": "node src/scripts/seedUsers.js",
     "seed:ui-mock": "node src/scripts/seedUiMockData.js",
+    "seed:meeting-flow": "node src/scripts/seedMeetingFlowDemo.js",
     "db:prune-fake-mentors": "node src/scripts/pruneFakeMentors.js",
     "seed:all": "node src/scripts/seedAll.js",
     "seed:reviews": "node src/scripts/seedReviews.js",

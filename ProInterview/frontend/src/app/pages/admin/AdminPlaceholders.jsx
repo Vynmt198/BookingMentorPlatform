@@ -26,6 +26,8 @@ import {
   StatusPill,
 } from "../../components/admin/AdminStatusPill.jsx";
 import { AdminFilterSelect, AdminListFilterBar } from "../../components/admin/AdminListFilters.jsx";
+import { PlatformFinanceSummary } from "../../components/admin/PlatformFinanceSummary.jsx";
+import { summarizeBookingMoney } from "../../utils/adminBookingMoney.js";
 import { adminApi } from "../../utils/adminApi.js";
 import { toastApiError, toastApiSuccess, tryApi } from "../../utils/apiToast";
 import { AnimatePresence, motion } from "motion/react";
@@ -142,14 +144,6 @@ export function AdminUserDetail() {
 /** @deprecated, dùng `AdminMentorDetail.jsx` */
 export { AdminMentorDetail } from "./AdminMentorDetail.jsx";
 
-function bookingAmount(b) {
-  return Number(b?.totalAmount ?? b?.price ?? 0);
-}
-
-function bookingPaymentStatus(b) {
-  return String(b?.paymentStatus || "").toLowerCase();
-}
-
 const FINANCE_QUICK_LINKS = [
   { to: "/admin/bookings", label: "Lịch hẹn", icon: Calendar },
   { to: "/admin/course-payments", label: "Học phí khóa", icon: BookOpen },
@@ -180,20 +174,7 @@ export function AdminFinance() {
     void loadAll();
   }, [loadAll]);
 
-  const bookingSummary = useMemo(() => {
-    const transfer = bookings.filter((b) => b.paymentMethod === "transfer");
-    const pending = transfer.filter((b) => bookingPaymentStatus(b) === "pending");
-    const paid = transfer.filter((b) => bookingPaymentStatus(b) === "paid");
-    const refundPending = bookings.filter((b) => bookingPaymentStatus(b) === "refund_pending");
-    return {
-      pendingTransferCount: pending.length,
-      pendingTransferAmount: pending.reduce((s, b) => s + bookingAmount(b), 0),
-      paidCollectedCount: paid.length,
-      paidCollectedAmount: paid.reduce((s, b) => s + bookingAmount(b), 0),
-      refundPendingCount: refundPending.length,
-      refundPendingAmount: refundPending.reduce((s, b) => s + Number(b.cancelRefundAmountVnd || 0), 0),
-    };
-  }, [bookings]);
+  const bookingSummary = useMemo(() => summarizeBookingMoney(bookings), [bookings]);
 
   const payoutSummary = useMemo(() => {
     const pending = payouts.filter((p) => p.status === "pending");
@@ -249,6 +230,8 @@ export function AdminFinance() {
         ))}
       </div>
 
+      <PlatformFinanceSummary />
+
       {loading ? (
         <p className="text-xs font-medium text-slate-500">Đang tải dữ liệu tài chính…</p>
       ) : (
@@ -263,7 +246,7 @@ export function AdminFinance() {
                 Lịch hẹn &amp; thanh toán →
               </Link>
             </div>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
                 <p className="text-[10px] font-black uppercase tracking-widest text-amber-900">Chờ đối soát</p>
                 <p className="mt-1 text-2xl font-black text-amber-950">{bookingSummary.pendingTransferCount}</p>
@@ -272,10 +255,13 @@ export function AdminFinance() {
                 </p>
               </div>
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
-                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900">Đã thu qua SePay</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900">Đã thu (còn giữ)</p>
                 <p className="mt-1 text-2xl font-black text-emerald-950">{bookingSummary.paidCollectedCount}</p>
                 <p className="mt-1 text-sm font-semibold text-emerald-900">
                   {vnd(bookingSummary.paidCollectedAmount)}
+                </p>
+                <p className="mt-2 text-xs text-emerald-800/80">
+                  Đã thu qua SePay, chưa phát sinh hoàn tiền — số gộp, chưa trừ phí nền tảng.
                 </p>
               </div>
               <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4">
@@ -284,6 +270,13 @@ export function AdminFinance() {
                 <p className="mt-1 text-sm font-semibold text-sky-900">
                   {vnd(bookingSummary.refundPendingAmount)}
                 </p>
+                <p className="mt-2 text-xs text-sky-800/80">Đã duyệt hoàn, admin chưa chuyển khoản</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-100/80 p-4">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Đã hoàn cho học viên</p>
+                <p className="mt-1 text-2xl font-black text-slate-800">{bookingSummary.refundedCount}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-700">{vnd(bookingSummary.refundedAmount)}</p>
+                <p className="mt-2 text-xs text-slate-600/80">Admin đã chuyển khoản hoàn xong (một phần/toàn bộ)</p>
               </div>
             </div>
           </section>
@@ -335,7 +328,9 @@ export function AdminFinance() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900">Đã thu qua SePay</p>
                   <p className="mt-1 text-2xl font-black text-emerald-950">{cf.paidCollectedCount ?? 0}</p>
                   <p className="mt-1 text-sm font-semibold text-emerald-900">{vnd(cf.paidCollectedAmount)}</p>
-                  <p className="mt-2 text-xs text-emerald-800/80">Ghi danh có học phí &gt; 0</p>
+                  <p className="mt-2 text-xs text-emerald-800/80">
+                    Ghi danh có học phí &gt; 0 — số gộp, toàn thời gian, chưa trừ phí nền tảng.
+                  </p>
                 </div>
                 <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
                   <p className="text-[10px] font-black uppercase tracking-widest text-amber-900">Chờ đối soát</p>

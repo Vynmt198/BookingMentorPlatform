@@ -24,6 +24,23 @@ export function isBookingInLiveWindow(booking, { earlyMinutes = 15, lateMinutesA
   return now >= start - earlyMinutes * 60 * 1000 && now <= end + lateMinutesAfterEnd * 60 * 1000;
 }
 
+/** Đã tới hoặc qua giờ bắt đầu — dùng để chặn mentor hoàn thành buổi trước giờ hẹn. */
+export function isBookingAtOrPastStart(booking) {
+  const start = parseBookingStartMs(booking.date, booking.timeSlot);
+  if (!Number.isFinite(start)) return false;
+  return Date.now() >= start;
+}
+
+/** Chặn kết thúc buổi "ăn gian" — phải qua tối thiểu 2/3 thời lượng đặt mới được hoàn thành. */
+const MENTOR_COMPLETE_MIN_FRACTION = 2 / 3;
+
+export function isBookingCompletable(booking) {
+  const start = parseBookingStartMs(booking.date, booking.timeSlot);
+  if (!Number.isFinite(start)) return false;
+  const dur = (Number(booking.durationMinutes) || 60) * 60 * 1000;
+  return Date.now() >= start + dur * MENTOR_COMPLETE_MIN_FRACTION;
+}
+
 /** Khung giờ phải sau thời điểm hiện tại. */
 export function isBookingSlotInFuture(dateStr, timeSlot, nowMs = Date.now()) {
   const ms = parseBookingStartMs(dateStr, timeSlot);

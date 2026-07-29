@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { motion } from "motion/react";
 import {
+  Banknote,
   Calendar,
+  Check,
+  Copy,
   ExternalLink,
   FileText,
   Mail,
@@ -47,6 +50,82 @@ function pickNoteLine(notes, label) {
   const re = new RegExp(`^${label}\\s*:\\s*(.+)`, "im");
   const m = String(notes || "").match(re);
   return m ? m[1].trim() : "";
+}
+
+function CopyAccountNumberButton({ value }) {
+  const [copied, setCopied] = useState(false);
+  if (!value) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigator.clipboard.writeText(String(value)).catch(() => {});
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      title="Sao chép số tài khoản"
+      className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-sky-200 bg-white px-2 py-1 text-[10px] font-bold uppercase text-sky-700 transition hover:bg-sky-50"
+    >
+      {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+      {copied ? "Đã chép" : "Chép"}
+    </button>
+  );
+}
+
+function RefundAmountBreakdown({ booking, tone = "sky", label = "Cần hoàn" }) {
+  const total = Number(booking.totalAmount ?? booking.price ?? 0);
+  const refundAmt = Number(booking.cancelRefundAmountVnd ?? 0);
+  const retainedAmt = Number(booking.cancelRetainedAmountVnd ?? 0);
+  const pct = Number(booking.cancelRefundPercent);
+  const labelClass = tone === "emerald" ? "text-emerald-800" : "text-sky-800";
+  return (
+    <div className="flex flex-wrap items-center gap-5">
+      <div>
+        <p className={`text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>Tổng đã thu</p>
+        <p className="text-sm font-black text-slate-900">{vnd(total)}</p>
+      </div>
+      {retainedAmt > 0 ? (
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-rose-600">Giữ lại (không hoàn)</p>
+          <p className="text-sm font-black text-rose-700">{vnd(retainedAmt)}</p>
+        </div>
+      ) : null}
+      <div>
+        <p className={`text-[10px] font-black uppercase tracking-wider ${labelClass}`}>
+          {label}
+          {Number.isFinite(pct) ? ` (${pct}%)` : ""}
+        </p>
+        <p className="text-base font-black text-slate-900">{vnd(refundAmt)}</p>
+      </div>
+    </div>
+  );
+}
+
+function RefundStkGrid({ booking, tone = "sky" }) {
+  const labelClass = tone === "emerald" ? "text-emerald-700" : "text-sky-700";
+  return (
+    <div className={`mt-3 grid gap-3 border-t pt-3 sm:grid-cols-3 ${tone === "emerald" ? "border-emerald-200/70" : "border-sky-200/70"}`}>
+      <div className="min-w-0">
+        <p className={`text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>Ngân hàng</p>
+        <p className="mt-0.5 truncate text-base font-black text-slate-900">{booking.refundReceiveBankName || "—"}</p>
+      </div>
+      <div className="min-w-0">
+        <p className={`text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>Số tài khoản</p>
+        <div className="mt-0.5 flex items-center gap-2">
+          <p className="truncate font-mono text-lg font-black tracking-wide text-slate-900">
+            {booking.refundReceiveAccountNumber}
+          </p>
+          <CopyAccountNumberButton value={booking.refundReceiveAccountNumber} />
+        </div>
+      </div>
+      <div className="min-w-0">
+        <p className={`text-[10px] font-bold uppercase tracking-wider ${labelClass}`}>Chủ tài khoản</p>
+        <p className="mt-0.5 truncate text-base font-black text-slate-900">
+          {booking.refundReceiveAccountHolder || "—"}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function AttachmentLink({ label, fileName }) {
@@ -117,6 +196,7 @@ export function AdminBookingDetail() {
     booking?.paymentMethod === "transfer" &&
     String(booking?.paymentStatus || "").toLowerCase() === "pending";
   const refundPending = String(booking?.paymentStatus || "").toLowerCase() === "refund_pending";
+  const refundCompleted = Boolean(booking?.refundCompletedAt);
 
   const confirmCkOverride = async (confirmBody) => {
     if (!booking) return;
@@ -129,6 +209,27 @@ export function AdminBookingDetail() {
         successMessage: "Đã xác nhận thanh toán.",
       },
     );
+    setBusy(false);
+    if (res.success) await load();
+  };
+
+  const hasRefundStk = Boolean(booking?.refundReceiveAccountNumber);
+
+  const confirmRefund = async () => {
+    if (!booking || !hasRefundStk) return;
+    const amt = vnd(booking.cancelRefundAmountVnd);
+    if (
+      !window.confirm(
+        `Xác nhận đã chuyển khoản hoàn ${amt} cho học viên?\n\nSTK nhận hoàn: ${booking.refundReceiveBankName || "—"} · ${booking.refundReceiveAccountNumber} · ${booking.refundReceiveAccountHolder || "—"}\n\nChỉ bấm sau khi đã chuyển tiền thật vào đúng số tài khoản trên.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    const res = await tryApi(() => adminApi.confirmBookingRefund(booking._id || booking.id), {
+      fallback: "Không xác nhận được hoàn tiền.",
+      successMessage: "Đã đánh dấu hoàn tiền xong.",
+    });
     setBusy(false);
     if (res.success) await load();
   };
@@ -203,11 +304,41 @@ export function AdminBookingDetail() {
               </p>
             ) : null}
 
-            {refundPending && booking.refundReceiveAccountNumber ? (
-              <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-950">
-                Hoàn: {booking.refundReceiveBankName || "—"} · {booking.refundReceiveAccountNumber} ·{" "}
-                {booking.refundReceiveAccountHolder || "—"}
-              </p>
+            {refundPending ? (
+              <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50/80 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <RefundAmountBreakdown booking={booking} tone="sky" label="Cần hoàn" />
+                  <button
+                    type="button"
+                    disabled={!hasRefundStk || busy}
+                    onClick={() => void confirmRefund()}
+                    title={hasRefundStk ? "Xác nhận đã chuyển khoản" : "Chờ học viên điền STK trước"}
+                    className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-sky-300 bg-white px-4 py-2 text-xs font-black uppercase tracking-wider text-sky-800 transition hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Banknote className="h-4 w-4" />
+                    {busy ? "Đang xử lý…" : "Xác nhận đã chuyển"}
+                  </button>
+                </div>
+
+                {hasRefundStk ? (
+                  <RefundStkGrid booking={booking} tone="sky" />
+                ) : (
+                  <p className="mt-3 border-t border-sky-200/70 pt-3 text-sm font-semibold text-amber-700">
+                    Học viên chưa điền STK nhận hoàn
+                  </p>
+                )}
+              </div>
+            ) : refundCompleted ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                <p className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-800">
+                  <Check className="h-3.5 w-3.5" /> Hoàn tất lúc{" "}
+                  {new Date(booking.refundCompletedAt).toLocaleString("vi-VN")}
+                </p>
+                <div className="mt-2">
+                  <RefundAmountBreakdown booking={booking} tone="emerald" label="Đã hoàn" />
+                </div>
+                {hasRefundStk ? <RefundStkGrid booking={booking} tone="emerald" /> : null}
+              </div>
             ) : null}
           </motion.div>
 

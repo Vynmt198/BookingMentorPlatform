@@ -6,6 +6,7 @@ import {
   GraduationCap,
   UserPlus,
   Wallet,
+  TrendingUp,
   ArrowLeftRight,
   Banknote,
   Calendar,
@@ -66,6 +67,7 @@ const MAIN_GROUPS = [
   {
     title: "Tài chính",
     items: [
+      { to: "/admin/finance-overview", label: "Thu – Chi – Lợi nhuận", icon: TrendingUp },
       { to: "/admin/payouts", label: "Rút tiền cố vấn", icon: Banknote },
       { to: "/admin/finance", label: "Tổng quan tài chính", icon: Wallet },
       { to: "/admin/transactions", label: "Giao dịch", icon: ArrowLeftRight },

@@ -39,7 +39,7 @@ import { isBookingSlotInFuture } from "../../utils/bookingSchedule.js";
 import {
   canMentorCompleteBooking,
   formatUntilStart,
-  getMinutesUntilBookingStart,
+  getMinutesUntilBookingCompletable,
   isBookingPastScheduledEnd,
 } from "../../utils/meetingLinks.js";
 import { avatarSrc } from "../../utils/mediaUrl.js";
@@ -322,12 +322,13 @@ export function MentorMeetingDetail() {
   });
   const completeBlockedHint =
     !canCompleteSession && !isCompleted
-      ? `Chưa tới giờ bắt đầu (còn ${formatUntilStart(
-          getMinutesUntilBookingStart({
+      ? `Buổi cần diễn ra tối thiểu 2/3 thời lượng mới kết thúc được (còn ${formatUntilStart(
+          getMinutesUntilBookingCompletable({
             date: meeting.scheduledDate,
             timeSlot: meeting.scheduledTime,
+            durationMinutes: meeting.duration,
           }),
-        )}). Có thể vào phòng trước, kết thúc sau khi buổi bắt đầu.`
+        )}). Có thể vào phòng trước, kết thúc sau khi đủ thời lượng.`
       : "";
 
   const handleMentorReschedule = async () => {
@@ -478,10 +479,10 @@ export function MentorMeetingDetail() {
       durationMinutes: meeting.duration,
     };
     if (!canMentorCompleteBooking(schedule)) {
-      const mins = getMinutesUntilBookingStart(schedule);
+      const mins = getMinutesUntilBookingCompletable(schedule);
       toastApiError(
         mins > 0
-          ? `Chưa tới giờ bắt đầu (còn ${formatUntilStart(mins)}). Bạn có thể vào phòng trước nhưng chưa thể kết thúc buổi.`
+          ? `Buổi cần diễn ra tối thiểu 2/3 thời lượng mới kết thúc được (còn ${formatUntilStart(mins)}). Bạn có thể vào phòng trước nhưng chưa thể kết thúc buổi.`
           : "Chưa tới giờ bắt đầu buổi học.",
       );
       return;

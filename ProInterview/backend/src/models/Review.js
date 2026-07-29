@@ -27,6 +27,15 @@ const reviewSchema = new Schema(
 );
 
 reviewSchema.index({ targetType: 1, targetId: 1 });
-reviewSchema.index({ userId: 1, targetType: 1, targetId: 1 }, { unique: true });
+// Course: 1 review/user/course (no booking). Mentor: 1 review/user/mentor/booking — mỗi buổi
+// mentor hoàn thành được đánh giá riêng, không giới hạn 1 review/mentor suốt đời.
+reviewSchema.index(
+  { userId: 1, targetType: 1, targetId: 1 },
+  { unique: true, partialFilterExpression: { targetType: "course" } }
+);
+reviewSchema.index(
+  { userId: 1, targetType: 1, targetId: 1, bookingId: 1 },
+  { unique: true, partialFilterExpression: { targetType: "mentor" } }
+);
 
 export const Review = mongoose.models.Review ?? mongoose.model("Review", reviewSchema);

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../ui/sheet';
 import { useCart } from '../../hooks/useCart';
 import { Trash2, ShoppingCart, Plus, Minus, ArrowRight } from 'lucide-react';
@@ -9,6 +10,7 @@ const formatCurrency = (val) => {
 };
 
 export function CartDrawer() {
+  const navigate = useNavigate();
   const { cart, isCartOpen, setIsCartOpen, removeFromCart, updateCartItemQuantity, cartTotal } = useCart();
   const items = cart?.items || [];
   const itemCount = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
@@ -152,7 +154,7 @@ export function CartDrawer() {
               style={{ background: '#93f72b', boxShadow: '0 8px 20px rgba(0,0,0,0.25)' }}
               onClick={() => {
                 setIsCartOpen(false);
-                window.location.href = '#/checkout?type=cart';
+                navigate('/checkout?type=cart');
               }}
             >
               Tiến hành Thanh toán

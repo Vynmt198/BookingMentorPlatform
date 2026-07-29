@@ -10,6 +10,10 @@ export function emptyLiveCapture() {
     questionsAsked: [],
     commonMistakes: [],
     keyInsights: [],
+    rating: 0,
+    strengths: "",
+    improvements: "",
+    recommendation: "",
   };
 }
 
@@ -39,6 +43,10 @@ export function normalizeLiveCapture(raw) {
     questionsAsked: cleanList(raw.questionsAsked),
     commonMistakes: cleanList(raw.commonMistakes),
     keyInsights: cleanList(raw.keyInsights),
+    rating: Math.min(5, Math.max(0, Math.round(Number(raw.rating) || 0))),
+    strengths: String(raw.strengths || "").trim().slice(0, 4000),
+    improvements: String(raw.improvements || "").trim().slice(0, 4000),
+    recommendation: String(raw.recommendation || "").trim().slice(0, 4000),
   };
 }
 
@@ -113,7 +121,11 @@ export function liveCaptureHasContent(capture) {
     c.transcript ||
       c.questionsAsked.length ||
       c.commonMistakes.length ||
-      c.keyInsights.length,
+      c.keyInsights.length ||
+      c.rating ||
+      c.strengths ||
+      c.improvements ||
+      c.recommendation,
   );
 }
 

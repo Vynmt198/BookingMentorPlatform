@@ -334,6 +334,18 @@ export function MentorReviewsSection({ realReviews, reviewSummary, compactTitle 
                       <div className="mt-1.5">
                         <RatingBadge rating={review.rating} />
                       </div>
+                      {Array.isArray(review.tags) && review.tags.length > 0 ? (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          {review.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-lg border border-violet-100 bg-violet-50/70 px-2.5 py-1 text-[11px] font-semibold text-violet-700"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
                       {review.comment ? (
                         <p className="mt-3 text-sm leading-relaxed text-slate-700">
                           {review.comment}

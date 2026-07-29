@@ -8,6 +8,7 @@ import { isUserOnline } from "../utils/userPresence.js";
 import { getPlatformBehavior, getUserJourney } from "../services/analyticsService.js";
 
 import { PayoutRequest } from "../models/PayoutRequest.js";
+import { Payment } from "../models/Payment.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Notification } from "../models/index.js";
 import { deliverNotification } from "../services/notificationDeliveryService.js";
@@ -671,21 +672,48 @@ export const AdminController = {
         }
       }
 
+      // "grossCollected" = tiền khách đã chuyển vào (gộp), kể cả buổi sau đó bị hoàn — cùng quy
+      // ước "thu gộp" với trang Thu-Chi-Lợi nhuận (getFinanceOverview) để 2 nơi luôn khớp số,
+      // thay vì mỗi nơi tự định nghĩa "đã thu" theo cách khác nhau (ròng vs gộp).
       const bookingRows = await Booking.find({
-        paymentStatus: { $in: ["paid", "partial_refund"] },
+        paymentStatus: { $in: ["paid", "partial_refund", "refunded"] },
       })
-        .select("price platformFee platformFeeRate totalAmount status paidAt createdAt")
+        .select(
+          "price platformFee platformFeeRate totalAmount status paymentStatus cancelRefundAmountVnd paidAt createdAt refundCompletedAt",
+        )
         .lean();
-      const bookingRowsFiltered = monthRange
-        ? bookingRows.filter((row) => {
-            const t = row.paidAt ? new Date(row.paidAt) : new Date(row.createdAt);
-            const ms = t.getTime();
-            return ms >= monthRange.start.getTime() && ms < monthRange.end.getTime();
-          })
-        : bookingRows;
-      const booking = bookingRowsFiltered.reduce(
+      const booking = bookingRows.reduce(
         (acc, row) => {
           const gross = Math.round(Number(row.totalAmount ?? row.price ?? 0));
+          if (row.paymentStatus === "refunded") {
+            const t = row.refundCompletedAt || row.paidAt || row.createdAt;
+            if (monthRange) {
+              const ms = new Date(t).getTime();
+              if (!(ms >= monthRange.start.getTime() && ms < monthRange.end.getTime())) return acc;
+            }
+            const refunded = Math.min(gross, Math.max(0, Number(row.cancelRefundAmountVnd) || gross));
+            acc.grossCollected += gross;
+            acc.refunded += refunded;
+            acc.count += 1;
+            return acc;
+          }
+          const t = row.paidAt || row.createdAt;
+          if (monthRange) {
+            const ms = new Date(t).getTime();
+            if (!(ms >= monthRange.start.getTime() && ms < monthRange.end.getTime())) return acc;
+          }
+          if (row.paymentStatus === "partial_refund") {
+            // Buổi đã hủy, chỉ hoàn 1 phần cho khách: mentor không được ghi có ví cho buổi
+            // chưa "completed" (xem tryCreditMentorForCompletedBooking), nên toàn bộ phần
+            // nền tảng GIỮ LẠI (sau khi trừ số đã hoàn) tính là doanh thu nền tảng, mentor = 0.
+            const refunded = Math.min(gross, Math.max(0, Number(row.cancelRefundAmountVnd) || 0));
+            const retained = Math.max(0, gross - refunded);
+            acc.grossCollected += gross;
+            acc.refunded += refunded;
+            acc.platformRevenue += retained;
+            acc.count += 1;
+            return acc;
+          }
           const rate = safeFeeRate(row.platformFeeRate, Number(process.env.BOOKING_PLATFORM_FEE_RATE) || 0.3);
           const fee = Number.isFinite(Number(row.platformFee))
             ? Math.round(Number(row.platformFee))
@@ -696,7 +724,7 @@ export const AdminController = {
           acc.count += 1;
           return acc;
         },
-        { grossCollected: 0, platformRevenue: 0, mentorNet: 0, count: 0 },
+        { grossCollected: 0, refunded: 0, platformRevenue: 0, mentorNet: 0, count: 0 },
       );
 
       const enrollmentRows = await Enrollment.find({ paymentStatus: "paid", pricePaid: { $gt: 0 } })
@@ -722,9 +750,59 @@ export const AdminController = {
         { grossCollected: 0, platformRevenue: 0, mentorNet: 0, count: 0 },
       );
 
+      // Học phí CK đến trễ (đơn đã hết hạn trước khi khớp) — tiền vào rồi hoàn lại ngay, tách
+      // biệt với enrollment "paid" ở trên (enrollment đó không hề được kích hoạt) — xem cùng
+      // logic ở getFinanceOverview.
+      const courseRefundRows = await Payment.find({ type: "course", provider: "transfer", status: "refunded" })
+        .select("amount refundedAt")
+        .lean();
+      const courseRefunded = courseRefundRows.reduce((sum, p) => {
+        if (monthRange) {
+          const ms = p.refundedAt ? new Date(p.refundedAt).getTime() : NaN;
+          if (!(Number.isFinite(ms) && ms >= monthRange.start.getTime() && ms < monthRange.end.getTime())) return sum;
+        }
+        return sum + Math.round(Number(p.amount) || 0);
+      }, 0);
+      course.grossCollected += courseRefunded;
+      course.refunded = courseRefunded;
+
+      // Gói Sinh viên/Chuyên nghiệp — 100% doanh thu nền tảng, không chia mentor.
+      const subscriptionRows = await Payment.find({ type: "subscription", provider: "transfer", status: "success" })
+        .select("amount paidAt")
+        .lean();
+      const subscriptionRowsFiltered = monthRange
+        ? subscriptionRows.filter((row) => {
+            const t = row.paidAt ? new Date(row.paidAt).getTime() : NaN;
+            return Number.isFinite(t) && t >= monthRange.start.getTime() && t < monthRange.end.getTime();
+          })
+        : subscriptionRows;
+      const subscription = subscriptionRowsFiltered.reduce(
+        (acc, row) => {
+          const amt = Math.round(Number(row.amount) || 0);
+          acc.grossCollected += amt;
+          acc.platformRevenue += amt;
+          acc.count += 1;
+          return acc;
+        },
+        { grossCollected: 0, platformRevenue: 0, refunded: 0, count: 0 },
+      );
+      const subRefundRows = await Payment.find({ type: "subscription", provider: "transfer", status: "refunded" })
+        .select("amount refundedAt")
+        .lean();
+      const subRefunded = subRefundRows.reduce((sum, p) => {
+        if (monthRange) {
+          const ms = p.refundedAt ? new Date(p.refundedAt).getTime() : NaN;
+          if (!(Number.isFinite(ms) && ms >= monthRange.start.getTime() && ms < monthRange.end.getTime())) return sum;
+        }
+        return sum + Math.round(Number(p.amount) || 0);
+      }, 0);
+      subscription.grossCollected += subRefunded;
+      subscription.refunded = subRefunded;
+
       const totals = {
-        grossCollected: booking.grossCollected + course.grossCollected,
-        platformRevenue: booking.platformRevenue + course.platformRevenue,
+        grossCollected: booking.grossCollected + course.grossCollected + subscription.grossCollected,
+        refunded: booking.refunded + (course.refunded || 0) + subscription.refunded,
+        platformRevenue: booking.platformRevenue + course.platformRevenue + subscription.platformRevenue,
         mentorNet: booking.mentorNet + course.mentorNet,
       };
 
@@ -741,6 +819,221 @@ export const AdminController = {
           totals,
           booking,
           course,
+          subscription,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Tổng quan Thu – Chi – Lợi nhuận toàn hệ thống: gộp cả 3 nguồn thu (lịch hẹn, khóa học, gói
+   * cước) và 2 khoản chi thật sự rời khỏi hệ thống (hoàn tiền khách, trả cố vấn), cộng thêm số
+   * dư mentor đang giữ hộ (đã cộng ví nhưng chưa rút) để phép cộng "Thu - Hoàn = Lợi nhuận + Chia
+   * mentor (đã trả + đang giữ hộ)" luôn đúng — tránh cảm giác số liệu "mông lung" khi tự nhẩm.
+   */
+  getFinanceOverview: async (req, res, next) => {
+    try {
+      const monthRange = parseMonthRange(req.query?.month);
+      if (String(req.query?.month || "").trim() && !monthRange) {
+        return res.status(400).json({
+          success: false,
+          error: "month phải theo định dạng YYYY-MM (ví dụ 2026-06).",
+        });
+      }
+      if (monthRange) {
+        const currentMonthStart = new Date();
+        currentMonthStart.setDate(1);
+        currentMonthStart.setHours(0, 0, 0, 0);
+        if (monthRange.start.getTime() > currentMonthStart.getTime()) {
+          return res.status(400).json({
+            success: false,
+            error: "Không thể xem doanh thu tương lai.",
+          });
+        }
+      }
+      const inRange = (d) => {
+        if (!monthRange) return true;
+        const t = d ? new Date(d).getTime() : NaN;
+        return Number.isFinite(t) && t >= monthRange.start.getTime() && t < monthRange.end.getTime();
+      };
+
+      // ---------- LỊCH HẸN ----------
+      const bookingRows = await Booking.find({
+        paymentStatus: { $in: ["paid", "partial_refund", "refunded"] },
+      })
+        .select(
+          "price totalAmount platformFee platformFeeRate paymentStatus cancelRefundAmountVnd paidAt createdAt refundCompletedAt",
+        )
+        .lean();
+      const booking = bookingRows.reduce(
+        (acc, row) => {
+          const gross = Math.round(Number(row.totalAmount ?? row.price ?? 0));
+          if (row.paymentStatus === "refunded") {
+            if (!inRange(row.refundCompletedAt || row.paidAt || row.createdAt)) return acc;
+            const refunded = Math.min(gross, Math.max(0, Number(row.cancelRefundAmountVnd) || gross));
+            acc.grossIn += gross;
+            acc.refunded += refunded;
+            acc.count += 1;
+            return acc;
+          }
+          if (!inRange(row.paidAt || row.createdAt)) return acc;
+          if (row.paymentStatus === "partial_refund") {
+            const refunded = Math.min(gross, Math.max(0, Number(row.cancelRefundAmountVnd) || 0));
+            const retained = Math.max(0, gross - refunded);
+            acc.grossIn += gross;
+            acc.refunded += refunded;
+            acc.platformFee += retained;
+            acc.count += 1;
+            return acc;
+          }
+          const rate = safeFeeRate(row.platformFeeRate, Number(process.env.BOOKING_PLATFORM_FEE_RATE) || 0.3);
+          const fee = Number.isFinite(Number(row.platformFee))
+            ? Math.round(Number(row.platformFee))
+            : Math.round(gross * rate);
+          acc.grossIn += gross;
+          acc.platformFee += Math.max(0, fee);
+          acc.mentorNet += Math.max(0, gross - fee);
+          acc.count += 1;
+          return acc;
+        },
+        { grossIn: 0, refunded: 0, platformFee: 0, mentorNet: 0, count: 0 },
+      );
+
+      // ---------- KHÓA HỌC ----------
+      const enrollmentRows = await Enrollment.find({ paymentStatus: "paid", pricePaid: { $gt: 0 } })
+        .select("pricePaid platformFee platformFeeRate paidAt updatedAt createdAt")
+        .lean();
+      const fallbackCourseRate = Number(process.env.COURSE_PLATFORM_FEE_RATE) || 0.35;
+      const course = enrollmentRows.reduce(
+        (acc, row) => {
+          if (!inRange(row.paidAt || row.updatedAt || row.createdAt)) return acc;
+          const { gross, fee } = resolveCourseFee(row, fallbackCourseRate);
+          acc.grossIn += gross;
+          acc.platformFee += Math.max(0, fee);
+          acc.mentorNet += Math.max(0, gross - fee);
+          acc.count += 1;
+          return acc;
+        },
+        { grossIn: 0, platformFee: 0, mentorNet: 0, count: 0 },
+      );
+
+      // Học phí CK đến trễ (đơn đã hết hạn trước khi khớp) — tiền vào rồi hoàn lại ngay, tách
+      // biệt hoàn toàn với các enrollment "paid" ở trên (enrollment đó không hề được kích hoạt).
+      const courseRefundRows = await Payment.find({ type: "course", provider: "transfer", status: "refunded" })
+        .select("amount refundedAt")
+        .lean();
+      const courseRefunded = courseRefundRows.reduce((sum, p) => {
+        if (!inRange(p.refundedAt)) return sum;
+        return sum + Math.round(Number(p.amount) || 0);
+      }, 0);
+      course.grossIn += courseRefunded;
+      course.refunded = courseRefunded;
+
+      // ---------- GÓI CƯỚC (Sinh viên/Chuyên nghiệp) — 100% doanh thu nền tảng, không chia mentor ----------
+      const subPaidRows = await Payment.find({ type: "subscription", provider: "transfer", status: "success" })
+        .select("amount paidAt")
+        .lean();
+      const subscription = subPaidRows.reduce(
+        (acc, p) => {
+          if (!inRange(p.paidAt)) return acc;
+          const amt = Math.round(Number(p.amount) || 0);
+          acc.grossIn += amt;
+          acc.platformRevenue += amt;
+          acc.count += 1;
+          return acc;
+        },
+        { grossIn: 0, platformRevenue: 0, refunded: 0, count: 0 },
+      );
+      const subRefundRows = await Payment.find({ type: "subscription", provider: "transfer", status: "refunded" })
+        .select("amount refundedAt")
+        .lean();
+      const subRefunded = subRefundRows.reduce((sum, p) => {
+        if (!inRange(p.refundedAt)) return sum;
+        return sum + Math.round(Number(p.amount) || 0);
+      }, 0);
+      subscription.grossIn += subRefunded;
+      subscription.refunded = subRefunded;
+
+      // ---------- ĐÃ CHI CHO CỐ VẤN (rút tiền, admin đã chuyển khoản thật) ----------
+      const payoutPaidRows = await PayoutRequest.find({ status: "paid" }).select("amount paidAt").lean();
+      const mentorPayout = payoutPaidRows.reduce(
+        (acc, p) => {
+          if (!inRange(p.paidAt)) return acc;
+          acc.amount += Math.round(Number(p.amount) || 0);
+          acc.count += 1;
+          return acc;
+        },
+        { amount: 0, count: 0 },
+      );
+
+      // ---------- MENTOR ĐANG GIỮ HỘ (snapshot số dư hiện tại, KHÔNG lọc theo tháng) ----------
+      const mentorBalanceAgg = await Mentor.aggregate([
+        {
+          $group: {
+            _id: null,
+            available: { $sum: { $ifNull: ["$finance.availableBalance", 0] } },
+            clearing: { $sum: { $ifNull: ["$finance.clearingBalance", 0] } },
+            pending: { $sum: { $ifNull: ["$finance.pendingBalance", 0] } },
+          },
+        },
+      ]);
+      const mentorBalance = mentorBalanceAgg[0] || { available: 0, clearing: 0, pending: 0 };
+      const mentorStillHolding = Math.round(
+        Number(mentorBalance.available || 0) + Number(mentorBalance.clearing || 0) + Number(mentorBalance.pending || 0),
+      );
+
+      // ---------- PHÉP ĐỐI CHIẾU TOÀN THỜI GIAN (không lọc theo tháng) ----------
+      // "Chia mentor" trong bảng theo kỳ là số dồn tích (mọi booking/enrollment "paid"), còn ví
+      // mentor chỉ được cộng SAU KHI buổi/khóa hoàn tất (tryCreditMentorForCompletedBooking) —
+      // hai con số này lệch nhau một khoảng "chưa ghi có ví" hoàn toàn hợp lệ (buổi chưa diễn ra,
+      // đang trong thời gian giữ tiền...). Tính riêng bản KHÔNG lọc tháng để phép cộng dưới đây
+      // luôn khớp tuyệt đối, thay vì so lẫn số theo-kỳ với số theo-toàn-thời-gian.
+      const bookingMentorNetAllTime = bookingRows.reduce((sum, row) => {
+        if (row.paymentStatus !== "paid") return sum;
+        const gross = Math.round(Number(row.totalAmount ?? row.price ?? 0));
+        const rate = safeFeeRate(row.platformFeeRate, Number(process.env.BOOKING_PLATFORM_FEE_RATE) || 0.3);
+        const fee = Number.isFinite(Number(row.platformFee))
+          ? Math.round(Number(row.platformFee))
+          : Math.round(gross * rate);
+        return sum + Math.max(0, gross - fee);
+      }, 0);
+      const courseMentorNetAllTime = enrollmentRows.reduce((sum, row) => {
+        const { gross, fee } = resolveCourseFee(row, fallbackCourseRate);
+        return sum + Math.max(0, gross - fee);
+      }, 0);
+      const mentorNetAllTime = bookingMentorNetAllTime + courseMentorNetAllTime;
+      const mentorPaidAllTime = payoutPaidRows.reduce((sum, p) => sum + Math.round(Number(p.amount) || 0), 0);
+      const mentorNotYetCredited = Math.max(0, mentorNetAllTime - mentorPaidAllTime - mentorStillHolding);
+
+      const totals = {
+        grossIn: booking.grossIn + course.grossIn + subscription.grossIn,
+        refunded: booking.refunded + course.refunded + subscription.refunded,
+        mentorPayout: mentorPayout.amount,
+        platformProfit: booking.platformFee + course.platformFee + subscription.platformRevenue,
+        mentorNet: booking.mentorNet + course.mentorNet,
+      };
+
+      res.json({
+        success: true,
+        financeOverview: {
+          period: monthRange
+            ? {
+                month: monthRange.month,
+                startAt: monthRange.start.toISOString(),
+                endAt: monthRange.end.toISOString(),
+              }
+            : null,
+          totals,
+          breakdown: { booking, course, subscription },
+          mentorPayout,
+          lifetime: {
+            mentorNet: mentorNetAllTime,
+            mentorPaid: mentorPaidAllTime,
+            mentorStillHolding,
+            mentorNotYetCredited,
+          },
         },
       });
     } catch (error) {
@@ -785,6 +1078,7 @@ export const AdminController = {
       res.json({
         success: true,
         payments: result.payments,
+        recentPaidRows: result.recentPaidRows || [],
         stats: result.stats || { paidCount: 0, paidTotalAmount: 0 },
       });
     } catch (error) {

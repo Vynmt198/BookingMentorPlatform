@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Crown, RefreshCw, RotateCcw, Search, User } from "lucide-react";
+import { Crown, RefreshCw, Search, User } from "lucide-react";
 import { motion } from "motion/react";
 import { tryApi } from "../../utils/apiToast";
 import { adminApi } from "../../utils/adminApi";
 import { AdminSepayOverrideAction } from "../../components/admin/AdminSepayOverrideAction.jsx";
 import { StatusPill } from "../../components/admin/AdminStatusPill.jsx";
+import { AdminFilterSelect, AdminListFilterBar } from "../../components/admin/AdminListFilters.jsx";
 
 function vnd(n) {
   return `${Number(n || 0).toLocaleString("vi-VN")} đ`;
@@ -21,6 +22,20 @@ function planLabel(plan) {
   return plan || "—";
 }
 
+const STATUS_META = {
+  pending: { label: "Chờ đối soát", tone: "border-amber-200 bg-amber-50 text-amber-800" },
+  refund_pending: { label: "Cần hoàn tiền", tone: "border-rose-200 bg-rose-50 text-rose-800" },
+  success: { label: "Đã kích hoạt", tone: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+};
+
+function statusMeta(status) {
+  return STATUS_META[status] || { label: status || "—", tone: "border-slate-200 bg-slate-50 text-slate-700" };
+}
+
+function rowDate(row) {
+  return row.status === "success" ? row.paidAt : row.transferSubmittedAt || row.createdAt;
+}
+
 function ActionSlot({ children, className = "" }) {
   return (
     <div className={`flex size-9 shrink-0 items-center justify-center ${className}`}>
@@ -29,15 +44,24 @@ function ActionSlot({ children, className = "" }) {
   );
 }
 
+const FILTER_TABS = [
+  { id: "all", label: "Tất cả" },
+  { id: "pending", label: "Chờ đối soát" },
+  { id: "refund_pending", label: "Cần hoàn tiền" },
+  { id: "success", label: "Đã kích hoạt" },
+];
+
 const thCell =
   "px-4 py-4 text-[10px] font-black uppercase tracking-widest text-slate-500 sm:px-5 sm:py-5 lg:px-6";
 const tdCell = "px-4 py-4 sm:px-5 sm:py-5 lg:px-6";
 
 export function AdminSubscriptionPayments() {
   const [rows, setRows] = useState([]);
+  const [recentPaidRows, setRecentPaidRows] = useState([]);
   const [paidStats, setPaidStats] = useState({ paidCount: 0, paidTotalAmount: 0 });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filter, setFilter] = useState("all");
   const [busyId, setBusyId] = useState("");
 
   const confirmSubscriptionOverride = async (row, confirmBody) => {
@@ -70,10 +94,11 @@ export function AdminSubscriptionPayments() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     const res = await tryApi(() => adminApi.getPendingSubscriptionPayments(), {
-      fallback: "Không tải được danh sách gói cước chờ đối soát.",
+      fallback: "Không tải được danh sách gói cước.",
     });
     if (res.success) {
       setRows(res.payments || []);
+      setRecentPaidRows(res.recentPaidRows || []);
       setPaidStats(res.stats || { paidCount: 0, paidTotalAmount: 0 });
     }
     setLoading(false);
@@ -95,17 +120,25 @@ export function AdminSubscriptionPayments() {
     [refundPendingRows],
   );
 
+  /** Gộp 3 nguồn (chờ đối soát / cần hoàn / đã kích hoạt) thành 1 danh sách, lọc bằng dropdown
+   * thay vì tách 2-3 bảng cố định — đỡ rườm rà, người xem chọn đúng thứ cần xem. */
+  const allRows = useMemo(
+    () => [...rows, ...recentPaidRows].sort((a, b) => new Date(rowDate(b)) - new Date(rowDate(a))),
+    [rows, recentPaidRows],
+  );
+
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => {
+    return allRows.filter((r) => {
+      if (filter !== "all" && r.status !== filter) return false;
+      if (!q) return true;
       const name = String(r.user?.name || "").toLowerCase();
       const email = String(r.user?.email || "").toLowerCase();
       const ref = String(r.providerRef || r.paymentRef || "").toLowerCase();
       const plan = planLabel(r.plan).toLowerCase();
       return name.includes(q) || email.includes(q) || ref.includes(q) || plan.includes(q);
     });
-  }, [rows, searchTerm]);
+  }, [allRows, searchTerm, filter]);
 
   return (
     <div className="min-w-0 max-w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 sm:space-y-8">
@@ -164,21 +197,39 @@ export function AdminSubscriptionPayments() {
         </div>
       </motion.div>
 
+      <AdminListFilterBar
+        countText={`Hiển thị ${filtered.length} / ${allRows.length} giao dịch`}
+        showReset={filter !== "all"}
+        onReset={() => setFilter("all")}
+      >
+        <AdminFilterSelect
+          id="subscription-status-filter"
+          label="Trạng thái"
+          value={filter}
+          options={FILTER_TABS}
+          onChange={setFilter}
+        />
+      </AdminListFilterBar>
+
       <div className="glass-card min-w-0 max-w-full overflow-hidden border-slate-200/90 [&:hover]:transform-none [&:hover]:shadow-[0_8px_18px_rgba(110,53,232,0.07)]">
         <div className="max-w-full overflow-x-auto overscroll-x-contain">
           <table className="w-full min-w-0 table-fixed border-collapse text-left">
             <colgroup>
-              <col className="w-[26%]" />
-              <col className="w-[16%]" />
-              <col className="w-[18%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
+              <col className="w-[24%]" />
+              <col className="w-[14%]" />
+              <col className="w-[13%]" />
+              <col className="w-[17%]" />
+              <col className="w-[14%]" />
+              <col className="w-[10%]" />
+              <col className="w-[8%]" />
             </colgroup>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/90">
                 <th className={thCell}>Học viên</th>
                 <th className={thCell}>Gói mua</th>
+                <th className={thCell}>Trạng thái</th>
                 <th className={thCell}>Thanh toán</th>
+                <th className={thCell}>Thời gian</th>
                 <th className={`${thCell} text-right`}>Số tiền</th>
                 <th className={`${thCell} text-right`}>Thao tác</th>
               </tr>
@@ -187,7 +238,7 @@ export function AdminSubscriptionPayments() {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={7}
                     className={`${tdCell} py-20 text-center text-[10px] font-black uppercase italic tracking-widest text-slate-500`}
                   >
                     Đang tải…
@@ -195,24 +246,20 @@ export function AdminSubscriptionPayments() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className={`${tdCell} py-20 text-center`}>
+                  <td colSpan={7} className={`${tdCell} py-20 text-center`}>
                     <Crown className="mx-auto mb-3 h-10 w-10 text-slate-400" />
                     <p className="text-[10px] font-black uppercase italic tracking-widest text-slate-500">
-                      {rows.length === 0
-                        ? "Không có gói chờ đối soát"
-                        : "Không có dòng phù hợp từ khóa tìm kiếm"}
+                      {allRows.length === 0
+                        ? "Chưa có giao dịch gói cước nào"
+                        : "Không có dòng phù hợp bộ lọc / từ khóa"}
                     </p>
                   </td>
                 </tr>
               ) : (
                 filtered.map((row) => {
                   const ref = row.providerRef || row.paymentRef || "—";
-                  const planTone =
-                    row.plan === "premium"
-                      ? "border-violet-400 bg-violet-200 text-violet-900"
-                      : row.plan === "professional" || row.plan === "elite_pro"
-                        ? "border-violet-300 bg-violet-100 text-violet-900"
-                        : "border-violet-200 bg-violet-50 text-violet-800";
+                  const date = rowDate(row);
+                  const meta = statusMeta(row.status);
                   return (
                     <tr key={row.id} className="group transition-colors hover:bg-violet-50/40">
                       <td className={`${tdCell} min-w-0`}>
@@ -231,19 +278,19 @@ export function AdminSubscriptionPayments() {
                         </div>
                       </td>
                       <td className={tdCell}>
-                        <StatusPill icon={Crown} label={planLabel(row.plan)} toneClass={planTone} />
+                        <StatusPill icon={Crown} label={planLabel(row.plan)} toneClass="border-violet-200 bg-violet-50 text-violet-800" />
+                      </td>
+                      <td className={tdCell}>
+                        <StatusPill icon={Crown} label={meta.label} toneClass={meta.tone} />
                       </td>
                       <td className={`${tdCell} whitespace-nowrap`}>
                         <p className="text-sm font-medium text-slate-800">Chuyển khoản</p>
                         <p className="mt-0.5 font-mono text-xs font-semibold text-violet-700" title={ref}>
                           {ref}
                         </p>
-                        {row.status === "refund_pending" && (
-                          <span className="mt-1 inline-flex w-fit items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700">
-                            <RotateCcw className="size-3" />
-                            Cần hoàn tiền
-                          </span>
-                        )}
+                      </td>
+                      <td className={`${tdCell} whitespace-nowrap text-sm text-slate-700`}>
+                        {date ? new Date(date).toLocaleString("vi-VN") : "—"}
                       </td>
                       <td className={`${tdCell} whitespace-nowrap text-right font-black text-violet-700`}>
                         {Number(row.amount || 0).toLocaleString("vi-VN")}{" "}
@@ -260,13 +307,15 @@ export function AdminSubscriptionPayments() {
                             >
                               {busyId === row.id ? "Đang xử lý…" : "Xác nhận đã hoàn"}
                             </button>
-                          ) : (
+                          ) : row.status === "pending" ? (
                             <ActionSlot>
                               <AdminSepayOverrideAction
                                 busy={busyId === row.id}
                                 onConfirm={(body) => confirmSubscriptionOverride(row, body)}
                               />
                             </ActionSlot>
+                          ) : (
+                            <span className="text-xs text-slate-300">—</span>
                           )}
                         </div>
                       </td>

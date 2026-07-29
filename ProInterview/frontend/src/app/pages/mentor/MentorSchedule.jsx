@@ -11,6 +11,7 @@ import {
   MoreVertical,
   CheckCircle2,
   AlertCircle,
+  ChevronDown,
   Video,
   Users,
   X,
@@ -94,6 +95,21 @@ function formatMonthYear(date) {
 
 function formatSelectedDayLabel(date) {
   return `Ngày ${date.getDate()} · Tháng ${date.getMonth() + 1}`;
+}
+
+function parseFlexibleDate(value) {
+  const s = String(value || "").trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  return null;
+}
+
+function formatShortDate(value) {
+  const d = parseFlexibleDate(value);
+  if (!d) return value || "";
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function isSameCalendarDay(a, b) {
@@ -389,6 +405,7 @@ export function MentorSchedule() {
   const [showAvailability, setShowAvailability] = useState(false);
   const [mentorMeetings, setMentorMeetings] = useState([]);
   const [availability, setAvailability] = useState(null);
+  const [feedbackPanelExpanded, setFeedbackPanelExpanded] = useState(true);
 
   useEffect(() => {
     if (!user || user.role !== "mentor") {
@@ -592,26 +609,44 @@ export function MentorSchedule() {
                    const overdueCount = pendingFeedbackMeetings.filter((m) => m.feedbackOverdue).length;
                    const isEscalated = overdueCount > 0;
                    return (
-                   <div className={`mb-3 shrink-0 rounded-2xl border p-3 ${isEscalated ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
-                     <p className={`mb-2 flex items-center gap-1.5 text-xs font-bold ${isEscalated ? "text-red-900" : "text-amber-900"}`}>
-                       <AlertCircle size={14} />
-                       {isEscalated
-                         ? `${overdueCount}/${pendingFeedbackMeetings.length} buổi đã quá hạn ${FEEDBACK_REMINDER_DAYS} ngày chưa gửi feedback`
-                         : `${pendingFeedbackMeetings.length} buổi đã hoàn thành chưa gửi feedback`}
-                     </p>
-                     <div className="space-y-1.5">
-                       {pendingFeedbackMeetings.slice(0, 4).map((m) => (
-                         <button
-                           key={m.id}
-                           type="button"
-                           onClick={() => navigate(`/mentor/session-feedback/${m.id}`)}
-                           className={`flex w-full items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-left text-xs font-semibold transition-all ${m.feedbackOverdue ? "text-red-900 hover:bg-red-100" : "text-amber-900 hover:bg-amber-100"}`}
-                         >
-                           <span className="truncate">{m.mentee.name} · {m.date} {m.feedbackOverdue ? "· Quá hạn" : ""}</span>
-                           <span className={`shrink-0 ${m.feedbackOverdue ? "text-red-700" : "text-amber-700"}`}>Gửi ngay →</span>
-                         </button>
-                       ))}
-                     </div>
+                   <div className={`mb-3 shrink-0 rounded-2xl border ${isEscalated ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
+                     <button
+                       type="button"
+                       onClick={() => setFeedbackPanelExpanded((v) => !v)}
+                       className={`flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-xs font-bold ${isEscalated ? "text-red-900" : "text-amber-900"}`}
+                     >
+                       <span className="flex min-w-0 items-center gap-1.5">
+                         <AlertCircle size={14} className="shrink-0" />
+                         <span className="truncate">
+                           {isEscalated
+                             ? `${overdueCount}/${pendingFeedbackMeetings.length} buổi quá hạn ${FEEDBACK_REMINDER_DAYS} ngày chưa gửi feedback`
+                             : `${pendingFeedbackMeetings.length} buổi đã hoàn thành chưa gửi feedback`}
+                         </span>
+                       </span>
+                       <ChevronDown
+                         size={14}
+                         className={`shrink-0 transition-transform ${feedbackPanelExpanded ? "rotate-180" : ""}`}
+                       />
+                     </button>
+                     {feedbackPanelExpanded && (
+                       <div className="max-h-36 space-y-1.5 overflow-y-auto custom-scrollbar px-3 pb-3">
+                         {pendingFeedbackMeetings.map((m) => (
+                           <button
+                             key={m.id}
+                             type="button"
+                             onClick={() => navigate(`/mentor/session-feedback/${m.id}`)}
+                             className={`flex w-full items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-left text-xs font-semibold transition-all ${m.feedbackOverdue ? "text-red-900 hover:bg-red-100" : "text-amber-900 hover:bg-amber-100"}`}
+                           >
+                             <span className="flex min-w-0 items-center gap-1.5">
+                               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${m.feedbackOverdue ? "bg-red-500" : "bg-amber-500"}`} />
+                               <span className="truncate">{m.mentee.name}</span>
+                               <span className="shrink-0 text-[10px] font-normal opacity-70">{formatShortDate(m.date)}</span>
+                             </span>
+                             <span className={`shrink-0 ${m.feedbackOverdue ? "text-red-700" : "text-amber-700"}`}>Gửi ngay →</span>
+                           </button>
+                         ))}
+                       </div>
+                     )}
                    </div>
                    );
                  })()}

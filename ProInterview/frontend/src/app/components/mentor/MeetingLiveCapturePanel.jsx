@@ -8,6 +8,7 @@ import {
   MessageCircleQuestion,
   Mic,
   MicOff,
+  Star,
   Trash2,
   X,
 } from "lucide-react";
@@ -94,12 +95,14 @@ export function MeetingLiveCapturePanel({
   onFinishDictation,
   onAddTagged,
   onRemoveTagged,
+  onUpdateQuickAssessment,
   onDismiss,
   className = "",
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [manualDraft, setManualDraft] = useState("");
   const [showDictationHint, setShowDictationHint] = useState(true);
+  const [showQuickAssessment, setShowQuickAssessment] = useState(true);
   const totalNotes = countStructuredNotes(capture);
 
   const resolveDraft = () => manualDraft.trim();
@@ -175,6 +178,55 @@ export function MeetingLiveCapturePanel({
         >
           <X className="h-4 w-4" {...IS} />
         </button>
+      </div>
+
+      <div className="border-b border-slate-100 px-4 py-3">
+        <button
+          type="button"
+          onClick={() => setShowQuickAssessment((v) => !v)}
+          className="flex w-full items-center justify-between text-[10px] font-black uppercase tracking-widest text-[#8037f4]"
+        >
+          Đánh giá nhanh
+          <ChevronDown className={`h-3.5 w-3.5 transition ${showQuickAssessment ? "rotate-180" : ""}`} {...IS} />
+        </button>
+        {showQuickAssessment ? (
+          <div className="mt-2.5 space-y-2.5">
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4, 5].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => onUpdateQuickAssessment?.({ rating: value })}
+                  className="rounded p-0.5 transition hover:scale-110"
+                  aria-label={`Đánh giá ${value} sao`}
+                >
+                  <Star
+                    className={`h-4 w-4 ${value <= (capture.rating || 0) ? "fill-amber-400 text-amber-400" : "text-slate-200"}`}
+                    {...IS}
+                  />
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={capture.strengths || ""}
+              onChange={(e) => onUpdateQuickAssessment?.({ strengths: e.target.value })}
+              placeholder="Điểm mạnh..."
+              className="w-full min-h-[52px] resize-none rounded-lg border border-emerald-100 bg-emerald-50/40 px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-emerald-300 focus:bg-white"
+            />
+            <textarea
+              value={capture.improvements || ""}
+              onChange={(e) => onUpdateQuickAssessment?.({ improvements: e.target.value })}
+              placeholder="Cần cải thiện..."
+              className="w-full min-h-[52px] resize-none rounded-lg border border-rose-100 bg-rose-50/40 px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-rose-300 focus:bg-white"
+            />
+            <textarea
+              value={capture.recommendation || ""}
+              onChange={(e) => onUpdateQuickAssessment?.({ recommendation: e.target.value })}
+              placeholder="Lời khuyên phát triển..."
+              className="w-full min-h-[52px] resize-none rounded-lg border border-amber-100 bg-amber-50/40 px-2.5 py-2 text-xs text-slate-700 outline-none focus:border-amber-300 focus:bg-white"
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="border-b border-slate-100 px-4 py-3">
