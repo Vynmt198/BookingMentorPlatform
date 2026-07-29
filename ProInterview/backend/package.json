@@ -36,7 +36,9 @@
     "test:python-cv": "cd ../cv_jd_matching && python -m unittest discover -s tests -p test_*.py -v",
     "test:dto": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --testPathPatterns=__tests__",
     "seed:suspend-demo": "node src/scripts/seedSuspensionRefundDemo.js",
-    "seed:lock-test": "node src/scripts/seedLockFeatureDemo.js"
+    "seed:lock-test": "node src/scripts/seedLockFeatureDemo.js",
+    "seed:demo": "node src/scripts/seedDemoShowcase.js",
+    "seed:demo:clean": "node src/scripts/seedDemoShowcase.js --clean"
   },
   "jest": {
     "testEnvironment": "node",

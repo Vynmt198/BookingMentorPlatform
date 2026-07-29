@@ -1,6 +1,6 @@
 # ProInterview
 
-> Nền tảng SaaS luyện phỏng vấn xin việc với AI avatar, đặt lịch mentor, phân tích CV/JD và khóa học trực tuyến.
+> Nền tảng SaaS hỗ trợ tìm việc: phân tích CV/JD, đặt lịch mentor 1-1 kèm phòng họp video, và khóa học trực tuyến.
 
 [![Node](https://img.shields.io/badge/Node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18-blue)](https://react.dev/)
@@ -14,10 +14,12 @@
 
 **ProInterview** là ứng dụng web giúp ứng viên chuẩn bị phỏng vấn xin việc thông qua:
 
-- **Đặt lịch mentor** — booking 1-1 với mentor, thanh toán, đánh giá sau buổi
-- **Phân tích CV/JD** — matching CV với mô tả công việc, trích xuất kỹ năng
-- **Khóa học** — mua và học khóa học video do mentor tạo
-- **Dashboard** — theo dõi tiến trình, lịch sử, thống kê
+- **Phân tích CV/JD** — matching CV với mô tả công việc hoặc theo lĩnh vực, trích xuất kỹ năng, gợi ý cải thiện
+- **Đặt lịch mentor** — booking 1-1, thanh toán chuyển khoản, phòng họp video JaaS kèm check-in, đánh giá sau buổi
+- **Khóa học** — giỏ hàng, mua và học khóa học video do mentor tạo
+- **Dashboard** — theo dõi tiến trình, lịch sử giao dịch + hoá đơn PDF, thống kê
+
+> **Lưu ý phạm vi:** tính năng phỏng vấn AI và avatar D-ID **đã được gỡ khỏi bản web** (commit `3c5a43d`). Bản mobile (`../Prointerview-App/`) vẫn còn.
 
 ---
 
@@ -26,7 +28,7 @@
 ```
 ProInterview/
 ├── frontend/          # Vite + React 18 + Tailwind CSS + shadcn/ui   (port 5173)
-├── backend/           # Express 5 + MongoDB (Mongoose 9) + JWT        (port 5000)
+├── backend/           # Express 5 + MongoDB (Mongoose 9) + JWT        (port 5000/5001)
 └── cv_jd_matching/    # Python FastAPI + Uvicorn                      (port 8000)
 ```
 
@@ -49,7 +51,7 @@ ProInterview/
 
 ```bash
 git clone https://github.com/<your-org>/prointerview.git
-cd prointerview
+cd prointerview/ProInterview
 ```
 
 ### 2. Cấu hình môi trường
@@ -63,30 +65,36 @@ cp backend/.env.example backend/.env
 Điền các biến bắt buộc:
 
 ```env
+PORT=5001
 MONGO_URI=mongodb://127.0.0.1:27017/prointerview
 JWT_SECRET=<chuỗi ngẫu nhiên dài ≥ 32 ký tự>
-CORS_ORIGIN=http://localhost:5173
 JWT_EXPIRES_IN=7d
+CORS_ORIGIN=http://localhost:5173
+FRONTEND_URL=http://localhost:5173
 GOOGLE_CLIENT_ID=<từ Google Cloud Console>
-LLM_API_KEY=<OpenAI hoặc compatible>
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4o-mini
+LLM_API_KEY=<OpenAI-compatible, vd Groq>
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_MODEL=llama-3.3-70b-versatile
 CV_ANALYZER_URL=http://localhost:8000   # Python service (dev)
 ```
+
+Các nhóm biến tuỳ chọn trong `.env.example`: tỷ lệ hoa hồng (`BOOKING_PLATFORM_FEE_RATE`, `COURSE_PLATFORM_FEE_RATE`, chính sách early mentor), JaaS (`JAAS_*`), `ADMIN_INVITE_CODE`. Không set JaaS thì phòng họp tự fallback `meet.jit.si` (giới hạn ~5 phút khi embed).
 
 **Frontend** — tạo `frontend/.env.local`:
 
 ```env
 VITE_GOOGLE_CLIENT_ID=<giống backend>
+# Cần cho trang thanh toán chuyển khoản (thiếu → không hiện QR VietQR)
+VITE_BANK_TRANSFER_NAME=TPBank
+VITE_BANK_TRANSFER_ACCOUNT=<số tài khoản>
+VITE_BANK_TRANSFER_OWNER=<chủ tài khoản>
+VITE_VIETQR_BANK_ID=TPB
 ```
 
 ### 3. Cài dependencies
 
 ```bash
-# Backend
 cd backend && npm install
-
-# Frontend
 cd ../frontend && npm install
 ```
 
@@ -96,6 +104,8 @@ cd ../frontend && npm install
 cd backend
 npm run seed:all
 ```
+
+Seed demo cho từng luồng cụ thể: `npm run seed:meeting-flow` (phòng họp), `npm run seed:suspend-demo` (tạm ngưng mentor + hoàn tiền học viên), `npm run seed:lock-test` (khóa tài khoản), `npm run seed:commission` (hoa hồng).
 
 ### 5. Khởi động
 
@@ -133,25 +143,39 @@ Mật khẩu: **`Dev123456`**
 
 ---
 
+## Gói cước
+
+| Plan | Giá/tháng | Giá/năm | CV/JD Analysis | Ưu đãi mentor & khoá học |
+|:-----|:----------|:--------|:---------------|:--------------------------|
+| Free | 0đ | — | 3/tháng | 0% |
+| Student | 150,000đ | 1,440,000đ | 50/tháng | 5% |
+| Professional | 500,000đ | 4,800,000đ | Không giới hạn | 10% |
+
+Buổi mentor luôn tự thanh toán — gói cước cho **ưu đãi %**, không cấp buổi miễn phí. Nâng/hạ hạng giữa chừng được quy đổi giá trị ngày còn lại theo tiền.
+
+---
+
 ## Tính năng chính
 
 ### Người dùng (Customer)
-- Đăng ký / đăng nhập email, Google OAuth
-- Upload CV, phân tích và đối chiếu với JD hoặc theo lĩnh vực (`cv-analysis/jd` và `cv-analysis/field`)
+- Đăng ký / đăng nhập email, Google OAuth (nhận email mật khẩu ban đầu khi đăng nhập Google lần đầu)
+- Upload CV, phân tích và đối chiếu với JD hoặc theo lĩnh vực (`/cv-analysis/jd`, `/cv-analysis/field`)
 - Tìm kiếm và đặt lịch mentor, vào phòng họp video qua JaaS (8x8.vc, fallback Jitsi public)
-- Mua và học khóa học video
-- Lịch sử, booking, dashboard cá nhân
+- Giỏ hàng, mua và học khóa học video
+- Lịch sử giao dịch + tải hoá đơn PDF (`/payment-history`), booking, dashboard cá nhân
 
 ### Mentor
-- Quản lý lịch, booking (kèm check-in), thu nhập/hoa hồng
-- Tạo và quản lý khóa học
-- Peer review với mentor khác
-- Analytics buổi tư vấn
+- Quản lý lịch, booking (kèm check-in bằng ảnh webcam trước khi vào phòng họp)
+- Thu nhập/hoa hồng, quản lý tài khoản nhận tiền (có validate ngân hàng + STK), yêu cầu rút tiền
+- Tạo và quản lý khóa học, peer review với mentor khác, analytics buổi tư vấn
+- Tự báo học viên no-show sau 15 phút (buổi tính như hoàn thành, mentor nhận đủ tiền)
 
 ### Admin
-- Quản lý người dùng, mentor, bookings, khoá học, thanh toán (booking/subscription/course)
-- Xét duyệt mentor mới, quản lý check-in booking
-- Analytics hành vi người dùng (user-journey tracking) và dashboard thống kê toàn hệ thống
+- Quản lý người dùng, mentor, bookings, khoá học, thanh toán (booking / subscription / course)
+- Xét duyệt mentor mới, duyệt giá, quản lý check-in booking
+- **Minh bạch tài chính** — trang "Thu · Chi · Lợi nhuận" (`/admin/finance-overview`) tổng hợp toàn hệ thống kèm phép đối chiếu tự kiểm chứng; Dashboard và `/admin/finance` dùng chung một nguồn tính doanh thu
+- **Vòng đời tài khoản** — xem trước tác động trước khi khóa, tạm ngưng (chặn hoạt động nhưng mentor vẫn rút được tiền), đóng tài khoản (soft-delete, ẩn danh PII, giữ nguyên lịch sử tài chính), tự hoàn tiền 100% cho học viên có buổi chưa diễn ra
+- Analytics hành vi người dùng (user-journey tracking) và audit log mọi thao tác ghi của admin
 
 ---
 
@@ -163,17 +187,22 @@ Base URL: `/api` · Auth: `Authorization: Bearer <jwt>`
 |:-----|:---------|
 | Auth | `/api/auth/*` |
 | Mentors | `/api/mentors/*` |
-| Bookings | `/api/bookings/*` |
+| Mentor (self) | `/api/mentor/*` — dashboard, finance, analytics, payout-accounts, peer-reviews |
+| Bookings | `/api/bookings/*` — gồm check-in, no-show, reschedule, refund destination |
 | Courses | `/api/courses/*`, `/api/enrollments/*` |
+| Cart | `/api/cart/*` — get/add/checkout/update/remove/clear |
 | CV & JD | `/api/cv/*` |
-| Analytics | `/api/analytics/events` (ghi nhận sự kiện hành vi cho admin user-journey) |
-| Payments | `/api/payments/*` |
-| Admin | `/api/admin/*` |
-| Health | `GET /api/health` |
+| Plans | `/api/plans/*` |
+| Payments | `/api/payments/*` — gồm `GET /history`, `GET /:id/invoice` (PDF), webhook SePay |
+| Reviews / Reports | `/api/reviews/*`, `/api/reports/*` |
+| Notifications | `/api/notifications/*` |
+| Analytics | `/api/analytics/events` — ghi sự kiện hành vi cho admin user-journey |
+| Admin | `/api/admin/*` — gồm `audit-log`, `users/:id/impact`, `users/:id/close`, `finance/overview`, `payments/held` |
+| Upload | `/api/upload/*` |
+| Health | `GET /api/health` — trả kèm trạng thái cấu hình JaaS |
 
-> `backend/src/routes/cart.js` + `cartController.js` đã có sẵn nhưng **chưa được mount** trong `app.js` — tính năng giỏ hàng chưa hoạt động trên bản web (khác với bản mobile, nơi `/api/cart` đã mount).
+> `API_INDEX.md` và `ROADMAP.md` **đã lệch so với code** (còn liệt kê `/api/interviews`, `/api/ai` đã gỡ). Kiểm tra `backend/src/app.js` + `backend/src/routes/` để biết endpoint thực tế.
 
-Xem toàn bộ contract tại [API_INDEX.md](./API_INDEX.md).  
 Docs CV/JD service (khi chạy local): `http://127.0.0.1:8000/docs`
 
 ---
@@ -182,8 +211,11 @@ Docs CV/JD service (khi chạy local): `http://127.0.0.1:8000/docs`
 
 | File | Nội dung |
 |:-----|:---------|
-| [API_INDEX.md](./API_INDEX.md) | Contract đầy đủ tất cả endpoints (đang chạy + roadmap) |
-| [ROADMAP.md](./ROADMAP.md) | Lộ trình theo phase, trạng thái từng endpoint |
+| [DEPLOYMENT.md](./DEPLOYMENT.md) | **Hướng dẫn deploy Vercel + Render + MongoDB Atlas** từng bước, bảng env var, checklist, troubleshooting |
+| [TESTING.md](./TESTING.md) | **Kịch bản test site đã deploy** — smoke test, luồng theo vai trò, đối soát tiền, test bảo mật; kèm mock data qua `npm run seed:demo` |
+| [CLAUDE.md](./CLAUDE.md) | Kiến trúc chi tiết backend + frontend, quy tắc domain (tiền, vòng đời tài khoản) |
+| [API_INDEX.md](./API_INDEX.md) | Contract endpoints — tham khảo, đã lệch một phần |
+| [ROADMAP.md](./ROADMAP.md) | Lộ trình theo phase — tham khảo, đã lệch một phần |
 | [backend/DATABASE.md](./backend/DATABASE.md) | Schema MongoDB chi tiết, seed scripts |
 | [POSTMAN_TESTING.md](./POSTMAN_TESTING.md) | Hướng dẫn test API với Postman |
 
@@ -193,11 +225,13 @@ Docs CV/JD service (khi chạy local): `http://127.0.0.1:8000/docs`
 
 | Service | Platform | Ghi chú |
 |:--------|:---------|:--------|
-| Backend | Render | `render.yaml` có sẵn; region: Singapore |
-| Frontend | Vercel | `vercel.json` có sẵn; cần set `VITE_API_URL` |
+| Backend | Render | `render.yaml` (Blueprint), `rootDir: ProInterview/backend`, region Singapore, health check `/api/health` |
+| Frontend | Vercel | `frontend/vercel.json` — rewrite `/api/*` + `/uploads/*` sang domain backend, header COOP cho FedCM |
 | CV Service | Heroku / Render | `Procfile` + `runtime.txt` có sẵn |
 
-Sau khi deploy, đặt `CV_ANALYZER_URL` trong backend env trỏ về URL Python service.
+Sau khi deploy, đặt `CV_ANALYZER_URL` trong backend env trỏ về URL Python service, và cập nhật domain backend trong `frontend/vercel.json` nếu đổi host.
+
+→ **Hướng dẫn deploy đầy đủ từng bước: [DEPLOYMENT.md](./DEPLOYMENT.md)** — gồm bảng env var bắt buộc/tuỳ chọn, checklist kiểm tra sau deploy, và các bẫy cấu hình đã biết (backend không boot nếu thiếu `LLM_API_KEY`; file upload mất nếu chưa có Cloudinary).
 
 ---
 
@@ -205,14 +239,15 @@ Sau khi deploy, đặt `CV_ANALYZER_URL` trong backend env trỏ về URL Python
 
 | Layer | Công nghệ |
 |:------|:----------|
-| Frontend | React 18, Vite, React Router v7, Tailwind CSS, shadcn/ui, Recharts |
-| Backend | Express 5 (ESM), Node ≥ 20, Mongoose 9, JWT, bcrypt, Multer |
-| Database | MongoDB |
-| AI / CV | Python FastAPI, pdf parsing, NLP |
-| Video meeting | JaaS (8x8.vc, JWT ký bởi `jaasService.js`), fallback Jitsi public |
-| Auth | Google Identity Services (FedCM), JWT refresh sessions |
-| Payments | Chuyển khoản ngân hàng (chính); MoMo / ZaloPay (sandbox) |
-| Testing | Node test runner + Jest, integration test qua `mongodb-memory-server` (14 file `*.test.js`) |
+| Frontend | React 18, Vite, React Router v7 (hash), Tailwind CSS, shadcn/ui, Recharts |
+| Backend | Express 5 (ESM), Node ≥ 20, Mongoose 9, JWT, bcrypt, Multer, nodemailer |
+| Database | MongoDB — 20 Mongoose schemas |
+| AI / CV | Python FastAPI, pdf parsing, NLP; LLM OpenAI-compatible cho gợi ý |
+| Video meeting | JaaS (8x8.vc, JWT RS256 ký bởi `jaasService.js`), fallback Jitsi public |
+| Auth | Google Identity Services (FedCM), JWT + refresh sessions |
+| Payments | Chuyển khoản ngân hàng + webhook SePay (chính); MoMo / ZaloPay / VNPay (sandbox) |
+| Background jobs | 5 job: booking reminder, stale sweep, streak, plan expiry, earnings clearance |
+| Testing | Node test runner + Jest, integration test qua `mongodb-memory-server` (13 file test) |
 
 ---
 
@@ -222,7 +257,8 @@ Sau khi deploy, đặt `CV_ANALYZER_URL` trong backend env trỏ về URL Python
 2. Khi thêm API mới: cập nhật [API_INDEX.md](./API_INDEX.md) và [ROADMAP.md](./ROADMAP.md)
 3. Dùng `apiUrl()` từ `frontend/src/app/utils/api.js`, không hardcode URL
 4. Response shape chuẩn: `{ success: true, <key>: data }` / `{ success: false, error: "msg" }`
-5. Tạo Pull Request vào `main` với mô tả rõ ràng
+5. Code liên quan tới tiền: đọc mục "Khi làm việc quanh tiền" trong [CLAUDE.md](./CLAUDE.md) trước khi sửa
+6. Tạo Pull Request vào `main` với mô tả rõ ràng
 
 ---
 
