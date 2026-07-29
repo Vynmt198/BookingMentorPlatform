@@ -134,6 +134,10 @@ const bookingSchema = new Schema(
     completedAt: { type: Date },
     /** Đã ghi có thu nhập vào ví mentor (tránh cộng trùng). */
     mentorEarningsCreditedAt: { type: Date },
+    /** Ngày tiền đủ điều kiện chuyển từ "đang giữ" sang "khả dụng" (completedAt + 3 ngày). */
+    earningsClearAt: { type: Date },
+    /** Đã thực sự release từ clearingBalance sang availableBalance. */
+    earningsClearedAt: { type: Date },
     /** Ảnh check-in webcam mentor trước khi vào phòng họp. */
     mentorCheckInImageUrl: { type: String, default: "" },
     mentorCheckInAt: { type: Date },

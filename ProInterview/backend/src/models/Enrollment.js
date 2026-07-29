@@ -48,6 +48,10 @@ const enrollmentSchema = new Schema(
     paidAt: { type: Date },
     /** Đã ghi có thu nhập mentor + stats khóa (tránh cộng trùng). */
     mentorEarningsCreditedAt: { type: Date },
+    /** Ngày tiền đủ điều kiện chuyển từ "đang giữ" sang "khả dụng" (paidAt + 3 ngày, tính từ lúc mua chứ không phải lúc học xong). */
+    earningsClearAt: { type: Date },
+    /** Đã thực sự release từ clearingBalance sang availableBalance. */
+    earningsClearedAt: { type: Date },
   },
   { collection: "enrollments", timestamps: true }
 );

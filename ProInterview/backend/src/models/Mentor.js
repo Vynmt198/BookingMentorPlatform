@@ -74,12 +74,22 @@ const mentorSchema = new Schema(
 
     finance: {
       availableBalance: { type: Number, default: 0 },
+      /** Đã kiếm nhưng còn trong thời gian giữ (3 ngày) — chưa rút được. */
+      clearingBalance: { type: Number, default: 0 },
       pendingBalance: { type: Number, default: 0 },
       totalEarned: { type: Number, default: 0 },
-      bankAccount: {
-        bankName: { type: String, default: "" },
-        accountNumber: { type: String, default: "" },
-        accountName: { type: String, default: "" },
+      /** Danh sách thẻ/tài khoản ngân hàng đã lưu — mentor chọn 1 cái mỗi lần rút. */
+      bankAccounts: {
+        type: [
+          {
+            bankName: { type: String, default: "" },
+            accountNumber: { type: String, default: "" },
+            accountName: { type: String, default: "" },
+            isDefault: { type: Boolean, default: false },
+            createdAt: { type: Date, default: Date.now },
+          },
+        ],
+        default: [],
       },
       momoPhone: { type: String, default: "" },
       zalopayPhone: { type: String, default: "" },

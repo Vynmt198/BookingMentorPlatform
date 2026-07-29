@@ -40,3 +40,51 @@ export function refundBankValidationMessage(bankSelect, customBankName) {
   }
   return "";
 }
+
+const BANK_INITIALS = {
+  Vietcombank: "VCB",
+  BIDV: "BIDV",
+  VietinBank: "CTG",
+  Agribank: "AGB",
+  Techcombank: "TCB",
+  "MB Bank": "MB",
+  ACB: "ACB",
+  VPBank: "VPB",
+  TPBank: "TPB",
+  Sacombank: "STB",
+  HDBank: "HDB",
+  VIB: "VIB",
+  SHB: "SHB",
+  OCB: "OCB",
+  Eximbank: "EIB",
+  SeABank: "SSB",
+  PVcomBank: "PVC",
+  "Nam A Bank": "NAB",
+};
+
+const BANK_BADGE_COLORS = [
+  "#8037f4",
+  "#0ea5e9",
+  "#f59e0b",
+  "#10b981",
+  "#ef4444",
+  "#6366f1",
+  "#14b8a6",
+  "#ec4899",
+];
+
+/** Icon tròn chữ viết tắt cho ngân hàng — không có logo thật trong repo nên dùng badge màu thay thế. */
+export function getBankBadge(bankName) {
+  const name = String(bankName || "").trim();
+  const fallbackInitials = name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 3)
+    .toUpperCase();
+  const initials = BANK_INITIALS[name] || fallbackInitials || "NH";
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) % 997;
+  const color = BANK_BADGE_COLORS[Math.abs(hash) % BANK_BADGE_COLORS.length];
+  return { initials, color };
+}
