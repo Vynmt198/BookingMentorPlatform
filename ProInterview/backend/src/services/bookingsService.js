@@ -688,7 +688,7 @@ export async function createBooking(userId, body) {
   if (!mentorAccount || mentorAccount.role !== "mentor" || mentorAccount.isActive === false) {
     return { ok: false, status: 404, error: "Mentor không khả dụng để đặt lịch." };
   }
-  if (mentor.isActive === false) {
+  if (mentor.isActive === false || (mentor.status && mentor.status !== "active")) {
     return {
       ok: false,
       status: 400,

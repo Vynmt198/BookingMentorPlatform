@@ -1,12 +1,22 @@
 import { Router } from "express";
 import { authJwt } from "../middleware/authJwt.js";
 import { requireAdmin } from "../middleware/requireAdmin.js";
+import { adminAuditLog } from "../middleware/adminAuditLog.js";
+import { adminMutationLimiter } from "../middleware/rateLimiters.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { AdminController } from "../controllers/adminController.js";
+import { AdminAuditController } from "../controllers/adminAuditController.js";
+import { AdminAccountController } from "../controllers/adminAccountController.js";
 
 export const adminRouter = Router();
 
-adminRouter.use(authJwt, requireAdmin);
+/**
+ * `adminAuditLog` đứng TRƯỚC rate limiter để chính các request bị chặn (429) cũng được ghi vết —
+ * một chuỗi 429 liên tiếp là tín hiệu đáng chú ý hơn cả thao tác thành công.
+ */
+adminRouter.use(authJwt, requireAdmin, adminAuditLog, adminMutationLimiter);
+
+adminRouter.get("/audit-log", asyncHandler(AdminAuditController.getAuditLog));
 
 adminRouter.get("/stats", asyncHandler(AdminController.getStats));
 adminRouter.get("/reports", asyncHandler(AdminController.getReports));
@@ -24,7 +34,11 @@ adminRouter.post("/mentors/:id/reject-price", asyncHandler(AdminController.rejec
 
 adminRouter.get("/users", asyncHandler(AdminController.getAllUsers));
 adminRouter.get("/users/:id", asyncHandler(AdminController.getUserById));
+adminRouter.get("/users/:id/impact", asyncHandler(AdminAccountController.getAccountImpact));
+adminRouter.post("/users/:id/close", asyncHandler(AdminAccountController.closeAccount));
 adminRouter.patch("/users/:id/status", asyncHandler(AdminController.toggleUserStatus));
+adminRouter.post("/mentors/:id/payouts", asyncHandler(AdminAccountController.createPayoutForMentor));
+adminRouter.get("/payments/held", asyncHandler(AdminAccountController.getHeldPayments));
 
 adminRouter.get("/bookings", asyncHandler(AdminController.getAllBookings));
 adminRouter.get("/bookings/:id", asyncHandler(AdminController.getBookingById));

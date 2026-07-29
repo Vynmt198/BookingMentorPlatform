@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router";
+import { useParams, useNavigate, useSearchParams } from "react-router";
+import { RefundAccountModal } from "../../components/modals/RefundAccountModal";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Calendar,
@@ -346,6 +347,7 @@ function SessionMeetingLinkCard({ sessionData, bookingId }) {
 /* ─── Main Component ───────────────────────────────────── */
 export function SessionDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   /* ── Resolve session data, GET /api/bookings/:id (không dùng mock local) ── */
@@ -498,6 +500,7 @@ export function SessionDetail() {
   const [refundAccountHolder, setRefundAccountHolder] = useState("");
   const refundBankName = effectiveBankName(refundBankSelect, refundCustomBankName);
   const [refundDestBusy, setRefundDestBusy] = useState(false);
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [mentorResolutionStep, setMentorResolutionStep] = useState("");
   const [resolutionBusy, setResolutionBusy] = useState(false);
   const [reportNoShowBusy, setReportNoShowBusy] = useState(false);
@@ -639,6 +642,18 @@ export function SessionDetail() {
       String(sessionData?.paymentStatus || "").toLowerCase() === "refund_pending" &&
       String(sessionData?.refundReceiveAccountNumber || "").replace(/\D/g, "").length < 6,
   );
+
+  /** Buổi đang chờ hoàn tiền — dùng cho lối vào modal hướng dẫn gửi email yêu cầu hoàn. */
+  const isRefundPending =
+    Boolean(mongoBookingId) && String(sessionData?.paymentStatus || "").toLowerCase() === "refund_pending";
+
+  /**
+   * Thông báo hoàn tiền dẫn tới `/session/:id?refund=1` — mở thẳng modal thay vì bắt học viên
+   * đi tìm nút.
+   */
+  useEffect(() => {
+    if (searchParams.get("refund") === "1" && isRefundPending) setRefundModalOpen(true);
+  }, [searchParams, isRefundPending]);
 
   const refundBankFormTitle =
     mentorResolution === "no_show_refund"
@@ -906,6 +921,26 @@ export function SessionDetail() {
                     ? `: ${sessionData.cancelReason}`
                     : "."}
               </p>
+              {/* Buổi bị hủy nằm ngoài nhánh render `state === "upcoming"` nên khối thanh toán ở
+                  cột phải không hiện — lối vào yêu cầu hoàn tiền phải nằm ngay tại banner này. */}
+              {isRefundPending ? (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="text-sm font-black text-emerald-900">
+                    Bạn được hoàn{" "}
+                    {Number(sessionData?.cancelRefundAmountVnd ?? sessionData?.price ?? 0).toLocaleString("vi-VN")}đ
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-emerald-800">
+                    Gửi email cho bộ phận hỗ trợ kèm tài khoản ngân hàng để nhận tiền hoàn.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setRefundModalOpen(true)}
+                    className="mt-3 rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-black uppercase tracking-widest text-white hover:opacity-95"
+                  >
+                    Yêu cầu hoàn tiền
+                  </button>
+                </div>
+              ) : null}
               <button
                 type="button"
                 onClick={() => navigate("/mentors")}
@@ -1805,6 +1840,20 @@ export function SessionDetail() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {refundModalOpen && sessionData ? (
+        <RefundAccountModal
+          booking={{
+            id: mongoBookingId,
+            cancelRefundAmountVnd: sessionData.cancelRefundAmountVnd,
+            totalAmount: sessionData.price,
+            date: sessionData.date,
+            timeSlot: sessionData.time,
+            mentorName: sessionData.mentorName,
+          }}
+          onClose={() => setRefundModalOpen(false)}
+        />
+      ) : null}
         </div>
       </div>
     </MentorPageShell>

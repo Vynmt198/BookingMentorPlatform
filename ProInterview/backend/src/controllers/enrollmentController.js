@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { Enrollment } from "../models/Enrollment.js";
 import { Course } from "../models/Course.js";
+import { Mentor } from "../models/Mentor.js";
 import { enrollmentAccessGranted } from "../helpers/enrollmentAccess.js";
 import { recordTransferPending, recordTransferSubmitted } from "../services/paymentsService.js";
 import { incrementCourseEnrollmentCount } from "../services/courseStatsService.js";
@@ -54,6 +55,18 @@ export const EnrollmentController = {
 
       const course = await Course.findById(courseId);
       if (!course) return res.status(404).json({ success: false, error: "Không tìm thấy khóa học" });
+
+      // Mentor bị tạm ngưng/đóng → không nhận ghi danh MỚI. Học viên đã ghi danh trước đó vẫn
+      // học tiếp bình thường (nhánh `existing` bên dưới không đi qua đây).
+      if (course.mentorId) {
+        const owner = await Mentor.findById(course.mentorId).select("status").lean();
+        if (owner?.status && owner.status !== "active") {
+          return res.status(400).json({
+            success: false,
+            error: "Mentor của khóa học đang tạm ngưng — chưa nhận ghi danh mới.",
+          });
+        }
+      }
 
       const price = Number(course.price || 0);
       // Professional: khóa học bao gồm trong gói (miễn phí). Student: giảm giá. Còn lại: giá gốc.

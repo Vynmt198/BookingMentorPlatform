@@ -64,12 +64,32 @@ export const adminApi = {
     authedFetch(`/api/admin/mentors/${id}/reject-price`, {
       method: "POST",
     }),
-  getUsers: () => authedFetch("/api/admin/users"),
+  /** params: { page, limit, q, role, status } — lọc/phân trang phía server. */
+  getUsers: (params = {}) => {
+    const qs = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        qs.set(key, String(value).trim());
+      }
+    }
+    const suffix = qs.toString();
+    return authedFetch(`/api/admin/users${suffix ? `?${suffix}` : ""}`);
+  },
   getUserById: (id) => authedFetch(`/api/admin/users/${encodeURIComponent(id)}`),
-  updateUserStatus: (id, isActive) =>
+  /** Xem trước cái gì sẽ bị treo khi khóa/đóng tài khoản — chỉ đọc, gọi thoải mái. */
+  getUserImpact: (id) => authedFetch(`/api/admin/users/${encodeURIComponent(id)}/impact`),
+  closeUserAccount: (id) =>
+    authedFetch(`/api/admin/users/${encodeURIComponent(id)}/close`, { method: "POST" }),
+  createMentorPayout: (mentorId, payload = {}) =>
+    authedFetch(`/api/admin/mentors/${encodeURIComponent(mentorId)}/payouts`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  /** mode: "suspend" (mentor vẫn đăng nhập được) | "ban" (cấm đăng nhập). Bỏ trống → server tự chọn. */
+  updateUserStatus: (id, isActive, mode) =>
     authedFetch(`/api/admin/users/${id}/status`, {
       method: "PATCH",
-      body: JSON.stringify({ isActive }),
+      body: JSON.stringify(mode ? { isActive, mode } : { isActive }),
     }),
   getBookings: () => authedFetch("/api/admin/bookings"),
   getBookingById: (id) => authedFetch(`/api/admin/bookings/${encodeURIComponent(id)}`),

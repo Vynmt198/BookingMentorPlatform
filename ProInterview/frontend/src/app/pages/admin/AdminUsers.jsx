@@ -3,40 +3,80 @@ import { Link } from "react-router";
 import { Users, Search, ShieldAlert, ShieldCheck, Mail, Tag } from "lucide-react";
 import { adminApi } from "../../utils/adminApi";
 import { tryApi } from "../../utils/apiToast";
+import { LockAccountModal } from "../../components/modals/LockAccountModal";
+
+const PAGE_SIZE = 25;
 
 export function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-
-  const loadUsers = async () => {
-    setLoading(true);
-    const res = await tryApi(() => adminApi.getUsers(), {
-      fallback: "Không thể tải danh sách người dùng.",
-    });
-    if (res.success) setUsers(res.users);
-    setLoading(false);
-  };
+  /** Tách khỏi `searchTerm` để mỗi lần gõ phím không bắn 1 request. */
+  const [appliedSearch, setAppliedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 });
+  const [lockTarget, setLockTarget] = useState(null);
+  const [lockBusy, setLockBusy] = useState(false);
 
   useEffect(() => {
-    void loadUsers();
-  }, []);
+    const timer = setTimeout(() => {
+      setAppliedSearch(searchTerm.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  const handleToggleActive = async (id, currentStatus) => {
-    const res = await tryApi(() => adminApi.updateUserStatus(id, !currentStatus), {
+  useEffect(() => {
+    let cancelled = false;
+    const loadUsers = async () => {
+      setLoading(true);
+      const res = await tryApi(() => adminApi.getUsers({ page, limit: PAGE_SIZE, q: appliedSearch }), {
+        fallback: "Không thể tải danh sách người dùng.",
+      });
+      // Bỏ qua kết quả của request cũ nếu người dùng đã đổi trang/từ khóa trong lúc chờ.
+      if (cancelled) return;
+      if (res.success) {
+        setUsers(res.users ?? []);
+        setPagination(res.pagination ?? { page, total: res.users?.length ?? 0, totalPages: 1 });
+      }
+      setLoading(false);
+    };
+    void loadUsers();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, appliedSearch]);
+
+  /** Khóa là thao tác treo tiền và lịch hẹn → mở modal cho admin xem trước rồi mới xác nhận. */
+  const handleToggleActive = async (user, currentStatus) => {
+    if (currentStatus) {
+      setLockTarget({ id: user._id, name: user.name || user.email });
+      return;
+    }
+    const res = await tryApi(() => adminApi.updateUserStatus(user._id, true), {
       fallback: "Không thể cập nhật trạng thái người dùng.",
-      successMessage: currentStatus ? "Đã khóa người dùng" : "Đã mở khóa người dùng",
+      successMessage: "Đã mở khóa người dùng",
     });
     if (res.success) {
-      setUsers((prev) => prev.map((u) => (u._id === id ? { ...u, isActive: !currentStatus } : u)));
+      setUsers((prev) => prev.map((u) => (u._id === user._id ? { ...u, isActive: true } : u)));
     }
   };
 
-  const filtered = users.filter(
-    (u) =>
-      u.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email?.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const confirmLock = async (mode) => {
+    setLockBusy(true);
+    const res = await tryApi(() => adminApi.updateUserStatus(lockTarget.id, false, mode), {
+      fallback: "Không thể cập nhật trạng thái người dùng.",
+      successMessage: mode === "ban" ? "Đã cấm đăng nhập" : "Đã tạm ngưng hoạt động",
+    });
+    setLockBusy(false);
+    if (res.success) {
+      // Chế độ "suspend" không đụng `isActive` — tài khoản vẫn đăng nhập được.
+      if (mode === "ban") {
+        setUsers((prev) => prev.map((u) => (u._id === lockTarget.id ? { ...u, isActive: false } : u)));
+      }
+      setLockTarget(null);
+    }
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -45,7 +85,11 @@ export function AdminUsers() {
           <h2 className="font-headline mb-2 text-3xl font-black uppercase tracking-tighter text-slate-900">
             Quản lý <span className="text-violet-700">Người dùng</span>
           </h2>
-          <p className="text-sm font-medium text-slate-600">Toàn bộ tài khoản đã đăng ký trên hệ thống.</p>
+          <p className="text-sm font-medium text-slate-600">
+            {pagination.total > 0
+              ? `${pagination.total.toLocaleString("vi-VN")} tài khoản${appliedSearch ? ` khớp "${appliedSearch}"` : ""}.`
+              : "Toàn bộ tài khoản đã đăng ký trên hệ thống."}
+          </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -90,14 +134,14 @@ export function AdminUsers() {
                     Đang tải dữ liệu người dùng...
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
+              ) : users.length === 0 ? (
                 <tr>
                   <td colSpan="5" className="px-8 py-20 text-center text-[10px] font-black uppercase italic tracking-widest text-slate-500">
-                    Không có dữ liệu người dùng.
+                    {appliedSearch ? `Không tìm thấy tài khoản khớp "${appliedSearch}".` : "Không có dữ liệu người dùng."}
                   </td>
                 </tr>
               ) : (
-                filtered.map((user) => (
+                users.map((user) => (
                   <tr key={user._id} className="group transition-colors hover:bg-violet-50/40">
                     <td className="px-8 py-6">
                       <div className="flex items-center gap-4">
@@ -154,7 +198,7 @@ export function AdminUsers() {
                     <td className="px-8 py-6 text-right">
                       <button
                         type="button"
-                        onClick={() => handleToggleActive(user._id, user.isActive !== false)}
+                        onClick={() => handleToggleActive(user, user.isActive !== false)}
                         className={`rounded-xl border px-4 py-2 text-[9px] font-black uppercase tracking-widest transition-all ${
                           user.isActive !== false
                             ? "border-red-200 bg-red-50 text-red-700 hover:border-red-400 hover:bg-red-600 hover:text-white"
@@ -170,7 +214,44 @@ export function AdminUsers() {
             </tbody>
           </table>
         </div>
+
+        {pagination.totalPages > 1 ? (
+          <div className="flex items-center justify-between gap-4 border-t border-slate-200 bg-slate-50/60 px-8 py-5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Trang {pagination.page} / {pagination.totalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={loading || page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-700 transition-all hover:border-violet-400 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-700"
+              >
+                Trước
+              </button>
+              <button
+                type="button"
+                disabled={loading || page >= pagination.totalPages}
+                onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-[9px] font-black uppercase tracking-widest text-slate-700 transition-all hover:border-violet-400 hover:text-violet-700 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:text-slate-700"
+              >
+                Sau
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
+
+      {lockTarget ? (
+        <LockAccountModal
+          userId={lockTarget.id}
+          displayName={lockTarget.name}
+          variant="user"
+          busy={lockBusy}
+          onCancel={() => !lockBusy && setLockTarget(null)}
+          onConfirm={confirmLock}
+        />
+      ) : null}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { CoursesController } from "../controllers/coursesController.js";
 
 import { authJwt } from "../middleware/authJwt.js";
 
-import { requireMentor } from "../middleware/requireMentor.js";
+import { requireMentor, requireActiveMentor } from "../middleware/requireMentor.js";
 
 import { EnrollmentController } from "../controllers/enrollmentController.js";
 
@@ -113,11 +113,11 @@ coursesRouter.post("/:id/enroll", authJwt, asyncHandler(EnrollmentController.enr
 
 // Quản lý khóa học (Mentor)
 
-coursesRouter.post("/", authJwt, requireMentor, asyncHandler(CoursesController.create));
+coursesRouter.post("/", authJwt, requireMentor, requireActiveMentor("tạo khóa học mới"), asyncHandler(CoursesController.create));
 
-coursesRouter.put("/:id", authJwt, requireMentor, asyncHandler(CoursesController.update));
+coursesRouter.put("/:id", authJwt, requireMentor, requireActiveMentor("chỉnh sửa khóa học"), asyncHandler(CoursesController.update));
 
-coursesRouter.patch("/:id/publish", authJwt, requireMentor, asyncHandler(CoursesController.publish));
+coursesRouter.patch("/:id/publish", authJwt, requireMentor, requireActiveMentor("đăng khóa học"), asyncHandler(CoursesController.publish));
 
-coursesRouter.delete("/:id", authJwt, requireMentor, asyncHandler(CoursesController.archive));
+coursesRouter.delete("/:id", authJwt, requireMentor, requireActiveMentor("gỡ khóa học"), asyncHandler(CoursesController.archive));
 

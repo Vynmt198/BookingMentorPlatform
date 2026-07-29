@@ -19,9 +19,25 @@ const paymentSchema = new Schema(
 
     status: {
       type: String,
-      enum: ["pending", "success", "failed", "refund_pending", "refunded", "partial_refund", "cancelled"],
+      enum: [
+        "pending",
+        "success",
+        "failed",
+        "refund_pending",
+        "refunded",
+        "partial_refund",
+        "cancelled",
+        /**
+         * Tiền đã vào tài khoản ngân hàng nhưng người trả đang bị khóa — không xác nhận,
+         * không hủy. Hàng đợi để admin quyết hoàn tiền hay mở khóa tài khoản.
+         */
+        "held_inactive_account",
+      ],
       default: "pending",
     },
+    /** Thời điểm chuyển sang `held_inactive_account`. */
+    heldAt: { type: Date },
+    heldReason: { type: String, default: "" },
     /** Hết hạn cửa sổ CK SePay (subscription / ledger transfer). */
     paymentExpiresAt: { type: Date },
     paidAt: { type: Date },

@@ -16,6 +16,8 @@ const userSchema = new Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, select: false },
     avatar: { type: String, default: "" },
+    /** Đã đóng vĩnh viễn (soft) qua cổng `accountClosureService` — PII đã ẩn danh. */
+    accountClosedAt: { type: Date },
 
     role: { type: String, enum: ["customer", "mentor", "admin"], default: "customer" },
     plan: { type: String, enum: ["free", "student", "professional"], default: "free" },

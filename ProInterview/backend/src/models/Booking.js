@@ -140,6 +140,14 @@ const bookingSchema = new Schema(
     earningsClearAt: { type: Date },
     /** Đã thực sự release từ clearingBalance sang availableBalance. */
     earningsClearedAt: { type: Date },
+    /**
+     * Chốt số tiền mentor được nhận TẠI THỜI ĐIỂM ghi vào clearingBalance.
+     * Lúc release phải trừ đúng số này, không tính lại từ `totalAmount`/`platformFee` — nếu
+     * booking bị hoàn tiền một phần ở giữa, số tính lại sẽ lệch với số đã cộng vào.
+     */
+    earningsNetAmount: { type: Number },
+    /** Release thất bại (mentor không tồn tại / số dư giữ không đủ) — cần admin xử lý tay. */
+    earningsClearFailedAt: { type: Date },
     /** Ảnh check-in webcam mentor trước khi vào phòng họp. */
     mentorCheckInImageUrl: { type: String, default: "" },
     mentorCheckInAt: { type: Date },

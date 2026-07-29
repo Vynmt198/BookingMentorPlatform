@@ -3,6 +3,7 @@ import * as bookingsService from "../services/bookingsService.js";
 import * as paymentsService from "../services/paymentsService.js";
 import { tryCreditMentorForPaidEnrollment, tryCreditMentorForCompletedBooking, resolveCourseFee } from "../services/mentorEarningsService.js";
 import { normalizeTransferRefs } from "../services/normalizeTransferRefsService.js";
+import { refundActiveBookingsForSuspendedMentor } from "../services/mentorSuspensionRefundService.js";
 import { runInTransaction } from "../helpers/dbHelper.js";
 import { isUserOnline } from "../utils/userPresence.js";
 import { getPlatformBehavior, getUserJourney } from "../services/analyticsService.js";
@@ -152,8 +153,11 @@ export const AdminController = {
         return res.status(400).json({ success: false, error: "isActive phải là boolean." });
       }
 
+      // Tạm ngưng mentor = chặn HOẠT ĐỘNG, KHÔNG đụng `User.isActive` → mentor vẫn đăng nhập
+      // được để xem và rút số dư (xem `requireMentor` / `requireActiveMentor`).
       const update = isActive
         ? {
+            status: "active",
             isActive: true,
             available: true,
             isVerified: true,
@@ -163,7 +167,7 @@ export const AdminController = {
             "adminReview.reviewedAt": new Date(),
             "adminReview.reviewedBy": req.userId || null,
           }
-        : { isActive: false, available: false };
+        : { status: "suspended", isActive: false, available: false };
 
       const mentor = await Mentor.findByIdAndUpdate(id, update, { new: true });
 
@@ -203,7 +207,20 @@ export const AdminController = {
         }
       }
 
-      res.json({ success: true, mentor });
+      // Tạm ngưng → hủy và hoàn tiền các buổi đã bán mà mentor không còn phục vụ được.
+      let refund = null;
+      if (!isActive) {
+        refund = await refundActiveBookingsForSuspendedMentor(mentor._id).catch((err) => {
+          console.error("[toggleMentorStatus] hoàn tiền buổi hẹn:", err?.message || err);
+          return null;
+        });
+      }
+
+      res.json({
+        success: true,
+        mentor,
+        ...(refund ? { refundedBookings: refund.refundedCount, refundedVnd: refund.refundedVnd } : {}),
+      });
     } catch (error) {
       next(error);
     }
@@ -358,10 +375,56 @@ export const AdminController = {
   },
 
   // Lấy danh sách toàn bộ User
+  /**
+   * Danh sách user — phân trang + lọc phía server.
+   * Query: page, limit (max 100), q (tên/email), role, status ("active" | "locked").
+   */
   getAllUsers: async (req, res, next) => {
     try {
-      const users = await User.find().sort({ createdAt: -1 });
-      res.json({ success: true, users });
+      const pageRaw = Number.parseInt(String(req.query?.page ?? "").trim(), 10);
+      const limitRaw = Number.parseInt(String(req.query?.limit ?? "").trim(), 10);
+      const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+      const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 100) : 25;
+
+      const filter = {};
+
+      const q = String(req.query?.q ?? "").trim();
+      if (q) {
+        // Escape trước khi nhét vào $regex — nếu không, input kiểu "a{100000}" là ReDoS.
+        const safe = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        filter.$or = [
+          { name: { $regex: safe, $options: "i" } },
+          { email: { $regex: safe, $options: "i" } },
+        ];
+      }
+
+      const role = String(req.query?.role ?? "").trim().toLowerCase();
+      if (["customer", "mentor", "admin"].includes(role)) filter.role = role;
+
+      const status = String(req.query?.status ?? "").trim().toLowerCase();
+      // Doc cũ có thể thiếu field `isActive` → coi như đang hoạt động (khớp default schema).
+      if (status === "active") filter.isActive = { $ne: false };
+      if (status === "locked") filter.isActive = false;
+
+      const [users, total] = await Promise.all([
+        User.find(filter)
+          .sort({ createdAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+        User.countDocuments(filter),
+      ]);
+
+      res.json({
+        success: true,
+        users,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
+      });
     } catch (error) {
       next(error);
     }
@@ -398,15 +461,79 @@ export const AdminController = {
     try {
       const { id } = req.params;
       const { isActive } = req.body;
+      if (!mongoose.isValidObjectId(id)) {
+        return res.status(400).json({ success: false, error: "userId không hợp lệ." });
+      }
+      if (typeof isActive !== "boolean") {
+        return res.status(400).json({ success: false, error: "isActive phải là boolean." });
+      }
+
+      const target = await User.findById(id).select("role isActive").lean();
+      if (!target) return res.status(404).json({ success: false, error: "Không tìm thấy người dùng" });
+
+      // Tự khóa mình = mất quyền quản trị vĩnh viễn, không có đường tự khôi phục.
+      if (String(target._id) === String(req.userId)) {
+        return res.status(400).json({ success: false, error: "Không thể tự khóa tài khoản của mình." });
+      }
+      // Cùng chuẩn với userRoleService.setRoleByAdmin — không đụng tài khoản quản trị qua API này.
+      if (target.role === "admin") {
+        return res.status(403).json({ success: false, error: "Không thể khóa admin khác qua endpoint này." });
+      }
+
+      /**
+       * Hai mức độ khác nhau, phải nói rõ vì hệ quả rất khác nhau:
+       *  - "suspend" (mặc định cho mentor): chặn HOẠT ĐỘNG, vẫn đăng nhập được. Mentor giữ được
+       *    đường vào ví và tự rút tiền — không có nó thì khóa = tịch thu tiền trên thực tế.
+       *  - "ban": cấm đăng nhập hoàn toàn. Mentor sẽ KHÔNG tự rút được, admin phải giải ngân thay
+       *    (POST /api/admin/mentors/:id/payouts).
+       * User thường không có khái niệm "suspend" → luôn là ban.
+       */
+      const isMentor = target.role === "mentor";
+      const mode = String(req.body?.mode || "").trim() === "ban" || !isMentor ? "ban" : "suspend";
+
       let user;
       if (isActive === false) {
-        user = await User.findByIdAndUpdate(
-          id,
-          { $set: { isActive: false, authSessions: [] }, $inc: { tokenVersion: 1 } },
-          { new: true },
-        );
-      } else {
+        if (mode === "ban") {
+          user = await User.findByIdAndUpdate(
+            id,
+            { $set: { isActive: false, authSessions: [] }, $inc: { tokenVersion: 1 } },
+            { new: true },
+          );
+        } else {
+          user = await User.findById(id);
+        }
+        let refund = null;
+        if (isMentor) {
+          await Mentor.updateOne(
+            { userId: id },
+            { $set: { status: "suspended", isActive: false, available: false } },
+          ).catch(() => {});
+          // Buổi đã bán mà mentor không còn phục vụ được → hủy + hoàn tiền cho học viên.
+          const mentorDoc = await Mentor.findOne({ userId: id }).select("_id").lean();
+          if (mentorDoc) {
+            refund = await refundActiveBookingsForSuspendedMentor(mentorDoc._id).catch((err) => {
+              console.error("[toggleUserStatus] hoàn tiền buổi hẹn:", err?.message || err);
+              return null;
+            });
+          }
+        }
+        if (!user) return res.status(404).json({ success: false, error: "Không tìm thấy người dùng" });
+        return res.json({
+          success: true,
+          user,
+          mode,
+          ...(refund ? { refundedBookings: refund.refundedCount, refundedVnd: refund.refundedVnd } : {}),
+        });
+      }
+      {
         user = await User.findByIdAndUpdate(id, { $set: { isActive: true } }, { new: true });
+        if (target.role === "mentor") {
+          // Chỉ mở lại mentor đang `suspended` — không hồi sinh hồ sơ đã `closed`.
+          await Mentor.updateOne(
+            { userId: id, status: { $ne: "closed" } },
+            { $set: { status: "active", isActive: true, available: true } },
+          ).catch(() => {});
+        }
       }
       if (!user) return res.status(404).json({ success: false, error: "Không tìm thấy người dùng" });
       res.json({ success: true, user });
@@ -1636,27 +1763,54 @@ export const AdminController = {
       const { id } = req.params;
       const transferRef = String(req.body?.transferRef || "").trim().slice(0, 500);
       const noteExtra = String(req.body?.note || "").trim().slice(0, 2000);
-      const payout = await PayoutRequest.findById(id);
-      if (!payout) return res.status(404).json({ success: false, error: "Không tìm thấy yêu cầu rút tiền." });
-      if (payout.status !== "approved") {
+
+      // Claim-first: chuyển trạng thái approved → paid bằng 1 lệnh có điều kiện. Hai lần bấm
+      // đồng thời thì chỉ 1 lệnh khớp, lệnh còn lại không trừ pendingBalance lần nữa.
+      const existing = await PayoutRequest.findById(id).select("note").lean();
+      if (!existing) return res.status(404).json({ success: false, error: "Không tìm thấy yêu cầu rút tiền." });
+      const mergedNote = noteExtra
+        ? [String(existing.note || "").trim(), noteExtra].filter(Boolean).join("\n")
+        : undefined;
+
+      const payout = await PayoutRequest.findOneAndUpdate(
+        { _id: id, status: "approved" },
+        {
+          $set: {
+            status: "paid",
+            paidAt: new Date(),
+            transferRef,
+            ...(mergedNote !== undefined ? { note: mergedNote } : {}),
+          },
+        },
+        { new: true },
+      );
+      if (!payout) {
         return res.status(400).json({
           success: false,
           error: "Chỉ xác nhận đã chuyển khoản khi yêu cầu đã được duyệt (chưa ghi nhận chi).",
         });
       }
-      payout.status = "paid";
-      payout.paidAt = new Date();
-      payout.transferRef = transferRef;
-      if (noteExtra) {
-        const prev = String(payout.note || "").trim();
-        payout.note = prev ? `${prev}\n${noteExtra}` : noteExtra;
-      }
-      await payout.save();
 
-      await Mentor.updateOne(
-        { _id: payout.mentorId },
-        { $inc: { "finance.pendingBalance": -Number(payout.amount || 0) } },
+      const paidAmount = Math.round(Number(payout.amount || 0));
+      const settled = await Mentor.updateOne(
+        { _id: payout.mentorId, "finance.pendingBalance": { $gte: paidAmount } },
+        { $inc: { "finance.pendingBalance": -paidAmount } },
       );
+      if (settled.modifiedCount !== 1) {
+        // Không trừ được (mentor không tồn tại / pendingBalance không đủ) → trả trạng thái về
+        // approved để không ghi nhận chi khống, rồi báo lỗi cho admin đối soát.
+        await PayoutRequest.updateOne(
+          { _id: payout._id, status: "paid" },
+          { $set: { status: "approved" }, $unset: { paidAt: 1, transferRef: 1 } },
+        ).catch(() => {});
+        console.error(
+          `[PAYOUT_SETTLE_FAILED] payout=${payout._id} mentor=${payout.mentorId} amount=${paidAmount} — pendingBalance không đủ.`,
+        );
+        return res.status(409).json({
+          success: false,
+          error: "Số dư đang chờ của mentor không khớp số tiền chi. Vui lòng đối soát trước khi xác nhận.",
+        });
+      }
 
       const mentorPaid = await Mentor.findById(payout.mentorId).select("userId").lean();
       if (mentorPaid?.userId) {
@@ -1679,27 +1833,51 @@ export const AdminController = {
     try {
       const { id } = req.params;
       const reason = String(req.body?.reason || "").trim();
-      const payout = await PayoutRequest.findById(id);
-      if (!payout) return res.status(404).json({ success: false, error: "Không tìm thấy yêu cầu rút tiền." });
-      if (payout.status !== "pending") {
-        return res.status(400).json({ success: false, error: "Yêu cầu đã được xử lý trước đó." });
+
+      // Claim-first: chỉ 1 lệnh khớp `status: "pending"` thắng được. Hai lần từ chối đồng thời
+      // trước đây cùng pass check rồi cùng $inc → cộng khống số dư khả dụng cho mentor.
+      const payout = await PayoutRequest.findOneAndUpdate(
+        { _id: id, status: "pending" },
+        {
+          $set: {
+            status: "rejected",
+            reviewedAt: new Date(),
+            reviewedBy: req.userId || null,
+            rejectReason: reason,
+          },
+        },
+        { new: true },
+      );
+      if (!payout) {
+        const exists = await PayoutRequest.exists({ _id: id });
+        return exists
+          ? res.status(400).json({ success: false, error: "Yêu cầu đã được xử lý trước đó." })
+          : res.status(404).json({ success: false, error: "Không tìm thấy yêu cầu rút tiền." });
       }
 
-      payout.status = "rejected";
-      payout.reviewedAt = new Date();
-      payout.reviewedBy = req.userId || null;
-      payout.rejectReason = reason;
-      await payout.save();
-
-      await Mentor.updateOne(
-        { _id: payout.mentorId },
+      const refundAmount = Math.round(Number(payout.amount || 0));
+      const returned = await Mentor.updateOne(
+        { _id: payout.mentorId, "finance.pendingBalance": { $gte: refundAmount } },
         {
           $inc: {
-            "finance.availableBalance": Number(payout.amount || 0),
-            "finance.pendingBalance": -Number(payout.amount || 0),
+            "finance.availableBalance": refundAmount,
+            "finance.pendingBalance": -refundAmount,
           },
         },
       );
+      if (returned.modifiedCount !== 1) {
+        await PayoutRequest.updateOne(
+          { _id: payout._id, status: "rejected" },
+          { $set: { status: "pending" }, $unset: { reviewedAt: 1, reviewedBy: 1, rejectReason: 1 } },
+        ).catch(() => {});
+        console.error(
+          `[PAYOUT_REJECT_FAILED] payout=${payout._id} mentor=${payout.mentorId} amount=${refundAmount} — pendingBalance không đủ.`,
+        );
+        return res.status(409).json({
+          success: false,
+          error: "Số dư đang chờ của mentor không khớp số tiền hoàn. Vui lòng đối soát trước khi từ chối.",
+        });
+      }
 
       res.json({ success: true, payout });
     } catch (error) {

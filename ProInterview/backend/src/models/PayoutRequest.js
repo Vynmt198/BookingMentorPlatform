@@ -26,6 +26,9 @@ const payoutRequestSchema = new Schema(
     provider: { type: String, default: "manual" },
     providerRef: { type: String, default: "" },
     note: { type: String, default: "" },
+    /** Admin tạo thay mặt mentor (thường là mentor `suspended` không đăng nhập được). */
+    createdByAdmin: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    adminReason: { type: String, default: "" },
   },
   { collection: "payout_requests", timestamps: true },
 );

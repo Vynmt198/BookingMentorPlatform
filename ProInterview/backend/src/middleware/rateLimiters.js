@@ -53,3 +53,26 @@ export const analyticsEventsLimiter = rateLimit({
   legacyHeaders: false,
   message: { success: false, error: "Quá nhiều sự kiện analytics. Thử lại sau." },
 });
+
+/**
+ * Thao tác GHI của admin — tối đa 30 request/phút/admin (prod).
+ *
+ * Đếm theo `req.userId` chứ không theo IP: nhiều admin sau cùng một NAT văn phòng không được
+ * ăn chung hạn mức của nhau. Chỉ tính request thay đổi dữ liệu — duyệt danh sách, mở nhiều tab
+ * dashboard là hành vi bình thường, không nên bị chặn.
+ *
+ * Mục tiêu là chặn kịch bản double-click / script lặp / tài khoản admin bị chiếm rồi thao tác
+ * hàng loạt — 30 thao tác ghi mỗi phút đã cao hơn nhiều so với tốc độ bấm tay thực tế.
+ */
+export const adminMutationLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: isProd ? 30 : 300,
+  keyGenerator: (req) => req.userId ?? req.ip,
+  skip: (req) => req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS",
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: "Quá nhiều thao tác quản trị trong thời gian ngắn. Vui lòng chờ một phút.",
+  },
+});

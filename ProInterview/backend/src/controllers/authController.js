@@ -200,9 +200,14 @@ export class AuthController {
     try {
       const result = await authService.deleteMeUser(req.userId);
       if (!result.ok) {
-        return res.status(result.status).json({ success: false, error: result.error });
+        return res.status(result.status).json({
+          success: false,
+          error: result.error,
+          // `blockers[].code` để frontend hiện đúng lý do thay vì một câu chung chung.
+          ...(result.blockers ? { blockers: result.blockers } : {}),
+        });
       }
-      res.json({ success: true, message: "Đã xóa tài khoản." });
+      res.json({ success: true, message: "Đã đóng tài khoản." });
     } catch (err) {
       next(err);
     }

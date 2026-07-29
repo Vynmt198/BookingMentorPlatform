@@ -21,6 +21,7 @@ import {
   adminPageWrap,
   adminStatGrid4,
 } from "../../components/admin/AdminPageShell.jsx";
+import { LockAccountModal } from "../../components/modals/LockAccountModal.jsx";
 import { adminApi } from "../../utils/adminApi.js";
 import { tryApi } from "../../utils/apiToast.js";
 import { avatarSrc } from "../../utils/mediaUrl.js";
@@ -81,6 +82,7 @@ export function AdminMentorDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [lockOpen, setLockOpen] = useState(false);
   const [commissionBusy, setCommissionBusy] = useState(false);
   const [priceBusy, setPriceBusy] = useState(false);
   const [bookingFeePct, setBookingFeePct] = useState("");
@@ -122,25 +124,32 @@ export function AdminMentorDetail() {
   const sessions = Number(mentor?.stats?.sessionsCount ?? mentor?.totalSessions ?? 0);
   const publicPath = mentor?.publicId || mentor?._id;
 
-  const toggleActive = async () => {
-    if (!mentor) return;
-    const next = !mentor.isActive;
-    if (!next) {
-      const name = mentor?.userId?.name || mentor?.title || "cố vấn này";
-      const ok = window.confirm(
-        `Xác nhận khoá "${name}"? Mentor sẽ ẩn khỏi danh sách tìm kiếm và không nhận được lịch mới cho tới khi bạn mở lại.`,
-      );
-      if (!ok) return;
-    }
+  const applyStatus = async (next) => {
     setBusy(true);
     const res = await tryApi(() => adminApi.updateMentorStatus(mentor._id, next), {
       fallback: "Không cập nhật được trạng thái.",
-      successMessage: next ? "Đã kích hoạt cố vấn" : "Đã khóa cố vấn",
+      successMessage: next ? "Đã kích hoạt cố vấn" : "Đã tạm ngưng cố vấn",
     });
     setBusy(false);
     if (res.success) {
       setMentor({ ...mentor, isActive: next, isVerified: next ? true : mentor.isVerified });
     }
+    return res.success;
+  };
+
+  const toggleActive = async () => {
+    if (!mentor) return;
+    // Tạm ngưng → mở modal liệt kê số dư và việc còn dở. Kích hoạt lại thì không cần hỏi.
+    if (mentor.isActive) {
+      setLockOpen(true);
+      return;
+    }
+    await applyStatus(true);
+  };
+
+  const confirmSuspend = async () => {
+    const ok = await applyStatus(false);
+    if (ok) setLockOpen(false);
   };
 
   const saveCommissionOverride = async () => {
@@ -471,6 +480,17 @@ export function AdminMentorDetail() {
           </motion.div>
         </>
       )}
+
+      {lockOpen && mentor ? (
+        <LockAccountModal
+          userId={mentor.userId?._id || mentor.userId}
+          displayName={mentor.userId?.name || mentor.title || "Cố vấn"}
+          variant="mentor"
+          busy={busy}
+          onCancel={() => !busy && setLockOpen(false)}
+          onConfirm={confirmSuspend}
+        />
+      ) : null}
     </div>
   );
 }
