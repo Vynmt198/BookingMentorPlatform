@@ -26,6 +26,17 @@ function sha256Hex(input) {
   return crypto.createHash("sha256").update(String(input ?? ""), "utf8").digest("hex");
 }
 
+/** Sinh mật khẩu khởi tạo dễ đọc (bỏ ký tự dễ nhầm 0/O, 1/l/I) cho tài khoản tạo qua Google. */
+function generateInitialPassword(length = 10) {
+  const charset = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += charset[bytes[i] % charset.length];
+  }
+  return out;
+}
+
 function accessExpiresIn() {
   return process.env.JWT_ACCESS_EXPIRES_IN || process.env.JWT_EXPIRES_IN || "15m";
 }
@@ -702,7 +713,8 @@ export async function loginWithGoogle(body, req) {
   }
 
   if (!user) {
-    const passwordHash = await bcrypt.hash(crypto.randomBytes(48).toString("hex"), SALT_ROUNDS);
+    const initialPassword = generateInitialPassword();
+    const passwordHash = await bcrypt.hash(initialPassword, SALT_ROUNDS);
     user = await User.create({
       email,
       passwordHash,
@@ -712,6 +724,7 @@ export async function loginWithGoogle(body, req) {
       avatar: typeof payload.picture === "string" ? upgradeGooglePhotoRes(payload.picture) : undefined,
     });
     user = await User.findById(user._id).select("+googleSub +authSessions");
+    await emailService.sendInitialPasswordEmail(email, name, initialPassword);
   }
 
   if (user.isActive === false) {
@@ -761,16 +774,19 @@ export async function patchMeUser(userId, body, req, options = {}) {
       };
     }
     const linkedGoogle = Boolean(user.googleId || user.googleSub);
-    if (!linkedGoogle) {
-      const cur = body.currentPassword;
-      const curTrimmed = typeof cur === "string" ? cur.trim() : "";
-      if (!curTrimmed) {
-        return {
-          ok: false,
-          status: 400,
-          error: "Nhập mật khẩu hiện tại (currentPassword) để đổi mật khẩu.",
-        };
-      }
+    const cur = body.currentPassword;
+    const curTrimmed = typeof cur === "string" ? cur.trim() : "";
+    // Tài khoản thường: bắt buộc nhập đúng mật khẩu hiện tại.
+    // Tài khoản Google: không bắt buộc (có thể chưa từng biết mật khẩu), nhưng
+    // nếu có nhập (vd mật khẩu khởi tạo đã gửi qua email) thì vẫn phải khớp.
+    if (!linkedGoogle && !curTrimmed) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Nhập mật khẩu hiện tại (currentPassword) để đổi mật khẩu.",
+      };
+    }
+    if (curTrimmed) {
       const ok = await bcrypt.compare(curTrimmed, user.passwordHash || "");
       if (!ok) {
         return { ok: false, status: 401, error: "Mật khẩu hiện tại không đúng." };

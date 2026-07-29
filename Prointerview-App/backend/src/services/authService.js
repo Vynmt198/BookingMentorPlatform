@@ -838,16 +838,19 @@ export async function patchMeUser(userId, body, req, options = {}) {
       };
     }
     const linkedGoogle = Boolean(user.googleId || user.googleSub);
-    if (!linkedGoogle) {
-      const cur = body.currentPassword;
-      const curTrimmed = typeof cur === "string" ? cur.trim() : "";
-      if (!curTrimmed) {
-        return {
-          ok: false,
-          status: 400,
-          error: "Nhập mật khẩu hiện tại (currentPassword) để đổi mật khẩu.",
-        };
-      }
+    const cur = body.currentPassword;
+    const curTrimmed = typeof cur === "string" ? cur.trim() : "";
+    // Tài khoản thường: bắt buộc nhập đúng mật khẩu hiện tại.
+    // Tài khoản Google: không bắt buộc (có thể chưa từng biết mật khẩu), nhưng
+    // nếu có nhập (vd mật khẩu khởi tạo đã gửi qua email) thì vẫn phải khớp.
+    if (!linkedGoogle && !curTrimmed) {
+      return {
+        ok: false,
+        status: 400,
+        error: "Nhập mật khẩu hiện tại (currentPassword) để đổi mật khẩu.",
+      };
+    }
+    if (curTrimmed) {
       const ok = await bcrypt.compare(curTrimmed, user.passwordHash || "");
       if (!ok) {
         return { ok: false, status: 401, error: "Mật khẩu hiện tại không đúng." };
