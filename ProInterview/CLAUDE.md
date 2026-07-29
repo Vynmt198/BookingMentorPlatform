@@ -210,6 +210,7 @@ Plan và quota được lưu trực tiếp trên **`User`** (field `plan`, `plan
 - `requireAdmin` — dùng lại `req.userRole`, không query DB thêm
 - `adminAuditLog` — ghi mọi thao tác **ghi** của admin vào `SecurityLog`, che field nhạy cảm
 - `rateLimiters.js` — `apiLimiter`, login/register, `analyticsEventsLimiter`, admin-write limiter, …
+- **No-cache cho `/api`** — `app.js` set `Cache-Control: no-store`, `Pragma: no-cache`, `Expires: 0` cho mọi response `/api`. Cần thiết vì Vercel rewrite đi qua edge proxy có thể giữ lại response cũ sau khi DB đã đổi. Đừng gỡ.
 
 ### Response shape
 

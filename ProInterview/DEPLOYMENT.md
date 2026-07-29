@@ -459,6 +459,9 @@ Thoải mái cho SPA tĩnh. Lưu ý bandwidth 100GB/tháng và mỗi lần push 
 **Request đầu tiên rất chậm rồi sau đó bình thường**
 → Cold start Render free. Xem mục ping ở trên.
 
+**API trả dữ liệu cũ dù DB đã đổi**
+→ Đã được xử lý: `app.js` set `Cache-Control: no-store` cho mọi response `/api` (edge proxy của Vercel rewrite từng giữ lại response cũ). Nếu vẫn gặp, kiểm tra header trả về trong tab Network — thiếu `no-store` nghĩa là đang chạy bản backend cũ, cần redeploy Render.
+
 **`429 Quá nhiều yêu cầu`**
 → Rate limit prod là 500 request / 15 phút / IP. Thao tác ghi của admin còn chặt hơn: 30/phút.
 
