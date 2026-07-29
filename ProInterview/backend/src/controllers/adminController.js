@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import * as bookingsService from "../services/bookingsService.js";
 import * as paymentsService from "../services/paymentsService.js";
-import { tryCreditMentorForPaidEnrollment, tryCreditMentorForCompletedBooking } from "../services/mentorEarningsService.js";
+import { tryCreditMentorForPaidEnrollment, tryCreditMentorForCompletedBooking, resolveCourseFee } from "../services/mentorEarningsService.js";
 import { normalizeTransferRefs } from "../services/normalizeTransferRefsService.js";
 import { runInTransaction } from "../helpers/dbHelper.js";
 import { isUserOnline } from "../utils/userPresence.js";
@@ -711,11 +711,8 @@ export const AdminController = {
         : enrollmentRows;
       const course = enrollmentRowsFiltered.reduce(
         (acc, row) => {
-          const gross = Math.round(Number(row.pricePaid || 0));
-          const rate = safeFeeRate(row.platformFeeRate, Number(process.env.COURSE_PLATFORM_FEE_RATE) || 0.35);
-          const fee = Number.isFinite(Number(row.platformFee))
-            ? Math.round(Number(row.platformFee))
-            : Math.round(gross * rate);
+          const fallbackRate = Number(process.env.COURSE_PLATFORM_FEE_RATE) || 0.35;
+          const { gross, fee } = resolveCourseFee(row, fallbackRate);
           acc.grossCollected += gross;
           acc.platformRevenue += Math.max(0, fee);
           acc.mentorNet += Math.max(0, gross - fee);
