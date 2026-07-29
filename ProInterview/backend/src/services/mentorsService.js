@@ -15,6 +15,8 @@ function isBookableMentorDoc(m) {
   if (u.role !== "mentor") return false;
   if (u.isActive === false) return false;
   if (m.isActive !== true) return false;
+  // Hồ sơ cũ chưa migrate chưa có `status` — thiếu thì coi như active (đã lọc qua isActive ở trên).
+  if (m.status && m.status !== "active") return false;
   if (m.isVerified !== true) return false;
   if (m.autoSuspended === true) return false;
   return true;

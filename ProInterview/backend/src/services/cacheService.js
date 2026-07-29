@@ -109,6 +109,35 @@ export async function cacheSet(key, value, ttlSeconds = 86400) {
 }
 
 /**
+ * Giành lock độc quyền (SET key val NX EX ttl). Dùng cho job định kỳ để 2 instance không
+ * cùng chạy một lượt quét.
+ *
+ * Lưu ý: khi chưa cấu hình Upstash, hàm rơi về Map trong bộ nhớ — chỉ chống được trùng trong
+ * CÙNG một process, không chống được nhiều instance. Logic nghiệp vụ vẫn phải tự an toàn
+ * trước việc chạy chồng (xem `releaseEligibleEarnings` dùng claim-first), lock chỉ để đỡ tốn query.
+ *
+ * @returns {Promise<boolean>} true nếu giành được lock.
+ */
+export async function cacheAcquireLock(key, ttlSeconds = 600, owner = "1") {
+  if (isRedisEnabled()) {
+    try {
+      const res = await upstashCmd(["SET", key, String(owner), "NX", "EX", ttlSeconds]);
+      return res === "OK";
+    } catch {
+      // Upstash lỗi → rơi xuống lock in-memory bên dưới.
+    }
+  }
+  if (memGet(key) !== null) return false;
+  memSet(key, String(owner), ttlSeconds);
+  return true;
+}
+
+/** Nhả lock đã giành bằng `cacheAcquireLock`. */
+export async function cacheReleaseLock(key) {
+  await cacheDel(key);
+}
+
+/**
  * Xóa key khỏi cache.
  * @param {string} key
  */

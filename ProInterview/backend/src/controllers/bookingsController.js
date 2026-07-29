@@ -228,6 +228,27 @@ export class BookingsController {
       if (!result.ok) {
         return res.status(result.status).json({ success: false, error: result.error });
       }
+
+      // Báo admin qua email — best-effort. Thông tin đã lưu vào Booking nên dù mail hỏng
+      // admin vẫn thấy ở trang quản trị; không để lỗi SMTP làm hỏng thao tác của học viên.
+      void (async () => {
+        try {
+          const { sendRefundAccountToAdmin } = await import("../services/emailService.js");
+          const { User } = await import("../models/User.js");
+          const student = await User.findById(req.userId).select("name email").lean();
+          const origin = String(process.env.CORS_ORIGIN || "").split(",")[0].trim();
+          await sendRefundAccountToAdmin({
+            booking: result.booking,
+            student,
+            adminPanelUrl: origin
+              ? `${origin.replace(/\/$/, "")}/#/admin/bookings/${result.booking?._id || result.booking?.id || ""}`
+              : "",
+          });
+        } catch (mailErr) {
+          console.error("[updateRefundDestination] gửi mail admin:", mailErr?.message || mailErr);
+        }
+      })();
+
       res.json({ success: true, booking: result.booking });
     } catch (err) {
       next(err);

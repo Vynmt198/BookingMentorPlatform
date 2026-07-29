@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authJwt } from "../middleware/authJwt.js";
-import { requireMentor } from "../middleware/requireMentor.js";
+import { requireMentor, requireActiveMentor } from "../middleware/requireMentor.js";
 import { UploadController } from "../controllers/uploadController.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
 import { formatApiError } from "../utils/apiErrors.js";
@@ -31,8 +31,8 @@ const handleMulterError = (handler) => (req, res, next) => {
 uploadRouter.post("/avatar", authJwt, handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadAvatar));
 uploadRouter.post("/cv", authJwt, handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadCV));
 uploadRouter.post("/jd", authJwt, handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadJD));
-uploadRouter.post("/course-thumbnail", authJwt, requireMentor, handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadCourseThumbnail));
-uploadRouter.post("/course-video", authJwt, requireMentor, handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadCourseVideo));
-uploadRouter.post("/sign-video", authJwt, requireMentor, asyncHandler(UploadController.signCourseVideoUpload));
+uploadRouter.post("/course-thumbnail", authJwt, requireMentor, requireActiveMentor("tải lên ảnh khóa học"), handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadCourseThumbnail));
+uploadRouter.post("/course-video", authJwt, requireMentor, requireActiveMentor("tải lên video khóa học"), handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadCourseVideo));
+uploadRouter.post("/sign-video", authJwt, requireMentor, requireActiveMentor("tải lên video khóa học"), asyncHandler(UploadController.signCourseVideoUpload));
 uploadRouter.post("/meeting-checkin", authJwt, requireMentor, handleMulterError(upload.single("file")), asyncHandler(UploadController.uploadMeetingCheckin));
 

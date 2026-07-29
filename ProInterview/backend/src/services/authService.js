@@ -162,24 +162,24 @@ export async function logoutUser(userId, accessMeta = {}) {
 }
 
 /** Xóa tài khoản hiện tại + vô hiệu toàn bộ phiên. */
+/**
+ * User tự yêu cầu đóng tài khoản.
+ *
+ * KHÔNG xóa cứng: lịch sử payout, đối soát và tranh chấp đều trỏ vào document này. Phải qua
+ * cổng `canCloseAccount` — còn số dư, còn buổi đã trả tiền, còn gói hạn thì trả 409 kèm
+ * `blockers` có `code` máy đọc được để frontend hiện đúng lý do.
+ */
 export async function deleteMeUser(userId) {
   const uid = String(userId ?? "").trim();
   if (!mongoose.isValidObjectId(uid)) {
     return { ok: false, status: 401, error: "Phiên đăng nhập không hợp lệ." };
   }
 
-  const deleted = await User.findByIdAndDelete(uid);
-  if (!deleted) {
-    return { ok: false, status: 404, error: "Tài khoản không tồn tại." };
-  }
+  const { closeAccount } = await import("./accountClosureService.js");
+  const result = await closeAccount(uid, { closedBy: uid });
+  if (!result.ok) return result;
 
-  // Dọn hồ sơ mentor nếu user từng là mentor.
-  const Mentor = mongoose.models.Mentor;
-  if (Mentor) {
-    await Mentor.deleteOne({ userId: uid });
-  }
-
-  return { ok: true };
+  return { ok: true, closed: true, closedAt: result.closedAt };
 }
 
 export async function refreshAccessToken(rawRefresh, req, options = {}) {
@@ -197,6 +197,16 @@ export async function refreshAccessToken(rawRefresh, req, options = {}) {
   let user = await User.findOne({ "authSessions._id": sid }).select("+authSessions");
   if (!user) {
     return { ok: false, status: 401, error: "Phiên không còn hợp lệ. Đăng nhập lại." };
+  }
+  /**
+   * Tài khoản bị khóa không được làm mới phiên. `authJwt` đã chặn access token, nhưng refresh
+   * phải tự kiểm độc lập: không phải đường nào set `isActive: false` cũng xóa `authSessions`.
+   * Dọn luôn session để lần thử sau dừng ngay ở bước tra cứu.
+   */
+  if (user.isActive === false) {
+    user.authSessions = [];
+    await user.save();
+    return { ok: false, status: 403, error: "Tài khoản đã bị khóa. Liên hệ quản trị viên." };
   }
   const sub = user.authSessions?.find((s) => s._id.equals(sid));
   if (!sub) {
@@ -856,23 +866,20 @@ export async function patchMeUser(userId, body, req, options = {}) {
     }
   }
 
-  /** Không tự đổi lên mentor qua /me — chỉ admin (PATCH /api/users/:id/role). */
+  /**
+   * `/me` KHÔNG BAO GIỜ đổi được role — kể cả giữ nguyên giá trị cũ. Đổi role chỉ qua
+   * `PATCH /api/users/:id/role` (admin, xem `userRoleService.setRoleByAdmin`).
+   *
+   * Từ chối thẳng thay vì liệt kê các cặp chuyển đổi bị cấm: danh sách đen chỉ chặn đúng
+   * những trường hợp nghĩ ra được, và không có gì ngăn người sửa sau này thêm một lệnh gán
+   * `user.role = ...` bên dưới rồi vô tình mở đường leo thang quyền lên admin.
+   */
   if (body.role !== undefined && body.role !== null) {
-    const want = String(body.role).trim().toLowerCase();
-    if (want === "mentor" && user.role === "customer") {
-      return {
-        ok: false,
-        status: 403,
-        error: "Chỉ quản trị viên mới có thể cấp quyền mentor (PATCH /api/users/:id/role).",
-      };
-    }
-    if (want === "customer" && user.role === "mentor") {
-      return {
-        ok: false,
-        status: 403,
-        error: "Không thể hạ role từ mentor xuống customer qua PATCH /me.",
-      };
-    }
+    return {
+      ok: false,
+      status: 403,
+      error: "Không thể đổi vai trò qua endpoint này. Vai trò do quản trị viên cấp.",
+    };
   }
 
   if (passwordChanged) {

@@ -33,7 +33,9 @@
     "test:node": "node --test src/utils/apiErrors.test.js src/utils/planKeys.test.js src/utils/bookingSchedule.test.js src/utils/orderRef.test.js src/utils/securityGuards.test.js src/services/reviewsService.integration.test.js src/services/mentorEarningsService.test.js src/integration/cv.integration.test.js src/integration/cvMatch.integration.test.js src/integration/payments-transfer.integration.test.js src/integration/security.integration.test.js",
     "test:payments": "node --test src/integration/payments-transfer.integration.test.js",
     "test:python-cv": "cd ../cv_jd_matching && python -m unittest discover -s tests -p test_*.py -v",
-    "test:dto": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --testPathPatterns=__tests__"
+    "test:dto": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --testPathPatterns=__tests__",
+    "seed:suspend-demo": "node src/scripts/seedSuspensionRefundDemo.js",
+    "seed:lock-test": "node src/scripts/seedLockFeatureDemo.js"
   },
   "jest": {
     "testEnvironment": "node",

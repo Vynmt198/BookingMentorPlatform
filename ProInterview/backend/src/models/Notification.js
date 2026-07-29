@@ -41,6 +41,9 @@ const notificationSchema = new Schema(
       actionUrl: { type: String },
       /** Chu kỳ hết hạn gói tại thời điểm nhắc — dùng để dedupe "plan_expiring" (đổi khi gia hạn). */
       planExpiresAt: { type: Date },
+      /** Buổi bị hủy do mentor bị khóa: số tiền sẽ hoàn + cần học viên nhập tài khoản nhận. */
+      refundAmountVnd: { type: Number },
+      needsRefundAccount: { type: Boolean },
     },
   },
   { collection: "notifications", timestamps: true }

@@ -366,6 +366,7 @@ const PeerReviewListRow = forwardRef(function PeerReviewListRow({ course, index,
 export function MentorPeerReview() {
   const navigate = useNavigate();
   const user = getUser();
+  const userRole = user?.role ?? "";
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -380,7 +381,7 @@ export function MentorPeerReview() {
   });
 
   useEffect(() => {
-    if (!user || user.role !== "mentor") {
+    if (userRole !== "mentor") {
       navigate("/");
       return;
     }
@@ -400,7 +401,9 @@ export function MentorPeerReview() {
         })),
       );
     })();
-  }, [navigate, user]);
+    // `getUser()` parse localStorage nên trả object MỚI mỗi lần render — để `user` vào deps là
+    // effect chạy lại sau mỗi setState, thành vòng lặp fetch vô hạn. Phụ thuộc vào role (chuỗi).
+  }, [navigate, userRole]);
 
   const priorityCourse = useMemo(
     () => pickPriorityCourse(coursesForReview, category),

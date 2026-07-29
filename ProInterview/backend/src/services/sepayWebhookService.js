@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { Booking } from "../models/Booking.js";
 import { Enrollment } from "../models/Enrollment.js";
 import { Payment } from "../models/Payment.js";
+import { User } from "../models/User.js";
 import { SepayWebhookEvent } from "../models/SepayWebhookEvent.js";
 import { enrollmentAccessGranted } from "../helpers/enrollmentAccess.js";
 import {
@@ -317,6 +318,41 @@ async function upsertSepayLog(sepayId, patch) {
   );
 }
 
+/**
+ * Nếu người thanh toán đang bị khóa (`User.isActive === false`), đánh dấu các dòng ledger
+ * `Payment` liên quan sang `held_inactive_account` và trả `true` để caller dừng auto-confirm.
+ *
+ * Không đụng vào Booking/Enrollment — chúng vẫn ở `pending` và sẽ hết hạn bình thường; chỉ
+ * ledger tiền được gắn cờ, vì đó là chỗ admin nhìn để quyết hoàn tiền.
+ */
+async function holdIfPayerInactive(target, { sepayId, amount }) {
+  const uid = String(target.userId || "").trim();
+  if (!mongoose.isValidObjectId(uid)) return false;
+
+  const payer = await User.findById(uid).select("isActive").lean();
+  if (!payer || payer.isActive !== false) return false;
+
+  const entityIds = Array.isArray(target.entityIds) ? target.entityIds : [target.entityId];
+  const objectIds = entityIds.filter((x) => mongoose.isValidObjectId(x));
+
+  await Payment.updateMany(
+    {
+      $or: [{ referenceId: { $in: objectIds } }, { _id: { $in: objectIds } }],
+      status: "pending",
+    },
+    {
+      $set: {
+        status: "held_inactive_account",
+        heldAt: new Date(),
+        heldReason: `Tài khoản bị khóa — SePay #${sepayId} amount=${amount}`,
+      },
+    },
+  ).catch((err) => console.error("[holdIfPayerInactive]", err?.message || err));
+
+  console.warn(`[PAYMENT_HELD_INACTIVE] user=${uid} sepayId=${sepayId} amount=${amount} entities=${objectIds.join(",")}`);
+  return true;
+}
+
 async function autoConfirmTarget(target, { sepayId, amount }) {
   const forceNote = `SePay webhook #${sepayId} amount=${amount}`;
   const opts = { force: true, forceNote, adminUserId: "" };
@@ -449,6 +485,24 @@ export async function handleSepayWebhook(body, authHeader) {
   }
 
   const target = matched[0];
+
+  /**
+   * Người trả tiền đang bị khóa → KHÔNG auto-confirm, nhưng cũng KHÔNG từ chối: tiền đã vào
+   * tài khoản ngân hàng thật rồi, từ chối là mất dấu vết. Giữ lại thành hàng đợi để admin
+   * quyết hoàn tiền hay mở khóa. Vẫn ack 200 cho SePay để họ không retry.
+   */
+  const heldForInactive = await holdIfPayerInactive(target, { sepayId, amount });
+  if (heldForInactive) {
+    await upsertSepayLog(sepayId, {
+      status: "held_inactive_account",
+      orderRef,
+      entityType: target.entityType,
+      entityId: target.entityId,
+      resultMessage: "Tài khoản người thanh toán đang bị khóa — giữ lại chờ admin xử lý",
+    });
+    return { ok: true, held: true, reason: "inactive_account", orderRef };
+  }
+
   const confirm = await autoConfirmTarget(target, { sepayId, amount });
   if (!confirm.ok) {
     await upsertSepayLog(sepayId, {

@@ -4,11 +4,14 @@ import { Users, Search, Filter, CheckCircle, XCircle, Eye, ShieldCheck, Star, Tr
 import { adminApi } from "../../utils/adminApi.js";
 import { tryApi } from "../../utils/apiToast.js";
 import { UserOnlineStatus } from "../../components/admin/UserOnlineStatus.jsx";
+import { LockAccountModal } from "../../components/modals/LockAccountModal.jsx";
 
 export function AdminMentors() {
   const [mentors, setMentors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [lockTarget, setLockTarget] = useState(null);
+  const [lockBusy, setLockBusy] = useState(false);
 
   const loadMentors = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -31,20 +34,12 @@ export function AdminMentors() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const handleToggleActive = async (mentor) => {
-    const nextStatus = !mentor.isActive;
-    if (!nextStatus) {
-      const name = mentor?.userId?.name || mentor?.title || "cố vấn này";
-      const ok = window.confirm(
-        `Xác nhận khoá "${name}"? Mentor sẽ ẩn khỏi danh sách tìm kiếm và không nhận được lịch mới cho tới khi bạn mở lại.`,
-      );
-      if (!ok) return;
-    }
+  const applyStatus = async (mentor, nextStatus) => {
     const res = await tryApi(() => adminApi.updateMentorStatus(mentor._id, nextStatus), {
       fallback: "Không thể cập nhật trạng thái cố vấn.",
-      successMessage: nextStatus ? "Đã duyệt cố vấn" : "Đã khóa cố vấn",
+      successMessage: nextStatus ? "Đã duyệt cố vấn" : "Đã tạm ngưng cố vấn",
     });
-    if (!res.success) return;
+    if (!res.success) return false;
     setMentors((prev) =>
       prev.map((m) =>
         m._id === mentor._id
@@ -56,6 +51,23 @@ export function AdminMentors() {
           : m,
       ),
     );
+    return true;
+  };
+
+  const handleToggleActive = async (mentor) => {
+    // Tạm ngưng → mở modal liệt kê số dư và việc còn dở. Kích hoạt lại thì không cần hỏi.
+    if (mentor.isActive) {
+      setLockTarget(mentor);
+      return;
+    }
+    await applyStatus(mentor, true);
+  };
+
+  const confirmSuspend = async () => {
+    setLockBusy(true);
+    const ok = await applyStatus(lockTarget, false);
+    setLockBusy(false);
+    if (ok) setLockTarget(null);
   };
 
   const filtered = mentors
@@ -236,6 +248,17 @@ export function AdminMentors() {
           </table>
         </div>
       </div>
+
+      {lockTarget ? (
+        <LockAccountModal
+          userId={lockTarget.userId?._id || lockTarget.userId}
+          displayName={lockTarget.userId?.name || lockTarget.title || "Cố vấn"}
+          variant="mentor"
+          busy={lockBusy}
+          onCancel={() => !lockBusy && setLockTarget(null)}
+          onConfirm={confirmSuspend}
+        />
+      ) : null}
     </div>
   );
 }

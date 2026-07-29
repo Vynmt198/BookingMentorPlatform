@@ -505,12 +505,14 @@ export function MentorCourseManagement() {
   }, []);
 
   useEffect(() => {
-    if (!user || user.role !== "mentor") {
+    if (user?.role !== "mentor") {
       navigate("/");
       return;
     }
     loadCourses();
-  }, [navigate, user, loadCourses]);
+    // KHÔNG để `user` vào deps: `getUser()` parse localStorage nên trả object mới mỗi render →
+    // effect chạy lại sau mỗi setState của loadCourses, thành vòng lặp fetch vô hạn.
+  }, [navigate, user?.role, loadCourses]);
 
   const activeCourses = useMemo(
     () => myCourses.filter((c) => c.status !== "archived"),

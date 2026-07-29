@@ -232,6 +232,58 @@ export async function sendVerificationEmail(to, name, verifyUrl) {
 }
 
 /**
+ * Báo cho quản trị viên: học viên đã cung cấp tài khoản nhận hoàn tiền cho buổi hẹn bị hủy.
+ *
+ * Người nhận lấy theo thứ tự: `REFUND_NOTIFY_EMAIL` → `MAIL_USER`/`EMAIL_USER`. Thiếu cả hai thì
+ * bỏ qua — thông tin đã lưu vào Booking nên admin vẫn thấy trong trang quản trị, email chỉ là
+ * kênh nhắc thêm và KHÔNG được làm hỏng thao tác của học viên.
+ */
+export async function sendRefundAccountToAdmin({ booking, student, adminPanelUrl }) {
+  const to =
+    (process.env.REFUND_NOTIFY_EMAIL || process.env.MAIL_USER || process.env.EMAIL_USER || "").trim();
+  if (!to) return { ok: false, skipped: true, reason: "no_recipient" };
+
+  const amount = Math.round(Number(booking?.cancelRefundAmountVnd ?? booking?.totalAmount ?? 0));
+  const row = (label, value) =>
+    `<tr><td style="padding:6px 12px 6px 0;color:${BRAND.textMuted};">${escapeHtml(label)}</td>` +
+    `<td style="padding:6px 0;font-weight:700;">${escapeHtml(String(value ?? "—"))}</td></tr>`;
+
+  const mailOptions = createBrandedMailOptions({
+    to,
+    subject: `[Hoàn tiền] ${amount.toLocaleString("vi-VN")}đ — ${student?.name || "học viên"} đã gửi số tài khoản`,
+    preheader: "Học viên đã cung cấp tài khoản nhận hoàn tiền cho buổi hẹn bị hủy.",
+    title: "Yêu cầu hoàn tiền cần chuyển khoản",
+    bodyHtml: `
+        <p style="margin:0 0 16px;">Buổi hẹn bị hủy do cố vấn bị khóa. Học viên đã cung cấp tài khoản nhận tiền:</p>
+        <table style="border-collapse:collapse;font-size:14px;margin:0 0 16px;">
+          ${row("Số tiền hoàn", `${amount.toLocaleString("vi-VN")}đ`)}
+          ${row("Ngân hàng", booking?.refundReceiveBankName)}
+          ${row("Số tài khoản", booking?.refundReceiveAccountNumber)}
+          ${row("Chủ tài khoản", booking?.refundReceiveAccountHolder)}
+          ${row("Học viên", `${student?.name || "—"} (${student?.email || "—"})`)}
+          ${row("Buổi hẹn", `${booking?.date || "—"} ${booking?.timeSlot || ""}`)}
+          ${row("Mã lịch hẹn", booking?._id)}
+        </table>
+        <p style="margin:0;color:${BRAND.textMuted};">
+          Sau khi chuyển khoản, vào trang quản trị bấm <strong>Xác nhận đã hoàn tiền</strong> để chốt sổ.
+        </p>`,
+    ctaLabel: adminPanelUrl ? "Mở trang quản trị" : undefined,
+    ctaUrl: adminPanelUrl,
+    fallbackUrl: adminPanelUrl,
+    footerNote: "Email tự động từ hệ thống ProInterview.",
+  });
+
+  try {
+    const transporter = await getTransporter();
+    const info = await transporter.sendMail(mailOptions);
+    return { ok: true, info };
+  } catch (error) {
+    console.error("[emailService] sendRefundAccountToAdmin error:", error.message);
+    return { ok: false, error: error.message };
+  }
+}
+
+/**
  * Gửi email đặt lại mật khẩu
  */
 export async function sendResetPasswordEmail(to, name, resetUrl) {

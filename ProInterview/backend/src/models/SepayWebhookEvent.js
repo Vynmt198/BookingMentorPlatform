@@ -8,7 +8,16 @@ const sepayWebhookEventSchema = new mongoose.Schema(
     orderRef: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["received", "processed", "ignored", "unmatched", "failed", "refund_flagged"],
+      enum: [
+        "received",
+        "processed",
+        "ignored",
+        "unmatched",
+        "failed",
+        "refund_flagged",
+        /** Người thanh toán đang bị khóa — giữ lại chờ admin quyết hoàn tiền hay mở khóa. */
+        "held_inactive_account",
+      ],
       default: "received",
     },
     entityType: { type: String, default: "" },

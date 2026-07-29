@@ -98,6 +98,20 @@ const mentorSchema = new Schema(
 
     isVerified: { type: Boolean, default: false },
     isActive: { type: Boolean, default: true },
+    /**
+     * Vòng đời hồ sơ mentor:
+     *   active    — hoạt động bình thường
+     *   suspended — chặn HOẠT ĐỘNG (ẩn khỏi tìm kiếm, không nhận booking/enrollment mới) nhưng
+     *               KHÔNG chặn TIỀN: job clearance vẫn release, admin vẫn giải ngân thay mặt
+     *   closed    — vô hiệu hóa hoàn toàn; chỉ đạt được qua cổng `canCloseMentor` (tất cả số dư
+     *               = 0, không còn dòng treo). Vẫn là soft-delete: giữ nguyên lịch sử tài chính.
+     *
+     * `isActive` được giữ đồng bộ (`isActive = status === "active"`) để mọi chỗ đang đọc
+     * `isActive` không phải sửa.
+     */
+    status: { type: String, enum: ["active", "suspended", "closed"], default: "active", index: true },
+    closedAt: { type: Date },
+    closedBy: { type: Schema.Types.ObjectId, ref: "User" },
     verifiedAt: { type: Date },
     /** Tự động tạm khoá khi bị nhiều report cùng lúc — chờ admin xem xét. */
     autoSuspended: { type: Boolean, default: false },
