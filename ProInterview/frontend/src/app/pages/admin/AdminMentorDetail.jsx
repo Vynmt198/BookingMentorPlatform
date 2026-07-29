@@ -124,8 +124,15 @@ export function AdminMentorDetail() {
 
   const toggleActive = async () => {
     if (!mentor) return;
-    setBusy(true);
     const next = !mentor.isActive;
+    if (!next) {
+      const name = mentor?.userId?.name || mentor?.title || "cố vấn này";
+      const ok = window.confirm(
+        `Xác nhận khoá "${name}"? Mentor sẽ ẩn khỏi danh sách tìm kiếm và không nhận được lịch mới cho tới khi bạn mở lại.`,
+      );
+      if (!ok) return;
+    }
+    setBusy(true);
     const res = await tryApi(() => adminApi.updateMentorStatus(mentor._id, next), {
       fallback: "Không cập nhật được trạng thái.",
       successMessage: next ? "Đã kích hoạt cố vấn" : "Đã khóa cố vấn",

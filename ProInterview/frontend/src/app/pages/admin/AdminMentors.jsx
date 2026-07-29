@@ -33,6 +33,13 @@ export function AdminMentors() {
 
   const handleToggleActive = async (mentor) => {
     const nextStatus = !mentor.isActive;
+    if (!nextStatus) {
+      const name = mentor?.userId?.name || mentor?.title || "cố vấn này";
+      const ok = window.confirm(
+        `Xác nhận khoá "${name}"? Mentor sẽ ẩn khỏi danh sách tìm kiếm và không nhận được lịch mới cho tới khi bạn mở lại.`,
+      );
+      if (!ok) return;
+    }
     const res = await tryApi(() => adminApi.updateMentorStatus(mentor._id, nextStatus), {
       fallback: "Không thể cập nhật trạng thái cố vấn.",
       successMessage: nextStatus ? "Đã duyệt cố vấn" : "Đã khóa cố vấn",
