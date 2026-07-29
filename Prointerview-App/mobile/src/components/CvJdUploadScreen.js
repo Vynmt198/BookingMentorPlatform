@@ -4,13 +4,13 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as DocumentPicker from 'expo-document-picker';
+import AiLoadingState from './AiLoadingState';
 
 const FILE_FORMAT_HINT = 'Hỗ trợ .pdf, .doc, .docx, .txt · tối đa 10MB';
 
@@ -152,13 +152,7 @@ export default function CvJdUploadScreen({
         />
 
         {isLoading ? (
-          <View style={styles.loadingBlock}>
-            <ActivityIndicator color="#8037f4" />
-            <Text style={styles.loadingText}>Đang phân tích… {Math.round(analysisProgress)}%</Text>
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressFill, { width: `${Math.min(100, Math.max(0, analysisProgress))}%` }]} />
-            </View>
-          </View>
+          <AiLoadingState progress={analysisProgress} />
         ) : (
           <TouchableOpacity
             style={styles.ctaPrimary}
@@ -347,27 +341,5 @@ const styles = StyleSheet.create({
   },
   ctaPrimaryTextDisabled: {
     color: '#a78bfa',
-  },
-  loadingBlock: {
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 20,
-  },
-  loadingText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#5b21b6',
-  },
-  progressTrack: {
-    width: '100%',
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(167, 139, 250, 0.22)',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: '#8037f4',
   },
 });
