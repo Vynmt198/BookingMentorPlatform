@@ -711,7 +711,7 @@ export function MentorPeerReview() {
                   <div className="flex flex-wrap gap-3 pt-1">
                     <button
                       type="button"
-                      onClick={() => navigate(`/courses/${selectedCourse.id}?peerReview=1`)}
+                      onClick={() => window.open(`${window.location.origin}${window.location.pathname}#/courses/${selectedCourse.id}?peerReview=1`, "_blank")}
                       className="inline-flex items-center gap-1.5 text-xs font-medium text-[#8037f4] hover:opacity-80"
                     >
                       <BookOpen size={12} /> Chi tiết đề cương
