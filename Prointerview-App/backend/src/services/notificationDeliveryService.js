@@ -41,3 +41,29 @@ export async function deliverNotification(userId, payload) {
     return { delivered: false, reason: "create_failed" };
   }
 }
+
+/**
+ * Thông báo chào mừng theo tài khoản (đăng ký / đăng nhập lần đầu).
+ * Idempotent: chỉ tạo 1 lần nếu chưa có metadata.kind = welcome.
+ */
+export async function ensureWelcomeNotification(userId, { name } = {}) {
+  if (!isMongoReady()) return { delivered: false, reason: "mongo_unavailable" };
+  const uid = String(userId ?? "").trim();
+  if (!uid || !mongoose.isValidObjectId(uid)) return { delivered: false, reason: "invalid_user" };
+
+  const existing = await Notification.findOne({
+    userId: uid,
+    "metadata.kind": "welcome",
+  })
+    .select("_id")
+    .lean();
+  if (existing) return { delivered: false, skipped: true, reason: "already_exists" };
+
+  const display = String(name || "").trim() || "bạn";
+  return deliverNotification(uid, {
+    type: "system",
+    title: "Chào mừng đến ProInterview",
+    body: `Xin chào ${display}! Tài khoản của bạn đã sẵn sàng. Khám phá mentor, khóa học và đặt lịch phỏng vấn thử ngay.`,
+    metadata: { kind: "welcome" },
+  });
+}

@@ -102,4 +102,17 @@ export const UploadController = {
       res.json({ success: true, url, absoluteUrl, message: "Upload video bài học thành công" });
     } catch (error) { next(error); }
   },
+
+  /** Upload ảnh check-in khuôn mặt (mentor, trước khi vào phòng họp) */
+  uploadMeetingCheckin: async (req, res, next) => {
+    try {
+      if (!req.file) return res.status(400).json({ success: false, error: "Không tìm thấy file" });
+      const { url, absoluteUrl } = await resolveUrl(req, req.file, {
+        folder:        "prointerview/meeting-checkins",
+        resource_type: "image",
+        transformation: [{ width: 800, height: 800, crop: "limit", quality: "auto:good", fetch_format: "auto" }],
+      });
+      res.json({ success: true, url, absoluteUrl, message: "Upload ảnh check-in thành công" });
+    } catch (error) { next(error); }
+  },
 };

@@ -74,7 +74,7 @@ export class BookingsController {
       if (!result.ok) {
         return res.status(result.status).json({ success: false, error: result.error });
       }
-      res.json({ success: true, booking: result.booking });
+      res.json({ success: true, booking: result.booking, meeting: result.meeting || null });
     } catch (err) {
       next(err);
     }
@@ -85,6 +85,46 @@ export class BookingsController {
       const result = await bookingsService.startBookingMeeting(req.userId, req.params.id, {
         asMentor: true,
       });
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, booking: result.booking, meeting: result.meeting || null });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async checkInForMentor(req, res, next) {
+    try {
+      const result = await bookingsService.recordMentorMeetingCheckIn(
+        req.userId,
+        req.params.id,
+        req.body ?? {},
+      );
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, booking: result.booking });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async updateSummaryForMentor(req, res, next) {
+    try {
+      const result = await bookingsService.updateMentorSummary(req.userId, req.params.id, req.body ?? {});
+      if (!result.ok) {
+        return res.status(result.status).json({ success: false, error: result.error });
+      }
+      res.json({ success: true, booking: result.booking });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async reportCustomerNoShow(req, res, next) {
+    try {
+      const result = await bookingsService.processCustomerNoShow(req.userId, req.params.id, req.body ?? {});
       if (!result.ok) {
         return res.status(result.status).json({ success: false, error: result.error });
       }

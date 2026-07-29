@@ -32,6 +32,8 @@ import { uploadRouter } from "./routes/upload.js";
 import { mockCoursesRouter } from "./routes/mockCourses.js";
 import { aiProvidersRouter } from "./routes/aiProviders.js";
 import cartRouter from "./routes/cart.js";
+import { analyticsRouter } from "./routes/analytics.js";
+import { getJaasPublicStatus } from "./services/jaasService.js";
 import { notFoundHandler, globalErrorHandler } from "./middleware/errorHandler.js";
 
 export function createApp() {
@@ -182,6 +184,7 @@ export function createApp() {
       sepayWebhookConfigured: Boolean(
         String(process.env.SEPAY_WEBHOOK_API_KEY || process.env.SEPAY_API_KEY || "").trim(),
       ),
+      jaas: getJaasPublicStatus(),
       timestamp: new Date().toISOString(),
     });
   });
@@ -201,6 +204,7 @@ export function createApp() {
   app.use("/api/admin", adminRouter);
   app.use("/api/enrollments", enrollmentsRouter);
   app.use("/api/cart", cartRouter);
+  app.use("/api/analytics", analyticsRouter);
   app.use("/api/cv", cvRouter);
   app.use("/api/cv", cvMatchRouter);
   app.use("/api/interviews", interviewsRouter);

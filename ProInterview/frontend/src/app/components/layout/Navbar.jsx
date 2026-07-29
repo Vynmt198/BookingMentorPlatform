@@ -134,7 +134,7 @@ function CustomerNavbar() {
       });
     }, 60000);
     return () => clearInterval(interval);
-  }, [loggedIn]);
+  }, [loggedIn, user?._id || user?.id]);
 
   const handleMarkAllRead = () => {
     markAllNotificationsRead().then((res) => {
@@ -547,7 +547,7 @@ function MentorNavbar() {
       });
     }, 60000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user?._id || user?.id]);
 
   React.useEffect(() => {
     setMobileOpen(false);

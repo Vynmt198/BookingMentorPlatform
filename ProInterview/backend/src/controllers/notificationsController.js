@@ -1,5 +1,6 @@
-import { Notification, Mentor } from "../models/index.js";
+import { Notification, Mentor, User } from "../models/index.js";
 import { ensureMentorPendingNotification } from "../services/mentorMeService.js";
+import { ensureWelcomeNotification } from "../services/notificationDeliveryService.js";
 
 export const NotificationsController = {
   /** Lấy danh sách thông báo của user hiện tại */
@@ -19,9 +20,19 @@ export const NotificationsController = {
           /* ignore */
         }
       }
+      try {
+        const u = await User.findById(userId).select("name").lean();
+        await ensureWelcomeNotification(userId, { name: u?.name });
+      } catch {
+        /* ignore */
+      }
+      const rawLimit = Number(req.query?.limit);
+      const limit = Number.isFinite(rawLimit)
+        ? Math.min(Math.max(Math.floor(rawLimit), 1), 200)
+        : 100;
       const notifications = await Notification.find({ userId })
         .sort({ createdAt: -1 })
-        .limit(50);
+        .limit(limit);
       res.json({ success: true, notifications });
     } catch (error) {
       console.error("[Notifications Error] list:", error);
@@ -37,7 +48,7 @@ export const NotificationsController = {
 
       const notification = await Notification.findOneAndUpdate(
         { _id: id, userId },
-        { $set: { isRead: true } },
+        { $set: { isRead: true, readAt: new Date() } },
         { new: true }
       );
 
@@ -55,7 +66,10 @@ export const NotificationsController = {
   markAllRead: async (req, res, next) => {
     try {
       const userId = req.userId;
-      await Notification.updateMany({ userId, isRead: false }, { $set: { isRead: true } });
+      await Notification.updateMany(
+        { userId, isRead: false },
+        { $set: { isRead: true, readAt: new Date() } },
+      );
       res.json({ success: true });
     } catch (error) {
       next(error);

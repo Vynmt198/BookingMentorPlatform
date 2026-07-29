@@ -136,16 +136,28 @@ export async function loadAuthenticatedUserData(existingUser = null) {
     return result;
   }
 
+  // Luôn tải thông báo theo tài khoản (customer + mentor).
+  try {
+    const notifRes = await authFetch('/api/notifications?limit=100', { method: 'GET' });
+    if (notifRes?.ok) {
+      const notifData = await notifRes.json().catch(() => ({}));
+      if (Array.isArray(notifData.notifications)) {
+        result.notifications = notifData.notifications;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
   // Chỉ tải dữ liệu customer khi role phù hợp
   const role = result.user?.role;
-  if (role === 'admin' || role === 'mentor') {
+  if (role === 'mentor') {
     return result;
   }
 
   // Các khối hồ sơ độc lập: tải song song để giảm đáng kể thời gian mở trang Cá nhân.
   const endpoints = [
     '/api/bookings',
-    '/api/notifications',
     '/api/cv/analyses',
     '/api/enrollments/my',
     '/api/payments/history?limit=30',
@@ -161,9 +173,8 @@ export async function loadAuthenticatedUserData(existingUser = null) {
     ),
   );
 
-  const [bookingsData, notificationsData, cvData, enrollmentsData, paymentsData] = payloads;
+  const [bookingsData, cvData, enrollmentsData, paymentsData] = payloads;
   if (Array.isArray(bookingsData.bookings)) result.bookings = bookingsData.bookings;
-  if (Array.isArray(notificationsData.notifications)) result.notifications = notificationsData.notifications;
   if (Array.isArray(cvData.list)) result.cvAnalyses = cvData.list;
   if (Array.isArray(enrollmentsData.enrollments)) result.enrollments = enrollmentsData.enrollments;
   if (Array.isArray(paymentsData.payments)) result.payments = paymentsData.payments;

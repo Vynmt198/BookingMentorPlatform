@@ -18,7 +18,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { adminApi, mentorApi } from '../services/roleApi';
+import { mentorApi } from '../services/roleApi';
 import { resolveMediaUrl } from '../utils/mediaUrl';
 import MentorScheduleScreen from './MentorScheduleScreen';
 
@@ -136,137 +136,6 @@ function TextPromptModal({
   );
 }
 
-/** Modal 2 ô % phí platform (booking / course) → gửi rate 0–1 */
-function CommissionModal({ visible, mentor, onCancel, onSaved }) {
-  const bookingPct = mentor?.pricing?.platformFeeRate != null
-    ? String(Math.round(Number(mentor.pricing.platformFeeRate) * 100))
-    : '';
-  const coursePct = mentor?.pricing?.coursePlatformFeeRate != null
-    ? String(Math.round(Number(mentor.pricing.coursePlatformFeeRate) * 100))
-    : '';
-  const [booking, setBooking] = useState(bookingPct);
-  const [course, setCourse] = useState(coursePct);
-  const [busy, setBusy] = useState(false);
-
-  React.useEffect(() => {
-    if (visible) {
-      setBooking(bookingPct);
-      setCourse(coursePct);
-    }
-  }, [visible, mentor?._id || mentor?.id]);
-
-  const toRate = (pctStr) => {
-    const t = String(pctStr || '').trim();
-    if (!t) return null;
-    const n = Number(t);
-    if (!Number.isFinite(n) || n <= 0 || n > 100) return NaN;
-    return Math.round(n) / 100;
-  };
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={s.promptBackdrop} onPress={onCancel}>
-        <Pressable style={s.promptCard} onPress={(e) => e.stopPropagation?.()}>
-          <Text style={s.promptTitle}>Phí nền tảng</Text>
-          <Text style={s.promptSub}>
-            {mentor?.name || mentor?.userId?.name || 'Mentor'} — nhập % (1–100), để trống = bỏ override
-          </Text>
-          <Text style={s.fieldLabel}>Phí booking (%)</Text>
-          <TextInput
-            style={s.input}
-            value={booking}
-            onChangeText={(v) => setBooking(v.replace(/[^\d]/g, ''))}
-            placeholder="VD: 30"
-            placeholderTextColor="#94a3b8"
-            keyboardType="number-pad"
-          />
-          <Text style={s.fieldLabel}>Phí khóa học (%)</Text>
-          <TextInput
-            style={s.input}
-            value={course}
-            onChangeText={(v) => setCourse(v.replace(/[^\d]/g, ''))}
-            placeholder="VD: 20"
-            placeholderTextColor="#94a3b8"
-            keyboardType="number-pad"
-          />
-          <View style={s.btnRow}>
-            <ActionBtn label="Hủy" tone="ghost" onPress={onCancel} disabled={busy} />
-            <ActionBtn
-              label="Lưu"
-              busy={busy}
-              onPress={async () => {
-                const bookingPlatformFeeRate = toRate(booking);
-                const coursePlatformFeeRate = toRate(course);
-                if (Number.isNaN(bookingPlatformFeeRate) || Number.isNaN(coursePlatformFeeRate)) {
-                  showMsg('Lỗi', 'Phí phải từ 1–100%, hoặc để trống.');
-                  return;
-                }
-                if (bookingPlatformFeeRate == null && coursePlatformFeeRate == null) {
-                  showMsg('Lỗi', 'Nhập ít nhất một mức phí.');
-                  return;
-                }
-                setBusy(true);
-                const body = {};
-                if (booking.trim() !== '') body.bookingPlatformFeeRate = bookingPlatformFeeRate;
-                if (course.trim() !== '') body.coursePlatformFeeRate = coursePlatformFeeRate;
-                const r = await adminApi.updateMentorCommission(mentor._id || mentor.id, body);
-                setBusy(false);
-                if (!r.success) {
-                  showMsg('Lỗi', r.error || 'Không lưu được');
-                  return;
-                }
-                onSaved?.();
-              }}
-            />
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-function ChipRow({ options, value, onChange }) {
-  return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={s.chipScroll}
-      contentContainerStyle={s.chipRow}
-      nestedScrollEnabled
-      keyboardShouldPersistTaps="handled"
-    >
-      {options.map((opt) => {
-        const active = value === opt.id;
-        return (
-          <Pressable
-            key={opt.id}
-            style={[s.chip, active && s.chipActive]}
-            onPress={() => onChange(opt.id)}
-            hitSlop={6}
-          >
-            <Text style={[s.chipText, active && s.chipTextActive]}>{opt.label}</Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
-  );
-}
-
-function Hero({ eyebrow, title, accent, subtitle }) {
-  return (
-    <View style={s.hero}>
-      <LinearGradient colors={['#ffffff', '#f3ebff']} style={StyleSheet.absoluteFill} />
-      <Text style={s.eyebrow}>{eyebrow}</Text>
-      <Text style={s.heroTitle}>
-        {title}
-        {accent ? <Text style={s.heroAccent}> {accent}</Text> : null}
-      </Text>
-      {subtitle ? <Text style={s.heroSub}>{subtitle}</Text> : null}
-    </View>
-  );
-}
-
-/** Home: Xin chào + tên. Tab con: eyebrow + tiêu đề giống trang Cá nhân. */
 function WelcomeHeader({ user, title, subtitle, eyebrow, onProfilePress }) {
   const uri = resolveMediaUrl(user?.avatar);
 
@@ -405,82 +274,11 @@ function ActionBtn({ label, onPress, tone = 'primary', busy = false, disabled = 
   );
 }
 
-function InfoModal({ visible, title, message, onClose }) {
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={s.promptBackdrop} onPress={onClose}>
-        <Pressable style={s.promptCard} onPress={(e) => e.stopPropagation?.()}>
-          <Text style={s.promptTitle}>{title}</Text>
-          {message ? <Text style={[s.promptSub, { marginTop: 10, marginBottom: 12 }]}>{message}</Text> : null}
-          <ActionBtn label="Đóng" onPress={onClose} />
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-function ConfirmModal({ visible, title, message, confirmLabel = 'Xác nhận', danger = false, onCancel, onConfirm }) {
-  const [busy, setBusy] = useState(false);
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={s.promptBackdrop} onPress={onCancel}>
-        <Pressable style={s.promptCard} onPress={(e) => e.stopPropagation?.()}>
-          <Text style={s.promptTitle}>{title}</Text>
-          {message ? <Text style={[s.promptSub, { marginTop: 10, marginBottom: 12 }]}>{message}</Text> : null}
-          <View style={s.btnRow}>
-            <ActionBtn label="Hủy" tone="ghost" onPress={onCancel} disabled={busy} />
-            <ActionBtn
-              label={confirmLabel}
-              tone={danger ? 'danger' : 'primary'}
-              busy={busy}
-              onPress={async () => {
-                setBusy(true);
-                try {
-                  await onConfirm?.();
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            />
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
-  );
-}
-
-function QueueTile({ icon, title, count, desc, onPress }) {
-  return (
-    <TouchableOpacity style={s.queueTile} onPress={onPress} activeOpacity={0.88}>
-      <View style={s.queueIcon}>
-        <Ionicons name={icon} size={18} color="#8037f4" />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={s.queueTitle}>{title}</Text>
-        <Text style={s.queueDesc}>{desc}</Text>
-      </View>
-      <View style={s.queueCountWrap}>
-        <Text style={s.queueCount}>{count}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-    </TouchableOpacity>
-  );
-}
-
 function EmptyState({ icon = 'file-tray-outline', text }) {
   return (
     <View style={s.empty}>
       <Ionicons name={icon} size={34} color="#b6a8cf" />
       <Text style={s.emptyText}>{text}</Text>
-    </View>
-  );
-}
-
-function LoadingBlock() {
-  return (
-    <View style={s.empty}>
-      <ActivityIndicator color="#8037f4" size="large" />
-      <Text style={s.emptyText}>Đang tải dữ liệu ProInterview…</Text>
     </View>
   );
 }
@@ -501,999 +299,6 @@ function PersonRow({ name, meta, right, avatar }) {
         {meta ? <Text style={s.cardSub} numberOfLines={2}>{meta}</Text> : null}
       </View>
       {right}
-    </View>
-  );
-}
-
-/* ───────── Admin ───────── */
-
-function AdminHome({ data, user, onNavigate }) {
-  const stats = data?.stats || {};
-  const finance = data?.finance?.totals || {};
-  const queues = data?.queues || {};
-  const content = data?.content || null;
-  const metrics = data?.interviewMetrics || null;
-  const system = data?.system || null;
-  const recent = stats.recentBookings || [];
-  const plans = stats.plans || {};
-
-  const journey = [
-    {
-      id: 'ops',
-      number: '01',
-      icon: 'construct-outline',
-      title: 'Vận hành',
-      desc: 'Booking · CK khóa · CK gói SePay.',
-      color: '#8037f4',
-      tab: 'admin_ops',
-    },
-    {
-      id: 'mentors',
-      number: '02',
-      icon: 'school-outline',
-      title: 'Mentor',
-      desc: 'Duyệt hồ sơ cố vấn chờ phê duyệt.',
-      color: '#93f72b',
-      tab: 'admin_mentors',
-    },
-    {
-      id: 'manage',
-      number: '03',
-      icon: 'documents-outline',
-      title: 'Quản lý',
-      desc: 'Users · khóa chờ · reviews · báo cáo.',
-      color: '#f59e0b',
-      tab: 'admin_content',
-    },
-  ];
-
-  return (
-    <View>
-      <WelcomeHeader user={user} onProfilePress={() => onNavigate?.('profile')} />
-
-      <View style={s.homeStatsRow}>
-        <View style={s.homeStatPill}>
-          <Text style={s.homeStatValue}>{stats.users ?? 0}</Text>
-          <Text style={s.homeStatLabel}>Người dùng</Text>
-        </View>
-        <View style={s.homeStatPill}>
-          <Text style={s.homeStatValue}>{stats.mentors ?? 0}</Text>
-          <Text style={s.homeStatLabel}>Cố vấn</Text>
-        </View>
-        <View style={s.homeStatPill}>
-          <Text style={s.homeStatValue}>{stats.bookings ?? 0}</Text>
-          <Text style={s.homeStatLabel}>Lịch hẹn</Text>
-        </View>
-      </View>
-
-      <View style={s.journeyCard}>
-        <View style={s.journeyHead}>
-          <View>
-            <Text style={s.journeyEyebrow}>LỘ TRÌNH GỢI Ý</Text>
-            <Text style={s.journeyTitle}>Luồng được khuyên dùng</Text>
-          </View>
-          <View style={s.journeySpark}>
-            <Ionicons name="flash" size={16} color="#2D1B69" />
-          </View>
-        </View>
-        {journey.map((step) => (
-          <TouchableOpacity
-            key={step.id}
-            style={s.journeyStep}
-            onPress={() => onNavigate?.(step.tab)}
-            activeOpacity={0.86}
-          >
-            <View style={[s.journeyNumber, { backgroundColor: `${step.color}22` }]}>
-              <Text style={[s.journeyNumberText, { color: step.color }]}>{step.number}</Text>
-            </View>
-            <View style={[s.journeyIcon, { borderColor: `${step.color}55` }]}>
-              <Ionicons name={step.icon} size={17} color={step.color} />
-            </View>
-            <View style={s.journeyBody}>
-              <Text style={s.journeyStepTitle}>{step.title}</Text>
-              <Text style={s.journeyStepDesc} numberOfLines={1}>{step.desc}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={15} color="rgba(45,27,105,0.26)" />
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={s.homeToolsRow}>
-        <TouchableOpacity style={s.homeToolCard} onPress={() => onNavigate?.('admin_finance')} activeOpacity={0.88}>
-          <View style={s.homeToolIcon}>
-            <Ionicons name="wallet-outline" size={20} color="#8037f4" />
-          </View>
-          <Text style={s.homeToolTitle}>Tài chính</Text>
-          <Text style={s.homeToolDesc} numberOfLines={2}>
-            Tổng thu {formatVnd(finance.grossCollected)}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.homeToolCard} onPress={() => onNavigate?.('admin_ops')} activeOpacity={0.88}>
-          <View style={s.homeToolIcon}>
-            <Ionicons name="card-outline" size={20} color="#8037f4" />
-          </View>
-          <Text style={s.homeToolTitle}>Vận hành</Text>
-          <Text style={s.homeToolDesc} numberOfLines={2}>
-            {(queues.coursePayments || 0) + (queues.subscriptionPayments || 0)} CK chờ xử lý
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <Section title="Hàng chờ">
-        <QueueTile icon="person-add" title="Duyệt cố vấn" count={queues.pendingMentors || 0} desc="Hồ sơ mentor chờ phê duyệt" onPress={() => onNavigate?.('admin_mentors')} />
-        <QueueTile icon="cash-outline" title="Rút tiền mentor" count={queues.payoutsPending || 0} desc="Payout chờ duyệt / chi" onPress={() => onNavigate?.('admin_finance')} />
-        <QueueTile icon="documents" title="Khóa chờ duyệt" count={queues.coursesPending || 0} desc="Nội dung khóa học" onPress={() => onNavigate?.('admin_content')} />
-        <QueueTile icon="alert-circle" title="Báo cáo mở" count={queues.reportsOpen || 0} desc="Hỗ trợ & khiếu nại" onPress={() => onNavigate?.('admin_content')} />
-      </Section>
-
-      <Section title="Phân bố gói">
-        <View style={s.planRow}>
-          {['free', 'student', 'professional', 'premium'].map((key) => (
-            <View key={key} style={s.planChip}>
-              <Text style={s.planNum}>{plans[key] ?? 0}</Text>
-              <Text style={s.planLbl}>{key}</Text>
-            </View>
-          ))}
-        </View>
-      </Section>
-
-      {content ? (
-        <Section title="Nội dung & phỏng vấn">
-          <View style={s.statGrid}>
-            <StatCard icon="mic" label="Sessions" value={content.interviewSessions ?? 0} />
-            <StatCard icon="checkmark-done" label="Hoàn thành" value={content.completedInterviews ?? 0} tone="lime" />
-            <StatCard icon="document-text" label="CV phân tích" value={content.cvAnalyses ?? 0} tone="amber" />
-            <StatCard icon="school" label="Khóa published" value={content.publishedCourses ?? 0} />
-          </View>
-          {content.interviewOps ? (
-            <Card>
-              <Text style={s.cardTitle}>7 ngày gần đây</Text>
-              <Text style={s.cardSub}>
-                Sessions: {content.interviewOps.sessions7d ?? 0} · Hoàn thành: {content.interviewOps.completed7d ?? 0}
-                {content.interviewOps.avgScore7d != null
-                  ? ` · Điểm TB: ${content.interviewOps.avgScore7d}`
-                  : ''}
-              </Text>
-              <Text style={s.cardSub}>Few-shot sẵn: {content.interviewOps.fewShotReadyCount ?? 0}</Text>
-            </Card>
-          ) : null}
-        </Section>
-      ) : null}
-
-      {metrics ? (
-        <Section title="Interview metrics (7d)">
-          <Card>
-            <Text style={s.cardSub}>
-              Tổng all-time: {metrics.totalAllTime ?? 0} · Few-shot: {metrics.fewShotReadyCount ?? 0}
-            </Text>
-            <Text style={s.cardSub}>
-              Điểm TB: {metrics.scoreStats?.avgScore != null ? Number(metrics.scoreStats.avgScore).toFixed(1) : '—'}
-              {metrics.evalDuration?.avgMs != null
-                ? ` · Eval ~${Math.round(metrics.evalDuration.avgMs / 1000)}s`
-                : ''}
-            </Text>
-            {(metrics.topRoles || []).slice(0, 4).map((r) => (
-              <Text key={r._id || r.id} style={s.cardSub}>
-                {r._id || 'role'}: {r.count ?? 0}
-              </Text>
-            ))}
-          </Card>
-        </Section>
-      ) : null}
-
-      {system ? (
-        <Section title="Hệ thống">
-          <Card>
-            <Text style={s.cardTitle}>Mongo / dịch vụ</Text>
-            <Text style={s.cardSub}>
-              Topology: {system.mongo?.topology || '—'}
-              {system.mongo?.transactionSupported ? ' · TX OK' : ' · TX hạn chế'}
-            </Text>
-            <Text style={s.cardSub}>
-              CV: {system.services?.cvAnalyzer || '—'} · LLM: {system.services?.llm || '—'}
-            </Text>
-            <Text style={s.cardSub}>
-              JWT: {system.auth?.accessTokenTtl || '—'} · Refresh {system.auth?.refreshTokenDays ?? '—'}d
-            </Text>
-          </Card>
-        </Section>
-      ) : null}
-
-      <Section title="Lịch hẹn gần đây" actionLabel="Tất cả" onAction={() => onNavigate?.('admin_ops')}>
-        {recent.length === 0 ? (
-          <EmptyState icon="calendar-outline" text="Chưa có booking gần đây." />
-        ) : (
-          recent.slice(0, 6).map((b) => (
-            <Card key={b.id || b._id}>
-              <PersonRow
-                name={`${b.customerName || b.userId?.name || 'Khách'} → ${b.mentorName || b.mentorId?.userId?.name || 'Mentor'}`}
-                meta={`${b.date || '—'} · ${b.timeSlot || b.time || ''} · ${formatVnd(b.totalAmount || b.price || 0)}`}
-                right={<Badge label={statusLabel(b.status)} tone={b.status === 'completed' ? 'ok' : b.status === 'pending' ? 'warn' : 'neutral'} />}
-              />
-            </Card>
-          ))
-        )}
-      </Section>
-    </View>
-  );
-}
-
-function AdminMentors({ data, onRefresh, user, onNavigate }) {
-  const [filter, setFilter] = useState('pending');
-  const [prompt, setPrompt] = useState(null);
-  const [commissionMentor, setCommissionMentor] = useState(null);
-  const mentors = data?.mentors || [];
-  const list = useMemo(() => {
-    if (filter === 'pending') {
-      return mentors.filter((m) => m.isActive !== true || m.adminReview?.status === 'pending' || m.isVerified !== true);
-    }
-    if (filter === 'active') return mentors.filter((m) => m.isActive === true);
-    return mentors;
-  }, [mentors, filter]);
-
-  const showDetail = async (m) => {
-    const id = m._id || m.id;
-    const r = await adminApi.getMentorById(id);
-    if (!r.success) {
-      showMsg('Lỗi', r.error || 'Không tải được chi tiết');
-      return;
-    }
-    const d = r.mentor || r;
-    showMsg(
-      d.name || d.userId?.name || 'Mentor',
-      [
-        d.title || d.headline || '',
-        d.company ? `Công ty: ${d.company}` : '',
-        d.bio ? `Bio: ${String(d.bio).slice(0, 280)}` : '',
-        `Phí booking: ${d.pricing?.platformFeeRate != null ? `${Math.round(d.pricing.platformFeeRate * 100)}%` : 'mặc định'}`,
-        `Phí khóa: ${d.pricing?.coursePlatformFeeRate != null ? `${Math.round(d.pricing.coursePlatformFeeRate * 100)}%` : 'mặc định'}`,
-        `Verified: ${d.isVerified ? 'yes' : 'no'} · Active: ${d.isActive ? 'yes' : 'no'}`,
-      ].filter(Boolean).join('\n'),
-    );
-  };
-
-  return (
-    <View>
-      <WelcomeHeader
-        user={user}
-        eyebrow="QUẢN TRỊ"
-        title="Cố vấn"
-        subtitle={`${list.length} hồ sơ · duyệt / phí / từ chối`}
-        onProfilePress={() => onNavigate?.('profile')}
-      />
-      <ChipRow
-        value={filter}
-        onChange={setFilter}
-        options={[
-          { id: 'pending', label: `Chờ duyệt (${(data?.pendingMentors || []).length})` },
-          { id: 'active', label: 'Đang hoạt động' },
-          { id: 'all', label: 'Tất cả' },
-        ]}
-      />
-      {list.length === 0 ? <EmptyState text="Không có mentor trong bộ lọc." /> : null}
-      {list.slice(0, 50).map((m) => {
-        const active = m.isActive === true;
-        const pending = !active || m.adminReview?.status === 'pending';
-        const name = m.name || m.userId?.name || 'Mentor';
-        return (
-          <Card key={m._id || m.id}>
-            <PersonRow
-              name={name}
-              avatar={m.avatar || m.userId?.avatar}
-              meta={`${m.title || m.headline || 'Chuyên gia'}${m.company ? ` · ${m.company}` : ''} · ${formatVnd(m.pricePerHour || m.hourlyRate || 0)}/giờ`}
-              right={<Badge label={active ? 'Đã duyệt' : pending ? 'Chờ duyệt' : 'Ẩn'} tone={active ? 'ok' : pending ? 'warn' : 'bad'} />}
-            />
-            <Text style={s.cardSub}>
-              Review: {m.adminReview?.status || '—'} · Verified: {m.isVerified ? 'yes' : 'no'} · Rating: {m.rating ?? m.averageRating ?? '—'}
-              {m.pricing?.platformFeeRate != null
-                ? ` · Fee ${Math.round(m.pricing.platformFeeRate * 100)}%`
-                : ''}
-            </Text>
-            <View style={s.btnRow}>
-              <ActionBtn label="Chi tiết" tone="ghost" onPress={() => showDetail(m)} />
-              <ActionBtn label="Phí %" tone="ghost" onPress={() => setCommissionMentor(m)} />
-              {!active ? (
-                <ActionBtn
-                  label="Duyệt"
-                  tone="success"
-                  onPress={async () => {
-                    const r = await adminApi.updateMentorStatus(m._id || m.id, true);
-                    if (!r.success) showMsg('Lỗi', r.error || 'Không duyệt được');
-                    onRefresh?.();
-                  }}
-                />
-              ) : (
-                <ActionBtn
-                  label="Ẩn"
-                  tone="ghost"
-                  onPress={async () => {
-                    const r = await adminApi.updateMentorStatus(m._id || m.id, false);
-                    if (!r.success) showMsg('Lỗi', r.error || 'Không cập nhật được');
-                    onRefresh?.();
-                  }}
-                />
-              )}
-              {pending ? (
-                <ActionBtn
-                  label="Từ chối"
-                  tone="danger"
-                  onPress={() => setPrompt({
-                    title: 'Từ chối mentor',
-                    placeholder: 'Lý do từ chối…',
-                    onConfirm: async (reason) => {
-                      setPrompt(null);
-                      if (!reason) {
-                        showMsg('Thiếu lý do', 'Vui lòng nhập lý do từ chối.');
-                        return;
-                      }
-                      const r = await adminApi.rejectMentor(m._id || m.id, reason);
-                      if (!r.success) showMsg('Lỗi', r.error || 'Không từ chối được');
-                      onRefresh?.();
-                    },
-                  })}
-                />
-              ) : null}
-            </View>
-          </Card>
-        );
-      })}
-
-      <TextPromptModal
-        visible={!!prompt}
-        title={prompt?.title || ''}
-        placeholder={prompt?.placeholder}
-        onCancel={() => setPrompt(null)}
-        onConfirm={(v) => prompt?.onConfirm?.(v)}
-      />
-      <CommissionModal
-        visible={!!commissionMentor}
-        mentor={commissionMentor}
-        onCancel={() => setCommissionMentor(null)}
-        onSaved={() => {
-          setCommissionMentor(null);
-          showMsg('Thành công', 'Đã cập nhật phí mentor');
-          onRefresh?.();
-        }}
-      />
-    </View>
-  );
-}
-
-function AdminOps({ data, onRefresh, user, onNavigate }) {
-  const [tab, setTab] = useState('bookings');
-  const [prompt, setPrompt] = useState(null);
-  const [normalizing, setNormalizing] = useState(false);
-  const bookings = data?.bookings || [];
-  const coursePayments = data?.coursePayments || [];
-  const pendingTransfers = data?.pendingEnrollmentTransfers || [];
-  const courseList = tab === 'courses_pending'
-    ? (pendingTransfers.length ? pendingTransfers : coursePayments.filter((e) => e.paymentStatus === 'pending'))
-    : coursePayments;
-  const subPayments = data?.subscriptionPayments || [];
-
-  return (
-    <View>
-      <WelcomeHeader
-        user={user}
-        eyebrow="QUẢN TRỊ"
-        title="Vận hành"
-        subtitle="Booking · chuyển khoản · SePay"
-        onProfilePress={() => onNavigate?.('profile')}
-      />
-      <Card>
-        <Text style={s.cardTitle}>Chuẩn hóa mã CK</Text>
-        <Text style={s.cardSub}>Đồng bộ paymentRef / transferRef trên ledger (dry-run trước khi ghi).</Text>
-        <View style={s.btnRow}>
-          <ActionBtn
-            label="Dry-run"
-            tone="ghost"
-            busy={normalizing}
-            onPress={async () => {
-              setNormalizing(true);
-              const r = await adminApi.normalizeTransferRefs(true);
-              setNormalizing(false);
-              if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-              else showMsg('Dry-run', JSON.stringify(r.result || r.summary || r, null, 0).slice(0, 400));
-            }}
-          />
-          <ActionBtn
-            label="Chạy normalize"
-            tone="success"
-            busy={normalizing}
-            onPress={async () => {
-              const ok = await askConfirm('Xác nhận', 'Ghi chuẩn hóa mã CK lên DB?', { confirmText: 'Chạy' });
-              if (!ok) return;
-              setNormalizing(true);
-              const r = await adminApi.normalizeTransferRefs(false);
-              setNormalizing(false);
-              if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-              else {
-                showMsg('Xong', 'Đã normalize transfer refs.');
-                onRefresh?.();
-              }
-            }}
-          />
-        </View>
-      </Card>
-      <ChipRow
-        value={tab}
-        onChange={setTab}
-        options={[
-          { id: 'bookings', label: `Booking (${bookings.length})` },
-          { id: 'courses_pending', label: `CK chờ (${pendingTransfers.length || coursePayments.filter((e) => e.paymentStatus === 'pending').length})` },
-          { id: 'courses', label: `CK khóa (${coursePayments.length})` },
-          { id: 'subs', label: `CK gói (${subPayments.length})` },
-        ]}
-      />
-
-      {tab === 'bookings' && (bookings.length === 0 ? <EmptyState icon="calendar-outline" text="Chưa có booking." /> : bookings.slice(0, 50).map((b) => (
-        <Card key={b._id || b.id}>
-          <PersonRow
-            name={`${b.userId?.name || 'Khách'} → ${b.mentorId?.name || b.mentorId?.userId?.name || 'Mentor'}`}
-            meta={`${b.date || '—'} · ${b.timeSlot || b.time || ''} · ${formatVnd(b.totalAmount || b.price || 0)}`}
-            right={<Badge label={statusLabel(b.status)} tone={b.status === 'completed' ? 'ok' : b.status === 'pending' ? 'warn' : 'neutral'} />}
-          />
-          <Text style={s.cardSub}>
-            Pay: {statusLabel(b.paymentStatus)} · Method: {b.paymentMethod || '—'} · Ref: {b.paymentRef || b.transferRef || '—'}
-          </Text>
-          <View style={s.btnRow}>
-            <ActionBtn
-              label="Chi tiết"
-              tone="ghost"
-              onPress={async () => {
-                const r = await adminApi.getBookingById(b._id || b.id);
-                if (!r.success) showMsg('Lỗi', r.error || 'Không tải được');
-                else {
-                  const d = r.booking || r;
-                  showMsg('Booking', `${d.status} · pay ${d.paymentStatus}\n${d.date || ''} ${d.timeSlot || ''}\nRef: ${d.paymentRef || d.transferRef || '—'}`,);
-                }
-              }}
-            />
-            {b.status === 'pending' ? (
-              <ActionBtn label="Xác nhận lịch" onPress={async () => {
-                const r = await adminApi.updateBookingStatus(b._id || b.id, 'confirmed');
-                if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                onRefresh?.();
-              }} />
-            ) : null}
-            {b.status === 'confirmed' || b.status === 'in_progress' ? (
-              <ActionBtn label="Hoàn thành" tone="success" onPress={async () => {
-                const r = await adminApi.updateBookingStatus(b._id || b.id, 'completed');
-                if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                onRefresh?.();
-              }} />
-            ) : null}
-            {(b.paymentStatus === 'pending' || b.paymentMethod === 'transfer') && b.status !== 'cancelled' ? (
-              <ActionBtn label="Xác nhận CK" tone="success" onPress={async () => {
-                const r = await adminApi.confirmBookingTransfer(b._id || b.id, { force: true });
-                if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                onRefresh?.();
-              }} />
-            ) : null}
-            {(b.status === 'refund_pending' || b.refundStatus === 'pending') ? (
-              <ActionBtn label="Xác nhận hoàn" tone="danger" onPress={async () => {
-                const r = await adminApi.confirmBookingRefund(b._id || b.id);
-                if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                onRefresh?.();
-              }} />
-            ) : null}
-            {b.status !== 'cancelled' && b.status !== 'completed' ? (
-              <ActionBtn
-                label="Hủy"
-                tone="danger"
-                onPress={() => setPrompt({
-                  title: 'Hủy booking',
-                  placeholder: 'Lý do hủy…',
-                  onConfirm: async (reason) => {
-                    setPrompt(null);
-                    const r = await adminApi.updateBookingStatus(
-                      b._id || b.id,
-                      'cancelled',
-                      reason || 'Admin hủy lịch.',
-                    );
-                    if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                    onRefresh?.();
-                  },
-                })}
-              />
-            ) : null}
-            {b.status === 'confirmed' || b.status === 'in_progress' ? (
-              <ActionBtn
-                label="No-show"
-                tone="ghost"
-                onPress={() => setPrompt({
-                  title: 'Đánh dấu no-show',
-                  placeholder: 'Ghi chú (tuỳ chọn)…',
-                  onConfirm: async (reason) => {
-                    setPrompt(null);
-                    const r = await adminApi.updateBookingStatus(b._id || b.id, 'no_show', reason);
-                    if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                    onRefresh?.();
-                  },
-                })}
-              />
-            ) : null}
-          </View>
-        </Card>
-      )))}
-
-      {(tab === 'courses' || tab === 'courses_pending') && (courseList.length === 0 ? <EmptyState text="Không có CK khóa." /> : courseList.slice(0, 40).map((e) => (
-        <Card key={e._id || e.id}>
-          <Text style={s.cardTitle}>{e.courseId?.title || e.courseTitle || 'Khóa học'}</Text>
-          <Text style={s.cardSub}>
-            {e.userId?.name || e.userId?.email || 'Học viên'} · {formatVnd(e.pricePaid || e.amount || 0)} · {statusLabel(e.paymentStatus)}
-          </Text>
-          <Text style={s.cardSub}>Ref: {e.paymentRef || e.transferRef || '—'}</Text>
-          {e.paymentStatus === 'pending' ? (
-            <ActionBtn label="Xác nhận đã nhận tiền" tone="success" onPress={async () => {
-              const r = await adminApi.confirmEnrollmentTransfer(e._id || e.id, { force: true });
-              if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-              onRefresh?.();
-            }} />
-          ) : null}
-        </Card>
-      )))}
-
-      {tab === 'subs' && (subPayments.length === 0 ? <EmptyState text="Không có CK gói chờ xử lý." /> : subPayments.slice(0, 30).map((p) => (
-        <Card key={p._id || p.id}>
-          <Text style={s.cardTitle}>{p.userId?.email || p.userEmail || 'User'}</Text>
-          <Text style={s.cardSub}>
-            Gói {p.providerResponse?.plan || p.plan || '—'} · {formatVnd(p.amount || 0)} · {statusLabel(p.status)}
-          </Text>
-          <ActionBtn label="Xác nhận CK gói" tone="success" onPress={async () => {
-            const r = await adminApi.confirmSubscriptionTransfer(p._id || p.id, { force: true });
-            if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-            onRefresh?.();
-          }} />
-        </Card>
-      )))}
-
-      <TextPromptModal
-        visible={!!prompt}
-        title={prompt?.title || ''}
-        placeholder={prompt?.placeholder}
-        onCancel={() => setPrompt(null)}
-        onConfirm={(v) => prompt?.onConfirm?.(v)}
-      />
-    </View>
-  );
-}
-
-function AdminFinance({ data, onRefresh, user, onNavigate }) {
-  const [prompt, setPrompt] = useState(null);
-  const payouts = data?.payouts || [];
-  const totals = data?.finance?.totals || {};
-  const booking = data?.finance?.booking || {};
-  const course = data?.finance?.course || {};
-  const cf = data?.courseFinance || {};
-
-  return (
-    <View>
-      <WelcomeHeader
-        user={user}
-        eyebrow="QUẢN TRỊ"
-        title="Tài chính"
-        subtitle="Tổng quan GMV & payout mentor"
-        onProfilePress={() => onNavigate?.('profile')}
-      />
-      <View style={s.statGrid}>
-        <StatCard icon="cash" label="Tổng thu" value={formatVnd(totals.grossCollected)} />
-        <StatCard icon="people" label="Chia mentor" value={formatVnd(totals.mentorNet)} tone="lime" />
-        <StatCard icon="business" label="Lợi nhuận PI" value={formatVnd(totals.platformRevenue)} tone="amber" />
-        <StatCard icon="swap-horizontal" label="Booking paid" value={booking.count ?? 0} />
-      </View>
-      <Card>
-        <Text style={s.cardTitle}>Chi tiết nguồn thu</Text>
-        <Text style={s.cardSub}>Booking: {formatVnd(booking.grossCollected)} · phí {formatVnd(booking.platformRevenue)} · mentor {formatVnd(booking.mentorNet)}</Text>
-        <Text style={s.cardSub}>Khóa học: {formatVnd(course.grossCollected)} · phí {formatVnd(course.platformRevenue)} · mentor {formatVnd(course.mentorNet)} ({course.count ?? 0} đơn)</Text>
-      </Card>
-
-      {cf && (cf.pendingTransferCount != null || cf.paidCollectedCount != null) ? (
-        <Section title="Học phí khóa (CK)">
-          <View style={s.statGrid}>
-            <StatCard icon="time" label="CK chờ" value={`${cf.pendingTransferCount ?? 0}`} tone="amber" />
-            <StatCard icon="cash" label="Chờ (₫)" value={formatVnd(cf.pendingTransferAmount)} tone="amber" />
-            <StatCard icon="checkmark-circle" label="Đã thu" value={`${cf.paidCollectedCount ?? 0}`} tone="lime" />
-            <StatCard icon="wallet" label="Thu (₫)" value={formatVnd(cf.paidCollectedAmount)} tone="lime" />
-          </View>
-          {(cf.pendingList || []).slice(0, 8).map((e) => (
-            <Card key={e._id || e.id}>
-              <Text style={s.cardTitle}>{e.courseId?.title || 'Khóa'}</Text>
-              <Text style={s.cardSub}>
-                {e.userId?.name || e.userId?.email || 'HV'} · {formatVnd(e.pricePaid)} · chờ CK
-              </Text>
-              <ActionBtn
-                label="Xác nhận CK"
-                tone="success"
-                onPress={async () => {
-                  const r = await adminApi.confirmEnrollmentTransfer(e._id || e.id, { force: true });
-                  if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                  onRefresh?.();
-                }}
-              />
-            </Card>
-          ))}
-        </Section>
-      ) : null}
-
-      <Section title={`Yêu cầu rút tiền (${payouts.length})`}>
-        {payouts.length === 0 ? <EmptyState icon="wallet-outline" text="Chưa có yêu cầu rút tiền." /> : null}
-        {payouts.slice(0, 40).map((p) => (
-          <Card key={p._id || p.id}>
-            <PersonRow
-              name={p.mentorId?.name || p.mentorId?.userId?.name || p.mentorName || 'Mentor'}
-              meta={`${formatVnd(p.amount)} · ${p.bankAccount?.bankName || p.bankName || '—'} · ${p.bankAccount?.accountNumber || p.accountNumber || ''}`}
-              right={<Badge label={statusLabel(p.status)} tone={p.status === 'paid' || p.status === 'approved' ? 'ok' : p.status === 'pending' ? 'warn' : 'bad'} />}
-            />
-            <View style={s.btnRow}>
-              {p.status === 'pending' ? (
-                <>
-                  <ActionBtn label="Duyệt" tone="success" onPress={async () => {
-                    const r = await adminApi.approvePayout(p._id || p.id);
-                    if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                    onRefresh?.();
-                  }} />
-                  <ActionBtn
-                    label="Từ chối"
-                    tone="danger"
-                    onPress={() => setPrompt({
-                      title: 'Từ chối payout',
-                      placeholder: 'Lý do…',
-                      onConfirm: async (reason) => {
-                        setPrompt(null);
-                        const r = await adminApi.rejectPayout(p._id || p.id, reason || 'Từ chối bởi admin');
-                        if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                        onRefresh?.();
-                      },
-                    })}
-                  />
-                </>
-              ) : null}
-              {p.status === 'approved' ? (
-                <ActionBtn label="Đánh dấu đã CK" onPress={async () => {
-                  const r = await adminApi.markPayoutPaid(p._id || p.id);
-                  if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                  onRefresh?.();
-                }} />
-              ) : null}
-            </View>
-          </Card>
-        ))}
-      </Section>
-
-      <TextPromptModal
-        visible={!!prompt}
-        title={prompt?.title || ''}
-        placeholder={prompt?.placeholder}
-        onCancel={() => setPrompt(null)}
-        onConfirm={(v) => prompt?.onConfirm?.(v)}
-      />
-    </View>
-  );
-}
-
-function AdminManage({ data, onRefresh, user, onNavigate }) {
-  const [tab, setTab] = useState('users');
-  const pendingCourses = data?.pendingCourses || [];
-  const publishedCourses = data?.publishedCourses || [];
-  const [courseScope, setCourseScope] = useState(() =>
-    (data?.pendingCourses || []).length > 0 ? 'pending' : 'published',
-  );
-  const [prompt, setPrompt] = useState(null);
-  const [info, setInfo] = useState(null);
-  const [confirm, setConfirm] = useState(null);
-  const [busyUserId, setBusyUserId] = useState('');
-  const users = data?.users || [];
-  const courses = courseScope === 'published' ? publishedCourses : pendingCourses;
-  const reviews = data?.reviews || [];
-  const reports = data?.reports || [];
-  const loadErrors = data?.loadErrors || {};
-  const coursesTotal = pendingCourses.length + publishedCourses.length;
-
-  React.useEffect(() => {
-    if (courseScope === 'pending' && pendingCourses.length === 0 && publishedCourses.length > 0) {
-      setCourseScope('published');
-    }
-  }, [courseScope, pendingCourses.length, publishedCourses.length]);
-
-  const userIdOf = (u) => String(u?._id || u?.id || '');
-
-  return (
-    <View>
-      <WelcomeHeader
-        user={user}
-        eyebrow="QUẢN TRỊ"
-        title="Quản lý"
-        subtitle="Users · khóa học · reviews · reports"
-        onProfilePress={() => onNavigate?.('profile')}
-      />
-      {loadErrors.users || loadErrors.courses || loadErrors.reviews || loadErrors.reports ? (
-        <Card>
-          <Text style={s.cardTitle}>Lỗi tải API</Text>
-          {loadErrors.users ? <Text style={s.cardSub}>Users: {loadErrors.users}</Text> : null}
-          {loadErrors.courses ? <Text style={s.cardSub}>Khóa: {loadErrors.courses}</Text> : null}
-          {loadErrors.reviews ? <Text style={s.cardSub}>Reviews: {loadErrors.reviews}</Text> : null}
-          {loadErrors.reports ? <Text style={s.cardSub}>Reports: {loadErrors.reports}</Text> : null}
-          <ActionBtn label="Thử lại" onPress={() => onRefresh?.()} />
-        </Card>
-      ) : null}
-      <ChipRow
-        value={tab}
-        onChange={setTab}
-        options={[
-          { id: 'users', label: `Users (${users.length})` },
-          {
-            id: 'courses',
-            label:
-              pendingCourses.length > 0
-                ? `Khóa (${pendingCourses.length} chờ · ${coursesTotal})`
-                : `Khóa (${coursesTotal})`,
-          },
-          { id: 'reviews', label: `Reviews (${reviews.length})` },
-          { id: 'reports', label: `Reports (${reports.length})` },
-        ]}
-      />
-
-      {tab === 'users' && users.slice(0, 50).map((u) => {
-        const active = u.isActive !== false;
-        const role = u.role || 'customer';
-        const uid = userIdOf(u);
-        return (
-          <Card key={uid || u.email}>
-            <PersonRow
-              name={u.name || u.email}
-              avatar={u.avatar}
-              meta={`${u.email} · ${role} · gói ${u.plan || 'free'}`}
-              right={<Badge label={active ? 'Hoạt động' : 'Khóa'} tone={active ? 'ok' : 'bad'} />}
-            />
-            <View style={s.btnRow}>
-              <ActionBtn
-                label="Chi tiết"
-                tone="ghost"
-                busy={busyUserId === `d-${uid}`}
-                onPress={async () => {
-                  setBusyUserId(`d-${uid}`);
-                  const r = await adminApi.getUserById(uid);
-                  setBusyUserId('');
-                  if (!r.success) {
-                    setInfo({ title: 'Lỗi', message: r.error || 'Không tải được chi tiết' });
-                    return;
-                  }
-                  const d = r.user || r;
-                  setInfo({
-                    title: d.name || d.email || 'User',
-                    message: [
-                      `Email: ${d.email || '—'}`,
-                      `Role: ${d.role || '—'}`,
-                      `Plan: ${d.plan || 'free'}`,
-                      `Active: ${d.isActive !== false ? 'yes' : 'no'}`,
-                      d.stats
-                        ? `Booking: ${d.stats.bookingsCount ?? 0} · Enrollment: ${d.stats.enrollmentsCount ?? 0}`
-                        : '',
-                    ].filter(Boolean).join('\n'),
-                  });
-                }}
-              />
-              {role !== 'admin' ? (
-                <ActionBtn
-                  label={role === 'mentor' ? '→ Customer' : '→ Mentor'}
-                  tone="ghost"
-                  onPress={() => {
-                    const next = role === 'mentor' ? 'customer' : 'mentor';
-                    setConfirm({
-                      title: 'Đổi role',
-                      message: `Đặt ${u.email} thành ${next}?`,
-                      confirmLabel: 'Đổi role',
-                      onConfirm: async () => {
-                        const r = await adminApi.updateUserRole(uid, next);
-                        setConfirm(null);
-                        if (!r.success) {
-                          setInfo({ title: 'Lỗi', message: r.error || 'Không đổi được role' });
-                          return;
-                        }
-                        setInfo({ title: 'Thành công', message: `Đã đổi role thành ${next}.` });
-                        onRefresh?.();
-                      },
-                    });
-                  }}
-                />
-              ) : null}
-              <ActionBtn
-                label={active ? 'Khóa' : 'Mở khóa'}
-                tone={active ? 'danger' : 'success'}
-                onPress={() => {
-                  setConfirm({
-                    title: active ? 'Khóa tài khoản' : 'Mở khóa',
-                    message: active
-                      ? `Khóa ${u.email}? User sẽ bị đăng xuất.`
-                      : `Mở lại ${u.email}?`,
-                    confirmLabel: active ? 'Khóa' : 'Mở khóa',
-                    danger: active,
-                    onConfirm: async () => {
-                      const r = await adminApi.updateUserStatus(uid, !active);
-                      setConfirm(null);
-                      if (!r.success) {
-                        setInfo({ title: 'Lỗi', message: r.error || 'Không cập nhật được' });
-                        return;
-                      }
-                      setInfo({
-                        title: 'Thành công',
-                        message: active ? 'Đã khóa tài khoản.' : 'Đã mở khóa tài khoản.',
-                      });
-                      onRefresh?.();
-                    },
-                  });
-                }}
-              />
-            </View>
-          </Card>
-        );
-      })}
-
-      {tab === 'courses' ? (
-        <>
-          <ChipRow
-            value={courseScope}
-            onChange={setCourseScope}
-            options={[
-              { id: 'pending', label: `Chờ duyệt (${pendingCourses.length})` },
-              { id: 'published', label: `Published (${publishedCourses.length})` },
-            ]}
-          />
-          {courses.length === 0 ? (
-            <EmptyState text={courseScope === 'published' ? 'Chưa có khóa published.' : 'Không có khóa chờ duyệt.'} />
-          ) : courses.slice(0, 40).map((c) => (
-            <Card key={c._id || c.id}>
-              <Text style={s.cardTitle}>{c.title}</Text>
-              <Text style={s.cardSub}>
-                {c.mentorId?.userId?.name || c.mentorId?.name || c.instructorName || 'Mentor'} · {formatVnd(c.price || 0)} · {statusLabel(c.status)}
-                {c.paidEnrollmentCount != null ? ` · ${c.paidEnrollmentCount} HV` : ''}
-              </Text>
-              <View style={s.btnRow}>
-                {courseScope === 'pending' ? (
-                  <>
-                    <ActionBtn label="Duyệt" tone="success" onPress={async () => {
-                      const r = await adminApi.approveCourse(c._id || c.id);
-                      if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                      onRefresh?.();
-                    }} />
-                    <ActionBtn
-                      label="Từ chối"
-                      tone="danger"
-                      onPress={() => setPrompt({
-                        title: 'Từ chối khóa học',
-                        placeholder: 'Lý do…',
-                        onConfirm: async (reason) => {
-                          setPrompt(null);
-                          const r = await adminApi.rejectCourse(c._id || c.id, reason || 'Chưa đạt chuẩn');
-                          if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                          onRefresh?.();
-                        },
-                      })}
-                    />
-                  </>
-                ) : (
-                  <ActionBtn
-                    label="Archive / gỡ"
-                    tone="danger"
-                    onPress={() => setPrompt({
-                      title: 'Gỡ khóa khỏi marketplace',
-                      placeholder: 'Lý do…',
-                      onConfirm: async (reason) => {
-                        setPrompt(null);
-                        const r = await adminApi.archiveCourse(c._id || c.id, reason);
-                        if (!r.success) showMsg('Lỗi', r.error || 'Thất bại');
-                        else {
-                          showMsg('Đã gỡ', 'Khóa đã archived.');
-                          onRefresh?.();
-                        }
-                      },
-                    })}
-                  />
-                )}
-              </View>
-            </Card>
-          ))}
-        </>
-      ) : null}
-
-      {tab === 'reviews' && (reviews.length === 0 ? <EmptyState text="Chưa có đánh giá." /> : reviews.slice(0, 40).map((r) => {
-        const visible = r.isVisible !== false;
-        return (
-          <Card key={r._id || r.id}>
-            <Text style={s.cardTitle}>{r.userId?.name || 'User'} · {r.rating || 0}★</Text>
-            <Text style={s.cardSub} numberOfLines={3}>{r.comment || r.content || '—'}</Text>
-            <Badge label={visible ? 'Hiển thị' : 'Đã ẩn'} tone={visible ? 'ok' : 'bad'} />
-            <ActionBtn
-              label={visible ? 'Ẩn review' : 'Hiện review'}
-              tone={visible ? 'ghost' : 'success'}
-              onPress={async () => {
-                const res = await adminApi.setReviewVisibility(r._id || r.id, !visible);
-                if (!res.success) showMsg('Lỗi', res.error || 'Thất bại');
-                onRefresh?.();
-              }}
-            />
-          </Card>
-        );
-      }))}
-
-      {tab === 'reports' && (reports.length === 0 ? <EmptyState text="Không có báo cáo mở." /> : reports.slice(0, 40).map((r) => (
-        <Card key={r._id || r.id}>
-          <Text style={s.cardTitle}>{r.reason || r.type || 'Báo cáo'}</Text>
-          <Text style={s.cardSub} numberOfLines={3}>{r.description || r.note || '—'}</Text>
-          <Text style={s.cardSub}>Trạng thái: {statusLabel(r.status || 'pending')}</Text>
-          <View style={s.btnRow}>
-            {r.status === 'pending' ? (
-              <ActionBtn
-                label="Đang xem"
-                tone="ghost"
-                onPress={async () => {
-                  const res = await adminApi.updateReportStatus(r._id || r.id, { status: 'reviewing' });
-                  if (!res.success) showMsg('Lỗi', res.error || 'Thất bại');
-                  onRefresh?.();
-                }}
-              />
-            ) : null}
-            <ActionBtn
-              label="Đã xử lý"
-              tone="success"
-              onPress={() => setPrompt({
-                title: 'Ghi chú xử lý',
-                placeholder: 'Resolution (tuỳ chọn)…',
-                onConfirm: async (resolution) => {
-                  setPrompt(null);
-                  const res = await adminApi.updateReportStatus(r._id || r.id, {
-                    status: 'resolved',
-                    resolution: resolution || undefined,
-                  });
-                  if (!res.success) showMsg('Lỗi', res.error || 'Thất bại');
-                  onRefresh?.();
-                },
-              })}
-            />
-            <ActionBtn
-              label="Bác bỏ"
-              tone="danger"
-              onPress={() => setPrompt({
-                title: 'Bác bỏ báo cáo',
-                placeholder: 'Lý do (tuỳ chọn)…',
-                onConfirm: async (resolution) => {
-                  setPrompt(null);
-                  const res = await adminApi.updateReportStatus(r._id || r.id, {
-                    status: 'dismissed',
-                    resolution: resolution || undefined,
-                  });
-                  if (!res.success) showMsg('Lỗi', res.error || 'Thất bại');
-                  onRefresh?.();
-                },
-              })}
-            />
-          </View>
-        </Card>
-      )))}
-
-      <TextPromptModal
-        visible={!!prompt}
-        title={prompt?.title || ''}
-        placeholder={prompt?.placeholder}
-        onCancel={() => setPrompt(null)}
-        onConfirm={(v) => prompt?.onConfirm?.(v)}
-      />
-      <InfoModal
-        visible={!!info}
-        title={info?.title || ''}
-        message={info?.message || ''}
-        onClose={() => setInfo(null)}
-      />
-      <ConfirmModal
-        visible={!!confirm}
-        title={confirm?.title || ''}
-        message={confirm?.message || ''}
-        confirmLabel={confirm?.confirmLabel}
-        danger={!!confirm?.danger}
-        onCancel={() => setConfirm(null)}
-        onConfirm={confirm?.onConfirm}
-      />
     </View>
   );
 }
@@ -1627,6 +432,23 @@ function MentorHome({ data, user, onNavigate }) {
         </TouchableOpacity>
       </View>
 
+      <View style={s.homeToolsRow}>
+        <TouchableOpacity style={s.homeToolCard} onPress={() => onNavigate?.('mentor_analytics')} activeOpacity={0.88}>
+          <View style={s.homeToolIcon}>
+            <Ionicons name="stats-chart-outline" size={20} color="#8037f4" />
+          </View>
+          <Text style={s.homeToolTitle}>Phân tích</Text>
+          <Text style={s.homeToolDesc} numberOfLines={2}>KPI & học viên</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.homeToolCard} onPress={() => onNavigate?.('mentor_peer_review')} activeOpacity={0.88}>
+          <View style={s.homeToolIcon}>
+            <Ionicons name="people-outline" size={20} color="#8037f4" />
+          </View>
+          <Text style={s.homeToolTitle}>Peer review</Text>
+          <Text style={s.homeToolDesc} numberOfLines={2}>Duyệt khóa đồng nghiệp</Text>
+        </TouchableOpacity>
+      </View>
+
       <Section title="Buổi sắp tới" actionLabel="Tất cả" onAction={() => onNavigate?.('mentor_sessions')}>
         {upcoming.length === 0 ? (
           <EmptyState icon="calendar-outline" text="Không có buổi trong 7 ngày tới." />
@@ -1647,7 +469,7 @@ function MentorHome({ data, user, onNavigate }) {
   );
 }
 
-function MentorSessions({ data, onRefresh, user, onNavigate }) {
+function MentorSessions({ data, onRefresh, user, onNavigate, onOpenMeeting, onOpenFeedback }) {
   const bookings = data?.bookings || [];
   const [selected, setSelected] = useState(null);
   const [busyKey, setBusyKey] = useState('');
@@ -1741,22 +563,16 @@ function MentorSessions({ data, onRefresh, user, onNavigate }) {
               </Text>
               <Text style={s.cardSub}>Thanh toán: {statusLabel(selected.paymentStatus)} · {selected.paymentMethod || '—'}</Text>
               <Text style={s.cardSub}>Email: {selected.userId?.email || selected.customerEmail || '—'}</Text>
-              {selected.meetingLink ? (
-                <View style={[s.btnRow, { marginTop: 8 }]}>
+              <View style={[s.btnRow, { marginTop: 8 }]}>
                   <ActionBtn
-                    label="Vào meeting"
+                    label="Vào phòng họp"
                     tone="success"
                     onPress={() => {
-                      const url = String(selected.meetingLink || '').trim();
-                      if (!url) {
-                        showMsg('Phòng họp', 'Chưa có link meeting.');
-                        return;
-                      }
-                      Linking.openURL(url).catch(() => showMsg('Lỗi', 'Không mở được link meeting.'));
+                      setSelected(null);
+                      onOpenMeeting?.(selected);
                     }}
                   />
                 </View>
-              ) : null}
               <Text style={[s.cardTitle, { marginTop: 14 }]}>Ghi chú mentor</Text>
               <TextInput
                 style={[s.input, { minHeight: 80, textAlignVertical: 'top' }]}
@@ -1776,10 +592,26 @@ function MentorSessions({ data, onRefresh, user, onNavigate }) {
                   <ActionBtn label="Xác nhận" busy={busyKey === 'confirm'} onPress={() => act('confirm', () => mentorApi.confirmBooking(selected._id || selected.id), 'Đã xác nhận')} />
                 ) : null}
                 {selected.status === 'confirmed' ? (
-                  <ActionBtn label="Bắt đầu" busy={busyKey === 'start'} onPress={() => act('start', () => mentorApi.startBooking(selected._id || selected.id), 'Đã bắt đầu')} />
+                  <ActionBtn
+                    label="Vào phòng"
+                    busy={busyKey === 'start'}
+                    onPress={() => {
+                      setSelected(null);
+                      onOpenMeeting?.(selected);
+                    }}
+                  />
                 ) : null}
                 {(selected.status === 'confirmed' || selected.status === 'in_progress') ? (
                   <ActionBtn label="Hoàn thành" tone="success" busy={busyKey === 'done'} onPress={() => act('done', () => mentorApi.completeBooking(selected._id || selected.id), 'Đã hoàn thành')} />
+                ) : null}
+                {selected.status === 'completed' ? (
+                  <ActionBtn
+                    label={selected.mentorSummary?.submittedAt ? 'Xem tổng kết' : 'Gửi tổng kết'}
+                    onPress={() => {
+                      setSelected(null);
+                      onOpenFeedback?.(selected);
+                    }}
+                  />
                 ) : null}
                 {selected.status !== 'completed' && selected.status !== 'cancelled' ? (
                   <ActionBtn
@@ -1793,6 +625,25 @@ function MentorSessions({ data, onRefresh, user, onNavigate }) {
                       });
                       if (!ok) return;
                       act('cancel', () => mentorApi.cancelBooking(selected._id || selected.id, 'Mentor hủy từ app'), 'Đã hủy buổi');
+                    }}
+                  />
+                ) : null}
+                {(selected.status === 'confirmed' || selected.status === 'in_progress') ? (
+                  <ActionBtn
+                    label="Báo HV no-show"
+                    tone="danger"
+                    busy={busyKey === 'noshow'}
+                    onPress={async () => {
+                      const ok = await askConfirm('Báo học viên không đến?', 'Buổi sẽ chuyển trạng thái no_show.', {
+                        confirmText: 'Xác nhận',
+                        destructive: true,
+                      });
+                      if (!ok) return;
+                      act(
+                        'noshow',
+                        () => mentorApi.reportCustomerNoShow(selected._id || selected.id, 'Học viên không đến'),
+                        'Đã báo no-show',
+                      );
                     }}
                   />
                 ) : null}
@@ -2081,7 +932,16 @@ function MentorCourses({ data, onRefresh, user, onNavigate }) {
   );
 }
 
-export default function RolePortal({ role, activeTab, data, loading, onRefresh, user, onNavigate }) {
+function LoadingBlock({ label = 'Đang tải…' }) {
+  return (
+    <View style={s.loadingBlock}>
+      <ActivityIndicator color="#8037f4" size="large" />
+      <Text style={s.loadingText}>{label}</Text>
+    </View>
+  );
+}
+
+export default function RolePortal({ role, activeTab, data, loading, onRefresh, user, onNavigate, onOpenMeeting, onOpenFeedback }) {
   const insets = useSafeAreaInsets();
 
   if (loading && !data) {
@@ -2102,15 +962,9 @@ export default function RolePortal({ role, activeTab, data, loading, onRefresh, 
   }
 
   let content = null;
-  if (role === 'admin') {
-    if (activeTab === 'admin_home') content = <AdminHome data={data} user={user} onNavigate={onNavigate} />;
-    else if (activeTab === 'admin_mentors') content = <AdminMentors data={data} onRefresh={onRefresh} user={user} onNavigate={onNavigate} />;
-    else if (activeTab === 'admin_ops' || activeTab === 'admin_bookings') content = <AdminOps data={data} onRefresh={onRefresh} user={user} onNavigate={onNavigate} />;
-    else if (activeTab === 'admin_finance') content = <AdminFinance data={data} onRefresh={onRefresh} user={user} onNavigate={onNavigate} />;
-    else if (activeTab === 'admin_content' || activeTab === 'admin_users') content = <AdminManage data={data} onRefresh={onRefresh} user={user} onNavigate={onNavigate} />;
-  } else if (role === 'mentor') {
+  if (role === 'mentor') {
     if (activeTab === 'mentor_home') content = <MentorHome data={data} user={user} onNavigate={onNavigate} />;
-    else if (activeTab === 'mentor_sessions') content = <MentorSessions data={data} onRefresh={onRefresh} user={user} onNavigate={onNavigate} />;
+    else if (activeTab === 'mentor_sessions') content = <MentorSessions data={data} onRefresh={onRefresh} user={user} onNavigate={onNavigate} onOpenMeeting={onOpenMeeting} onOpenFeedback={onOpenFeedback} />;
     else if (activeTab === 'mentor_finance') content = <MentorFinance data={data} onRefresh={onRefresh} user={user} onNavigate={onNavigate} />;
     else if (activeTab === 'mentor_courses' || activeTab === 'mentor_reviews') content = <MentorCourses data={data} onRefresh={onRefresh} user={user} onNavigate={onNavigate} />;
   }
@@ -2136,6 +990,14 @@ const s = StyleSheet.create({
   wrap: { flex: 1, minHeight: 0, backgroundColor: '#f5f0fc' },
   bodyScroll: { flex: 1, minHeight: 0 },
   scroll: { paddingHorizontal: 16, paddingBottom: 120 },
+  loadingBlock: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 64,
+  },
+  loadingText: { color: '#8a7fa2', fontSize: 14, fontWeight: '600' },
 
   welcomeBlock: { marginBottom: 14 },
   welcomeRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

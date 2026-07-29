@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router";
+import { toast } from "sonner";
 import { getUser, loginWithGoogleCredential, getPostLoginPath } from "../../utils/auth";
 
 const CLIENT_ID = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || "").trim();
@@ -50,6 +51,11 @@ export function GoogleSignInBlock({ onError }) {
         if (!result.success) {
           onError?.(result.error || "Đăng nhập Google thất bại.");
           return;
+        }
+        if (result.isNewGoogleUser && result.initialPasswordEmailed) {
+          toast.success("Đã gửi mật khẩu khởi tạo về email của bạn. Hãy kiểm tra hộp thư và đổi mật khẩu sau.");
+        } else if (result.isNewGoogleUser && !result.initialPasswordEmailed) {
+          toast.message("Tài khoản đã tạo. Không gửi được email mật khẩu — kiểm tra cấu hình mail server hoặc dùng Quên mật khẩu.");
         }
         const user = getUser();
         console.log("[GoogleSignIn] Login successful, user:", user?.email);

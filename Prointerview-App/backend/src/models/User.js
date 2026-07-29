@@ -93,6 +93,12 @@ const userSchema = new Schema(
     lockUntil: { type: Date, default: null },
 
     /**
+     * Tài khoản tạo qua Google lần đầu — cần đổi mật khẩu khởi tạo đã gửi email.
+     * Clear khi user đổi mật khẩu thành công.
+     */
+    mustChangePassword: { type: Boolean, default: false },
+
+    /**
      * Quên mật khẩu: chỉ lưu hash token (không bao giờ lưu token thô).
      * Khi đặt lại mật khẩu thành công → xóa 2 field này.
      */
@@ -209,6 +215,7 @@ export function toPublicUser(doc) {
       (typeof googleId === "string" && googleId.trim()) ||
         (typeof googleSub === "string" && googleSub.trim())
     ),
+    mustChangePassword: Boolean(plain.mustChangePassword),
     notificationPrefs: publicNotificationPrefsForRole(
       plain.role,
       plain.settings?.notificationPrefs,

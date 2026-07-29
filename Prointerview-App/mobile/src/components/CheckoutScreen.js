@@ -13,6 +13,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Clipboard from 'expo-clipboard';
 import * as WebBrowser from 'expo-web-browser';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BANK_TRANSFER,
   getAvailablePaymentMethods,
@@ -34,6 +35,58 @@ import {
 
 const STEPS = ['Đơn hàng', 'Phương thức', 'Thanh toán'];
 
+/** Brand tokens — khớp web ProInterview + màn checkout */
+const C = {
+  bg: '#f5f3fb',
+  surface: '#ffffff',
+  ink: '#1e1650',
+  muted: '#8a7fa2',
+  mutedSoft: '#6f6287',
+  purple: '#8037f4',
+  purpleSoft: 'rgba(128,55,244,0.1)',
+  purpleLine: 'rgba(128,55,244,0.1)',
+  lime: '#93f72b',
+  limeSoft: 'rgba(147,247,43,0.14)',
+  vnpay: '#2b65f7',
+  border: 'rgba(45,27,105,0.07)',
+};
+
+const cardShadow = Platform.select({
+  web: { boxShadow: '0 4px 12px rgba(45,27,105,0.06)' },
+  ios: {
+    shadowColor: '#2D1B69',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+  },
+  android: { elevation: 2 },
+  default: {},
+});
+
+const footerShadow = Platform.select({
+  web: { boxShadow: '0 -4px 10px rgba(30,22,80,0.06)' },
+  ios: {
+    shadowColor: '#1e1650',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+  },
+  android: { elevation: 8 },
+  default: {},
+});
+
+const vnpayShadow = Platform.select({
+  web: { boxShadow: '0 6px 10px rgba(43,101,247,0.25)' },
+  ios: {
+    shadowColor: '#2b65f7',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+  },
+  android: { elevation: 3 },
+  default: {},
+});
+
 /**
  * Checkout 3 bước: tóm tắt → chọn phương thức → thanh toán.
  */
@@ -45,6 +98,7 @@ export default function CheckoutScreen({
   onBack,
   onSuccess,
 }) {
+  const insets = useSafeAreaInsets();
   const cartItems = calcCartSummary(cart).items;
   const cartTotal = calcCartSummary(cart).total;
   const amount =
@@ -414,11 +468,15 @@ export default function CheckoutScreen({
     onBack?.();
   };
 
+  const showSummaryFooter = stepIndex === 0;
+  const showMethodFooter = stepIndex === 1;
+  const footerPad = Math.max(insets.bottom, 12) + 10;
+
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingTop: Math.max(insets.top, 8) }]}>
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backBtn} onPress={goBackStep}>
-          <Ionicons name="arrow-back" size={22} color="#2D1B69" />
+        <TouchableOpacity style={styles.backBtn} onPress={goBackStep} activeOpacity={0.85}>
+          <Ionicons name="chevron-back" size={24} color={C.ink} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerLabel}>Thanh toán</Text>
@@ -430,7 +488,10 @@ export default function CheckoutScreen({
 
       <ScrollView
         style={styles.bodyScroll}
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[
+          styles.body,
+          (showSummaryFooter || showMethodFooter) && styles.bodyWithFooter,
+        ]}
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled
         keyboardShouldPersistTaps="handled"
@@ -442,8 +503,6 @@ export default function CheckoutScreen({
             booking={booking}
             cartItems={cartItems}
             amount={paymentAmount}
-            onContinue={() => setStepIndex(1)}
-            onPayVnpay={paymentAmount > 0 ? handlePayWithVnpayNow : undefined}
           />
         )}
 
@@ -453,7 +512,6 @@ export default function CheckoutScreen({
             methods={paymentMethods}
             selectedMethod={selectedMethod}
             onSelect={setSelectedMethod}
-            onConfirm={handleConfirmPayment}
           />
         )}
 
@@ -473,6 +531,49 @@ export default function CheckoutScreen({
           />
         )}
       </ScrollView>
+
+      {showSummaryFooter ? (
+        <View style={[styles.footer, { paddingBottom: footerPad }]}>
+          {paymentAmount > 0 ? (
+            <TouchableOpacity style={styles.vnpayPrimaryBtn} onPress={handlePayWithVnpayNow} activeOpacity={0.88}>
+              <Ionicons name="card" size={20} color="#fff" />
+              <Text style={styles.vnpayPrimaryBtnText}>Thanh toán VNPay</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            style={[styles.primaryBtn, paymentAmount > 0 && styles.secondaryOutlineBtn]}
+            onPress={() => setStepIndex(1)}
+            activeOpacity={0.88}
+          >
+            <Text style={[styles.primaryBtnText, paymentAmount > 0 && styles.secondaryOutlineBtnText]}>
+              {paymentAmount > 0 ? 'Chọn phương thức khác' : 'Chọn phương thức thanh toán'}
+            </Text>
+            <Ionicons name="arrow-forward" size={18} color={paymentAmount > 0 ? C.lime : '#0f172a'} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {showMethodFooter ? (
+        <View style={[styles.footer, { paddingBottom: footerPad }]}>
+          <TouchableOpacity
+            style={selectedMethod === 'vnpay' ? styles.vnpayPrimaryBtn : styles.primaryBtn}
+            onPress={handleConfirmPayment}
+            activeOpacity={0.88}
+          >
+            <Ionicons
+              name={selectedMethod === 'vnpay' ? 'card' : 'lock-closed'}
+              size={18}
+              color={selectedMethod === 'vnpay' ? '#fff' : '#0f172a'}
+            />
+            <Text style={selectedMethod === 'vnpay' ? styles.vnpayPrimaryBtnText : styles.primaryBtnText}>
+              {selectedMethod === 'vnpay' ? 'Thanh toán qua VNPay' : 'Xác nhận thanh toán'}
+            </Text>
+          </TouchableOpacity>
+          <Text style={styles.secureNote}>
+            <Ionicons name="shield-checkmark" size={13} color={C.muted} /> Giao dịch được bảo mật
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -483,34 +584,51 @@ function StepBar({ current }) {
       {STEPS.map((label, i) => {
         const active = i === current;
         const done = i < current;
+        const lit = done || active;
         return (
-          <View key={label} style={styles.stepItem}>
-            <View style={[styles.stepDot, (done || active) && styles.stepDotActive]}>
-              {done ? (
-                <Ionicons name="checkmark" size={14} color="#0f172a" />
-              ) : (
-                <Text style={[styles.stepDotText, active && styles.stepDotTextActive]}>{i + 1}</Text>
-              )}
+          <React.Fragment key={label}>
+            <View style={styles.stepItem}>
+              <View style={[styles.stepDot, lit && styles.stepDotActive]}>
+                {done ? (
+                  <Ionicons name="checkmark" size={15} color="#0f172a" />
+                ) : (
+                  <Text style={[styles.stepDotText, lit && styles.stepDotTextActive]}>{i + 1}</Text>
+                )}
+              </View>
+              <Text style={[styles.stepLabel, lit && styles.stepLabelActive]} numberOfLines={1}>
+                {label}
+              </Text>
             </View>
-            <Text style={[styles.stepLabel, active && styles.stepLabelActive]}>{label}</Text>
             {i < STEPS.length - 1 ? (
-              <View style={[styles.stepLine, done && styles.stepLineDone]} />
+              <View style={[styles.stepConnector, done && styles.stepConnectorDone]} />
             ) : null}
-          </View>
+          </React.Fragment>
         );
       })}
     </View>
   );
 }
 
-function SummaryStep({ mode, course, booking, cartItems, amount, onContinue, onPayVnpay }) {
+function ProductThumb({ uri, icon = 'school-outline' }) {
+  if (uri) {
+    return <Image source={{ uri }} style={styles.summaryImage} resizeMode="cover" />;
+  }
+  return (
+    <View style={[styles.summaryImage, styles.summaryImageFallback]}>
+      <Ionicons name={icon} size={26} color={C.purple} />
+    </View>
+  );
+}
+
+function SummaryStep({ mode, course, booking, cartItems, amount }) {
   return (
     <View>
       <Text style={styles.sectionHeading}>Tóm tắt đơn hàng</Text>
 
       {mode === 'cart' ? (
         cartItems.map((item) => (
-          <View key={item._id} style={styles.summaryRow}>
+          <View key={item._id} style={styles.summaryCard}>
+            <ProductThumb uri={item.image || item.thumbnail} />
             <View style={{ flex: 1 }}>
               <Text style={styles.summaryTitle} numberOfLines={2}>{item.title}</Text>
               <Text style={styles.summaryMeta}>x{item.quantity || 1}</Text>
@@ -520,25 +638,21 @@ function SummaryStep({ mode, course, booking, cartItems, amount, onContinue, onP
         ))
       ) : mode === 'booking' ? (
         <View style={styles.summaryCard}>
-          {booking?.mentor?.avatar ? (
-            <Image source={{ uri: booking.mentor.avatar }} style={styles.summaryImage} resizeMode="cover" />
-          ) : null}
+          <ProductThumb uri={booking?.mentor?.avatar} icon="person-outline" />
           <View style={{ flex: 1 }}>
             <Text style={styles.summaryTitle}>{booking?.mentor?.name || 'Mentor'}</Text>
             <Text style={styles.summaryMeta}>{booking?.mentor?.role || 'Phỏng vấn thử 1-1'}</Text>
             <View style={styles.bookingScheduleRow}>
-              <Ionicons name="calendar-outline" size={13} color="#93f72b" />
+              <Ionicons name="calendar-outline" size={13} color={C.lime} />
               <Text style={styles.bookingScheduleText}>{booking?.date} · {booking?.timeSlot}</Text>
             </View>
           </View>
         </View>
       ) : (
         <View style={styles.summaryCard}>
-          {course?.image ? (
-            <Image source={{ uri: course.image }} style={styles.summaryImage} resizeMode="cover" />
-          ) : null}
-          <View style={{ flex: 1 }}>
-            <Text style={styles.summaryTitle}>{course?.title}</Text>
+          <ProductThumb uri={course?.image} />
+          <View style={{ flex: 1, justifyContent: 'center' }}>
+            <Text style={styles.summaryTitle} numberOfLines={2}>{course?.title}</Text>
             <Text style={styles.summaryMeta}>{course?.duration || 'Khóa học online'}</Text>
           </View>
         </View>
@@ -548,25 +662,11 @@ function SummaryStep({ mode, course, booking, cartItems, amount, onContinue, onP
         <Text style={styles.totalLabel}>Tổng thanh toán</Text>
         <Text style={styles.totalValue}>{formatVnd(amount)}</Text>
       </View>
-
-      {onPayVnpay ? (
-        <TouchableOpacity style={styles.vnpayPrimaryBtn} onPress={onPayVnpay}>
-          <Ionicons name="card" size={20} color="#fff" />
-          <Text style={styles.vnpayPrimaryBtnText}>Thanh toán VNPay</Text>
-        </TouchableOpacity>
-      ) : null}
-
-      <TouchableOpacity style={[styles.primaryBtn, onPayVnpay && styles.secondaryOutlineBtn]} onPress={onContinue}>
-        <Text style={[styles.primaryBtnText, onPayVnpay && styles.secondaryOutlineBtnText]}>
-          {onPayVnpay ? 'Chọn phương thức khác' : 'Chọn phương thức thanh toán'}
-        </Text>
-        <Ionicons name="arrow-forward" size={18} color={onPayVnpay ? '#93f72b' : '#0f172a'} />
-      </TouchableOpacity>
     </View>
   );
 }
 
-function MethodStep({ amount, methods, selectedMethod, onSelect, onConfirm }) {
+function MethodStep({ amount, methods, selectedMethod, onSelect }) {
   return (
     <View>
       <Text style={styles.sectionHeading}>Chọn phương thức thanh toán</Text>
@@ -613,17 +713,6 @@ function MethodStep({ amount, methods, selectedMethod, onSelect, onConfirm }) {
           );
         })}
       </View>
-
-      <TouchableOpacity style={styles.primaryBtn} onPress={onConfirm}>
-        <Text style={styles.primaryBtnText}>
-          {selectedMethod === 'vnpay' ? 'Thanh toán qua VNPay' : 'Xác nhận thanh toán'}
-        </Text>
-        <Ionicons name={selectedMethod === 'vnpay' ? 'card' : 'lock-closed'} size={16} color="#0f172a" />
-      </TouchableOpacity>
-
-      <Text style={styles.secureNote}>
-        <Ionicons name="shield-checkmark" size={13} color="#64748b" /> Giao dịch được bảo mật
-      </Text>
     </View>
   );
 }
@@ -632,7 +721,7 @@ function PaymentStep({ payStep, error, amount, orderNum, course, vietQrUrl, paym
   if (payStep === 'loading') {
     return (
       <View style={styles.centerBox}>
-        <ActivityIndicator color="#7000ff" size="large" />
+        <ActivityIndicator color={C.purple} size="large" />
         <Text style={styles.muted}>Đang tạo đơn hàng…</Text>
       </View>
     );
@@ -653,7 +742,7 @@ function PaymentStep({ payStep, error, amount, orderNum, course, vietQrUrl, paym
   if (payStep === 'success') {
     return (
       <View style={styles.centerBox}>
-        <Ionicons name="checkmark-circle" size={52} color="#93f72b" />
+        <Ionicons name="checkmark-circle" size={52} color={C.lime} />
         <Text style={styles.successText}>Thanh toán thành công!</Text>
       </View>
     );
@@ -672,16 +761,16 @@ function PaymentStep({ payStep, error, amount, orderNum, course, vietQrUrl, paym
             <Text style={styles.amountValue}>{formatVnd(amount)}</Text>
           </View>
           <View style={styles.statusBox}>
-            <ActivityIndicator color="#3b82f6" size="small" />
+            <ActivityIndicator color={C.vnpay} size="small" />
             <Text style={styles.statusText}>Đang chờ xác nhận từ VNPay…</Text>
           </View>
           <Text style={styles.note}>
             Hoàn tất thanh toán trên cổng VNPay Sandbox. Thẻ test: xem tài liệu VNPay.
           </Text>
           {vnpayUrl ? (
-            <TouchableOpacity style={styles.primaryBtn} onPress={onOpenVnpay}>
-              <Text style={styles.primaryBtnText}>Mở lại cổng VNPay</Text>
-              <Ionicons name="open-outline" size={18} color="#0f172a" />
+            <TouchableOpacity style={styles.vnpayPrimaryBtn} onPress={onOpenVnpay} activeOpacity={0.88}>
+              <Ionicons name="open-outline" size={18} color="#fff" />
+              <Text style={styles.vnpayPrimaryBtnText}>Mở lại cổng VNPay</Text>
             </TouchableOpacity>
           ) : null}
         </>
@@ -693,7 +782,7 @@ function PaymentStep({ payStep, error, amount, orderNum, course, vietQrUrl, paym
 
       <View style={styles.amountBox}>
         <Text style={styles.amountLabel}>Số tiền cần chuyển</Text>
-        <Text style={styles.amountValue}>{formatVnd(amount)}</Text>
+        <Text style={[styles.amountValue, { color: C.lime }]}>{formatVnd(amount)}</Text>
       </View>
 
       {vietQrUrl ? (
@@ -712,11 +801,11 @@ function PaymentStep({ payStep, error, amount, orderNum, course, vietQrUrl, paym
       </View>
 
       <View style={styles.statusBox}>
-        <ActivityIndicator color="#93f72b" size="small" />
+        <ActivityIndicator color={C.lime} size="small" />
         <Text style={styles.statusText}>Đang chờ xác nhận chuyển khoản…</Text>
       </View>
       <Text style={styles.note}>
-        Hệ thống tự xác nhận khi tiền vào. Chuyển đúng nội dung <Text style={{ color: '#93f72b', fontWeight: '700' }}>{orderNum}</Text>.
+        Hệ thống tự xác nhận khi tiền vào. Chuyển đúng nội dung <Text style={{ color: C.lime, fontWeight: '700' }}>{orderNum}</Text>.
       </Text>
         </>
       )}
@@ -732,121 +821,131 @@ function BankRow({ label, value, onCopy, highlight }) {
         <Text style={[styles.bankValue, highlight && styles.bankHighlight]}>{value}</Text>
       </View>
       <TouchableOpacity style={styles.copyBtn} onPress={onCopy}>
-        <Ionicons name="copy-outline" size={16} color="#93f72b" />
+        <Ionicons name="copy-outline" size={16} color={C.lime} />
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, minHeight: 0, backgroundColor: '#f5f0fc', overflow: 'hidden' },
+  screen: { flex: 1, minHeight: 0, backgroundColor: C.bg, overflow: 'hidden' },
   bodyScroll: { flex: 1, minHeight: 0 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 22 : 10,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(128,55,244,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 14,
+    backgroundColor: C.surface,
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(128,55,244,0.08)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: C.purpleSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerLabel: { color: '#8037f4', fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  headerTitle: { color: '#2D1B69', fontSize: 16, fontWeight: '800', marginTop: 2 },
+  headerLabel: {
+    color: C.purple,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  headerTitle: { color: C.ink, fontSize: 18, fontWeight: '800', marginTop: 3, lineHeight: 24 },
   stepBar: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(128,55,244,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.6)',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingTop: 16,
+    paddingBottom: 18,
+    backgroundColor: C.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.purpleLine,
   },
-  stepItem: { flex: 1, alignItems: 'center', position: 'relative' },
+  stepItem: { alignItems: 'center', minWidth: 72 },
   stepDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 2,
-    borderColor: 'rgba(128,55,244,0.12)',
+    borderColor: 'rgba(45,27,105,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: C.surface,
   },
-  stepDotActive: { backgroundColor: '#93f72b', borderColor: '#93f72b' },
-  stepDotText: { color: '#8a7fa2', fontSize: 12, fontWeight: '700' },
+  stepDotActive: { backgroundColor: C.lime, borderColor: C.lime },
+  stepDotText: { color: C.muted, fontSize: 13, fontWeight: '800' },
   stepDotTextActive: { color: '#0f172a' },
-  stepLabel: { color: '#8a7fa2', fontSize: 10, marginTop: 6, fontWeight: '700' },
-  stepLabelActive: { color: '#93f72b' },
-  stepLine: {
-    position: 'absolute',
-    top: 14,
-    left: '60%',
-    width: '80%',
+  stepLabel: { color: C.muted, fontSize: 11, marginTop: 8, fontWeight: '700' },
+  stepLabelActive: { color: C.lime },
+  stepConnector: {
+    flex: 1,
     height: 2,
-    backgroundColor: 'rgba(128,55,244,0.1)',
-    zIndex: -1,
+    marginTop: 15,
+    marginHorizontal: 4,
+    borderRadius: 1,
+    backgroundColor: 'rgba(45,27,105,0.1)',
   },
-  stepLineDone: { backgroundColor: '#93f72b' },
-  body: { padding: 16, paddingBottom: 90 },
-  sectionHeading: { color: '#2D1B69', fontSize: 18, fontWeight: '800', marginBottom: 4 },
-  sectionSub: { color: '#8a7fa2', fontSize: 13, marginBottom: 16 },
+  stepConnectorDone: { backgroundColor: C.lime },
+  body: { padding: 18, paddingBottom: 28 },
+  bodyWithFooter: { paddingBottom: 12 },
+  footer: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    backgroundColor: C.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: C.purpleLine,
+    gap: 8,
+    ...footerShadow,
+  },
+  sectionHeading: { color: C.ink, fontSize: 18, fontWeight: '800', marginBottom: 14 },
+  sectionSub: { color: C.muted, fontSize: 13, marginBottom: 16, marginTop: -8 },
   summaryCard: {
     flexDirection: 'row',
-    gap: 12,
-    backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 12,
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: 'rgba(128,55,244,0.2)',
+    borderColor: C.border,
+    ...cardShadow,
   },
-  summaryImage: { width: 72, height: 72, borderRadius: 10 },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
-  },
-  summaryTitle: { color: '#2D1B69', fontSize: 14, fontWeight: '700' },
-  summaryMeta: { color: '#8a7fa2', fontSize: 12, marginTop: 2 },
+  summaryImage: { width: 72, height: 72, borderRadius: 14, backgroundColor: C.purpleSoft },
+  summaryImageFallback: { alignItems: 'center', justifyContent: 'center' },
+  summaryTitle: { color: C.ink, fontSize: 15, fontWeight: '700', lineHeight: 21 },
+  summaryMeta: { color: C.muted, fontSize: 12, marginTop: 4 },
   bookingScheduleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 8 },
-  bookingScheduleText: { color: '#6f6287', fontSize: 11, fontWeight: '600' },
-  summaryPrice: { color: '#93f72b', fontWeight: '700', fontSize: 14 },
+  bookingScheduleText: { color: C.mutedSoft, fontSize: 11, fontWeight: '600' },
+  summaryPrice: { color: C.lime, fontWeight: '800', fontSize: 14 },
   totalBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 24,
-    padding: 16,
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
+    marginTop: 4,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: 'rgba(112,0,255,0.25)',
+    borderColor: 'rgba(128,55,244,0.16)',
+    ...cardShadow,
   },
-  totalLabel: { color: '#6f6287', fontSize: 15, fontWeight: '600' },
-  totalValue: { color: '#93f72b', fontSize: 22, fontWeight: '800' },
+  totalLabel: { color: C.mutedSoft, fontSize: 15, fontWeight: '600' },
+  totalValue: { color: C.lime, fontSize: 24, fontWeight: '800' },
   primaryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#93f72b',
+    backgroundColor: C.lime,
     borderRadius: 999,
     paddingVertical: 15,
-    marginTop: 8,
   },
   primaryBtnText: { color: '#0f172a', fontSize: 16, fontWeight: '800' },
   vnpayPrimaryBtn: {
@@ -854,51 +953,51 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: '#2563eb',
+    backgroundColor: C.vnpay,
     borderRadius: 999,
     paddingVertical: 16,
-    marginTop: 8,
-    marginBottom: 4,
+    ...vnpayShadow,
   },
   vnpayPrimaryBtnText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   secondaryOutlineBtn: {
-    backgroundColor: 'transparent',
+    backgroundColor: C.surface,
     borderWidth: 1.5,
-    borderColor: 'rgba(147,247,43,0.45)',
+    borderColor: 'rgba(147,247,43,0.65)',
   },
-  secondaryOutlineBtnText: { color: '#93f72b' },
+  secondaryOutlineBtnText: { color: C.lime },
   methodList: { gap: 10, marginBottom: 8 },
   methodCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 14,
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    backgroundColor: C.surface,
     borderWidth: 1.5,
-    borderColor: 'rgba(128,55,244,0.12)',
+    borderColor: C.border,
+    ...cardShadow,
   },
   methodCardSelected: {
-    borderColor: '#93f72b',
-    backgroundColor: 'rgba(147,247,43,0.08)',
+    borderColor: C.lime,
+    backgroundColor: C.limeSoft,
   },
-  methodCardDisabled: { opacity: 0.72 },
+  methodCardDisabled: { opacity: 0.65 },
   methodIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  methodLabel: { color: '#2D1B69', fontSize: 14, fontWeight: '700' },
-  methodSub: { color: '#8a7fa2', fontSize: 11, marginTop: 2 },
+  methodLabel: { color: C.ink, fontSize: 14, fontWeight: '700' },
+  methodSub: { color: C.muted, fontSize: 11, marginTop: 2 },
   recommendedBadge: {
-    backgroundColor: 'rgba(147,247,43,0.2)',
-    paddingHorizontal: 6,
+    backgroundColor: 'rgba(147,247,43,0.22)',
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 6,
   },
-  recommendedText: { color: '#93f72b', fontSize: 9, fontWeight: '800' },
+  recommendedText: { color: '#3d7a00', fontSize: 9, fontWeight: '800' },
   soonBadge: {
     backgroundColor: 'rgba(148,163,184,0.15)',
     paddingHorizontal: 6,
@@ -911,68 +1010,77 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: 'rgba(128,55,244,0.2)',
+    borderColor: 'rgba(45,27,105,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioOuterSelected: { borderColor: '#93f72b' },
+  radioOuterSelected: { borderColor: C.lime },
   radioInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: '#93f72b',
+    backgroundColor: C.lime,
   },
-  secureNote: { color: '#8a7fa2', fontSize: 12, textAlign: 'center', marginTop: 12 },
+  secureNote: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 4 },
   centerBox: { alignItems: 'center', paddingVertical: 48, gap: 12 },
-  muted: { color: '#8a7fa2' },
+  muted: { color: C.muted },
   errorText: { color: '#ef4444', textAlign: 'center', lineHeight: 22, paddingHorizontal: 12 },
-  successText: { color: '#93f72b', fontSize: 18, fontWeight: '700' },
+  successText: { color: C.lime, fontSize: 18, fontWeight: '700' },
   retryBtn: {
     marginTop: 8,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 999,
-    backgroundColor: '#7000ff',
+    backgroundColor: C.purple,
   },
   retryBtnText: { color: '#fff', fontWeight: '700' },
   courseImage: {
     width: '100%',
     height: 120,
-    borderRadius: 14,
+    borderRadius: 16,
     marginBottom: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: C.surface,
   },
   amountBox: {
     alignItems: 'center',
     marginBottom: 16,
-    padding: 15,
+    padding: 18,
     borderRadius: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: 'rgba(128,55,244,0.14)',
+    borderColor: C.border,
+    ...cardShadow,
   },
-  amountLabel: { color: '#8a7fa2', fontSize: 13 },
-  amountValue: { color: '#2D1B69', fontSize: 26, fontWeight: '800', marginTop: 4 },
+  amountLabel: { color: C.muted, fontSize: 13 },
+  amountValue: { color: C.ink, fontSize: 26, fontWeight: '800', marginTop: 4 },
   qrBox: { alignItems: 'center', marginBottom: 18 },
-  qrImage: { width: 200, height: 200, borderRadius: 12, backgroundColor: '#fff' },
-  qrHint: { color: '#8a7fa2', fontSize: 12, marginTop: 8 },
-  bankBox: {
-    backgroundColor: '#ffffff',
+  qrImage: {
+    width: 200,
+    height: 200,
     borderRadius: 16,
-    padding: 14,
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderColor: 'rgba(128,55,244,0.12)',
-    gap: 12,
+    borderColor: C.border,
   },
-  bankSectionTitle: { color: '#2D1B69', fontWeight: '800', marginBottom: 4 },
+  qrHint: { color: C.muted, fontSize: 12, marginTop: 8 },
+  bankBox: {
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 12,
+    ...cardShadow,
+  },
+  bankSectionTitle: { color: C.ink, fontWeight: '800', marginBottom: 4 },
   bankRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bankLabel: { color: '#8a7fa2', fontSize: 11 },
-  bankValue: { color: '#2D1B69', fontSize: 14, fontWeight: '600', marginTop: 2 },
-  bankHighlight: { color: '#8037f4', fontSize: 16, fontWeight: '800' },
+  bankLabel: { color: C.muted, fontSize: 11 },
+  bankValue: { color: C.ink, fontSize: 14, fontWeight: '600', marginTop: 2 },
+  bankHighlight: { color: C.purple, fontSize: 16, fontWeight: '800' },
   copyBtn: {
     padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(147,247,43,0.1)',
+    borderRadius: 10,
+    backgroundColor: C.limeSoft,
   },
   statusBox: {
     flexDirection: 'row',
@@ -981,6 +1089,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 20,
   },
-  statusText: { color: '#6f6287', fontSize: 13 },
-  note: { color: '#8a7fa2', fontSize: 12, textAlign: 'center', marginTop: 12, lineHeight: 18 },
+  statusText: { color: C.mutedSoft, fontSize: 13 },
+  note: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 12, lineHeight: 18 },
 });

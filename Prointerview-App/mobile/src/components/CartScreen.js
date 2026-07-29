@@ -7,10 +7,35 @@ import {
   Image,
   ActivityIndicator,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { formatVnd } from '../config/paymentConfig';
 import { resolveMediaUrl } from '../utils/mediaUrl';
+
+const softShadow = Platform.select({
+  web: { boxShadow: '0 4px 12px rgba(128,55,244,0.08)' },
+  ios: {
+    shadowColor: '#8037f4',
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  android: { elevation: 2 },
+  default: {},
+});
+
+const footerShadow = Platform.select({
+  web: { boxShadow: '0 -4px 16px rgba(128,55,244,0.1)' },
+  ios: {
+    shadowColor: '#8037f4',
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 },
+  },
+  android: { elevation: 8 },
+  default: {},
+});
 
 function itemTypeLabel(type) {
   const raw = String(type || '').toLowerCase();
@@ -260,11 +285,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: 'rgba(128,55,244,0.12)',
-    shadowColor: '#8037f4',
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    ...softShadow,
   },
   thumb: {
     width: 72,
@@ -340,11 +361,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: 'rgba(128,55,244,0.1)',
     gap: 10,
-    shadowColor: '#8037f4',
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: -4 },
-    elevation: 8,
+    ...footerShadow,
   },
   totalRow: {
     flexDirection: 'row',

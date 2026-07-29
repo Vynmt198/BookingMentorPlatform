@@ -232,6 +232,43 @@ export async function sendVerificationEmail(to, name, verifyUrl) {
 }
 
 /**
+ * Gửi mật khẩu khởi tạo cho tài khoản vừa đăng ký/đăng nhập qua Google lần đầu,
+ * để người dùng có thể đăng nhập bằng email/mật khẩu và tự đổi lại sau.
+ */
+export async function sendInitialPasswordEmail(to, name, password) {
+  const safeName = escapeHtml(name);
+  const safePassword = escapeHtml(password);
+  const mailOptions = createBrandedMailOptions({
+    to,
+    subject: "Mật khẩu tài khoản ProInterview của bạn",
+    preheader: "Mật khẩu khởi tạo cho tài khoản đăng ký qua Google.",
+    title: "Chào mừng đến với ProInterview",
+    bodyHtml: `
+        <p style="margin: 0 0 16px;">Chào <strong>${safeName}</strong>,</p>
+        <p style="margin: 0 0 8px; color: ${BRAND.textMuted};">
+          Tài khoản của bạn vừa được tạo qua Google. Đây là mật khẩu khởi tạo để bạn cũng có thể đăng nhập bằng email và mật khẩu:
+        </p>
+        <p style="margin: 16px 0; padding: 14px 16px; border-radius: 12px; background: rgba(128,55,244,0.06); border: 1px solid rgba(128,55,244,0.14); font-size: 20px; font-weight: 700; letter-spacing: 0.06em; color: ${BRAND.text}; text-align: center; font-family: 'Courier New', monospace;">
+          ${safePassword}
+        </p>
+        <p style="margin: 16px 0 0; font-size: 13px; color: ${BRAND.textMuted};">
+          Vì lý do bảo mật, vui lòng đăng nhập và đổi mật khẩu này trong mục Cài đặt → Bảo mật ngay khi có thể.
+        </p>`,
+    footerNote:
+      "Nếu bạn không tạo tài khoản này, hãy liên hệ hỗ trợ để được trợ giúp.",
+  });
+
+  try {
+    const transporter = await getTransporter();
+    const info = await transporter.sendMail(mailOptions);
+    return { ok: true, info };
+  } catch (error) {
+    console.error("[emailService] sendInitialPasswordEmail error:", error);
+    return { ok: false, error: error.message };
+  }
+}
+
+/**
  * Gửi email đặt lại mật khẩu
  */
 export async function sendResetPasswordEmail(to, name, resetUrl) {

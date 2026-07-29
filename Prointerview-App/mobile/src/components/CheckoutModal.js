@@ -23,6 +23,16 @@ import {
 import { checkoutCart } from '../services/cartApi';
 import { enrollCourse, fetchTransferStatus } from '../services/paymentApi';
 
+const C = {
+  bg: '#f8f7ff',
+  surface: '#ffffff',
+  ink: '#2D1B69',
+  muted: '#8a7fa2',
+  purple: '#8037f4',
+  lime: '#93f72b',
+  border: 'rgba(45,27,105,0.08)',
+};
+
 /**
  * @param {'course'|'cart'} mode
  * @param {{ id, title, priceNum, image? }} [course]
@@ -165,7 +175,7 @@ export default function CheckoutModal({
     mode === 'cart'
       ? 'Thanh toán giỏ hàng'
       : course?.title
-        ? `Mua: ${course.title}`
+        ? course.title
         : 'Thanh toán khóa học';
 
   return (
@@ -173,16 +183,19 @@ export default function CheckoutModal({
       <View style={styles.overlay}>
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title} numberOfLines={1}>{title}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color="#94a3b8" />
+            <View style={{ flex: 1, marginRight: 12 }}>
+              <Text style={styles.headerLabel}>Thanh toán</Text>
+              <Text style={styles.title} numberOfLines={2}>{title}</Text>
+            </View>
+            <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+              <Ionicons name="close" size={22} color={C.ink} />
             </TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
             {step === 'loading' && (
               <View style={styles.centerBox}>
-                <ActivityIndicator color="#7000ff" size="large" />
+                <ActivityIndicator color={C.purple} size="large" />
                 <Text style={styles.muted}>Đang tạo đơn hàng…</Text>
               </View>
             )}
@@ -199,7 +212,7 @@ export default function CheckoutModal({
 
             {step === 'success' && (
               <View style={styles.centerBox}>
-                <Ionicons name="checkmark-circle" size={52} color="#93f72b" />
+                <Ionicons name="checkmark-circle" size={52} color={C.lime} />
                 <Text style={styles.successText}>Thanh toán thành công!</Text>
               </View>
             )}
@@ -227,7 +240,7 @@ export default function CheckoutModal({
                 </View>
 
                 <View style={styles.statusBox}>
-                  <ActivityIndicator color="#93f72b" size="small" />
+                  <ActivityIndicator color={C.lime} size="small" />
                   <Text style={styles.statusText}>{statusText}</Text>
                 </View>
                 <Text style={styles.note}>
@@ -250,75 +263,93 @@ function BankRow({ label, value, onCopy, highlight }) {
         <Text style={[styles.bankValue, highlight && styles.bankHighlight]}>{value}</Text>
       </View>
       <TouchableOpacity style={styles.copyBtn} onPress={onCopy}>
-        <Ionicons name="copy-outline" size={16} color="#93f72b" />
+        <Ionicons name="copy-outline" size={16} color={C.lime} />
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  overlay: { flex: 1, backgroundColor: 'rgba(45,27,105,0.45)', justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: '#0c081e',
+    backgroundColor: C.bg,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     maxHeight: '92%',
     borderWidth: 1,
-    borderColor: 'rgba(147,247,43,0.12)',
+    borderColor: C.border,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(128,55,244,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.92)',
   },
-  title: { color: '#fff', fontSize: 17, fontWeight: '700', flex: 1, marginRight: 12 },
+  headerLabel: {
+    color: C.purple,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  title: { color: C.ink, fontSize: 16, fontWeight: '800', marginTop: 2 },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(128,55,244,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   body: { padding: 20, paddingBottom: 36 },
   centerBox: { alignItems: 'center', paddingVertical: 32, gap: 12 },
-  muted: { color: '#94a3b8' },
-  errorText: { color: '#fca5a5', textAlign: 'center', lineHeight: 22 },
-  successText: { color: '#93f72b', fontSize: 18, fontWeight: '700' },
+  muted: { color: C.muted },
+  errorText: { color: '#ef4444', textAlign: 'center', lineHeight: 22 },
+  successText: { color: C.lime, fontSize: 18, fontWeight: '700' },
   retryBtn: {
     marginTop: 8,
     paddingHorizontal: 24,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 999,
-    backgroundColor: '#7000ff',
+    backgroundColor: C.purple,
   },
   retryBtnText: { color: '#fff', fontWeight: '700' },
   amountBox: {
     alignItems: 'center',
     marginBottom: 20,
-    padding: 16,
+    padding: 18,
     borderRadius: 16,
-    backgroundColor: 'rgba(112,0,255,0.15)',
+    backgroundColor: C.surface,
     borderWidth: 1,
-    borderColor: 'rgba(112,0,255,0.3)',
+    borderColor: 'rgba(128,55,244,0.18)',
   },
-  amountLabel: { color: '#c4b5fd', fontSize: 13 },
-  amountValue: { color: '#93f72b', fontSize: 28, fontWeight: '800', marginTop: 4 },
+  amountLabel: { color: C.muted, fontSize: 13 },
+  amountValue: { color: C.lime, fontSize: 28, fontWeight: '800', marginTop: 4 },
   qrBox: { alignItems: 'center', marginBottom: 20 },
-  qrImage: { width: 220, height: 220, borderRadius: 12, backgroundColor: '#fff' },
-  qrHint: { color: '#94a3b8', fontSize: 12, marginTop: 8 },
+  qrImage: { width: 220, height: 220, borderRadius: 16, backgroundColor: '#fff' },
+  qrHint: { color: C.muted, fontSize: 12, marginTop: 8 },
   bankBox: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: C.surface,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'rgba(128,55,244,0.2)',
+    borderColor: C.border,
     gap: 12,
   },
-  sectionTitle: { color: '#fff', fontWeight: '700', marginBottom: 4 },
+  sectionTitle: { color: C.ink, fontWeight: '800', marginBottom: 4 },
   bankRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bankLabel: { color: '#64748b', fontSize: 11 },
-  bankValue: { color: '#e2e8f0', fontSize: 14, fontWeight: '600', marginTop: 2 },
-  bankHighlight: { color: '#93f72b', fontSize: 16, fontWeight: '800' },
+  bankLabel: { color: C.muted, fontSize: 11 },
+  bankValue: { color: C.ink, fontSize: 14, fontWeight: '600', marginTop: 2 },
+  bankHighlight: { color: C.purple, fontSize: 16, fontWeight: '800' },
   copyBtn: {
     padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(147,247,43,0.1)',
+    borderRadius: 10,
+    backgroundColor: 'rgba(147,247,43,0.12)',
   },
   statusBox: {
     flexDirection: 'row',
@@ -327,6 +358,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 20,
   },
-  statusText: { color: '#94a3b8', fontSize: 13 },
-  note: { color: '#64748b', fontSize: 11, textAlign: 'center', marginTop: 12, lineHeight: 16 },
+  statusText: { color: C.muted, fontSize: 13 },
+  note: { color: C.muted, fontSize: 12, textAlign: 'center', marginTop: 12, lineHeight: 18 },
 });

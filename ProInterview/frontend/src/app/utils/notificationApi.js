@@ -8,7 +8,7 @@ const jsonHeaders = {
 export async function fetchNotifications() {
   if (!hasAuthCredentials()) return { success: false, notifications: [] };
   try {
-    const res = await authFetch("/api/notifications", {
+    const res = await authFetch("/api/notifications?limit=100", {
       method: "GET",
       headers: { ...jsonHeaders },
     });

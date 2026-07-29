@@ -479,11 +479,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(128, 55, 244, 0.14)',
     overflow: 'hidden',
-    shadowColor: '#8037f4',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 4,
+    ...Platform.select({
+      web: { boxShadow: '0 8px 18px rgba(128,55,244,0.1)' },
+      ios: {
+        shadowColor: '#8037f4',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.1,
+        shadowRadius: 18,
+      },
+      android: { elevation: 4 },
+      default: {},
+    }),
   },
   mediaPlayer: {
     width: '100%',
