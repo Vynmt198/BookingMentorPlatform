@@ -13,8 +13,13 @@ import {
   Clock,
   TrendingUp,
   BadgeCheck,
+  ShieldCheck,
   X,
   PenLine,
+  Trash2,
+  Plus,
+  AlertTriangle,
+  ChevronLeft,
 } from "lucide-react";
 import { MentorListExpandButton } from "../../components/mentor/MentorListExpandButton.jsx";
 import { useMentorListExpand } from "../../hooks/useMentorListExpand.js";
@@ -26,17 +31,14 @@ import { MentorMoneyText } from "../../utils/moneyDisplay.jsx";
 import {
   fetchMentorFinance,
   requestMentorPayout,
-  updateMentorPayoutAccount,
+  addMentorPayoutAccount,
+  deleteMentorPayoutAccount,
   requestMentorPriceChange,
 } from "../../utils/mentorApi.js";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast.js";
 import { formatVnd } from "../../utils/formatVnd.js";
 import { AppSelect } from "../../components/ui/AppSelect";
-import {
-  SUPPORTED_BANKS,
-  BANK_OTHER,
-  resolveBankFields,
-} from "../../constants/vietnamBanks.js";
+import { SUPPORTED_BANKS, BANK_OTHER, getBankBadge } from "../../constants/vietnamBanks.js";
 
 const MENTOR_FINANCE_EXTRA_CSS = `
         .glass-tag {
@@ -127,65 +129,98 @@ function percentLabel(rate) {
 /* ── Withdrawal Modal ────────────────────────────────────────────────── */
 function WithdrawalModal({
   balance,
-  payoutAccount,
+  accounts,
   payoutAccountOwnerName,
-  payoutAccountMasked,
-  onSavePayoutAccount,
+  onAddAccount,
+  onDeleteAccount,
   onSubmit,
   onClose,
 }) {
+  const [localAccounts, setLocalAccounts] = useState(accounts || []);
+  const [mode, setMode] = useState("select");
+  const [selectedAccountId, setSelectedAccountId] = useState(
+    () => (accounts || []).find((a) => a.isDefault)?.id || (accounts || [])[0]?.id || "",
+  );
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
-  const [savingAccount, setSavingAccount] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [success, setSuccess] = useState(false);
-  const initialBank = resolveBankFields(payoutAccount?.bankName);
-  const [bankSelect, setBankSelect] = useState(initialBank.select);
-  const [customBankName, setCustomBankName] = useState(initialBank.custom);
-  const [accountNumber, setAccountNumber] = useState(payoutAccount?.accountNumber || "");
 
-  useEffect(() => {
-    const next = resolveBankFields(payoutAccount?.bankName);
-    setBankSelect(next.select);
-    setCustomBankName(next.custom);
-    setAccountNumber(payoutAccount?.accountNumber || "");
-  }, [payoutAccount]);
-
-  const effectiveBankName =
-    bankSelect === BANK_OTHER ? customBankName.trim() : bankSelect.trim();
+  const [bankSelect, setBankSelect] = useState(SUPPORTED_BANKS[0]);
+  const [customBankName, setCustomBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [addError, setAddError] = useState("");
 
   const amountDigits = String(amount || "").replace(/\D/g, "");
   const amountValue = Number(amountDigits || 0);
   const hasEnoughAmount = amountValue >= 100000;
-  const accountDigits = accountNumber.replace(/\D/g, "");
-  const isAccountReady =
-    isValidBankName(effectiveBankName) &&
-    /^\d{8,19}$/.test(accountDigits);
-  const isAccountChanged =
-    effectiveBankName !== (payoutAccount?.bankName || "").trim() ||
-    accountDigits !== (payoutAccount?.accountNumber || "");
 
-  const persistAccount = async () => {
-    if (!isAccountReady) return { success: false, error: "Vui lòng nhập đủ thông tin tài khoản nhận tiền." };
+  const effectiveBankName = bankSelect === BANK_OTHER ? customBankName.trim() : bankSelect.trim();
+  const accountDigits = accountNumber.replace(/\D/g, "");
+  const confirmDigits = confirmAccountNumber.replace(/\D/g, "");
+  const isAccountFormReady = isValidBankName(effectiveBankName) && /^\d{8,19}$/.test(accountDigits);
+  const numbersMatch = accountDigits.length > 0 && accountDigits === confirmDigits;
+
+  const resetAddForm = () => {
+    setBankSelect(SUPPORTED_BANKS[0]);
+    setCustomBankName("");
+    setAccountNumber("");
+    setConfirmAccountNumber("");
+    setAddError("");
+  };
+
+  const goToConfirmAdd = () => {
+    if (!isAccountFormReady) {
+      setAddError("Vui lòng chọn ngân hàng và nhập số tài khoản hợp lệ (8–19 chữ số).");
+      return;
+    }
+    if (!numbersMatch) {
+      setAddError("Số tài khoản xác nhận không khớp. Vui lòng gõ lại cho đúng.");
+      return;
+    }
+    setAddError("");
+    setMode("confirmAdd");
+  };
+
+  const handleConfirmAdd = async () => {
     setSavingAccount(true);
-    const result = await onSavePayoutAccount?.({
+    const res = await onAddAccount?.({
       bankName: effectiveBankName,
       accountNumber: accountDigits,
+      confirmAccountNumber: confirmDigits,
     });
     setSavingAccount(false);
-    return result;
+    if (!res?.success) return;
+    if (res.account) {
+      setLocalAccounts((prev) => [...prev, res.account]);
+      setSelectedAccountId(res.account.id);
+    }
+    resetAddForm();
+    setMode("select");
+  };
+
+  const handleDelete = async (accountId) => {
+    if (!window.confirm("Xoá tài khoản nhận tiền này?")) return;
+    setDeletingId(accountId);
+    const res = await onDeleteAccount?.(accountId);
+    setDeletingId(null);
+    if (!res?.success) return;
+    const next = localAccounts.filter((a) => a.id !== accountId);
+    setLocalAccounts(next);
+    if (selectedAccountId === accountId) {
+      setSelectedAccountId(next.find((a) => a.isDefault)?.id || next[0]?.id || "");
+    }
   };
 
   const handleWithdraw = async () => {
     const n = amountValue;
     if (!Number.isFinite(n) || n < 100000) return;
     if (n > balance) return;
-    if (!isAccountReady) return;
-    if (isAccountChanged) {
-      const saved = await persistAccount();
-      if (!saved?.success) return;
-    }
+    if (!selectedAccountId) return;
     setLoading(true);
-    const res = await onSubmit?.(Math.round(n));
+    const res = await onSubmit?.(Math.round(n), selectedAccountId);
     setLoading(false);
     if (!res?.success) return;
     setSuccess(true);
@@ -255,125 +290,284 @@ function WithdrawalModal({
               </div>
 
               <div className="space-y-5 p-5 sm:p-6">
-                <section className="rounded-xl border border-[#8037f4]/10 bg-[#faf8ff]/70 p-4">
-                  <p className="mb-3 text-xs font-normal text-[#630ed4]">Tài khoản nhận tiền</p>
-                  <div className="space-y-3">
-                    <div>
-                      <label className={withdrawFieldLabel}>Ngân hàng</label>
-                      <AppSelect
-                        size="md"
-                        value={bankSelect || undefined}
-                        onValueChange={(v) => {
-                          setBankSelect(v);
-                          if (v !== BANK_OTHER) setCustomBankName("");
-                        }}
-                        placeholder="Chọn ngân hàng"
-                        triggerClassName={withdrawFieldInput}
-                        options={[
-                          ...SUPPORTED_BANKS.map((bank) => ({ value: bank, label: bank })),
-                          { value: BANK_OTHER, label: "Ngân hàng khác…" },
-                        ]}
-                      />
-                      {bankSelect === BANK_OTHER ? (
-                        <div className="mt-3">
-                          <label className={withdrawFieldLabel}>Tên ngân hàng</label>
-                          <input
-                            type="text"
-                            autoComplete="off"
-                            placeholder="VD: MSB, SCB, Liên Việt PostBank"
-                            maxLength={80}
-                            value={customBankName}
-                            onChange={(e) => setCustomBankName(e.target.value)}
-                            className={withdrawFieldInput}
-                          />
-                          <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
-                            Nhập đúng tên ngân hàng trên ứng dụng hoặc thẻ ATM của bạn.
+                {mode === "select" ? (
+                  <>
+                    <section>
+                      <p className="mb-3 text-xs font-normal text-[#630ed4]">Chọn tài khoản nhận tiền</p>
+                      {localAccounts.length === 0 ? (
+                        <p className="mb-2 text-xs text-slate-500">
+                          Bạn chưa lưu tài khoản nhận tiền nào — bấm bên dưới để thêm.
+                        </p>
+                      ) : null}
+                      <div className="space-y-2">
+                        {localAccounts.map((acc) => {
+                          const badge = getBankBadge(acc.bankName);
+                          const isSelected = selectedAccountId === acc.id;
+                          return (
+                            <label
+                              key={acc.id}
+                              className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-3 transition ${
+                                isSelected
+                                  ? "border-[#8037f4] bg-[#faf8ff] ring-1 ring-[#8037f4]/25"
+                                  : "border-slate-200 bg-white hover:border-slate-300"
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="payout-account"
+                                className="sr-only"
+                                checked={isSelected}
+                                onChange={() => setSelectedAccountId(acc.id)}
+                              />
+                              <span
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[11px] font-black tracking-tight text-white"
+                                style={{ backgroundColor: badge.color }}
+                                aria-hidden
+                              >
+                                {badge.initials}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-bold text-slate-900">{acc.bankName}</p>
+                                <p className="mt-0.5 truncate text-xs text-slate-500">
+                                  {acc.accountNumberMasked} · {acc.accountName || payoutAccountOwnerName}
+                                </p>
+                              </div>
+                              <span
+                                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
+                                  isSelected ? "border-[#8037f4] bg-[#8037f4]" : "border-slate-300 bg-white"
+                                }`}
+                                aria-hidden
+                              >
+                                {isSelected ? <CheckCircle size={13} className="text-white" strokeWidth={3} /> : null}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  handleDelete(acc.id);
+                                }}
+                                disabled={deletingId === acc.id}
+                                className="shrink-0 rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                                aria-label="Xoá tài khoản"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            </label>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetAddForm();
+                            setMode("add");
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 px-3.5 py-3 text-left transition hover:border-[#8037f4] hover:bg-[#faf8ff]"
+                        >
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-dashed border-slate-300 text-slate-400">
+                            <Plus size={16} strokeWidth={2.5} />
+                          </span>
+                          <span className="text-sm font-bold text-slate-600">Thêm thẻ mới</span>
+                        </button>
+                      </div>
+                    </section>
+
+                    <section>
+                      <label className={withdrawFieldLabel}>Số tiền muốn rút</label>
+                      <div className="relative mt-1">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="500.000"
+                          value={amountDigits ? amountValue.toLocaleString("vi-VN") : ""}
+                          onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+                          className={`${withdrawFieldInput} py-3 pr-12 text-lg font-bold text-[#630ed4] placeholder:font-medium placeholder:text-slate-400`}
+                        />
+                        <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-normal text-slate-400">
+                          Đ
+                        </span>
+                      </div>
+                      <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                        <span>
+                          Rút:{" "}
+                          <strong className="font-normal text-slate-800">
+                            {amountValue.toLocaleString("vi-VN")} Đ
+                          </strong>
+                        </span>
+                        <span className="hidden text-slate-300 sm:inline">·</span>
+                        <span>Tối thiểu 100.000 Đ</span>
+                      </p>
+                    </section>
+
+                    <button
+                      type="button"
+                      onClick={handleWithdraw}
+                      disabled={!hasEnoughAmount || amountValue > balance || loading || !selectedAccountId}
+                      className="w-full rounded-lg bg-[#93f72b] py-3.5 text-sm font-bold text-slate-900 shadow-[0_6px_20px_rgba(147,247,43,0.35)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                    >
+                      {loading ? "Đang xử lý…" : "Xác nhận gửi yêu cầu"}
+                    </button>
+
+                    {amountValue > balance && amountValue > 0 ? (
+                      <p className="text-center text-xs text-red-600">
+                        Số tiền rút vượt quá số dư khả dụng ({balance.toLocaleString("vi-VN")} Đ).
+                      </p>
+                    ) : !selectedAccountId ? (
+                      <p className="text-center text-xs text-amber-700">Chọn một tài khoản nhận tiền để tiếp tục.</p>
+                    ) : null}
+                  </>
+                ) : (
+                  <section>
+                    <button
+                      type="button"
+                      onClick={() => setMode("select")}
+                      className="mb-3 inline-flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-700"
+                    >
+                      <ChevronLeft size={14} strokeWidth={2.5} />
+                      Quay lại danh sách
+                    </button>
+
+                    {mode === "add" ? (
+                      <>
+                        <p className="mb-3 text-xs font-normal text-[#630ed4]">Thêm tài khoản nhận tiền</p>
+                        <div className="space-y-3">
+                          <div>
+                            <label className={withdrawFieldLabel}>Ngân hàng</label>
+                            <AppSelect
+                              size="md"
+                              value={bankSelect || undefined}
+                              onValueChange={(v) => {
+                                setBankSelect(v);
+                                if (v !== BANK_OTHER) setCustomBankName("");
+                              }}
+                              placeholder="Chọn ngân hàng"
+                              triggerClassName={withdrawFieldInput}
+                              options={[
+                                ...SUPPORTED_BANKS.map((bank) => ({ value: bank, label: bank })),
+                                { value: BANK_OTHER, label: "Ngân hàng khác…" },
+                              ]}
+                            />
+                            {bankSelect === BANK_OTHER ? (
+                              <div className="mt-3">
+                                <label className={withdrawFieldLabel}>Tên ngân hàng</label>
+                                <input
+                                  type="text"
+                                  autoComplete="off"
+                                  placeholder="VD: MSB, SCB, Liên Việt PostBank"
+                                  maxLength={80}
+                                  value={customBankName}
+                                  onChange={(e) => setCustomBankName(e.target.value)}
+                                  className={withdrawFieldInput}
+                                />
+                                <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                                  Nhập đúng tên ngân hàng trên ứng dụng hoặc thẻ ATM của bạn.
+                                </p>
+                              </div>
+                            ) : null}
+                          </div>
+                          <div>
+                            <label className={withdrawFieldLabel}>Số tài khoản</label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="off"
+                              placeholder="8–19 chữ số"
+                              maxLength={19}
+                              value={accountNumber}
+                              onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+                              className={`${withdrawFieldInput} tabular-nums tracking-wide`}
+                            />
+                            {accountDigits.length > 0 && accountDigits.length < 8 ? (
+                              <p className="mt-1.5 text-[11px] font-semibold text-red-600">
+                                Số tài khoản cần tối thiểu 8 chữ số (đang nhập {accountDigits.length}).
+                              </p>
+                            ) : null}
+                          </div>
+                          <div>
+                            <label className={withdrawFieldLabel}>Nhập lại số tài khoản</label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="off"
+                              placeholder="Gõ lại để xác nhận không gõ nhầm"
+                              value={confirmAccountNumber}
+                              onChange={(e) => setConfirmAccountNumber(e.target.value.replace(/\D/g, ""))}
+                              className={`${withdrawFieldInput} tabular-nums tracking-wide`}
+                            />
+                            {confirmDigits.length > 0 ? (
+                              numbersMatch ? (
+                                <p className="mt-1.5 text-[11px] font-semibold text-emerald-600">Khớp ✓</p>
+                              ) : (
+                                <p className="mt-1.5 text-[11px] font-semibold text-red-600">
+                                  Số tài khoản không khớp.
+                                </p>
+                              )
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="mt-3 flex gap-3 rounded-lg border border-[#8037f4]/12 bg-white px-3 py-2.5">
+                          <BadgeCheck size={18} className="mt-0.5 shrink-0 text-[#8037f4]" aria-hidden />
+                          <div className="min-w-0 text-xs leading-relaxed text-slate-600">
+                            <p className="font-semibold text-slate-900">{payoutAccountOwnerName || "Mentor"}</p>
+                            <p className="mt-0.5">Tên chủ tài khoản theo hồ sơ đã xác minh — STK phải trùng chính chủ.</p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={goToConfirmAdd}
+                          disabled={!isAccountFormReady || !numbersMatch}
+                          className="mt-3 w-full rounded-lg bg-[#8037f4] py-3 text-sm font-bold text-white transition-colors hover:bg-[#6d2fd6] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Tiếp tục
+                        </button>
+                        {addError ? <p className="mt-2 text-center text-xs text-red-600">{addError}</p> : null}
+                      </>
+                    ) : (
+                      <>
+                        <p className="mb-3 text-xs font-normal text-[#630ed4]">Xác nhận thông tin tài khoản</p>
+                        <div className="space-y-2 rounded-xl border border-slate-200 bg-[#faf8ff]/70 p-4 text-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-500">Ngân hàng</span>
+                            <span className="font-bold text-slate-900">{effectiveBankName}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-500">Số tài khoản</span>
+                            <span className="font-bold tabular-nums text-slate-900">{accountDigits}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-slate-500">Chủ tài khoản</span>
+                            <span className="font-bold text-slate-900">{payoutAccountOwnerName || "Mentor"}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs leading-relaxed text-red-700">
+                          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                          <p>
+                            Kiểm tra kỹ ngân hàng và số tài khoản trước khi lưu — chuyển nhầm sẽ không thể hoàn tiền.
                           </p>
                         </div>
-                      ) : null}
-                    </div>
-                    <div>
-                      <label className={withdrawFieldLabel}>Số tài khoản</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        placeholder="8–19 chữ số"
-                        value={accountNumber}
-                        onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
-                        className={`${withdrawFieldInput} tabular-nums tracking-wide`}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex gap-3 rounded-lg border border-[#8037f4]/12 bg-white px-3 py-2.5">
-                    <BadgeCheck size={18} className="mt-0.5 shrink-0 text-[#8037f4]" aria-hidden />
-                    <div className="min-w-0 text-xs leading-relaxed text-slate-600">
-                      <p className="font-semibold text-slate-900">{payoutAccountOwnerName || "Mentor"}</p>
-                      <p className="mt-0.5">
-                        Tên theo hồ sơ đã xác minh — STK phải trùng chính chủ.
-                        {payoutAccountMasked ? (
-                          <span className="text-slate-500"> · Đã lưu {payoutAccountMasked}</span>
-                        ) : null}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={persistAccount}
-                    disabled={!isAccountReady || savingAccount}
-                    className="mt-3 w-full rounded-lg border border-[#8037f4]/25 bg-white py-2 text-sm font-semibold text-[#630ed4] transition-colors hover:bg-[#8037f4]/5 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {savingAccount ? "Đang lưu…" : "Lưu tài khoản"}
-                  </button>
-                </section>
-
-                <section>
-                  <label className={withdrawFieldLabel}>Số tiền muốn rút</label>
-                  <div className="relative mt-1">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="500.000"
-                      value={amountDigits ? amountValue.toLocaleString("vi-VN") : ""}
-                      onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
-                      className={`${withdrawFieldInput} py-3 pr-12 text-lg font-bold text-[#630ed4] placeholder:font-medium placeholder:text-slate-400`}
-                    />
-                    <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-normal text-slate-400">
-                      Đ
-                    </span>
-                  </div>
-                  <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-                    <span>
-                      Rút:{" "}
-                      <strong className="font-normal text-slate-800">
-                        {amountValue.toLocaleString("vi-VN")} Đ
-                      </strong>
-                    </span>
-                    <span className="hidden text-slate-300 sm:inline">·</span>
-                    <span>Tối thiểu 100.000 Đ</span>
-                  </p>
-                </section>
-
-                <button
-                  type="button"
-                  onClick={handleWithdraw}
-                  disabled={!hasEnoughAmount || amountValue > balance || loading || savingAccount || !isAccountReady}
-                  className="w-full rounded-lg bg-[#93f72b] py-3.5 text-sm font-bold text-slate-900 shadow-[0_6px_20px_rgba(147,247,43,0.35)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
-                >
-                  {loading ? "Đang xử lý…" : "Xác nhận gửi yêu cầu"}
-                </button>
-
-                {amountValue > balance && amountValue > 0 ? (
-                  <p className="text-center text-xs text-red-600">
-                    Số tiền rút vượt quá số dư khả dụng ({balance.toLocaleString("vi-VN")} Đ).
-                  </p>
-                ) : !isAccountReady ? (
-                  <p className="text-center text-xs text-amber-700">
-                    Chọn hoặc nhập tên ngân hàng và STK hợp lệ (8–19 số) để tiếp tục.
-                  </p>
-                ) : null}
+                        <div className="mt-4 flex gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setMode("add")}
+                            disabled={savingAccount}
+                            className="flex-1 rounded-lg border border-slate-200 py-3 text-sm font-semibold text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            Sửa lại
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleConfirmAdd}
+                            disabled={savingAccount}
+                            className="flex-1 rounded-lg bg-[#93f72b] py-3 text-sm font-bold text-slate-900 shadow-[0_6px_20px_rgba(147,247,43,0.35)] transition-all hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                          >
+                            {savingAccount ? "Đang lưu…" : "Xác nhận & lưu thẻ"}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </section>
+                )}
               </div>
             </>
           )}
@@ -431,12 +625,16 @@ export function MentorFinance() {
   if (!user || user.role !== "mentor") return null;
 
   const availableBalance = Number(finance?.availableBalance || 0);
+  const clearingBalance = Number(finance?.clearingBalance || 0);
+  const clearingItems = Array.isArray(finance?.clearingItems) ? finance.clearingItems : [];
+  const holdDays = Number(finance?.holdDays || 3);
   const pendingBalance = Number(finance?.pendingBalance || 0);
   const totalEarned = Number(finance?.totalEarned || 0);
+  const grossEarned = Number(finance?.grossEarned || 0);
+  const platformFeeTotal = Number(finance?.platformFeeTotal || 0);
   const bookingIncome = Number(finance?.incomeBreakdown?.booking || 0);
   const courseIncome = Number(finance?.incomeBreakdown?.course || 0);
-  const payoutAccount = finance?.payoutAccount || {};
-  const payoutAccountMasked = finance?.payoutAccountMasked || "";
+  const payoutAccounts = Array.isArray(finance?.payoutAccounts) ? finance.payoutAccounts : [];
   const payoutAccountOwnerName = finance?.payoutAccountOwnerName || getDisplayName(user, "Mentor");
   const commissionPolicy = finance?.commissionPolicy || null;
   const currentPricePerHour = Number(finance?.pricePerHour || 0);
@@ -463,13 +661,17 @@ export function MentorFinance() {
       setSubmittingPrice(false);
     }
   };
-  const pendingWithdrawCount = transactions.filter(
-    (tx) =>
-      tx.type === "withdraw" &&
-      tx.status !== "paid" &&
-      tx.status !== "completed" &&
-      tx.status !== "failed",
-  ).length;
+  // Ưu tiên số đếm từ server (tính thẳng từ PayoutRequest, không lệch), fallback tự đếm nếu thiếu.
+  const pendingWithdrawCount =
+    finance?.pendingPayoutCount != null
+      ? Number(finance.pendingPayoutCount)
+      : transactions.filter(
+          (tx) =>
+            tx.type === "withdraw" &&
+            tx.status !== "paid" &&
+            tx.status !== "completed" &&
+            tx.status !== "failed",
+        ).length;
   const canWithdrawNow = availableBalance >= 100000;
   const withdrawMinAmount = 100000;
   const withdrawProgress = Math.min(100, Math.round((availableBalance / withdrawMinAmount) * 100));
@@ -557,17 +759,12 @@ export function MentorFinance() {
               <p className="mentor-stat-num mentor-stat-num--hero mentor-stat-num--on-dark mentor-stat-num--money mt-4 text-[clamp(2rem,5vw,3.25rem)]">
                 <MentorMoneyText amount={availableBalance} />
               </p>
-              <p className="mt-2 text-sm text-violet-200/90">Số dư khả dụng — rút về tài khoản ngân hàng</p>
-              {payoutAccountMasked ? (
-                <p className="mt-4 inline-flex max-w-full items-center gap-2 truncate rounded-xl bg-white/10 px-3 py-2 text-xs font-medium text-white/85 ring-1 ring-white/10">
-                  <BadgeCheck size={14} className="shrink-0 text-[#93f72b]" />
-                  <span className="truncate">{payoutAccountOwnerName} · {payoutAccountMasked}</span>
-                </p>
-              ) : (
+              <p className="mt-2 text-sm text-violet-200/90">Số dư khả dụng </p>
+              {payoutAccounts.length === 0 ? (
                 <p className="mt-4 text-xs text-violet-300/90">
-                  Chưa có tài khoản nhận tiền — bạn sẽ nhập khi rút lần đầu.
+                  Chưa có tài khoản nhận tiền — bạn sẽ thêm khi rút lần đầu.
                 </p>
-              )}
+              ) : null}
             </div>
             <div className="flex w-full shrink-0 flex-col gap-4 lg:max-w-[320px]">
               <div className="rounded-xl border border-white/10 bg-white/[0.06] p-4 backdrop-blur-sm">
@@ -579,6 +776,15 @@ export function MentorFinance() {
                     <div className="min-w-0 text-xs leading-relaxed text-violet-100/85">
                       <p className="font-semibold text-white">Điều kiện rút</p>
                       <p className="mt-0.5">Tối thiểu {formatMoney(withdrawMinAmount)} mỗi lần</p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-2.5">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/10">
+                      <ShieldCheck size={13} className="text-amber-300" strokeWidth={2.25} />
+                    </span>
+                    <div className="min-w-0 text-xs leading-relaxed text-violet-100/85">
+                      <p className="font-semibold text-white">Thời gian xử lý an toàn</p>
+                      <p className="mt-0.5">Tiền vào ví sau {holdDays} ngày kể từ lúc hoàn thành, rồi mới rút được</p>
                     </div>
                   </li>
                   <li className="flex items-start gap-2.5">
@@ -657,31 +863,27 @@ export function MentorFinance() {
           <MentorStatPanel>
             <MentorStatFrame
               index={1}
-              accent="lime"
-              cornerIcon={Wallet}
-              moneyAmount={availableBalance}
-              title="Số dư khả dụng"
+              accent="amber"
+              cornerIcon={ShieldCheck}
+              moneyAmount={clearingBalance}
+              title="Đang chờ khả dụng"
               footer={
-                <button
-                  type="button"
-                  onClick={() => setShowWithdraw(true)}
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[#8037f4] transition hover:text-[#630ed4]"
-                >
-                  Rút ngay
-                  <ArrowRight size={12} />
-                </button>
+                <p className="mt-3 text-xs leading-relaxed text-amber-700/90">
+                  {clearingItems[0]?.clearAt
+                    ? `Khoản sớm nhất sẽ chuyển sang Số dư khả dụng vào ngày ${new Date(clearingItems[0].clearAt).toLocaleDateString("vi-VN")}`
+                    : `Buổi/khoá mới hoàn thành — giữ ${holdDays} ngày rồi mới cộng vào Số dư khả dụng`}
+                </p>
               }
             />
             <MentorStatFrame
               index={2}
-              accent="lime"
+              accent="purple"
               cornerIcon={Clock}
               moneyAmount={pendingBalance}
               title="Chờ giải ngân"
               footer={
-                <p className="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
-                  <Clock size={12} className="shrink-0 text-slate-600" />
-                  Dự kiến sau 7 ngày
+                <p className="mt-3 text-xs leading-relaxed text-violet-500/80">
+                  Bạn đã bấm rút — admin chuyển khoản trong 1–2 ngày làm việc
                 </p>
               }
             />
@@ -690,12 +892,18 @@ export function MentorFinance() {
               accent="purple"
               cornerIcon={TrendingUp}
               moneyAmount={totalEarned}
-              title="Tổng thu nhập"
+              title="Tổng thu nhập (đã trừ phí)"
               footer={
-                <p className="mt-3 flex items-center gap-1.5 text-xs text-violet-500/80">
-                  <Clock size={12} className="shrink-0 text-[#8037f4]" />
-                  Sau phí nền tảng
-                </p>
+                <div className="mt-3 space-y-1.5 border-t border-violet-100 pt-3 text-xs leading-relaxed">
+                  <p className="flex items-center justify-between gap-2 text-slate-500">
+                    <span>Doanh thu gốc (chưa trừ phí)</span>
+                    <span className="font-bold tabular-nums text-slate-700">{formatMoney(grossEarned)}</span>
+                  </p>
+                  <p className="flex items-center justify-between gap-2 text-slate-500">
+                    <span>Phí nền tảng đã trừ</span>
+                    <span className="font-bold tabular-nums text-rose-500">−{formatMoney(platformFeeTotal)}</span>
+                  </p>
+                </div>
               }
             />
           </MentorStatPanel>
@@ -922,6 +1130,33 @@ export function MentorFinance() {
             transition={{ duration: 0.5, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-col gap-4 lg:col-span-4"
           >
+            {clearingItems.length > 0 ? (
+              <div className="rounded-2xl border border-amber-300/60 bg-amber-50/60 p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
+                <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                  <ShieldCheck size={13} />
+                  Đang xử lý ({clearingItems.length} khoản)
+                </h3>
+                <p className="mt-1.5 text-xs leading-relaxed text-amber-800/80">
+                  Tiền từ buổi/khoá mới hoàn thành, giữ {holdDays} ngày trước khi chuyển sang "Số dư khả dụng" — đề phòng khiếu nại từ học viên.
+                </p>
+                <ul className="mt-3 divide-y divide-amber-200/60">
+                  {clearingItems.slice(0, 5).map((item) => (
+                    <li key={item.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-semibold text-slate-800">{item.description}</p>
+                        <p className="mt-0.5 text-[11px] text-amber-700">
+                          Khả dụng: {item.clearAt ? new Date(item.clearAt).toLocaleDateString("vi-VN") : "—"}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-headline text-sm font-bold tabular-nums text-amber-700">
+                        {formatMoney(item.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
             <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Nguồn thu nhập
@@ -1030,32 +1265,44 @@ export function MentorFinance() {
         {showWithdraw && (
           <WithdrawalModal
             balance={availableBalance}
-            payoutAccount={payoutAccount}
+            accounts={payoutAccounts}
             payoutAccountOwnerName={payoutAccountOwnerName}
-            payoutAccountMasked={payoutAccountMasked}
-            onSavePayoutAccount={async (account) => {
+            onAddAccount={async (payload) => {
               try {
-              const res = await updateMentorPayoutAccount(account);
-              if (!res.success) {
-                toastApiError(res.error, "Không lưu được tài khoản nhận tiền.");
-                return { success: false };
-              }
-              setFinance((prev) => ({
-                ...(prev || {}),
-                payoutAccount: account,
-                payoutAccountMasked: res.payoutAccountMasked || prev?.payoutAccountMasked,
-                payoutAccountOwnerName: res.payoutAccountOwnerName || prev?.payoutAccountOwnerName,
-              }));
-              toastApiSuccess("Đã lưu tài khoản nhận tiền.");
-              return { success: true };
+                const res = await addMentorPayoutAccount(payload);
+                if (!res.success) {
+                  toastApiError(res.error, "Không lưu được tài khoản nhận tiền.");
+                  return { success: false };
+                }
+                setFinance((prev) => ({
+                  ...(prev || {}),
+                  payoutAccounts: [...(Array.isArray(prev?.payoutAccounts) ? prev.payoutAccounts : []), res.account],
+                }));
+                toastApiSuccess("Đã lưu tài khoản nhận tiền.");
+                return { success: true, account: res.account };
               } catch {
                 toastApiError("Lỗi kết nối khi lưu tài khoản nhận tiền.");
                 return { success: false };
               }
             }}
-            onSubmit={async (amount) => {
+            onDeleteAccount={async (accountId) => {
               try {
-              const res = await requestMentorPayout(amount);
+                const res = await deleteMentorPayoutAccount(accountId);
+                if (!res.success) {
+                  toastApiError(res.error, "Không xoá được tài khoản nhận tiền.");
+                  return { success: false };
+                }
+                setFinance((prev) => ({ ...(prev || {}), payoutAccounts: res.accounts }));
+                toastApiSuccess("Đã xoá tài khoản nhận tiền.");
+                return { success: true };
+              } catch {
+                toastApiError("Lỗi kết nối khi xoá tài khoản nhận tiền.");
+                return { success: false };
+              }
+            }}
+            onSubmit={async (amount, accountId) => {
+              try {
+              const res = await requestMentorPayout(amount, accountId);
               if (!res.success) {
                 toastApiError(res.error, "Không gửi được yêu cầu rút tiền.");
                 return { success: false };

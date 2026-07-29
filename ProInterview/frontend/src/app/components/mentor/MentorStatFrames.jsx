@@ -22,6 +22,16 @@ const ACCENT = {
     iconBg: "bg-[#93f72b]/30 ring-1 ring-[#93f72b]/35",
     hover: "hover:shadow-[0_8px_24px_rgba(147,247,43,0.14)]",
   },
+  amber: {
+    frame: "bg-gradient-to-br from-amber-400/[0.14] via-white to-white",
+    bar: "bg-amber-400",
+    value: "text-amber-600",
+    title: "text-slate-900",
+    subtitle: "text-amber-700/80",
+    icon: "text-amber-600",
+    iconBg: "bg-amber-400/25 ring-1 ring-amber-400/35",
+    hover: "hover:shadow-[0_8px_24px_rgba(251,191,36,0.16)]",
+  },
 };
 
 /** Khối 3 cột thống kê mentor — tím + lime brand */

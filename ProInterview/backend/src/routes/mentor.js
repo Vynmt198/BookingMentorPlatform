@@ -14,5 +14,12 @@ mentorRouter.post("/peer-reviews/:courseId", authJwt, requireMentor, asyncHandle
 mentorRouter.get("/reviews", authJwt, requireMentor, asyncHandler(MentorController.reviews));
 mentorRouter.post("/payout", authJwt, requireMentor, asyncHandler(MentorController.payout));
 mentorRouter.get("/payouts", authJwt, requireMentor, asyncHandler(MentorController.payoutHistory));
-mentorRouter.patch("/payout-account", authJwt, requireMentor, asyncHandler(MentorController.payoutAccount));
+mentorRouter.get("/payout-accounts", authJwt, requireMentor, asyncHandler(MentorController.payoutAccounts));
+mentorRouter.post("/payout-accounts", authJwt, requireMentor, asyncHandler(MentorController.addPayoutAccount));
+mentorRouter.delete(
+  "/payout-accounts/:accountId",
+  authJwt,
+  requireMentor,
+  asyncHandler(MentorController.deletePayoutAccount),
+);
 mentorRouter.post("/request-price-change", authJwt, requireMentor, asyncHandler(MentorController.requestPriceChange));

@@ -52,16 +52,31 @@ export class MentorController {
     }
   }
 
-  static async payoutAccount(req, res, next) {
+  static async payoutAccounts(req, res, next) {
     try {
-      const result = await mentorDashboardService.updatePayoutAccount(req.userId, req.body ?? {});
+      const result = await mentorDashboardService.getMentorPayoutAccounts(req.userId);
       if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
-      res.json({
-        success: true,
-        payoutAccountMasked: result.payoutAccountMasked,
-        payoutAccountBankName: result.payoutAccountBankName,
-        payoutAccountOwnerName: result.payoutAccountOwnerName,
-      });
+      res.json({ success: true, accounts: result.accounts });
+    } catch (e) {
+      next(e);
+    }
+  }
+
+  static async addPayoutAccount(req, res, next) {
+    try {
+      const result = await mentorDashboardService.addMentorPayoutAccount(req.userId, req.body ?? {});
+      if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
+      res.status(201).json({ success: true, account: result.account });
+    } catch (e) {
+      next(e);
+    }
+  }
+
+  static async deletePayoutAccount(req, res, next) {
+    try {
+      const result = await mentorDashboardService.deleteMentorPayoutAccount(req.userId, req.params.accountId);
+      if (!result.ok) return res.status(result.status).json({ success: false, error: result.error });
+      res.json({ success: true, accounts: result.accounts });
     } catch (e) {
       next(e);
     }

@@ -93,7 +93,7 @@ async function seedBookings({ customerId, mentorId }) {
 
 async function seedPayouts({ mentor, adminId }) {
   await PayoutRequest.deleteMany({ providerRef: /^UI-MOCK-/ });
-  const account = mentor.finance?.bankAccount || {
+  const account = mentor.finance?.bankAccounts?.[0] || {
     bankName: "Vietcombank",
     accountNumber: "1234567890",
     accountName: mentor.name || "Mentor Dev",
@@ -148,8 +148,15 @@ async function updateMentorFinanceSnapshot(mentorId) {
         "finance.availableBalance": 1800000,
         "finance.pendingBalance": 300000,
         "finance.totalEarned": 5200000,
-        "finance.bankAccount.bankName": "Vietcombank",
-        "finance.bankAccount.accountNumber": "1234567890",
+        "finance.bankAccounts": [
+          {
+            bankName: "Vietcombank",
+            accountNumber: "1234567890",
+            accountName: "Mentor Dev",
+            isDefault: true,
+            createdAt: new Date(),
+          },
+        ],
       },
     },
   );

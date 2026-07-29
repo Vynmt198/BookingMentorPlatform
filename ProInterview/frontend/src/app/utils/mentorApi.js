@@ -213,13 +213,13 @@ export async function fetchMentorFinance() {
   }
 }
 
-export async function requestMentorPayout(amount) {
+export async function requestMentorPayout(amount, accountId) {
   if (!hasAuthCredentials()) return { success: false, error: ERROR_MESSAGES.UNAUTHENTICATED };
   try {
     const res = await authFetch("/api/mentor/payout", {
       method: "POST",
       headers: { ...jsonHeaders },
-      body: JSON.stringify({ amount }),
+      body: JSON.stringify({ amount, accountId }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return { success: false, error: normalizeApiError(body, res.status) };
@@ -229,22 +229,47 @@ export async function requestMentorPayout(amount) {
   }
 }
 
-export async function updateMentorPayoutAccount(payload) {
+export async function fetchMentorPayoutAccounts() {
+  if (!hasAuthCredentials()) return { success: false, error: ERROR_MESSAGES.UNAUTHENTICATED, accounts: [] };
+  try {
+    const res = await authFetch("/api/mentor/payout-accounts", {
+      method: "GET",
+      headers: { ...jsonHeaders },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { success: false, error: normalizeApiError(body, res.status), accounts: [] };
+    return { success: true, accounts: Array.isArray(body.accounts) ? body.accounts : [] };
+  } catch {
+    return { success: false, error: ERROR_MESSAGES.NETWORK, accounts: [] };
+  }
+}
+
+export async function addMentorPayoutAccount(payload) {
   if (!hasAuthCredentials()) return { success: false, error: ERROR_MESSAGES.UNAUTHENTICATED };
   try {
-    const res = await authFetch("/api/mentor/payout-account", {
-      method: "PATCH",
+    const res = await authFetch("/api/mentor/payout-accounts", {
+      method: "POST",
       headers: { ...jsonHeaders },
       body: JSON.stringify(payload ?? {}),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) return { success: false, error: normalizeApiError(body, res.status) };
-    return {
-      success: true,
-      payoutAccountMasked: body.payoutAccountMasked || null,
-      payoutAccountBankName: body.payoutAccountBankName || null,
-      payoutAccountOwnerName: body.payoutAccountOwnerName || null,
-    };
+    return { success: true, account: body.account || null };
+  } catch {
+    return { success: false, error: ERROR_MESSAGES.NETWORK };
+  }
+}
+
+export async function deleteMentorPayoutAccount(accountId) {
+  if (!hasAuthCredentials()) return { success: false, error: ERROR_MESSAGES.UNAUTHENTICATED };
+  try {
+    const res = await authFetch(`/api/mentor/payout-accounts/${accountId}`, {
+      method: "DELETE",
+      headers: { ...jsonHeaders },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return { success: false, error: normalizeApiError(body, res.status) };
+    return { success: true, accounts: Array.isArray(body.accounts) ? body.accounts : [] };
   } catch {
     return { success: false, error: ERROR_MESSAGES.NETWORK };
   }

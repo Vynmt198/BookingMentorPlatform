@@ -15,6 +15,7 @@ import {
   resolveCoursePlatformFeeRate,
   isEarlyMentorRateActive,
 } from "./mentorCommissionService.js";
+import { EARNINGS_HOLD_DAYS } from "./mentorEarningsService.js";
 
 const MONGO_ERR = "MongoDB chưa kết nối. Kiểm tra MONGO_URI trong .env.";
 function isMongoReady() {
@@ -58,6 +59,19 @@ function maskAccountNumber(value) {
   if (!digits) return "";
   const tail = digits.slice(-4);
   return `****${tail}`;
+}
+
+const MAX_BANK_ACCOUNTS = 5;
+
+function toPublicBankAccount(acc) {
+  return {
+    id: String(acc._id),
+    bankName: acc.bankName || "",
+    accountNumberMasked: maskAccountNumber(acc.accountNumber || ""),
+    accountName: acc.accountName || "",
+    isDefault: Boolean(acc.isDefault),
+    createdAt: acc.createdAt || null,
+  };
 }
 
 function toPayoutHistoryRow(row) {
@@ -217,9 +231,13 @@ export async function getMentorFinance(userId) {
   })
     .select("price totalAmount platformFee createdAt")
     .lean();
+  let bookingGrossTotal = 0;
+  let bookingFeeTotal = 0;
   const bookingIncomeTotal = completed.reduce((sum, b) => {
     const gross = Math.round(Number(b.totalAmount ?? b.price ?? 0));
     const platformFee = Math.round(Number(b.platformFee || 0));
+    bookingGrossTotal += gross;
+    bookingFeeTotal += platformFee;
     return sum + Math.max(0, gross - platformFee);
   }, 0);
   const totalSessions = completed.length;
@@ -236,23 +254,78 @@ export async function getMentorFinance(userId) {
           .select("pricePaid platformFee platformFeeRate paidAt createdAt")
           .lean()
       : [];
+  let courseGrossTotal = 0;
+  let courseFeeTotal = 0;
   const courseIncomeTotal = paidEnrollments.reduce((sum, row) => {
     const gross = Math.round(Number(row.pricePaid || 0));
     if (gross <= 0) return sum;
     const explicitFee = Number(row.platformFee);
+    let fee;
     if (Number.isFinite(explicitFee) && explicitFee >= 0) {
-      return sum + Math.max(0, gross - Math.round(explicitFee));
+      fee = Math.round(explicitFee);
+    } else {
+      const rateRaw = Number(row.platformFeeRate);
+      const rate = Number.isFinite(rateRaw) && rateRaw >= 0 && rateRaw <= 1 ? rateRaw : Number(process.env.COURSE_PLATFORM_FEE_RATE) || 0.35;
+      fee = Math.round(gross * rate);
     }
-    const rateRaw = Number(row.platformFeeRate);
-    const rate = Number.isFinite(rateRaw) && rateRaw >= 0 && rateRaw <= 1 ? rateRaw : Number(process.env.COURSE_PLATFORM_FEE_RATE) || 0.35;
-    return sum + Math.max(0, gross - Math.round(gross * rate));
+    courseGrossTotal += gross;
+    courseFeeTotal += fee;
+    return sum + Math.max(0, gross - fee);
   }, 0);
   const computedTotalEarned = bookingIncomeTotal + courseIncomeTotal;
+  const grossEarned = bookingGrossTotal + courseGrossTotal;
+  const platformFeeTotal = bookingFeeTotal + courseFeeTotal;
 
   const payouts = await PayoutRequest.find({ mentorId: mentor._id })
     .sort({ createdAt: -1 })
     .limit(50)
     .lean();
+  const pendingPayoutCount = payouts.filter((p) => p.status === "pending" || p.status === "approved").length;
+
+  // Các khoản đã ghi có nhưng còn trong 3 ngày giữ — để FE hiển thị "khả dụng vào ngày ..." cho từng khoản.
+  const clearingBookings = await Booking.find({
+    mentorId: mentor._id,
+    mentorEarningsCreditedAt: { $ne: null },
+    earningsClearAt: { $ne: null },
+    earningsClearedAt: { $in: [null, undefined] },
+  })
+    .select("totalAmount price platformFee earningsClearAt date timeSlot")
+    .lean();
+  const clearingBookingItems = clearingBookings.map((b) => ({
+    id: String(b._id),
+    type: "booking",
+    amount: Math.max(0, Math.round(Number(b.totalAmount ?? b.price ?? 0)) - Math.round(Number(b.platformFee || 0))),
+    clearAt: b.earningsClearAt,
+    description: `Buổi ${b.date || ""} ${b.timeSlot || ""}`.trim(),
+  }));
+  const clearingEnrollments = mentorCourseIds.length
+    ? await Enrollment.find({
+        courseId: { $in: mentorCourseIds },
+        mentorEarningsCreditedAt: { $ne: null },
+        earningsClearAt: { $ne: null },
+        earningsClearedAt: { $in: [null, undefined] },
+      })
+        .select("pricePaid platformFee platformFeeRate earningsClearAt courseId")
+        .populate({ path: "courseId", select: "title" })
+        .lean()
+    : [];
+  const clearingEnrollmentItems = clearingEnrollments.map((e) => {
+    const gross = Math.round(Number(e.pricePaid || 0));
+    const explicitFee = Number(e.platformFee);
+    const net = Number.isFinite(explicitFee) && explicitFee >= 0
+      ? Math.max(0, gross - Math.round(explicitFee))
+      : Math.max(0, gross - Math.round(gross * (Number.isFinite(Number(e.platformFeeRate)) ? Number(e.platformFeeRate) : 0.35)));
+    return {
+      id: String(e._id),
+      type: "course",
+      amount: net,
+      clearAt: e.earningsClearAt,
+      description: e.courseId?.title || "Khóa học",
+    };
+  });
+  const clearingItems = [...clearingBookingItems, ...clearingEnrollmentItems].sort(
+    (a, b) => new Date(a.clearAt).getTime() - new Date(b.clearAt).getTime(),
+  );
   const incomeRows = completed.slice(0, 50).map((b) => ({
     id: String(b._id),
     type: "income",
@@ -300,15 +373,20 @@ export async function getMentorFinance(userId) {
     ok: true,
     finance: {
       availableBalance: mentor.finance?.availableBalance ?? 0,
+      clearingBalance: mentor.finance?.clearingBalance ?? 0,
+      clearingItems,
+      holdDays: EARNINGS_HOLD_DAYS,
       pendingBalance: mentor.finance?.pendingBalance ?? 0,
+      pendingPayoutCount,
       totalEarned: (mentor.finance?.totalEarned > 0 ? mentor.finance.totalEarned : null) ?? computedTotalEarned,
+      grossEarned,
+      platformFeeTotal,
       incomeBreakdown: {
         booking: bookingIncomeTotal,
         course: courseIncomeTotal,
       },
-      payoutAccount: normalizePayoutAccount(mentor.finance?.bankAccount || {}),
-      payoutAccountMasked: maskAccountNumber(mentor.finance?.bankAccount?.accountNumber || ""),
-      payoutAccountOwnerName: sanitizeText(mentor.finance?.bankAccount?.accountName || mentor.name || ""),
+      payoutAccounts: (mentor.finance?.bankAccounts || []).map(toPublicBankAccount),
+      payoutAccountOwnerName: sanitizeText(mentor.name || ""),
       totalSessions,
       history,
       commissionPolicy: {
@@ -808,10 +886,15 @@ export async function requestPayout(userId, body) {
   if (amount < 100000) return { ok: false, status: 400, error: "Số tiền rút tối thiểu là 100.000đ." };
   const roundedAmount = Math.round(amount);
 
-  const payoutAccount = normalizePayoutAccount(mentor.finance?.bankAccount || {});
-  if (!hasValidPayoutAccount(payoutAccount)) {
-    return { ok: false, status: 400, error: "Vui lòng cập nhật tài khoản nhận tiền trước khi rút." };
+  const accountId = sanitizeText(body?.accountId);
+  if (!accountId) {
+    return { ok: false, status: 400, error: "Vui lòng chọn tài khoản nhận tiền." };
   }
+  const savedAccount = (mentor.finance?.bankAccounts || []).find((acc) => String(acc._id) === accountId);
+  if (!savedAccount) {
+    return { ok: false, status: 400, error: "Không tìm thấy tài khoản nhận tiền đã chọn." };
+  }
+  const payoutAccount = normalizePayoutAccount(savedAccount);
 
   // Trừ số dư atomic (check-and-decrement trong 1 lệnh) TRƯỚC khi tạo PayoutRequest —
   // tránh 2 request rút tiền gần như đồng thời cùng pass check rồi cùng rút vượt số dư thật.
@@ -872,14 +955,24 @@ export async function requestPayout(userId, body) {
   };
 }
 
-export async function updatePayoutAccount(userId, body) {
+export async function getMentorPayoutAccounts(userId) {
   if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
   const mentor = await getMentorByUserId(userId);
+  if (!mentor?._id) return { ok: false, status: 404, error: "Không tìm thấy hồ sơ mentor." };
+  return {
+    ok: true,
+    accounts: (mentor.finance?.bankAccounts || []).map(toPublicBankAccount),
+  };
+}
+
+export async function addMentorPayoutAccount(userId, body) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  const mentor = await Mentor.findOne({ userId: String(userId ?? "").trim() });
   if (!mentor?._id) return { ok: false, status: 404, error: "Không tìm thấy hồ sơ mentor." };
 
   const payoutAccount = normalizePayoutAccount({
     ...(body || {}),
-    accountName: sanitizeText(body?.accountName || "") || sanitizeText(mentor.name || ""),
+    accountName: sanitizeText(mentor.name || ""),
   });
   if (!hasValidPayoutAccount(payoutAccount)) {
     return {
@@ -889,23 +982,55 @@ export async function updatePayoutAccount(userId, body) {
     };
   }
 
-  await Mentor.updateOne(
-    { _id: mentor._id },
-    {
-      $set: {
-        "finance.bankAccount.bankName": payoutAccount.bankName,
-        "finance.bankAccount.accountNumber": payoutAccount.accountNumber,
-        "finance.bankAccount.accountName": payoutAccount.accountName,
-      },
-    },
-  );
+  const confirmDigits = sanitizeText(body?.confirmAccountNumber).replace(/\s+/g, "");
+  if (confirmDigits !== payoutAccount.accountNumber) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Số tài khoản xác nhận không khớp. Vui lòng nhập lại để chắc chắn đúng.",
+    };
+  }
 
-  return {
-    ok: true,
-    payoutAccountMasked: maskAccountNumber(payoutAccount.accountNumber),
-    payoutAccountBankName: payoutAccount.bankName,
-    payoutAccountOwnerName: payoutAccount.accountName,
-  };
+  const existing = mentor.finance?.bankAccounts || [];
+  if (existing.length >= MAX_BANK_ACCOUNTS) {
+    return { ok: false, status: 400, error: `Chỉ được lưu tối đa ${MAX_BANK_ACCOUNTS} tài khoản nhận tiền.` };
+  }
+  const isDuplicate = existing.some(
+    (acc) => acc.bankName === payoutAccount.bankName && acc.accountNumber === payoutAccount.accountNumber,
+  );
+  if (isDuplicate) {
+    return { ok: false, status: 400, error: "Tài khoản này đã được lưu trước đó." };
+  }
+
+  mentor.finance.bankAccounts.push({
+    bankName: payoutAccount.bankName,
+    accountNumber: payoutAccount.accountNumber,
+    accountName: payoutAccount.accountName,
+    isDefault: existing.length === 0,
+    createdAt: new Date(),
+  });
+  await mentor.save();
+
+  const created = mentor.finance.bankAccounts[mentor.finance.bankAccounts.length - 1];
+  return { ok: true, account: toPublicBankAccount(created) };
+}
+
+export async function deleteMentorPayoutAccount(userId, accountId) {
+  if (!isMongoReady()) return { ok: false, status: 503, error: MONGO_ERR };
+  const mentor = await Mentor.findOne({ userId: String(userId ?? "").trim() });
+  if (!mentor?._id) return { ok: false, status: 404, error: "Không tìm thấy hồ sơ mentor." };
+
+  const target = mentor.finance.bankAccounts.id(accountId);
+  if (!target) return { ok: false, status: 404, error: "Không tìm thấy tài khoản nhận tiền." };
+  const wasDefault = Boolean(target.isDefault);
+  target.deleteOne();
+
+  if (wasDefault && mentor.finance.bankAccounts.length > 0) {
+    mentor.finance.bankAccounts[0].isDefault = true;
+  }
+  await mentor.save();
+
+  return { ok: true, accounts: mentor.finance.bankAccounts.map(toPublicBankAccount) };
 }
 
 export async function getMentorPayoutHistory(userId) {
