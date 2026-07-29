@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams, useLocation } from "react-router";
 import {
-  Check,
   X,
   Zap,
   AlertTriangle as Warning,
@@ -43,6 +42,7 @@ import {
 } from "../../utils/cvMappers.js";
 import { uploadCvJdFiles } from "../../utils/cvFileUpload.js";
 import { projectId } from "/utils/supabase/info.js";
+import { AiLoadingState } from "../../components/shared/AiLoadingState";
 
 // ─── API base ─────────────────────────────────────────────────────────────────
 const EDGE_FN = "make-server-64a0c849";
@@ -282,7 +282,6 @@ export function CVAnalysis() {
       );
     }
   }, [routeMode]);
-  const [progress, setProgress] = useState(0);
   const [loadingStage, setLoadingStage] = useState(0);
 
   // Real file state
@@ -399,7 +398,7 @@ export function CVAnalysis() {
 
   const resetForm = () => {
     setStep("upload"); setCvUploaded(false); setJdUploaded(false);
-    setCvFile(null); setJdFile(null); setSelectedField(""); setProgress(0);
+    setCvFile(null); setJdFile(null); setSelectedField("");
     setAnalyzeError(null);
     setReuseCV(null); setReuseJD(null);
     setEnableJD(false); setEnableField(false);
@@ -460,7 +459,7 @@ export function CVAnalysis() {
     if (needsJdForRoute && !Boolean(jdUploaded || reuseJD || jdFile)) return;
     if (!canAnalyze) return;
 
-    setStep("loading"); setAnalyzeError(null); setProgress(0); setLoadingStage(0);
+    setStep("loading"); setAnalyzeError(null); setLoadingStage(0);
 
     const hasJdInput = jdUploaded || !!reuseJD || !!jdFile;
     const analyzeMode =
@@ -473,7 +472,6 @@ export function CVAnalysis() {
       let pct = 0;
       const timer = setInterval(() => {
         pct = Math.min(pct + Math.random() * 5 + 1.5, 88);
-        setProgress(pct);
         if (pct > 15) setLoadingStage(1);
         if (pct > 40) setLoadingStage(2);
         if (pct > 65) setLoadingStage(3);
@@ -558,7 +556,7 @@ export function CVAnalysis() {
             usedFallback = true;
           }
 
-          clearInterval(timer); setProgress(95); setLoadingStage(4);
+          clearInterval(timer); setLoadingStage(4);
 
           if (!pyRes.ok) {
             const errBody = await pyRes.json().catch(() => ({}));
@@ -739,7 +737,6 @@ export function CVAnalysis() {
           }
 
           clearInterval(timer);
-          setProgress(95);
           setLoadingStage(4);
 
           const analysisPayload = mapPythonCvPipelineToAnalysis(raw, {
@@ -800,7 +797,6 @@ export function CVAnalysis() {
 
         applyResult(data);
 
-        setProgress(100);
         await loadCvQuota();
         await new Promise((r) => setTimeout(r, 350));
         goToResultPage(data);
@@ -825,7 +821,6 @@ export function CVAnalysis() {
             setStep("upload");
           }, 400);
         }
-        setProgress(Math.min(p, 100));
         if (p > 20) setLoadingStage(1);
         if (p > 50) setLoadingStage(2);
         if (p > 75) setLoadingStage(3);
@@ -895,6 +890,22 @@ export function CVAnalysis() {
             "Tạo gợi ý cải thiện...",
           ]
         : ["Đọc và xử lý file CV...", "Gemini AI phân tích...", "Chấm điểm tiêu chí...", "Tạo gợi ý chi tiết..."];
+
+  // AiLoadingState dùng chung cho màn chờ AI: tái dùng nội dung loadingSteps
+  // ở trên, chỉ đổi định dạng sang {key, message, weight} + stepIndex tương ứng.
+  const cvLoadingSteps = loadingSteps.map((message, i) => ({
+    key: String(i),
+    message,
+    weight: 25,
+  }));
+  const cvLoadingStepIndex = { 0: 0, 1: 1, 2: 2, 3: 3 };
+  const cvLoadingTips = [
+    "Mẹo nhỏ: CV nên ưu tiên số liệu cụ thể (vd \"tăng 20% hiệu suất\") thay vì mô tả chung chung.",
+    "Đừng lo nếu điểm match chưa cao — đây là cơ hội để biết chính xác cần cải thiện điểm nào.",
+    "Từ khóa trong JD rất quan trọng với hệ thống ATS — hãy để ý phần gợi ý kỹ năng còn thiếu.",
+    "CV gọn trong 1-2 trang, tập trung vào kinh nghiệm liên quan nhất tới vị trí ứng tuyển.",
+    "Sắp xong rồi — hệ thống đang tổng hợp gợi ý chi tiết dành riêng cho hồ sơ của bạn.",
+  ];
 
   const pageHeader =
     routeMode === "field" || routeMode === "jd"
@@ -1171,29 +1182,13 @@ export function CVAnalysis() {
 
           {/* ── LOADING ─────────────────────────────────────────────────── */}
           {step === "loading" && (
-            <div className="flex flex-col items-center justify-center px-4 py-16 sm:px-6 sm:py-20 max-w-md mx-auto text-center">
-              <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-8 shadow-xl shadow-[#8037f4]/30" style={{ background: "#8037f4" }}>
-                <Loader2 className="w-10 h-10 text-white animate-spin" />
-              </div>
-              <h2 className="mb-3 text-xl font-semibold text-slate-900">Đang xử lý...</h2>
-              <p className="mb-8 text-sm text-slate-600">Hệ thống đang đọc file PDF và phân tích — vui lòng đợi.</p>
-              <div className="mb-3 h-2.5 w-full overflow-hidden rounded-full bg-slate-200">
-                <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, background: "#8037f4" }} />
-              </div>
-              <p className="text-[#8037f4] text-sm font-medium mb-6">{Math.round(progress)}%</p>
-              <div className="space-y-2 text-left w-full">
-                {loadingSteps.map((t, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-center gap-2 text-sm transition-all duration-500 ${
-                      loadingStage > i ? "text-slate-800" : loadingStage === i ? "text-slate-700" : "text-slate-400"
-                    }`}
-                  >
-                    {loadingStage > i ? <Check className="w-4 h-4 text-emerald-600 flex-shrink-0" /> : <Loader2 className={`w-4 h-4 flex-shrink-0 text-[#8037f4] ${loadingStage === i ? "animate-spin" : "opacity-40"}`} />}
-                    <span>{t}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="px-4 py-16 sm:px-6 sm:py-20 max-w-md mx-auto">
+              <AiLoadingState
+                currentStep={Math.min(loadingStage, cvLoadingSteps.length - 1)}
+                steps={cvLoadingSteps}
+                stepIndex={cvLoadingStepIndex}
+                tips={cvLoadingTips}
+              />
             </div>
           )}
 
