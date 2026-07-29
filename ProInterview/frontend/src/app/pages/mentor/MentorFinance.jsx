@@ -634,6 +634,10 @@ export function MentorFinance() {
   const platformFeeTotal = Number(finance?.platformFeeTotal || 0);
   const bookingIncome = Number(finance?.incomeBreakdown?.booking || 0);
   const courseIncome = Number(finance?.incomeBreakdown?.course || 0);
+  const bookingFee = Number(finance?.feeBreakdown?.booking || 0);
+  const courseFee = Number(finance?.feeBreakdown?.course || 0);
+  const bookingGross = Number(finance?.grossBreakdown?.booking || 0);
+  const courseGross = Number(finance?.grossBreakdown?.course || 0);
   const payoutAccounts = Array.isArray(finance?.payoutAccounts) ? finance.payoutAccounts : [];
   const payoutAccountOwnerName = finance?.payoutAccountOwnerName || getDisplayName(user, "Mentor");
   const commissionPolicy = finance?.commissionPolicy || null;
@@ -1162,23 +1166,35 @@ export function MentorFinance() {
                 Nguồn thu nhập
               </h3>
               <ul className="mt-4 divide-y divide-slate-100">
-                <li className="flex items-center justify-between gap-3 py-3 first:pt-0">
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                    <Calendar size={15} className="text-[#8037f4]" />
-                    Từ đặt lịch
-                  </span>
-                  <span className="font-headline text-sm font-bold text-slate-900">
-                    {formatMoney(bookingIncome)}
-                  </span>
+                <li className="flex flex-col gap-1.5 py-3 first:pt-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <Calendar size={15} className="text-[#8037f4]" />
+                      Từ đặt lịch
+                    </span>
+                    <span className="font-headline text-sm font-bold text-slate-900">
+                      {formatMoney(bookingIncome)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 pl-[23px] text-xs text-slate-400">
+                    <span>Doanh thu gốc {formatMoney(bookingGross)}</span>
+                    <span className="text-rose-500">−{formatMoney(bookingFee)} hoa hồng</span>
+                  </div>
                 </li>
-                <li className="flex items-center justify-between gap-3 py-3">
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                    <BookOpen size={15} className="text-[#8037f4]" />
-                    Từ khóa học
-                  </span>
-                  <span className="font-headline text-sm font-bold text-slate-900">
-                    {formatMoney(courseIncome)}
-                  </span>
+                <li className="flex flex-col gap-1.5 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <BookOpen size={15} className="text-[#8037f4]" />
+                      Từ khóa học
+                    </span>
+                    <span className="font-headline text-sm font-bold text-slate-900">
+                      {formatMoney(courseIncome)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 pl-[23px] text-xs text-slate-400">
+                    <span>Doanh thu gốc {formatMoney(courseGross)}</span>
+                    <span className="text-rose-500">−{formatMoney(courseFee)} hoa hồng</span>
+                  </div>
                 </li>
               </ul>
             </div>

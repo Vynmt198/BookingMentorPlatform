@@ -15,7 +15,7 @@ import {
   resolveCoursePlatformFeeRate,
   isEarlyMentorRateActive,
 } from "./mentorCommissionService.js";
-import { EARNINGS_HOLD_DAYS } from "./mentorEarningsService.js";
+import { EARNINGS_HOLD_DAYS, resolveCourseFee } from "./mentorEarningsService.js";
 
 const MONGO_ERR = "MongoDB chưa kết nối. Kiểm tra MONGO_URI trong .env.";
 function isMongoReady() {
@@ -256,21 +256,13 @@ export async function getMentorFinance(userId) {
       : [];
   let courseGrossTotal = 0;
   let courseFeeTotal = 0;
+  const defaultCourseFeeRate = Number(process.env.COURSE_PLATFORM_FEE_RATE) || 0.35;
   const courseIncomeTotal = paidEnrollments.reduce((sum, row) => {
-    const gross = Math.round(Number(row.pricePaid || 0));
+    const { gross, fee, net } = resolveCourseFee(row, defaultCourseFeeRate);
     if (gross <= 0) return sum;
-    const explicitFee = Number(row.platformFee);
-    let fee;
-    if (Number.isFinite(explicitFee) && explicitFee >= 0) {
-      fee = Math.round(explicitFee);
-    } else {
-      const rateRaw = Number(row.platformFeeRate);
-      const rate = Number.isFinite(rateRaw) && rateRaw >= 0 && rateRaw <= 1 ? rateRaw : Number(process.env.COURSE_PLATFORM_FEE_RATE) || 0.35;
-      fee = Math.round(gross * rate);
-    }
     courseGrossTotal += gross;
     courseFeeTotal += fee;
-    return sum + Math.max(0, gross - fee);
+    return sum + net;
   }, 0);
   const computedTotalEarned = bookingIncomeTotal + courseIncomeTotal;
   const grossEarned = bookingGrossTotal + courseGrossTotal;
@@ -310,11 +302,7 @@ export async function getMentorFinance(userId) {
         .lean()
     : [];
   const clearingEnrollmentItems = clearingEnrollments.map((e) => {
-    const gross = Math.round(Number(e.pricePaid || 0));
-    const explicitFee = Number(e.platformFee);
-    const net = Number.isFinite(explicitFee) && explicitFee >= 0
-      ? Math.max(0, gross - Math.round(explicitFee))
-      : Math.max(0, gross - Math.round(gross * (Number.isFinite(Number(e.platformFeeRate)) ? Number(e.platformFeeRate) : 0.35)));
+    const { net } = resolveCourseFee(e, 0.35);
     return {
       id: String(e._id),
       type: "course",
@@ -335,18 +323,7 @@ export async function getMentorFinance(userId) {
     description: "Thu từ booking",
   }));
   const courseIncomeRows = paidEnrollments.slice(0, 50).map((row) => {
-    const gross = Math.round(Number(row.pricePaid || 0));
-    const explicitFee = Number(row.platformFee);
-    const net = Number.isFinite(explicitFee) && explicitFee >= 0
-      ? Math.max(0, gross - Math.round(explicitFee))
-      : Math.max(
-          0,
-          gross -
-            Math.round(
-              gross *
-                (Number.isFinite(Number(row.platformFeeRate)) ? Number(row.platformFeeRate) : Number(process.env.COURSE_PLATFORM_FEE_RATE) || 0.35),
-            ),
-        );
+    const { net } = resolveCourseFee(row, defaultCourseFeeRate);
     return {
       id: `enrollment-${String(row._id)}`,
       type: "income",
@@ -378,12 +355,20 @@ export async function getMentorFinance(userId) {
       holdDays: EARNINGS_HOLD_DAYS,
       pendingBalance: mentor.finance?.pendingBalance ?? 0,
       pendingPayoutCount,
-      totalEarned: (mentor.finance?.totalEarned > 0 ? mentor.finance.totalEarned : null) ?? computedTotalEarned,
+      totalEarned: computedTotalEarned,
       grossEarned,
       platformFeeTotal,
       incomeBreakdown: {
         booking: bookingIncomeTotal,
         course: courseIncomeTotal,
+      },
+      feeBreakdown: {
+        booking: bookingFeeTotal,
+        course: courseFeeTotal,
+      },
+      grossBreakdown: {
+        booking: bookingGrossTotal,
+        course: courseGrossTotal,
       },
       payoutAccounts: (mentor.finance?.bankAccounts || []).map(toPublicBankAccount),
       payoutAccountOwnerName: sanitizeText(mentor.name || ""),
