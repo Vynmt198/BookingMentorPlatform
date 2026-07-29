@@ -76,6 +76,14 @@ export function createApp() {
     next();
   });
   app.use("/api", apiLimiter);
+  // Chặn mọi lớp cache (CDN/edge proxy của Vercel rewrite, trình duyệt) giữ lại response cũ —
+  // API luôn trả data động, không được cache dưới bất kỳ hình thức nào.
+  app.use("/api", (_req, res, next) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    next();
+  });
 
   app.use(
     cors({
