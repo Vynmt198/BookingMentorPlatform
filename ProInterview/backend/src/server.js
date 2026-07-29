@@ -65,6 +65,8 @@ export async function startServer() {
         }
         const { startBookingReminderJob } = await import("./jobs/bookingReminderJob.js");
         startBookingReminderJob();
+        const { startBookingStaleSweepJob } = await import("./jobs/bookingStaleSweepJob.js");
+        startBookingStaleSweepJob();
         const { startStreakReminderJob } = await import("./jobs/streakReminderJob.js");
         startStreakReminderJob();
         const { startPlanExpiryReminderJob } = await import("./jobs/planExpiryReminderJob.js");

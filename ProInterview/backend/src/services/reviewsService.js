@@ -368,11 +368,6 @@ export async function createReview(userId, body) {
     }
   }
 
-  const dup = await Review.findOne({ userId: uid, targetType, targetId: targetIdRaw }).select("_id").lean();
-  if (dup) {
-    return { ok: false, status: 409, error: "Bạn đã gửi đánh giá cho mục tiêu này rồi." };
-  }
-
   let bookingId = null;
   const bId = String(body?.bookingId ?? "").trim();
   if (targetType === "mentor") {
@@ -394,6 +389,19 @@ export async function createReview(userId, body) {
     bookingId = b._id;
   } else if (bId) {
     return { ok: false, status: 400, error: "bookingId chỉ dùng khi đánh giá mentor." };
+  }
+
+  // Mentor: mỗi buổi hoàn thành đánh giá riêng (khớp giới hạn b.reviewId ở trên) — dup check
+  // scoped theo bookingId, không chặn user đánh giá buổi mới với mentor đã từng đánh giá trước đó.
+  const dup = await Review.findOne(
+    targetType === "mentor"
+      ? { userId: uid, targetType, targetId: targetIdRaw, bookingId }
+      : { userId: uid, targetType, targetId: targetIdRaw },
+  )
+    .select("_id")
+    .lean();
+  if (dup) {
+    return { ok: false, status: 409, error: "Bạn đã gửi đánh giá cho mục tiêu này rồi." };
   }
 
   let doc;

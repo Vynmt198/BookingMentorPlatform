@@ -8,6 +8,7 @@ import {
   Sparkles,
   ArrowLeft,
   PenLine,
+  UserX,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { getUser, hasAuthCredentials } from "../../utils/auth.js";
@@ -16,8 +17,11 @@ import {
   fetchMentorBookingById,
   completeMentorBooking,
   startBookingMeeting,
+  reportBookingNoShow,
+  reportCustomerNoShow,
 } from "../../utils/bookingsApi.js";
 import { MeetingEndSessionPanel } from "../../components/mentor/MeetingEndSessionPanel";
+import { MeetingLeaveConfirmPanel } from "../../components/mentor/MeetingLeaveConfirmPanel";
 import { MentorMeetingCheckIn } from "../../components/mentor/MentorMeetingCheckIn";
 import { MeetingLiveCapturePanel } from "../../components/mentor/MeetingLiveCapturePanel";
 import { useMeetingLiveCapture } from "../../hooks/useMeetingLiveCapture.js";
@@ -27,8 +31,10 @@ import {
   canMentorCompleteBooking,
   formatUntilStart,
   getMinutesUntilBookingStart,
+  getMinutesUntilBookingCompletable,
   isBookingInLiveWindow,
   isBookingPastScheduledEnd,
+  parseBookingStartMs,
 } from "../../utils/meetingLinks.js";
 import { mountJaasMeeting } from "../../utils/jaasMeeting.js";
 import { BrandLogo } from "../../components/brand/BrandLogo.jsx";
@@ -54,9 +60,11 @@ export function MeetingRoom() {
   const [meetingLaunch, setMeetingLaunch] = useState(null);
   const [earlyNotice, setEarlyNotice] = useState("");
   const [showEndSessionPanel, setShowEndSessionPanel] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [completingSession, setCompletingSession] = useState(false);
   const [initialSessionCapture, setInitialSessionCapture] = useState(null);
   const [showNotesPanel, setShowNotesPanel] = useState(false);
+  const [reportingNoShow, setReportingNoShow] = useState(false);
   const [bookingMeta, setBookingMeta] = useState({ role: "", field: "" });
   const [bookingSchedule, setBookingSchedule] = useState(null);
   const [checkInContext, setCheckInContext] = useState(null);
@@ -202,10 +210,15 @@ export function MeetingRoom() {
   }, [sessionId, navigate, enterLiveRoom]);
 
   useEffect(() => {
-    if (phase !== "live") return;
-    const timer = setInterval(() => setElapsedTime((prev) => prev + 1), 1000);
+    if (phase !== "live" || !bookingSchedule) return;
+    const startMs = parseBookingStartMs(bookingSchedule);
+    const tick = () => {
+      setElapsedTime(Number.isFinite(startMs) ? Math.max(0, Math.floor((Date.now() - startMs) / 1000)) : 0);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
-  }, [phase]);
+  }, [phase, bookingSchedule]);
 
   useEffect(() => {
     if (phase !== "live" || meetingLaunch?.provider !== "jaas" || !jitsiContainerRef.current) {
@@ -240,7 +253,7 @@ export function MeetingRoom() {
     };
   }, [phase, meetingLaunch]);
 
-  const handleLeaveRoom = () => {
+  const doLeaveRoom = () => {
     if (!leaveTrackedRef.current) {
       leaveTrackedRef.current = true;
       trackAction("meeting_leave", `/meeting/${sessionId}`, {
@@ -250,15 +263,63 @@ export function MeetingRoom() {
         status: meeting?.status || "",
       });
     }
-    navigate(user?.role === "mentor" ? "/mentor/dashboard" : "/");
+    navigate(
+      user?.role === "mentor" ? `/mentor/meeting-detail/${sessionId}` : `/session/${sessionId}`,
+    );
+  };
+
+  const handleLeaveRoom = () => {
+    if (phase === "live") {
+      setShowLeaveConfirm(true);
+      return;
+    }
+    doLeaveRoom();
+  };
+
+  const confirmLeaveRoom = () => {
+    setShowLeaveConfirm(false);
+    doLeaveRoom();
+  };
+
+  /** Đối phương rời phòng giữa chừng / chưa từng vào — báo vắng mặt ngay tại đây thay vì phải thoát ra trang chi tiết. */
+  const handleReportCounterpartNoShow = async () => {
+    const confirmMsg = isMentor
+      ? "Xác nhận học viên KHÔNG có mặt trong buổi này? Buổi sẽ được tính hoàn thành, bạn vẫn nhận đủ thu nhập, học viên không được hoàn tiền."
+      : "Xác nhận mentor KHÔNG có mặt trong buổi này? Bạn sẽ được hoàn ưu tiên 100%.";
+    if (!window.confirm(confirmMsg)) return;
+
+    setReportingNoShow(true);
+    try {
+      const res = isMentor
+        ? await reportCustomerNoShow(sessionId)
+        : await reportBookingNoShow(sessionId, { note: "Báo cáo ngay trong phòng họp." });
+      if (!res.success) {
+        toastApiError(res.error, "Không thể gửi báo cáo vắng mặt.");
+        return;
+      }
+      trackAction("meeting_report_no_show", `/meeting/${sessionId}`, {
+        role: isMentor ? "mentor" : "customer",
+        bookingId: sessionId,
+      });
+      toastApiSuccess(
+        isMentor
+          ? "Đã ghi nhận học viên vắng mặt. Thu nhập buổi này vẫn được cộng vào số dư của bạn."
+          : "Đã ghi nhận mentor vắng mặt. Hoàn 100%, vui lòng điền STK nếu được yêu cầu.",
+      );
+      navigate(isMentor ? `/mentor/meeting-detail/${sessionId}` : `/session/${sessionId}`);
+    } catch {
+      toastApiError("Lỗi kết nối khi gửi báo cáo vắng mặt.");
+    } finally {
+      setReportingNoShow(false);
+    }
   };
 
   const handleOpenEndSessionPanel = () => {
     if (bookingSchedule && !canMentorCompleteBooking(bookingSchedule)) {
-      const mins = getMinutesUntilBookingStart(bookingSchedule);
+      const mins = getMinutesUntilBookingCompletable(bookingSchedule);
       toastApiError(
         mins > 0
-          ? `Chưa tới giờ bắt đầu (còn ${formatUntilStart(mins)}). Bạn có thể ở trong phòng nhưng chưa thể kết thúc buổi.`
+          ? `Buổi cần diễn ra tối thiểu 2/3 thời lượng mới kết thúc được (còn ${formatUntilStart(mins)}). Bạn có thể ở trong phòng nhưng chưa thể kết thúc buổi.`
           : "Chưa tới giờ bắt đầu buổi học. Bạn có thể ở trong phòng nhưng chưa thể kết thúc buổi.",
       );
       return;
@@ -405,9 +466,15 @@ export function MeetingRoom() {
           canCompleteSession
             ? ""
             : bookingSchedule
-              ? `Chưa tới giờ bắt đầu buổi (còn ${formatUntilStart(getMinutesUntilBookingStart(bookingSchedule))}).`
+              ? `Buổi cần diễn ra tối thiểu 2/3 thời lượng mới kết thúc được (còn ${formatUntilStart(getMinutesUntilBookingCompletable(bookingSchedule))}).`
               : "Chưa tới giờ bắt đầu buổi."
         }
+      />
+
+      <MeetingLeaveConfirmPanel
+        open={showLeaveConfirm}
+        onCancel={() => setShowLeaveConfirm(false)}
+        onConfirm={confirmLeaveRoom}
       />
 
       <header className="relative z-20 shrink-0 px-3 pt-3 sm:px-5 sm:pt-4">
@@ -492,6 +559,16 @@ export function MeetingRoom() {
                   </button>
                   <button
                     type="button"
+                    onClick={handleReportCounterpartNoShow}
+                    disabled={reportingNoShow}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3.5 py-2 text-[10px] font-black uppercase tracking-wider text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Học viên rời phòng giữa chừng hoặc chưa từng vào — báo vắng mặt"
+                  >
+                    <UserX size={14} strokeWidth={2.25} />
+                    {reportingNoShow ? "Đang gửi…" : "Học viên vắng mặt"}
+                  </button>
+                  <button
+                    type="button"
                     onClick={handleLeaveRoom}
                     className="rounded-full border border-slate-200 bg-white px-3.5 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 transition hover:border-[#8037f4]/25 hover:text-[#8037f4]"
                   >
@@ -510,20 +587,32 @@ export function MeetingRoom() {
                     title={
                       canCompleteSession
                         ? "Kết thúc buổi học"
-                        : "Chưa tới giờ bắt đầu — không thể kết thúc sớm"
+                        : "Buổi cần diễn ra tối thiểu 2/3 thời lượng mới kết thúc được"
                     }
                   >
                     <ShieldCheck size={15} strokeWidth={2.25} /> Kết thúc buổi
                   </button>
                 </>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleLeaveRoom}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-[#8037f4]/25 bg-[#faf8ff] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-[#8037f4] transition hover:bg-[#8037f4]/8"
-                >
-                  <LogOut size={15} strokeWidth={2.25} /> Rời phòng
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleReportCounterpartNoShow}
+                    disabled={reportingNoShow}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3.5 py-2 text-[10px] font-black uppercase tracking-wider text-red-600 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    title="Mentor rời phòng giữa chừng hoặc chưa từng vào — báo vắng mặt"
+                  >
+                    <UserX size={14} strokeWidth={2.25} />
+                    {reportingNoShow ? "Đang gửi…" : "Mentor vắng mặt"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLeaveRoom}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[#8037f4]/25 bg-[#faf8ff] px-4 py-2 text-[10px] font-black uppercase tracking-wider text-[#8037f4] transition hover:bg-[#8037f4]/8"
+                  >
+                    <LogOut size={15} strokeWidth={2.25} /> Rời phòng
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -593,6 +682,7 @@ export function MeetingRoom() {
             onFinishDictation={liveCapture.finishDictationLine}
             onAddTagged={liveCapture.addTaggedNote}
             onRemoveTagged={liveCapture.removeTaggedNote}
+            onUpdateQuickAssessment={liveCapture.updateQuickAssessment}
             onDismiss={() => setShowNotesPanel(false)}
             className={`shrink-0 lg:h-full lg:max-h-none ${showEndSessionPanel ? "opacity-0 pointer-events-none" : ""}`}
           />

@@ -312,6 +312,14 @@ export function useMeetingLiveCapture(bookingId, { enabled = false, initialCaptu
     [addTaggedNote],
   );
 
+  /** Rating (1-5) + Điểm mạnh/Cần cải thiện/Lời khuyên — mentor điền ngay trong buổi, tự lưu như phần còn lại. */
+  const updateQuickAssessment = useCallback(
+    (patch) => {
+      updateCapture((prev) => ({ ...prev, ...patch }));
+    },
+    [updateCapture],
+  );
+
   return {
     capture,
     interimTranscript,
@@ -327,6 +335,7 @@ export function useMeetingLiveCapture(bookingId, { enabled = false, initialCaptu
     addTaggedNote,
     removeTaggedNote,
     appendManualLine,
+    updateQuickAssessment,
     flushSave,
     hasContent: liveCaptureHasContent(capture),
   };

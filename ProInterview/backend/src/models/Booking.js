@@ -130,6 +130,8 @@ const bookingSchema = new Schema(
     },
     /** Đã nhắc mentor 1 lần khi quá hạn 3 ngày chưa gửi mentorSummary (tránh nhắc lặp lại mỗi lần load). */
     feedbackReminderSentAt: { type: Date },
+    /** Job quét quá giờ hẹn mà vẫn confirmed/in_progress (không ai báo cáo) đã gắn cờ + nhắc 2 bên + admin lúc nào. */
+    staleFlaggedAt: { type: Date },
     reviewId: { type: Schema.Types.ObjectId, ref: "Review" },
     completedAt: { type: Date },
     /** Đã ghi có thu nhập vào ví mentor (tránh cộng trùng). */
@@ -148,6 +150,11 @@ const bookingSchema = new Schema(
       questionsAsked: [{ type: String, trim: true }],
       commonMistakes: [{ type: String, trim: true }],
       keyInsights: [{ type: String, trim: true }],
+      /** Đánh giá nhanh mentor điền ngay trong buổi — dùng để gợi ý/prefill form tổng kết sau này. */
+      rating: { type: Number, min: 0, max: 5, default: 0 },
+      strengths: { type: String, default: "", trim: true },
+      improvements: { type: String, default: "", trim: true },
+      recommendation: { type: String, default: "", trim: true },
       updatedAt: { type: Date },
     },
   },

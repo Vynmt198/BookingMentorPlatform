@@ -17,6 +17,7 @@ import { toastApiError, toastApiSuccess, tryApi } from "../../utils/apiToast";
 import { AdminSepayOverrideAction } from "../../components/admin/AdminSepayOverrideAction.jsx";
 import { AdminBookingStatusStack } from "../../components/admin/AdminStatusPill.jsx";
 import { AdminFilterSelect, AdminListFilterBar } from "../../components/admin/AdminListFilters.jsx";
+import { summarizeBookingMoney } from "../../utils/adminBookingMoney.js";
 
 function vnd(n) {
   return `${Number(n || 0).toLocaleString("vi-VN")} đ`;
@@ -111,9 +112,12 @@ export function AdminBookings() {
     const bookingId = booking?._id;
     if (!bookingId) return;
     const amt = Number(booking.cancelRefundAmountVnd || 0);
+    const stkLine = booking.refundReceiveAccountNumber
+      ? `${booking.refundReceiveBankName || "—"} · ${booking.refundReceiveAccountNumber} · ${booking.refundReceiveAccountHolder || "—"}`
+      : "Học viên CHƯA điền STK nhận hoàn — không thể chuyển.";
     if (
       !window.confirm(
-        `Xác nhận đã chuyển khoản hoàn ${amt.toLocaleString("vi-VN")} đ cho học viên?\n\nChỉ bấm sau khi đã chuyển tiền thật vào số tài khoản trên đơn.`,
+        `Xác nhận đã chuyển khoản hoàn ${amt.toLocaleString("vi-VN")} đ cho học viên?\n\nSTK nhận hoàn: ${stkLine}\n\nChỉ bấm sau khi đã chuyển tiền thật vào đúng số tài khoản trên.`,
       )
     ) {
       return;
@@ -149,20 +153,7 @@ export function AdminBookings() {
     return () => window.removeEventListener("click", close);
   }, [statusMenuId]);
 
-  const summary = useMemo(() => {
-    const ck = bookings.filter((b) => b.paymentMethod === "transfer");
-    const pending = ck.filter((b) => paymentStatusOf(b) === "pending");
-    const paid = ck.filter((b) => paymentStatusOf(b) === "paid");
-    const refundPending = bookings.filter((b) => paymentStatusOf(b) === "refund_pending");
-    return {
-      pendingTransferCount: pending.length,
-      pendingTransferAmount: pending.reduce((s, b) => s + bookingAmount(b), 0),
-      paidCollectedCount: paid.length,
-      paidCollectedAmount: paid.reduce((s, b) => s + bookingAmount(b), 0),
-      refundPendingCount: refundPending.length,
-      refundPendingAmount: refundPending.reduce((s, b) => s + Number(b.cancelRefundAmountVnd || 0), 0),
-    };
-  }, [bookings]);
+  const summary = useMemo(() => summarizeBookingMoney(bookings), [bookings]);
 
   const filtered = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -279,7 +270,7 @@ export function AdminBookings() {
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="grid gap-4 sm:grid-cols-3"
+        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
       >
         <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
           <p className="text-[10px] font-black uppercase tracking-widest text-amber-900">Chờ đối soát</p>
@@ -287,18 +278,26 @@ export function AdminBookings() {
           <p className="mt-1 text-sm font-semibold text-amber-900">{vnd(summary.pendingTransferAmount)}</p>
         </div>
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
-          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900">Đã thu qua SePay</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-900">Đã thu (còn giữ)</p>
           <p className="mt-1 text-2xl font-black text-emerald-950">{summary.paidCollectedCount}</p>
           <p className="mt-1 text-sm font-semibold text-emerald-900">{vnd(summary.paidCollectedAmount)}</p>
+          <p className="mt-2 text-xs text-emerald-800/80">Đã thu qua SePay, chưa phát sinh hoàn tiền</p>
+        </div>
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4">
+          <p className="text-[10px] font-black uppercase tracking-widest text-sky-900">Chờ hoàn cho học viên</p>
+          <p className="mt-1 text-2xl font-black text-sky-950">{summary.refundPendingCount}</p>
+          <p className="mt-1 text-sm font-semibold text-sky-900">{vnd(summary.refundPendingAmount)}</p>
+          <p className="mt-2 text-xs text-sky-800/80">Đã duyệt hoàn, admin chưa chuyển khoản</p>
         </div>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border border-sky-200 bg-sky-50/80 p-4"
+          className="rounded-2xl border border-slate-200 bg-slate-100/80 p-4"
         >
-          <p className="text-[10px] font-black uppercase tracking-widest text-sky-900">Chờ hoàn cho học viên</p>
-          <p className="mt-1 text-2xl font-black text-sky-950">{summary.refundPendingCount}</p>
-          <p className="mt-1 text-sm font-semibold text-sky-900">{vnd(summary.refundPendingAmount)}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-600">Đã hoàn cho học viên</p>
+          <p className="mt-1 text-2xl font-black text-slate-800">{summary.refundedCount}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-700">{vnd(summary.refundedAmount)}</p>
+          <p className="mt-2 text-xs text-slate-600/80">Admin đã chuyển khoản hoàn xong (một phần/toàn bộ)</p>
         </motion.div>
       </motion.div>
 
@@ -408,12 +407,12 @@ export function AdminBookings() {
                       {(b.totalAmount ?? b.price ?? 0).toLocaleString("vi-VN")}{" "}
                       <span className="text-[10px] font-medium uppercase tracking-widest text-slate-500">đ</span>
                     </td>
-                    <td className={`${tdCell} whitespace-nowrap`}>
+                    <td className={`${tdCell} min-w-0`}>
                       {b.paymentMethod === "transfer" ? (
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-medium text-slate-800">Chuyển khoản</p>
                           <p
-                            className="mt-0.5 font-mono text-xs font-semibold text-violet-700"
+                            className="mt-0.5 truncate font-mono text-xs font-semibold text-violet-700"
                             title={b.paymentRef || ""}
                           >
                             {b.paymentRef || "—"}
@@ -422,6 +421,20 @@ export function AdminBookings() {
                       ) : (
                         <span className="text-sm text-slate-500">Khác</span>
                       )}
+                      {pst === "refund_pending" ? (
+                        b.refundReceiveAccountNumber ? (
+                          <p
+                            className="mt-1.5 truncate rounded-md border border-sky-200 bg-sky-50/80 px-1.5 py-1 font-mono text-[10px] font-bold text-sky-800"
+                            title={`Hoàn về: ${b.refundReceiveBankName || "—"} · ${b.refundReceiveAccountNumber} · ${b.refundReceiveAccountHolder || "—"} (xem chi tiết để copy)`}
+                          >
+                            {b.refundReceiveAccountNumber}
+                          </p>
+                        ) : (
+                          <p className="mt-1.5 truncate text-[10px] font-black uppercase tracking-wide text-amber-700">
+                            Chưa có STK
+                          </p>
+                        )
+                      ) : null}
                     </td>
                     <td className={tdCell}>
                       {(() => {
@@ -430,6 +443,8 @@ export function AdminBookings() {
                         const showShield = b.paymentMethod === "transfer" && pst === "pending";
                         const showRefund =
                           pst === "refund_pending" && Number(b.cancelRefundAmountVnd) > 0;
+                        const hasRefundStk =
+                          String(b.refundReceiveAccountNumber || "").replace(/\D/g, "").length >= 6;
                         const showMore = !bookingPending;
                         const slot4 = showShield ? (
                           <div className="relative">
@@ -439,16 +454,23 @@ export function AdminBookings() {
                               onConfirm={(body) => confirmBookingTransferOverride(b, body)}
                             />
                           </div>
-                        ) : showRefund ? (
+                        ) : showRefund && hasRefundStk ? (
                           <button
                             type="button"
-                            title={`Đã hoàn ${vnd(b.cancelRefundAmountVnd)} cho học viên`}
+                            title={`Xác nhận đã CK ${vnd(b.cancelRefundAmountVnd)} vào ${b.refundReceiveBankName || "—"} · ${b.refundReceiveAccountNumber}`}
                             disabled={busyId === b._id}
                             onClick={() => void confirmBookingRefund(b)}
                             className="inline-flex size-9 items-center justify-center rounded-xl border border-sky-200 bg-sky-50 text-sky-700 transition hover:bg-sky-100 disabled:opacity-50"
                           >
                             <Banknote size={16} />
                           </button>
+                        ) : showRefund ? (
+                          <span
+                            title="Học viên chưa điền STK nhận hoàn — chưa thể xác nhận chuyển khoản."
+                            className="inline-flex size-9 items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-300"
+                          >
+                            <Banknote size={16} />
+                          </span>
                         ) : showMore ? (
                           <div className="relative">
                             <button

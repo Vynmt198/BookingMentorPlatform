@@ -15,6 +15,7 @@ import {
   getBrandClickPath,
 } from "../../utils/auth";
 import { toastApiError } from "../../utils/apiToast";
+import { buildRegisterPath } from "../../utils/authGate";
 import { GoogleSignInBlock } from "../../components/auth/GoogleSignInBlock";
 import { BrandLogo } from "../../components/brand/BrandLogo";
 import { SparkleGlyph } from "../../components/decor/SparkleGlyph.jsx";
@@ -257,7 +258,10 @@ export function Login() {
 
             <p className="mt-3 sm:mt-5 text-center text-xs sm:text-sm text-white/80">
               Chưa có tài khoản?{" "}
-              <Link to="/register" className="font-bold text-[#93f72b] hover:underline">
+              <Link
+                to={buildRegisterPath(searchParams.get("redirect") || "/")}
+                className="font-bold text-[#93f72b] hover:underline"
+              >
                 Đăng ký ngay
               </Link>
             </p>
