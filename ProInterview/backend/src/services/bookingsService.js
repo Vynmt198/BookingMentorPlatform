@@ -13,7 +13,7 @@ import { tryCreditMentorForCompletedBooking } from "./mentorEarningsService.js";
 import { deliverNotification } from "./notificationDeliveryService.js";
 import { mergeNotificationPrefs } from "../constants/notificationPrefs.js";
 import { resolveStoredUploadUrl } from "../utils/resolveStoredUploadUrl.js";
-import { isBookingInLiveWindow, isBookingSlotInFuture } from "../utils/bookingSchedule.js";
+import { isBookingInLiveWindow, isBookingSlotInFuture, isBookingCompletable } from "../utils/bookingSchedule.js";
 import { newPaymentExpiresAt, TRANSFER_PAYMENT_TIMEOUT_MS } from "../utils/transferPaymentExpiry.js";
 import { expireBookingTransferIfNeeded } from "./transferPaymentExpiryService.js";
 import { resolveBookingPlatformFeeRate } from "./mentorCommissionService.js";
@@ -1369,6 +1369,9 @@ export async function getMentorBooking(mentorUserId, rawId) {
 
   if (!row) return { ok: false, status: 404, error: "Không tìm thấy booking." };
   const booking = toPublicBooking(row);
+  // Ghi chú live của mentor — riêng tư, chỉ trả về ở route mentor-only này (không đi qua toPublicBooking
+  // dùng chung với response phía học viên, tránh lộ nhận xét nội bộ về học viên cho chính họ).
+  booking.mentorSessionCapture = sanitizeSessionCapture(row.mentorSessionCapture);
   const review = await Review.findOne({
     bookingId: row._id,
     targetType: "mentor",
@@ -1663,6 +1666,13 @@ export async function completeMentorBooking(mentorUserId, rawId) {
       error: "Chỉ đánh dấu hoàn thành khi booking đã xác nhận hoặc đang diễn ra.",
     };
   }
+  if (!isBookingCompletable(booking)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Chưa đủ tối thiểu 2/3 thời lượng buổi học — chưa thể đánh dấu hoàn thành.",
+    };
+  }
 
   booking.status = "completed";
   booking.completedAt = new Date();
@@ -1716,6 +1726,15 @@ export async function processCustomerNoShow(mentorUserId, rawId, body = {}) {
   const graceMs = 15 * 60 * 1000;
   if (startAt && Number.isFinite(startAt.getTime()) && startAt.getTime() + graceMs > Date.now()) {
     return { ok: false, status: 400, error: "Chỉ báo no-show sau khi buổi đã bắt đầu (tối thiểu 15 phút)." };
+  }
+  // Cùng ngưỡng chống gian lận với completeMentorBooking — nếu không, mentor có thể né rule 2/3
+  // bằng cách báo "học viên vắng mặt" (vẫn được cộng đủ tiền) thay vì bấm Kết thúc buổi thật.
+  if (!isBookingCompletable(booking)) {
+    return {
+      ok: false,
+      status: 400,
+      error: "Chưa đủ tối thiểu 2/3 thời lượng buổi học — chưa thể đánh dấu học viên vắng mặt.",
+    };
   }
 
   const note = typeof body?.note === "string" ? body.note.trim().slice(0, 2000) : "";
@@ -1802,13 +1821,27 @@ function cleanCaptureList(arr, max = 40) {
 
 function sanitizeSessionCapture(raw) {
   if (!raw || typeof raw !== "object") {
-    return { transcript: "", questionsAsked: [], commonMistakes: [], keyInsights: [], updatedAt: null };
+    return {
+      transcript: "",
+      questionsAsked: [],
+      commonMistakes: [],
+      keyInsights: [],
+      rating: 0,
+      strengths: "",
+      improvements: "",
+      recommendation: "",
+      updatedAt: null,
+    };
   }
   return {
     transcript: String(raw.transcript || "").trim().slice(0, 12000),
     questionsAsked: cleanCaptureList(raw.questionsAsked),
     commonMistakes: cleanCaptureList(raw.commonMistakes),
     keyInsights: cleanCaptureList(raw.keyInsights),
+    rating: Math.min(5, Math.max(0, Math.round(Number(raw.rating) || 0))),
+    strengths: String(raw.strengths || "").trim().slice(0, 4000),
+    improvements: String(raw.improvements || "").trim().slice(0, 4000),
+    recommendation: String(raw.recommendation || "").trim().slice(0, 4000),
     updatedAt: raw.updatedAt ?? null,
   };
 }
@@ -2511,6 +2544,16 @@ export async function processBookingNoShow(rawId, body = {}, { markedBy = "admin
     const uid = String(actorUserId || "").trim();
     if (String(booking.userId) !== uid) {
       return { ok: false, status: 403, error: "Chỉ học viên của buổi hẹn mới được báo no-show." };
+    }
+    // Mentor đã check-in webcam (bằng chứng đã cố vào phòng) — không cho HV tự báo no-show
+    // (hoàn 100% + tăng vi phạm mentor) mâu thuẫn với bằng chứng có sẵn; đẩy sang admin xử lý.
+    if (booking.mentorCheckInAt) {
+      return {
+        ok: false,
+        status: 400,
+        error:
+          "Mentor đã check-in cho buổi này. Nếu mentor rời phòng giữa chừng, vui lòng liên hệ hỗ trợ để được xem xét thay vì tự báo no-show.",
+      };
     }
   }
 

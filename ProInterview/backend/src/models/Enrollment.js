@@ -28,7 +28,8 @@ const enrollmentSchema = new Schema(
 
     pricePaid: { type: Number, default: 0 },
     platformFeeRate: { type: Number, default: null },
-    platformFee: { type: Number, default: 0 },
+    /** null = chưa tính phí (phân biệt với 0đ phí thật) — xem resolveCourseFee trong mentorEarningsService.js. */
+    platformFee: { type: Number, default: null },
     paymentRef: { type: String, default: "" },
     /** Hết hạn cửa sổ CK SePay (mặc định 15 phút từ lúc tạo ghi danh). */
     paymentExpiresAt: { type: Date },

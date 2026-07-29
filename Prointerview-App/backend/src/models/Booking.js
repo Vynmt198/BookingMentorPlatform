@@ -115,10 +115,27 @@ const bookingSchema = new Schema(
     refundCompletedBy: { type: Schema.Types.ObjectId, ref: "User" },
 
     mentorNotes: { type: String, default: "" },
+    /** Tổng kết buổi học có cấu trúc, mentor gửi sau khi booking đã completed. */
+    mentorSummary: {
+      rating: { type: Number, min: 1, max: 5 },
+      strengths: { type: String, default: "", trim: true },
+      improvements: { type: String, default: "", trim: true },
+      recommendation: { type: String, default: "", trim: true },
+      generalNotes: { type: String, default: "", trim: true },
+      submittedAt: { type: Date },
+      submittedLate: { type: Boolean, default: false },
+    },
+    feedbackReminderSentAt: { type: Date },
     reviewId: { type: Schema.Types.ObjectId, ref: "Review" },
     completedAt: { type: Date },
     /** Đã ghi có thu nhập vào ví mentor (tránh cộng trùng). */
     mentorEarningsCreditedAt: { type: Date },
+    /** Ảnh check-in webcam mentor trước khi vào phòng họp. */
+    mentorCheckInImageUrl: { type: String, default: "" },
+    mentorCheckInAt: { type: Date },
+    mentorCheckInUserId: { type: Schema.Types.ObjectId, ref: "User" },
+    /** Ai vắng: customer | mentor (optional metadata). */
+    noShowBy: { type: String, enum: ["customer", "mentor", ""], default: "" },
   },
   { collection: "bookings", timestamps: true }
 );

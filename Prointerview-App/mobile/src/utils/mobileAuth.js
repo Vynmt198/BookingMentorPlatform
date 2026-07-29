@@ -326,8 +326,22 @@ export async function loginWithGoogleCredential(credentialOrBody) {
     }
 
     setApiBaseUrl(base);
+    if (body.user?.role === 'admin') {
+      return {
+        success: false,
+        error:
+          'Tài khoản Admin chỉ dùng trên website ProInterview, không hỗ trợ trên ứng dụng di động.',
+      };
+    }
     await persistLoginPayload(body);
-    return { success: true, token: body.token, user: body.user, refreshToken: body.refreshToken };
+    return {
+      success: true,
+      token: body.token,
+      user: body.user,
+      refreshToken: body.refreshToken,
+      isNewGoogleUser: Boolean(body.isNewGoogleUser),
+      initialPasswordEmailed: Boolean(body.initialPasswordEmailed),
+    };
   } catch {
     return { success: false, error: 'Không thể kết nối tới server Backend.' };
   }

@@ -121,8 +121,7 @@ export default function ProfileScreen({
   mode = 'hub',
 }) {
   const isMentor = user?.role === 'mentor';
-  const isAdmin = user?.role === 'admin';
-  const isCustomer = !isMentor && !isAdmin;
+  const isCustomer = !isMentor;
   const [form, setForm] = useState(() => buildFormFromUser(user, null));
   const [openSections, setOpenSections] = useState({
     intro: true,
@@ -145,10 +144,6 @@ export default function ProfileScreen({
   }, [user, mentorProfile]);
 
   useEffect(() => {
-    if (isAdmin) {
-      setMentorProfile(null);
-      return undefined;
-    }
     let cancelled = false;
     (async () => {
       const res = await fetchMyMentorProfile();
@@ -157,7 +152,7 @@ export default function ProfileScreen({
     return () => {
       cancelled = true;
     };
-  }, [user?.id, isAdmin]);
+  }, [user?.id]);
 
   const expandSectionsForMissing = (currentForm) => {
     const keys = getCvSectionKeysToExpand(currentForm);
@@ -263,14 +258,7 @@ export default function ProfileScreen({
 
   const handleSave = useCallback(async () => {
     setSaving(true);
-    const payload = isAdmin
-      ? {
-          name: String(form.name || '').trim(),
-          email: String(form.email || '').trim(),
-          phone: String(form.phone || '').trim(),
-          bio: String(form.bio || '').trim(),
-        }
-      : buildUserProfilePayload(form);
+    const payload = buildUserProfilePayload(form);
     const res = await patchCurrentUser(payload);
     if (!res.success) {
       setSaving(false);
@@ -292,8 +280,8 @@ export default function ProfileScreen({
     }
 
     setSaving(false);
-    notify('Thành công', isAdmin ? 'Đã cập nhật tài khoản admin.' : 'Đã cập nhật hồ sơ.');
-  }, [form, isAdmin, isMentor, onUserUpdated]);
+    notify('Thành công', 'Đã cập nhật hồ sơ.');
+  }, [form, isMentor, onUserUpdated]);
 
   const handleApplyMentor = useCallback(async () => {
     if (!isCustomer) return;
@@ -323,11 +311,9 @@ export default function ProfileScreen({
     }
   }, [form, isCustomer, onUserUpdated]);
 
-  const roleBadge = isAdmin
-    ? 'ADMIN'
-    : isMentor
-      ? 'MENTOR'
-      : PLAN_LABELS[user?.plan] || PLAN_LABELS.free;
+  const roleBadge = isMentor
+    ? 'MENTOR'
+    : PLAN_LABELS[user?.plan] || PLAN_LABELS.free;
   const mentorStatus = mentorProfile?.adminReview?.status;
   const mentorVerified = mentorProfile?.isVerified === true || mentorStatus === 'approved';
   const displayAvatar = avatarPreview || resolveMediaUrl(user?.avatar);
@@ -365,16 +351,13 @@ export default function ProfileScreen({
             )}
           </View>
         </TouchableOpacity>
-        <Text style={styles.summaryName}>{form.name || (isAdmin ? 'Admin' : isMentor ? 'Mentor' : 'Người dùng')}</Text>
+        <Text style={styles.summaryName}>{form.name || (isMentor ? 'Mentor' : 'Người dùng')}</Text>
         <Text style={styles.summaryPlan}>{roleBadge}</Text>
         {isMentor && mentorStatus === 'pending' ? (
           <Text style={styles.mentorPendingHint}>Hồ sơ mentor đang chờ duyệt</Text>
         ) : null}
         {isMentor && mentorVerified ? (
           <Text style={styles.mentorPendingHint}>Cố vấn đã xác minh</Text>
-        ) : null}
-        {isAdmin ? (
-          <Text style={styles.mentorPendingHint}>Tài khoản quản trị hệ thống</Text>
         ) : null}
 
         {(onOpenProfileInfo ||
@@ -533,43 +516,6 @@ export default function ProfileScreen({
             ) : null}
           </View>
         ) : null}
-
-        {isAdmin && (onOpenRoleFinance || onOpenRoleSessions) ? (
-          <View style={styles.libraryMenu}>
-            {onOpenRoleSessions ? (
-              <TouchableOpacity style={styles.libraryMenuRow} onPress={onOpenRoleSessions} activeOpacity={0.85}>
-                <View style={styles.libraryMenuLeft}>
-                  <View style={styles.libraryMenuIcon}>
-                    <Ionicons name="construct-outline" size={17} color="#8037f4" />
-                  </View>
-                  <View>
-                    <Text style={styles.libraryMenuLabel}>Vận hành</Text>
-                    <Text style={styles.libraryMenuSub}>Booking & chuyển khoản</Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
-              </TouchableOpacity>
-            ) : null}
-            {onOpenRoleFinance ? (
-              <TouchableOpacity
-                style={[styles.libraryMenuRow, styles.libraryMenuRowLast]}
-                onPress={onOpenRoleFinance}
-                activeOpacity={0.85}
-              >
-                <View style={styles.libraryMenuLeft}>
-                  <View style={styles.libraryMenuIcon}>
-                    <Ionicons name="wallet-outline" size={17} color="#8037f4" />
-                  </View>
-                  <View>
-                    <Text style={styles.libraryMenuLabel}>Tài chính nền tảng</Text>
-                    <Text style={styles.libraryMenuSub}>GMV & payout mentor</Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        ) : null}
       </View>
 
       {onLogout ? (
@@ -585,11 +531,9 @@ export default function ProfileScreen({
       {/* Main form card */}
       <View style={styles.formCard}>
         <View style={styles.formHeader}>
-          <Ionicons name={isAdmin ? 'shield-checkmark' : isMentor ? 'school' : 'person'} size={20} color="#8037f4" />
+          <Ionicons name={isMentor ? 'school' : 'person'} size={20} color="#8037f4" />
           <Text style={styles.formTitle}>
-            {isAdmin ? (
-              <>Hồ sơ <Text style={styles.formTitleAccent}>admin</Text></>
-            ) : isMentor ? (
+            {isMentor ? (
               <>Hồ sơ <Text style={styles.formTitleAccent}>cố vấn</Text></>
             ) : (
               <>Hồ sơ <Text style={styles.formTitleAccent}>cá nhân</Text></>
@@ -597,11 +541,9 @@ export default function ProfileScreen({
           </Text>
         </View>
         <Text style={styles.formHint}>
-          {isAdmin
-            ? 'Cập nhật thông tin tài khoản quản trị. Email dùng để đăng nhập và nhận cảnh báo hệ thống.'
-            : isMentor
-              ? 'Thông tin này hiển thị trên trang mentor công khai — bio, kinh nghiệm, kỹ năng và mức giá buổi mentoring.'
-              : 'Hoàn thiện thông tin của bạn để ProInterview hiểu rõ hơn về học vấn, kinh nghiệm và mục tiêu nghề nghiệp, từ đó hỗ trợ luyện phỏng vấn phù hợp hơn.'}
+          {isMentor
+            ? 'Thông tin hiển thị trên trang cố vấn công khai. Email dùng để đăng nhập.'
+            : 'Cập nhật thông tin cá nhân. Email dùng để đăng nhập.'}
         </Text>
         {isCustomer && mentorApplyError ? (
           <Text style={styles.mentorApplyError}>{mentorApplyError}</Text>
@@ -645,22 +587,7 @@ export default function ProfileScreen({
           </View>
         </View>
 
-        {isAdmin ? (
-          <View style={styles.staticSection}>
-            <Text style={styles.sectionHeading}>GIỚI THIỆU</Text>
-            <TextInput
-              style={styles.textarea}
-              value={form.bio}
-              onChangeText={(v) => setField('bio', v)}
-              placeholder="Mô tả ngắn về vai trò quản trị..."
-              placeholderTextColor="#94a3b8"
-              multiline
-              textAlignVertical="top"
-            />
-          </View>
-        ) : (
-          <>
-            <ProfileAccordion
+        <ProfileAccordion
               title="Giới thiệu bản thân"
               required={isCustomer}
               open={openSections.intro}
@@ -681,7 +608,7 @@ export default function ProfileScreen({
               />
             </ProfileAccordion>
 
-            <ProfileAccordion
+        <ProfileAccordion
               title="Kinh nghiệm làm việc"
               required={isCustomer}
               open={openSections.work}
@@ -731,7 +658,7 @@ export default function ProfileScreen({
               />
             </ProfileAccordion>
 
-            <ProfileAccordion
+        <ProfileAccordion
               title={isMentor ? 'Chuyên môn & kỹ năng' : 'Kỹ năng & chứng chỉ'}
               required={isCustomer}
               open={openSections.skills}
@@ -773,7 +700,7 @@ export default function ProfileScreen({
               </ProfileAccordion>
             ) : null}
 
-            <ProfileAccordion
+        <ProfileAccordion
               title="Quá trình học tập"
               open={openSections.education}
               onToggle={() => toggleSection('education')}
@@ -789,7 +716,7 @@ export default function ProfileScreen({
               />
             </ProfileAccordion>
 
-            <ProfileAccordion
+        <ProfileAccordion
               title="Hoạt động ngoại khóa"
               open={openSections.extracurricular}
               onToggle={() => toggleSection('extracurricular')}
@@ -805,7 +732,7 @@ export default function ProfileScreen({
               />
             </ProfileAccordion>
 
-            <ProfileAccordion
+        <ProfileAccordion
               title="Tên giải thưởng"
               open={openSections.awards}
               onToggle={() => toggleSection('awards')}
@@ -820,8 +747,6 @@ export default function ProfileScreen({
                 textAlignVertical="top"
               />
             </ProfileAccordion>
-          </>
-        )}
 
         <View style={styles.actionRow}>
           <TouchableOpacity

@@ -53,8 +53,16 @@ import {
   resolveConfiguredApiBase,
 } from './src/services/proInterviewApi';
 import { BACKEND_DEV_HINT } from './src/utils/backendErrors';
-import { loadAdminPortalData, loadMentorPortalData } from './src/services/roleApi';
+import { loadMentorPortalData } from './src/services/roleApi';
 import RolePortal from './src/components/RolePortal';
+import MeetingRoomScreen from './src/components/MeetingRoomScreen';
+import {
+  MentorAnalyticsScreen,
+  MentorPeerReviewScreen,
+  MentorSessionFeedbackScreen,
+  InfoContentScreen,
+} from './src/components/MentorExtraScreens';
+import { trackPageView, trackAction } from './src/services/analyticsApi';
 import GoogleSignInButton from './src/components/GoogleSignInButton';
 import CartScreen from './src/components/CartScreen';
 import CheckoutScreen from './src/components/CheckoutScreen';
@@ -225,6 +233,9 @@ function AppInner() {
   const [authRenderTick, setAuthRenderTick] = useState(0);
   const [userToken, setUserToken] = useState(null);
   const [activeTab, setActiveTab] = useState('home'); 
+  const [meetingRoom, setMeetingRoom] = useState(null); // { bookingId, booking, asMentor }
+  const [infoPageKey, setInfoPageKey] = useState(null);
+  const [feedbackBooking, setFeedbackBooking] = useState(null); 
   const [mentors, setMentors] = useState([]);
   const [courses, setCourses] = useState([]);
   const [bookings, setBookings] = useState([]);
@@ -332,7 +343,6 @@ function AppInner() {
   }, [activeTab, profileSubTab, profileTabEntrance]);
 
   const getDefaultTabForRole = (role) => {
-    if (role === 'admin') return 'admin_home';
     if (role === 'mentor') return 'mentor_home';
     return 'home';
   };
@@ -355,13 +365,13 @@ function AppInner() {
   const applyLoggedInUser = (user, token) => {
     const role = user?.role || 'customer';
     if (role === 'admin') {
-      notifyUser(
-        'Không hỗ trợ trên di động',
-        'Tài khoản Admin chỉ đăng nhập được trên website ProInterview (chức năng thống kê, vận hành chỉ có ở web).',
-      );
       void logoutSession();
       clearLocalSession();
       setJustLoggedOut(true);
+      notifyUser(
+        'Không hỗ trợ trên di động',
+        'Tài khoản Admin chỉ đăng nhập được trên website ProInterview. Ứng dụng mobile không có chức năng quản trị.',
+      );
       return;
     }
     const safeUser = user && typeof user === 'object'
@@ -390,14 +400,13 @@ function AppInner() {
   };
 
   const loadRolePortalData = async (role) => {
-    if (role !== 'admin' && role !== 'mentor') {
+    if (role !== 'mentor') {
       setRolePortalData(null);
       return;
     }
     setRoleDataLoading(true);
     try {
-      const data =
-        role === 'admin' ? await loadAdminPortalData() : await loadMentorPortalData();
+      const data = await loadMentorPortalData();
       if (data.sessionValid === false) {
         await handleInvalidSession();
         return;
@@ -407,6 +416,23 @@ function AppInner() {
       console.warn('loadRolePortalData:', e);
     }
     setRoleDataLoading(false);
+  };
+
+  const openMeetingRoom = (booking, asMentor = false) => {
+    const bookingId = booking?._id || booking?.id;
+    if (!bookingId) {
+      notifyUser('Lỗi', 'Không tìm thấy buổi họp.');
+      return;
+    }
+    setMeetingRoom({ bookingId, booking, asMentor: !!asMentor });
+    trackPageView('/meeting', { bookingId: String(bookingId), asMentor: !!asMentor });
+    setActiveTab('meeting_room');
+  };
+
+  const openInfoPage = (key) => {
+    setInfoPageKey(key);
+    trackPageView(`/${key}`);
+    setActiveTab('info_page');
   };
 
   const showCartToast = (message) => {
@@ -787,6 +813,7 @@ function AppInner() {
       const result = await patchCurrentUser(body);
       if (result.success) {
         showCartToast('Thay đổi mật khẩu thành công!');
+        if (result.user) setCurrentUser(result.user);
         setChangePasswordModalVisible(false);
         setCurrentPassword('');
         setNewPassword('');
@@ -1243,7 +1270,7 @@ function AppInner() {
   const loadUserData = async (roleOverride, knownUser = null) => {
     const role = roleOverride || knownUser?.role || appUser?.role || 'customer';
 
-    if (role === 'admin' || role === 'mentor') {
+    if (role === 'mentor') {
       await loadRolePortalData(role);
       if (!knownUser) {
         const profile = await fetchCurrentUser();
@@ -1414,6 +1441,24 @@ function AppInner() {
         const ok = await finalizeLogin(result.token, result.user);
         if (!ok) {
           setAuthError('Không lấy được thông tin tài khoản sau Google login.');
+        } else if (result.isNewGoogleUser) {
+          const emailed = result.initialPasswordEmailed;
+          notifyUser(
+            'Chào mừng đến ProInterview',
+            emailed
+              ? 'Mật khẩu khởi tạo đã gửi về Gmail của bạn. Vui lòng mở email và đổi mật khẩu trong Cài đặt → Bảo mật.'
+              : 'Tài khoản đã tạo. Không gửi được email mật khẩu — hãy đặt mật khẩu mới trong Cài đặt → Bảo mật.',
+          );
+          setTimeout(() => {
+            setChangePasswordModalVisible(true);
+            setChangePasswordError('');
+            setCurrentPassword('');
+            setNewPassword('');
+            setConfirmPassword('');
+          }, 600);
+        } else if (result.user?.mustChangePassword) {
+          notifyUser('Đổi mật khẩu', 'Vui lòng đổi mật khẩu khởi tạo đã gửi về email.');
+          setTimeout(() => setChangePasswordModalVisible(true), 400);
         }
       } else {
         setAuthError(result.error || 'Đăng nhập Google thất bại.');
@@ -2533,7 +2578,7 @@ function AppInner() {
               <TouchableOpacity
                 style={styles.homeNextAction}
                 onPress={() => {
-                  if (upcomingDbBooking?.meetingLink) Linking.openURL(upcomingDbBooking.meetingLink);
+                  if (upcomingDbBooking) openMeetingRoom(upcomingDbBooking, false);
                   else setActiveTab('mentors');
                 }}
               >
@@ -2850,9 +2895,8 @@ function AppInner() {
                 <TouchableOpacity
                   style={styles.editorialActivityRow}
                   onPress={() => {
-                    if (nextBooking.meetingLink) {
-                      Linking.openURL(nextBooking.meetingLink);
-                    } else {
+                    if (nextBooking) openMeetingRoom(nextBooking, false);
+                    else {
                       setProfileSubTab('history_bookings');
                       setActiveTab('profile');
                     }
@@ -3665,11 +3709,7 @@ function AppInner() {
           ) : (
             <View>
               <Text style={styles.profilePageEyebrow}>
-                {userRole === 'admin'
-                  ? 'QUẢN TRỊ'
-                  : userRole === 'mentor'
-                    ? 'CỐ VẤN'
-                    : 'HỒ SƠ CÁ NHÂN'}
+                {userRole === 'mentor' ? 'CỐ VẤN' : 'HỒ SƠ CÁ NHÂN'}
               </Text>
               <Text style={[styles.tabTitle, styles.profilePageTitle]}>Cá nhân</Text>
             </View>
@@ -3711,21 +3751,13 @@ function AppInner() {
               userRole === 'customer' ? () => setProfileSubTab('history_cv') : undefined
             }
             onOpenRoleSessions={
-              userRole === 'mentor'
-                ? () => setActiveTab('mentor_sessions')
-                : userRole === 'admin'
-                  ? () => setActiveTab('admin_ops')
-                  : undefined
+              userRole === 'mentor' ? () => setActiveTab('mentor_sessions') : undefined
             }
             onOpenRoleCourses={
               userRole === 'mentor' ? () => setActiveTab('mentor_courses') : undefined
             }
             onOpenRoleFinance={
-              userRole === 'mentor'
-                ? () => setActiveTab('mentor_finance')
-                : userRole === 'admin'
-                  ? () => setActiveTab('admin_finance')
-                  : undefined
+              userRole === 'mentor' ? () => setActiveTab('mentor_finance') : undefined
             }
             onLogout={handleRealLogout}
             onUserUpdated={(updatedUser) => {
@@ -3926,21 +3958,12 @@ function AppInner() {
                   </View>
                   <Text style={styles.bookingMentorName}>Chuyên gia: {booking.mentorId?.name || 'Đang cập nhật'}</Text>
                   <Text style={styles.bookingTimeText}>⏱ Ngày {booking.date} · Khung giờ: {booking.timeSlot}</Text>
-                  {booking.meetingLink ? (
+                  {booking.meetingLink || ['confirmed', 'in_progress'].includes(String(booking.status || '')) ? (
                     <TouchableOpacity
                       style={styles.joinMeetingBtn}
-                      onPress={() => {
-                        const url = String(booking.meetingLink || '').trim();
-                        if (!url) {
-                          notifyUser('Phòng họp', 'Chưa có link meeting cho buổi này.');
-                          return;
-                        }
-                        Linking.openURL(url).catch(() => {
-                          notifyUser('Phòng họp', 'Không mở được link meeting.');
-                        });
-                      }}
+                      onPress={() => openMeetingRoom(booking, false)}
                     >
-                      <Text style={styles.joinMeetingBtnText}>Vào Zoom Meeting</Text>
+                      <Text style={styles.joinMeetingBtnText}>Vào phòng họp</Text>
                     </TouchableOpacity>
                   ) : null}
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
@@ -4162,18 +4185,6 @@ function AppInner() {
       </View>
     );
 
-    if (userRole === 'admin') {
-      return (
-        <BottomNavShell>
-          <TabBtn tab="admin_ops" icon="construct" label="Vận hành" />
-          <TabBtn tab="admin_mentors" icon="school" label="Mentor" />
-          <TabBtn tab="admin_home" icon="home" label="Trang chủ" center />
-          <TabBtn tab="admin_content" icon="documents" label="Quản lý" />
-          <TabBtn tab="profile" icon="person" label="Cá nhân" />
-        </BottomNavShell>
-      );
-    }
-
     if (userRole === 'mentor') {
       return (
         <BottomNavShell>
@@ -4188,8 +4199,8 @@ function AppInner() {
 
     return (
       <BottomNavShell>
-        <TabBtn tab="mentors" icon="people" label="Mentors" />
         <TabBtn tab="home" icon="home" label="Trang chủ" />
+        <TabBtn tab="mentors" icon="people" label="Mentors" />
         <TabBtn tab="cv" icon="scan-outline" label="Quét CV" center />
         <TabBtn tab="courses" icon="school" label="Khóa học" />
         <TabBtn tab="profile" icon="person" label="Cá nhân" />
@@ -4198,7 +4209,81 @@ function AppInner() {
   };
 
   const renderActiveTab = () => {
-    if (userRole === 'admin' || userRole === 'mentor') {
+    if (activeTab === 'meeting_room' && meetingRoom?.bookingId) {
+      return (
+        <MeetingRoomScreen
+          bookingId={meetingRoom.bookingId}
+          booking={meetingRoom.booking}
+          asMentor={!!meetingRoom.asMentor}
+          user={appUser}
+          onBack={() => {
+            setMeetingRoom(null);
+            setActiveTab(meetingRoom.asMentor ? 'mentor_sessions' : 'profile');
+          }}
+          onBookingUpdated={(b) => {
+            setMeetingRoom((prev) => (prev ? { ...prev, booking: b } : prev));
+            if (userRole === 'mentor') loadRolePortalData('mentor');
+          }}
+        />
+      );
+    }
+
+    if (activeTab === 'info_page' && infoPageKey) {
+      return (
+        <InfoContentScreen
+          pageKey={infoPageKey}
+          onBack={() => {
+            setInfoPageKey(null);
+            setActiveTab(userRole === 'mentor' ? 'mentor_home' : 'home');
+          }}
+          onOpenPricingCheckout={(planKey) => {
+            trackAction('plan_checkout_start', '/pricing', { planKey });
+            closeSettingsModal?.();
+            notifyUser('Nâng cấp', `Chọn gói ${planKey} trong luồng thanh toán khi sẵn sàng.`);
+            setActiveTab('profile');
+          }}
+        />
+      );
+    }
+
+    if (activeTab === 'mentor_analytics') {
+      return (
+        <MentorAnalyticsScreen
+          data={rolePortalData}
+          onBack={() => setActiveTab('mentor_home')}
+        />
+      );
+    }
+
+    if (activeTab === 'mentor_peer_review') {
+      return (
+        <MentorPeerReviewScreen
+          onBack={() => setActiveTab('mentor_home')}
+          onRefresh={() => loadRolePortalData('mentor')}
+        />
+      );
+    }
+
+    if (activeTab === 'mentor_feedback' && feedbackBooking) {
+      return (
+        <MentorSessionFeedbackScreen
+          bookingId={feedbackBooking._id || feedbackBooking.id}
+          booking={feedbackBooking}
+          onBack={() => {
+            setFeedbackBooking(null);
+            setActiveTab('mentor_sessions');
+          }}
+          onDone={(b) => {
+            setFeedbackBooking(null);
+            loadRolePortalData('mentor');
+            notifyUser('Thành công', 'Đã gửi tổng kết buổi học.');
+            setActiveTab('mentor_sessions');
+          }}
+        />
+      );
+    }
+
+    if (userRole === 'mentor') {
       if (activeTab === 'profile') return renderProfileTab();
       return (
         <RolePortal
@@ -4209,6 +4294,11 @@ function AppInner() {
           user={appUser}
           onNavigate={setActiveTab}
           onRefresh={() => loadRolePortalData(userRole)}
+          onOpenMeeting={(booking) => openMeetingRoom(booking, true)}
+          onOpenFeedback={(booking) => {
+            setFeedbackBooking(booking);
+            setActiveTab('mentor_feedback');
+          }}
         />
       );
     }
@@ -4354,7 +4444,7 @@ function AppInner() {
           <View style={styles.appShellContent}>
             {renderMainContent()}
           </View>
-          {activeTab !== 'checkout' && activeTab !== 'course_learning' && activeTab !== 'course_detail' && activeTab !== 'cart' && activeTab !== 'mentor_booking' && activeTab !== 'cv_jd_upload' ? (
+          {activeTab !== 'checkout' && activeTab !== 'course_learning' && activeTab !== 'course_detail' && activeTab !== 'cart' && activeTab !== 'mentor_booking' && activeTab !== 'cv_jd_upload' && activeTab !== 'meeting_room' && activeTab !== 'info_page' && activeTab !== 'mentor_analytics' && activeTab !== 'mentor_peer_review' && activeTab !== 'mentor_feedback' ? (
             <View style={styles.bottomNavDock} pointerEvents="box-none">
               {renderRoleBottomNav()}
             </View>
@@ -4604,6 +4694,30 @@ function AppInner() {
                       <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
                     </TouchableOpacity>
 
+                    {[
+                      ['pricing', 'pricetag-outline', 'Bảng giá'],
+                      ['about', 'information-circle-outline', 'Về chúng tôi'],
+                      ['blog', 'newspaper-outline', 'Blog'],
+                      ['terms', 'document-text-outline', 'Điều khoản'],
+                      ['privacy', 'lock-closed-outline', 'Chính sách bảo mật'],
+                    ].map(([key, icon, label]) => (
+                      <TouchableOpacity
+                        key={key}
+                        style={styles.profileOptionRow}
+                        onPress={() => {
+                          closeSettingsModal();
+                          setTimeout(() => openInfoPage(key), 180);
+                        }}
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.profileOptionLeft}>
+                          <Ionicons name={icon} size={18} color="#8037f4" />
+                          <Text style={styles.profileOptionLabel}>{label}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="rgba(45,27,105,0.28)" />
+                      </TouchableOpacity>
+                    ))}
+
                     <TouchableOpacity
                       style={styles.profileOptionRow}
                       onPress={() => {
@@ -4694,9 +4808,11 @@ function AppInner() {
               </View>
               <Text style={styles.elegantSheetTitle}>Thay đổi mật khẩu</Text>
               <Text style={styles.elegantSheetSubtitle}>
-                {appUser?.hasGoogleLogin
-                  ? 'Tài khoản Google: Bạn có thể đặt mật khẩu trực tiếp.'
-                  : 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.'}
+                {appUser?.mustChangePassword
+                  ? 'Mật khẩu khởi tạo đã gửi về Gmail. Hãy đặt mật khẩu mới để bảo mật tài khoản.'
+                  : appUser?.hasGoogleLogin
+                    ? 'Tài khoản Google: Bạn có thể đặt mật khẩu trực tiếp (không cần mật khẩu cũ).'
+                    : 'Vui lòng nhập mật khẩu hiện tại và mật khẩu mới.'}
               </Text>
             </View>
 

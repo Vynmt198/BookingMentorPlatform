@@ -90,6 +90,9 @@ const userSchema = new Schema(
     lastLoginAt: { type: Date },
     lastSeenAt: { type: Date, default: null },
 
+    /** Tài khoản tạo qua Google: nên đổi mật khẩu khởi tạo đã gửi email. */
+    mustChangePassword: { type: Boolean, default: false },
+
     /** Tăng khi logout / đổi mật khẩu — JWT phải khớp `tv` trong payload (vô hiệu token cũ phía server). */
     tokenVersion: { type: Number, default: 0 },
 
@@ -215,6 +218,7 @@ export function toPublicUser(doc) {
       (typeof googleId === "string" && googleId.trim()) ||
         (typeof googleSub === "string" && googleSub.trim())
     ),
+    mustChangePassword: Boolean(plain.mustChangePassword),
     notificationPrefs: publicNotificationPrefsForRole(
       plain.role,
       plain.settings?.notificationPrefs,

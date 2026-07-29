@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
-import { Calendar, Video, Star, FileText, Receipt, CalendarClock, CalendarCheck, CheckCircle2, CalendarX } from "lucide-react";
+import { Calendar, Video, Star, FileText, Receipt, CalendarClock, CalendarCheck, CheckCircle2, CalendarX, Landmark } from "lucide-react";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 import { CustomerPageHeader } from "../../components/layout/CustomerPageHeader";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
@@ -20,8 +20,13 @@ const TABS = [
 
 /** Số ms đã trôi qua kể từ giờ hẹn (âm nếu chưa tới giờ). */
 function elapsedMs(dateStr, timeStr) {
-  const [d, m, y] = String(dateStr || "").split("/").map(Number);
+  const raw = String(dateStr || "").trim();
   const [hh, mm] = String(timeStr || "").split(":").map(Number);
+  // Vài booking cũ (seed:ui-mock) lưu date dạng ISO "YYYY-MM-DD" thay vì "DD/MM/YYYY".
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const [d, m, y] = isoMatch
+    ? [Number(isoMatch[3]), Number(isoMatch[2]), Number(isoMatch[1])]
+    : raw.split("/").map(Number);
   const startAt = new Date(y, (m || 1) - 1, d || 1, hh || 0, mm || 0, 0, 0);
   if (!Number.isFinite(startAt.getTime())) return 0;
   return Date.now() - startAt.getTime();
@@ -42,11 +47,27 @@ function getTimeUntilSessionLabel(dateStr, timeStr) {
   return "Đã qua giờ";
 }
 
-function getPaymentBadge(paymentStatus, status, dateStr, timeStr) {
+function getPaymentBadge(paymentStatus, status, dateStr, timeStr, refundAccountNumber) {
   const pst = String(paymentStatus || "").toLowerCase();
   const st = String(status || "").toLowerCase();
   if (pst === "refund_pending") {
-    return { text: "Chờ hoàn CK", className: "bg-amber-50 text-amber-700 border-amber-200" };
+    // "Chờ hoàn CK" ngụ ý hệ thống đang xử lý — chỉ đúng khi HV đã điền STK nhận hoàn.
+    // Nếu chưa điền, quả bóng đang ở phía học viên, không phải đang "chờ" ai cả.
+    // Style dùng inline hex thay vì class Tailwind "amber"/"violet" vì theme.css của app
+    // này đã remap gần hết các màu đó về chung 1 tông tím thương hiệu — 2 trạng thái sẽ
+    // nhìn giống hệt nhau nếu dùng class thường, mất tác dụng phân biệt "cần làm gì tiếp".
+    const hasStk = String(refundAccountNumber || "").replace(/\D/g, "").length >= 6;
+    return hasStk
+      ? {
+          text: "Chờ hoàn CK",
+          className: "border",
+          style: { backgroundColor: "rgba(128,55,244,0.08)", color: "#8037f4", borderColor: "rgba(128,55,244,0.28)" },
+        }
+      : {
+          text: "Cần điền STK",
+          className: "border",
+          style: { backgroundColor: "#FFFBEB", color: "#B45309", borderColor: "#FDE68A" },
+        };
   }
   if (pst === "refunded") {
     return { text: "Đã hoàn tiền", className: "bg-sky-50 text-sky-700 border-sky-200" };
@@ -227,11 +248,14 @@ export function MyBookings() {
           <div className="space-y-4">
             {filtered.map((s) => {
               const id = s.sessionId || s.backendId;
-              const badge = getPaymentBadge(s.paymentStatus, s.status, s.date, s.time);
+              const badge = getPaymentBadge(s.paymentStatus, s.status, s.date, s.time, s.refundReceiveAccountNumber);
               const paid = String(s.paymentStatus || "").toLowerCase() === "paid";
               const canMeet =
                 paid && (s.status === "confirmed" || s.status === "in_progress");
               const needsReview = s.status === "done" && !s.isReviewed;
+              const needsRefundStk =
+                String(s.paymentStatus || "").toLowerCase() === "refund_pending" &&
+                String(s.refundReceiveAccountNumber || "").replace(/\D/g, "").length < 6;
               const timeLabel = tab === "upcoming" ? getTimeUntilSessionLabel(s.date, s.time) : "";
 
               return (
@@ -255,6 +279,7 @@ export function MyBookings() {
                         </p>
                         <span
                           className={`rounded-md border px-2 py-0.5 text-[8px] font-black uppercase ${badge.className}`}
+                          style={badge.style}
                         >
                           {badge.text}
                         </span>
@@ -314,6 +339,16 @@ export function MyBookings() {
                       >
                         <Star className="h-3.5 w-3.5" />
                         Đánh giá mentor
+                      </button>
+                    )}
+                    {needsRefundStk && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/session/${id}`)}
+                        className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-amber-800 hover:bg-amber-100 sm:flex-none"
+                      >
+                        <Landmark className="h-3.5 w-3.5" />
+                        Điền STK nhận hoàn
                       </button>
                     )}
                   </div>

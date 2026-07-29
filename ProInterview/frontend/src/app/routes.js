@@ -18,6 +18,7 @@ import { MentorProfile } from "./pages/mentors/MentorProfile";
 import { Booking } from "./pages/booking/Booking";
 import { SessionDetail } from "./pages/booking/SessionDetail";
 import { MyBookings } from "./pages/booking/MyBookings";
+import { Dashboard } from "./pages/account/Dashboard";
 import { Profile } from "./pages/account/Profile";
 import { Settings } from "./pages/account/Settings";
 import { PaymentHistory } from "./pages/account/PaymentHistory";
@@ -73,6 +74,7 @@ import { AdminMentorDetail } from "./pages/admin/AdminMentorDetail.jsx";
 import { AdminBookingDetail } from "./pages/admin/AdminBookingDetail.jsx";
 import { AdminBookingCheckIns } from "./pages/admin/AdminBookingCheckIns.jsx";
 import { AdminAchievements } from "./pages/admin/AdminAchievements.jsx";
+import { AdminFinanceOverview } from "./pages/admin/AdminFinanceOverview.jsx";
 
 /** Đã đăng nhập mentor/admin → hub riêng, không xem landing customer. */
 function roleHomeLoader() {
@@ -131,8 +133,9 @@ export const router = createHashRouter([
               const user = getUser();
               if (user?.role === "admin") throw redirect("/admin");
               if (user?.role === "mentor") throw redirect("/mentor/dashboard");
-              throw redirect("/");
+              return null;
             },
+            Component: Dashboard,
           },
           { path: "my-bookings", Component: MyBookings },
           { path: "my-courses", Component: MyCourses },
@@ -190,6 +193,7 @@ export const router = createHashRouter([
       { path: "mentors/:id", Component: AdminMentorDetail },
       { path: "mentors", Component: AdminMentors },
       { path: "finance", Component: AdminFinance },
+      { path: "finance-overview", Component: AdminFinanceOverview },
       { path: "transactions", Component: AdminTransactions },
       { path: "payouts", Component: AdminPayouts },
       { path: "bookings", Component: AdminBookings },

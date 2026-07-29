@@ -276,7 +276,12 @@ export async function loginWithGoogleCredential(credential) {
     }
     if (body.success && body.token && body.user) {
       persistLoginPayload(body);
-      return { success: true };
+      return {
+        success: true,
+        isNewGoogleUser: Boolean(body.isNewGoogleUser),
+        initialPasswordEmailed: Boolean(body.initialPasswordEmailed),
+        user: body.user,
+      };
     }
     return { success: false, error: body.error || "Đăng nhập Google thất bại." };
   } catch {

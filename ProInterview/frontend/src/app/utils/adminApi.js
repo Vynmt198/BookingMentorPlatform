@@ -126,6 +126,12 @@ export const adminApi = {
     const qs = q.toString();
     return authedFetch(`/api/admin/finance/platform-summary${qs ? `?${qs}` : ""}`);
   },
+  getFinanceOverview: (params = {}) => {
+    const q = new URLSearchParams();
+    if (params.month) q.set("month", params.month);
+    const qs = q.toString();
+    return authedFetch(`/api/admin/finance/overview${qs ? `?${qs}` : ""}`);
+  },
   confirmEnrollmentTransferPayment: (id, body = {}) =>
     authedFetch(`/api/admin/enrollments/${id}/confirm-transfer-payment`, {
       method: "PATCH",

@@ -88,7 +88,8 @@ Mật khẩu: **`Dev123456`**
 |:------|:-----|
 | `customer@dev.local` | Customer |
 | `mentor@dev.local` | Mentor |
-| `admin@dev.local` | Admin |
+
+> Admin (`admin@dev.local`) chỉ dùng trên website ProInterview — app mobile chặn đăng nhập admin.
 
 ---
 
@@ -100,7 +101,7 @@ Mật khẩu: **`Dev123456`**
 - CV/JD analysis hub (`CvAnalysisHubScreen`)
 - **Giỏ hàng** (`CartScreen`, thay thế `CartModal` cũ) — full-screen, có fallback lưu local (AsyncStorage) khi backend không có `/api/cart` hoặc offline, tự enroll từng khoá học khi checkout không qua server cart
 - Thanh toán, xem kết quả thanh toán (`CheckoutScreen`, `PaymentResultScreen`)
-- Hồ sơ cá nhân (`ProfileScreen`), cổng chọn vai trò (`RolePortal`)
+- Hồ sơ cá nhân (`ProfileScreen`), cổng mentor (`RolePortal`)
 
 ## Tính năng backend hiện có (khác biệt so với `ProInterview/backend`)
 

@@ -564,6 +564,18 @@ export async function listPendingSubscriptionTransfers() {
   ]);
   const paidStats = paidAgg[0] || { count: 0, totalAmount: 0 };
 
+  // Lịch sử ai đã mua/kích hoạt gói — trước đây chỉ có số đếm/tổng tiền (paidStats), không có
+  // danh sách dòng nào, nên admin không tra được "ai đã mua gói gì" trên trang này.
+  const paidRows = await Payment.find({
+    type: "subscription",
+    provider: "transfer",
+    status: "success",
+  })
+    .populate("userId", "name email plan")
+    .sort({ paidAt: -1, updatedAt: -1, createdAt: -1 })
+    .limit(100)
+    .lean();
+
   return {
     ok: true,
     payments: rows.map((p) => {
@@ -578,6 +590,28 @@ export async function listPendingSubscriptionTransfers() {
         status: p.status,
         createdAt: p.createdAt,
         transferSubmittedAt: pr.submittedAt || null,
+        paymentRef: pr.paymentRef || "",
+        user: u
+          ? {
+              id: String(u._id),
+              name: u.name || "",
+              email: u.email || "",
+              plan: u.plan || "free",
+            }
+          : null,
+      };
+    }),
+    recentPaidRows: paidRows.map((p) => {
+      const pr =
+        p.providerResponse && typeof p.providerResponse === "object" ? p.providerResponse : {};
+      const u = p.userId && typeof p.userId === "object" ? p.userId : null;
+      return {
+        id: String(p._id),
+        amount: p.amount,
+        providerRef: p.providerRef || "",
+        plan: planKeyFromSubscriptionMeta(pr.plan) || "student",
+        status: "success",
+        paidAt: p.paidAt || p.updatedAt || p.createdAt,
         paymentRef: pr.paymentRef || "",
         user: u
           ? {

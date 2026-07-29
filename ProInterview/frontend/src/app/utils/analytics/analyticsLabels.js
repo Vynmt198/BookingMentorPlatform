@@ -30,6 +30,7 @@ const ACTION_LABELS = {
   meeting_leave: "Rời phòng họp",
   meeting_complete: "Kết thúc buổi mentor",
   meeting_checkin_done: "Check-in mentor hoàn tất",
+  meeting_report_no_show: "Báo cáo vắng mặt trong phòng họp",
 };
 
 export function labelRoute(route) {

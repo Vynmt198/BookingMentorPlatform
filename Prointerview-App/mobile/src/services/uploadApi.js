@@ -54,3 +54,40 @@ export async function uploadAvatarImage(asset) {
     return { success: false, error: 'Không upload được ảnh. Kiểm tra kết nối mạng.' };
   }
 }
+
+/** Upload ảnh check-in meeting — POST /api/upload/meeting-checkin */
+export async function uploadMeetingCheckinImage(asset) {
+  if (!asset?.uri) {
+    return { success: false, error: 'Không có file ảnh.' };
+  }
+
+  const base = await ensureApiBase();
+  if (!base) {
+    return { success: false, error: 'Không kết nối được backend.' };
+  }
+
+  const formData = new FormData();
+  formData.append('file', {
+    uri: asset.uri,
+    name: asset.fileName || `checkin-${Date.now()}.jpg`,
+    type: asset.mimeType || asset.type || 'image/jpeg',
+  });
+
+  try {
+    const res = await authFetch('/api/upload/meeting-checkin', {
+      method: 'POST',
+      body: formData,
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || !body.success) {
+      return { success: false, error: body.error || `Upload thất bại (${res.status})` };
+    }
+    return {
+      success: true,
+      url: normalizeStoredUploadUrl(body.url) || body.url,
+      absoluteUrl: body.absoluteUrl || body.url,
+    };
+  } catch {
+    return { success: false, error: 'Không upload được ảnh check-in.' };
+  }
+}

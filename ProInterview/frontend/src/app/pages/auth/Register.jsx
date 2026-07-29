@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { registerUser, getBrandClickPath } from "../../utils/auth";
 import { toastApiError } from "../../utils/apiToast";
+import { buildLoginPath } from "../../utils/authGate";
 import { GoogleSignInBlock } from "../../components/auth/GoogleSignInBlock";
 import { BrandLogo } from "../../components/brand/BrandLogo";
 import { SparkleGlyph } from "../../components/decor/SparkleGlyph.jsx";
@@ -134,7 +135,7 @@ export function Register() {
           </p>
           <div className="space-y-4">
             <Link
-              to="/login"
+              to={buildLoginPath(searchParams.get("redirect") || "/")}
               className="inline-flex w-full items-center justify-center rounded-2xl px-6 py-4 text-base font-black transition-all hover:brightness-105 active:scale-[0.98]"
               style={AUTH_CTA_STYLE}
             >
@@ -321,7 +322,10 @@ export function Register() {
 
             <p className="mt-3 sm:mt-5 text-center text-xs sm:text-sm text-white/80">
               Đã có tài khoản?{" "}
-              <Link to="/login" className="font-bold text-[#93f72b] hover:underline">
+              <Link
+                to={buildLoginPath(searchParams.get("redirect") || "/")}
+                className="font-bold text-[#93f72b] hover:underline"
+              >
                 Đăng nhập ngay
               </Link>
             </p>

@@ -6,10 +6,31 @@ import { Mentor } from "../models/Mentor.js";
 import { resolveCoursePlatformFeeRate } from "./mentorCommissionService.js";
 import { supportsTransactions } from "../helpers/dbHelper.js";
 
-function parseFeeRate(envVal, fallback) {
-  const n = Number(String(envVal ?? "").trim());
+function parseFeeRate(raw, fallback) {
+  if (raw === null || raw === undefined) return fallback;
+  const trimmed = String(raw).trim();
+  if (trimmed === "") return fallback;
+  const n = Number(trimmed);
   if (!Number.isFinite(n) || n < 0 || n > 1) return fallback;
   return n;
+}
+
+/**
+ * Tách phí hoa hồng khỏi doanh thu gốc cho 1 đơn khóa học.
+ * `platformFee`/`platformFeeRate` chỉ được coi là "đã tính" khi khác null — 0 là một giá trị
+ * hợp lệ (miễn phí hoa hồng), không được lẫn với "chưa tính" (bug cũ: default 0 bị hiểu nhầm
+ * thành phí=0 tường minh, khiến mentor nhận 100% học phí).
+ */
+export function resolveCourseFee({ pricePaid, platformFee, platformFeeRate }, fallbackRate) {
+  const gross = Math.round(Number(pricePaid || 0));
+  if (gross <= 0) return { gross: 0, fee: 0, net: 0 };
+  if (platformFee != null && Number.isFinite(Number(platformFee)) && Number(platformFee) >= 0) {
+    const fee = Math.round(Number(platformFee));
+    return { gross, fee, net: Math.max(0, gross - fee) };
+  }
+  const rate = parseFeeRate(platformFeeRate, fallbackRate);
+  const fee = Math.round(gross * rate);
+  return { gross, fee, net: Math.max(0, gross - fee) };
 }
 
 /** Số ngày giữ tiền trước khi mentor rút được (bảo vệ trước report/tranh chấp). */
@@ -28,21 +49,14 @@ export function mentorNetFromBooking(booking) {
 }
 
 export function mentorNetFromCourseSale(input, mentorForFallback = null) {
-  const gross = Math.round(Number(input?.pricePaid ?? input ?? 0));
-  if (gross <= 0) return 0;
-  const explicitFee = Number(input?.platformFee);
-  if (Number.isFinite(explicitFee) && explicitFee >= 0) {
-    return Math.max(0, gross - Math.round(explicitFee));
-  }
-  const explicitRate = parseFeeRate(input?.platformFeeRate, NaN);
-  if (Number.isFinite(explicitRate)) {
-    return Math.max(0, gross - Math.round(gross * explicitRate));
-  }
+  const pricePaid = input?.pricePaid ?? input;
   const fallbackRate = mentorForFallback
     ? resolveCoursePlatformFeeRate(mentorForFallback).rate
     : parseFeeRate(process.env.COURSE_PLATFORM_FEE_RATE, 0.35);
-  const pf = Math.round(gross * fallbackRate);
-  return Math.max(0, gross - pf);
+  return resolveCourseFee(
+    { pricePaid, platformFee: input?.platformFee, platformFeeRate: input?.platformFeeRate },
+    fallbackRate,
+  ).net;
 }
 
 /**
@@ -105,29 +119,13 @@ export async function tryCreditMentorForPaidEnrollment(enrollmentId) {
   }
   const mentor = await Mentor.findById(course.mentorId).select("pricing").lean();
   const resolvedRate =
-    Number.isFinite(Number(row.platformFeeRate))
+    row.platformFeeRate != null && Number.isFinite(Number(row.platformFeeRate))
       ? Number(row.platformFeeRate)
       : resolveCoursePlatformFeeRate(mentor).rate;
-  const resolvedFee = Number.isFinite(Number(row.platformFee))
-    ? Math.round(Number(row.platformFee))
-    : Math.round(gross * resolvedRate);
-  const net = mentorNetFromCourseSale(
-    { pricePaid: gross, platformFeeRate: resolvedRate, platformFee: resolvedFee },
-    mentor,
+  const { fee: resolvedFee, net } = resolveCourseFee(
+    { pricePaid: gross, platformFee: row.platformFee, platformFeeRate: resolvedRate },
+    resolvedRate,
   );
-
-  /**
-   * STOPGAP — `Enrollment.platformFee` mặc định là `0`, và `Number.isFinite(0)` là `true`, nên
-   * guard ở trên nhận 0 như một giá trị hợp lệ: phí nền tảng = 0, mentor nhận 100% học phí.
-   * Chưa sửa được vì còn chờ quyết định % ăn chia. Log lại để mỗi ngày biết phát sinh bao nhiêu
-   * dòng sai — con số này chính là đầu vào cho script backfill sau khi có tỷ lệ chính thức.
-   */
-  if (gross > 0 && resolvedFee === 0) {
-    console.warn(
-      `[PLATFORM_FEE_ZERO] enrollment=${enrollmentId} course=${row.courseId} mentor=${course.mentorId} ` +
-        `gross=${gross} → mentor nhận 100%. Chờ chốt % phí nền tảng cho khóa học.`,
-    );
-  }
 
   // Tính mốc giữ tiền từ ngày THANH TOÁN, không phải ngày học xong — khóa học có thể học kéo dài
   // nhiều tuần hoặc không bao giờ hoàn thành, nên không thể chờ "học xong" mới bắt đầu đếm 3 ngày.

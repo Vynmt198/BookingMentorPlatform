@@ -49,6 +49,8 @@ import {
   MEETING_PROVIDER_LABELS,
 } from "../../utils/meetingLinks";
 import { MentorCancelSessionPanel } from "./MentorCancelSessionPanel";
+import { RefundBankFields } from "../../components/booking/RefundBankFields.jsx";
+import { resolveBankFields, effectiveBankName } from "../../constants/vietnamBanks.js";
 import {
   BRAND_LIME,
   BRAND_LIME_BORDER,
@@ -267,7 +269,8 @@ function sessionCalendarPayload(sessionData) {
   };
 }
 
-function SessionMeetingLinkCard({ sessionData }) {
+function SessionMeetingLinkCard({ sessionData, bookingId }) {
+  const navigate = useNavigate();
   const platform = meetingPlatformLabel(sessionData.meetLink);
   const isJitsi = getMeetingProvider(sessionData.meetLink) === "jitsi";
   const accent = isJitsi ? BRAND_PURPLE : "#4285F4";
@@ -308,15 +311,14 @@ function SessionMeetingLinkCard({ sessionData }) {
             </p>
           </div>
           <div className="flex flex-shrink-0 flex-col gap-2">
-            <a
-              href={sessionData.meetLink}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => navigate(`/meeting/${bookingId}`)}
               className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white transition-all hover:opacity-90"
               style={{ background: accent }}
             >
               {openLabel} <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+            </button>
             <CopyBtn text={sessionData.meetLink} label="Sao chép liên kết" />
           </div>
         </div>
@@ -478,7 +480,11 @@ export function SessionDetail() {
 
   useEffect(() => {
     if (!sessionData) return;
-    if (sessionData.refundReceiveBankName) setRefundBankName(sessionData.refundReceiveBankName);
+    if (sessionData.refundReceiveBankName) {
+      const { select, custom } = resolveBankFields(sessionData.refundReceiveBankName);
+      setRefundBankSelect(select);
+      setRefundCustomBankName(custom);
+    }
     if (sessionData.refundReceiveAccountNumber) setRefundAccountNumber(sessionData.refundReceiveAccountNumber);
     if (sessionData.refundReceiveAccountHolder) setRefundAccountHolder(sessionData.refundReceiveAccountHolder);
   }, [sessionData?.sessionId]);
@@ -488,9 +494,11 @@ export function SessionDetail() {
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelBusy, setCancelBusy] = useState(false);
-  const [refundBankName, setRefundBankName] = useState("");
+  const [refundBankSelect, setRefundBankSelect] = useState("");
+  const [refundCustomBankName, setRefundCustomBankName] = useState("");
   const [refundAccountNumber, setRefundAccountNumber] = useState("");
   const [refundAccountHolder, setRefundAccountHolder] = useState("");
+  const refundBankName = effectiveBankName(refundBankSelect, refundCustomBankName);
   const [refundDestBusy, setRefundDestBusy] = useState(false);
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [mentorResolutionStep, setMentorResolutionStep] = useState("");
@@ -660,10 +668,6 @@ export function SessionDetail() {
     mongoBookingId &&
       isLoggedIn() &&
       sessionData &&
-      // UI đang hiện màn "đã hoàn thành" (state "done" — kể cả khi tự suy theo giờ vì
-      // backend chưa từng đổi status khỏi "confirmed") thì không hiện thêm banner báo
-      // no-show mâu thuẫn ("vừa xong" nhưng lại hỏi "mentor không tham gia?").
-      state !== "done" &&
       elapsedSinceStartSec >= 15 * 60 &&
       // "in_progress" nghĩa là mentor ĐÃ vào phòng (backend chỉ set trạng thái này khi ai đó
       // start meeting) — không hợp lý để báo "mentor không tham gia" lúc buổi đang diễn ra.
@@ -788,7 +792,8 @@ export function SessionDetail() {
     toastApiSuccess(`Đã hủy lịch.${extra}`);
     setCancelModalOpen(false);
     setCancelReason("");
-    setRefundBankName("");
+    setRefundBankSelect("");
+    setRefundCustomBankName("");
     setRefundAccountNumber("");
     setRefundAccountHolder("");
     navigate("/my-bookings");
@@ -846,23 +851,6 @@ export function SessionDetail() {
         <div
           className={`${CUSTOMER_SHELL_MAX} w-full antialiased selection:bg-[rgba(122,35,229,0.18)] selection:text-slate-900`}
         >
-      {canReportNoShow && !mentorActionMode ? (
-        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50/90 p-4">
-          <p className="text-sm font-bold text-red-900">Mentor không tham gia?</p>
-          <p className="mt-1 text-xs text-red-900/80">
-            Nếu mentor không vào buổi sau 15 phút kể từ giờ hẹn, bạn có thể báo no-show để được hoàn ưu tiên 100%.
-          </p>
-          <button
-            type="button"
-            disabled={reportNoShowBusy}
-            onClick={() => void handleReportNoShow()}
-            className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
-          >
-            {reportNoShowBusy ? "Đang gửi…" : "Báo mentor no-show"}
-          </button>
-        </div>
-      ) : null}
-
       {state === "mentor_action" && sessionData ? (
         <MentorCancelSessionPanel
           sessionData={sessionData}
@@ -878,13 +866,14 @@ export function SessionDetail() {
           setRescheduleSlot={setRescheduleSlot}
           rescheduleSlotOptions={rescheduleSlotOptions}
           loadingRescheduleSlots={loadingRescheduleSlots}
-          refundBankName={refundBankName}
-          setRefundBankName={setRefundBankName}
+          refundBankSelect={refundBankSelect}
+          setRefundBankSelect={setRefundBankSelect}
+          refundCustomBankName={refundCustomBankName}
+          setRefundCustomBankName={setRefundCustomBankName}
           refundAccountNumber={refundAccountNumber}
           setRefundAccountNumber={setRefundAccountNumber}
           refundAccountHolder={refundAccountHolder}
           setRefundAccountHolder={setRefundAccountHolder}
-          refundBankFormTitle={refundBankFormTitle}
           needsRefundBankForm={needsRefundBankForm}
           refundDestBusy={refundDestBusy}
           onSubmitRefundDestination={() => void handleSubmitRefundDestination()}
@@ -1037,7 +1026,7 @@ export function SessionDetail() {
               </div>
             </div>
 
-            <SessionMeetingLinkCard sessionData={sessionData} />
+            <SessionMeetingLinkCard sessionData={sessionData} bookingId={id} />
 
             {/* ── Tips ── */}
             <div className="card-premium p-5">
@@ -1200,27 +1189,15 @@ export function SessionDetail() {
                       </strong>
                     </p>
                   ) : null}
-                  <input
-                    type="text"
-                    value={refundBankName}
-                    onChange={(e) => setRefundBankName(e.target.value)}
-                    placeholder="Tên ngân hàng"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
-                  />
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={refundAccountNumber}
-                    onChange={(e) => setRefundAccountNumber(e.target.value)}
-                    placeholder="Số tài khoản"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-violet-400"
-                  />
-                  <input
-                    type="text"
-                    value={refundAccountHolder}
-                    onChange={(e) => setRefundAccountHolder(e.target.value)}
-                    placeholder="Tên chủ tài khoản"
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
+                  <RefundBankFields
+                    bankSelect={refundBankSelect}
+                    onBankSelectChange={setRefundBankSelect}
+                    customBankName={refundCustomBankName}
+                    onCustomBankNameChange={setRefundCustomBankName}
+                    accountNumber={refundAccountNumber}
+                    onAccountNumberChange={setRefundAccountNumber}
+                    accountHolder={refundAccountHolder}
+                    onAccountHolderChange={setRefundAccountHolder}
                   />
                   <button
                     type="button"
@@ -1338,7 +1315,7 @@ export function SessionDetail() {
             {/* Notes area */}
             <div className="card-premium overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2" style={{ background: "rgba(128, 55, 244,0.03)" }}>
-                <Notebook className="w-4 h-4" style={{ color: "#8037f4" }} />
+                <Notepad className="w-4 h-4" style={{ color: "#8037f4" }} />
                 <span className="font-semibold text-gray-800 text-sm">Ghi chú trong buổi phỏng vấn</span>
               </div>
               <div className="p-5">
@@ -1426,35 +1403,65 @@ export function SessionDetail() {
           <div className="space-y-5 lg:col-span-2">
 
             {/* Done header — đồng bộ layout/bo góc với STATE: UPCOMING, tông tím để phân
-                biệt rõ với banner lime "đã xác nhận" (tránh hiểu nhầm buổi còn hiệu lực) */}
-            <div
-              className="flex items-center justify-between gap-4 rounded-2xl border px-5 py-4"
-              style={{
-                background: BRAND_PURPLE_SOFT_LIGHT,
-                borderColor: BRAND_PURPLE_BORDER,
-              }}
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <div
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                  style={{ background: "rgba(128, 55, 244, 0.1)" }}
+                biệt rõ với banner lime "đã xác nhận" (tránh hiểu nhầm buổi còn hiệu lực).
+                Khi backend chưa xác nhận buổi thực sự diễn ra (mentor có thể chưa vào phòng),
+                thay hẳn nội dung "đã hoàn thành" bằng banner báo no-show — tránh hiện 2 thông
+                điệp mâu thuẫn cùng lúc (vừa nói hoàn thành vừa hỏi mentor có tham gia không). */}
+            {canReportNoShow ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50/90 px-5 py-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-100">
+                    <WarningCircle className="h-6 w-6 text-red-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-base font-bold text-red-900 sm:text-[1.05rem]">Mentor không tham gia?</p>
+                    <p className="mt-0.5 truncate text-xs text-red-900/70">
+                      {sessionData.date} · {sessionData.time} – {sessionData.endTime} · với {sessionData.mentorName}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-red-900/80">
+                  Nếu mentor không vào buổi sau 15 phút kể từ giờ hẹn, bạn có thể báo no-show để được hoàn ưu tiên 100%.
+                </p>
+                <button
+                  type="button"
+                  disabled={reportNoShowBusy}
+                  onClick={() => void handleReportNoShow()}
+                  className="mt-3 rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
                 >
-                  <Trophy className="h-6 w-6" style={{ color: BRAND_PURPLE }} />
+                  {reportNoShowBusy ? "Đang gửi…" : "Báo mentor no-show"}
+                </button>
+              </div>
+            ) : (
+              <div
+                className="flex items-center justify-between gap-4 rounded-2xl border px-5 py-4"
+                style={{
+                  background: BRAND_PURPLE_SOFT_LIGHT,
+                  borderColor: BRAND_PURPLE_BORDER,
+                }}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                    style={{ background: "rgba(128, 55, 244, 0.1)" }}
+                  >
+                    <Trophy className="h-6 w-6" style={{ color: BRAND_PURPLE }} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-base font-bold text-slate-900 sm:text-[1.05rem]">
+                      Buổi phỏng vấn đã hoàn thành
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-slate-500">
+                      {sessionData.date} · {sessionData.time} – {sessionData.endTime} · với {sessionData.mentorName}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-base font-bold text-slate-900 sm:text-[1.05rem]">
-                    Buổi phỏng vấn đã hoàn thành
-                  </p>
-                  <p className="mt-0.5 truncate text-xs text-slate-500">
-                    {sessionData.date} · {sessionData.time} – {sessionData.endTime} · với {sessionData.mentorName}
-                  </p>
+                <div className="shrink-0 text-right">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mã đặt lịch</p>
+                  <p className="text-sm font-bold text-slate-900">#{sessionData.orderNum}</p>
                 </div>
               </div>
-              <div className="shrink-0 text-right">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mã đặt lịch</p>
-                <p className="text-sm font-bold text-slate-900">#{sessionData.orderNum}</p>
-              </div>
-            </div>
+            )}
 
             {/* Review CTA */}
             {sessionData?.isReviewed ? (
@@ -1788,29 +1795,15 @@ export function SessionDetail() {
                       <p className="text-[11px] leading-snug text-sky-950/80">
                         Tiền vào TK công ty, hệ thống không lưu STK nguồn. Điền STK nhận hoàn (số tiền do hệ thống tính).
                       </p>
-                      <input
-                        type="text"
-                        value={refundBankName}
-                        onChange={(e) => setRefundBankName(e.target.value)}
-                        placeholder="Ngân hàng"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
-                      />
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        value={refundAccountNumber}
-                        onChange={(e) => setRefundAccountNumber(e.target.value)}
-                        placeholder="Số tài khoản"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-violet-400"
-                      />
-                      <input
-                        type="text"
-                        autoComplete="name"
-                        value={refundAccountHolder}
-                        onChange={(e) => setRefundAccountHolder(e.target.value)}
-                        placeholder="Tên chủ tài khoản"
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-violet-400"
+                      <RefundBankFields
+                        bankSelect={refundBankSelect}
+                        onBankSelectChange={setRefundBankSelect}
+                        customBankName={refundCustomBankName}
+                        onCustomBankNameChange={setRefundCustomBankName}
+                        accountNumber={refundAccountNumber}
+                        onAccountNumberChange={setRefundAccountNumber}
+                        accountHolder={refundAccountHolder}
+                        onAccountHolderChange={setRefundAccountHolder}
                       />
                     </div>
                   ) : null}
@@ -1823,7 +1816,8 @@ export function SessionDetail() {
                       onClick={() => {
                         setCancelModalOpen(false);
                         setCancelReason("");
-                        setRefundBankName("");
+                        setRefundBankSelect("");
+                        setRefundCustomBankName("");
                         setRefundAccountNumber("");
                         setRefundAccountHolder("");
                       }}

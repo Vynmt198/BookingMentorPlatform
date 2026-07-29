@@ -144,8 +144,28 @@ export function isBookingAtOrPastStart(booking) {
   return Date.now() >= start;
 }
 
+/** Chặn kết thúc buổi "ăn gian" — phải qua tối thiểu 2/3 thời lượng đặt mới được bấm Kết thúc buổi. */
+const MENTOR_COMPLETE_MIN_FRACTION = 2 / 3;
+
+/** Mốc sớm nhất mentor được kết thúc buổi (ms) — 2/3 thời lượng kể từ giờ hẹn. */
+export function getMinCompletableAtMs(booking) {
+  const start = parseBookingStartMs(booking);
+  if (!Number.isFinite(start)) return NaN;
+  const dur = (Number(booking?.durationMinutes) || 60) * 60 * 1000;
+  return start + dur * MENTOR_COMPLETE_MIN_FRACTION;
+}
+
+/** Số phút còn lại tới khi đủ 2/3 thời lượng — dùng hiển thị "còn X phút mới kết thúc được". */
+export function getMinutesUntilBookingCompletable(booking) {
+  const minAt = getMinCompletableAtMs(booking);
+  if (!Number.isFinite(minAt)) return 0;
+  return Math.max(0, Math.ceil((minAt - Date.now()) / 60_000));
+}
+
 export function canMentorCompleteBooking(booking) {
-  return isBookingAtOrPastStart(booking);
+  const minAt = getMinCompletableAtMs(booking);
+  if (!Number.isFinite(minAt)) return false;
+  return Date.now() >= minAt;
 }
 
 /** Hiển thị thời gian còn lại đến giờ hẹn (phút → ngày/giờ). */

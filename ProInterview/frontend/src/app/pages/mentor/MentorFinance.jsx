@@ -634,6 +634,10 @@ export function MentorFinance() {
   const platformFeeTotal = Number(finance?.platformFeeTotal || 0);
   const bookingIncome = Number(finance?.incomeBreakdown?.booking || 0);
   const courseIncome = Number(finance?.incomeBreakdown?.course || 0);
+  const bookingFee = Number(finance?.feeBreakdown?.booking || 0);
+  const courseFee = Number(finance?.feeBreakdown?.course || 0);
+  const bookingGross = Number(finance?.grossBreakdown?.booking || 0);
+  const courseGross = Number(finance?.grossBreakdown?.course || 0);
   const payoutAccounts = Array.isArray(finance?.payoutAccounts) ? finance.payoutAccounts : [];
   const payoutAccountOwnerName = finance?.payoutAccountOwnerName || getDisplayName(user, "Mentor");
   const commissionPolicy = finance?.commissionPolicy || null;
@@ -762,7 +766,6 @@ export function MentorFinance() {
               <p className="mt-2 text-sm text-violet-200/90">Số dư khả dụng </p>
               {payoutAccounts.length === 0 ? (
                 <p className="mt-4 text-xs text-violet-300/90">
-                  Chưa có tài khoản nhận tiền — bạn sẽ thêm khi rút lần đầu.
                 </p>
               ) : null}
             </div>
@@ -1130,55 +1133,40 @@ export function MentorFinance() {
             transition={{ duration: 0.5, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
             className="flex flex-col gap-4 lg:col-span-4"
           >
-            {clearingItems.length > 0 ? (
-              <div className="rounded-2xl border border-amber-300/60 bg-amber-50/60 p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
-                <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-700">
-                  <ShieldCheck size={13} />
-                  Đang xử lý ({clearingItems.length} khoản)
-                </h3>
-                <p className="mt-1.5 text-xs leading-relaxed text-amber-800/80">
-                  Tiền từ buổi/khoá mới hoàn thành, giữ {holdDays} ngày trước khi chuyển sang "Số dư khả dụng" — đề phòng khiếu nại từ học viên.
-                </p>
-                <ul className="mt-3 divide-y divide-amber-200/60">
-                  {clearingItems.slice(0, 5).map((item) => (
-                    <li key={item.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-semibold text-slate-800">{item.description}</p>
-                        <p className="mt-0.5 text-[11px] text-amber-700">
-                          Khả dụng: {item.clearAt ? new Date(item.clearAt).toLocaleDateString("vi-VN") : "—"}
-                        </p>
-                      </div>
-                      <span className="shrink-0 font-headline text-sm font-bold tabular-nums text-amber-700">
-                        {formatMoney(item.amount)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-
             <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-[0_1px_3px_rgba(15,23,42,0.04)]">
               <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Nguồn thu nhập
               </h3>
               <ul className="mt-4 divide-y divide-slate-100">
-                <li className="flex items-center justify-between gap-3 py-3 first:pt-0">
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                    <Calendar size={15} className="text-[#8037f4]" />
-                    Từ đặt lịch
-                  </span>
-                  <span className="font-headline text-sm font-bold text-slate-900">
-                    {formatMoney(bookingIncome)}
-                  </span>
+                <li className="flex flex-col gap-1.5 py-3 first:pt-0">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <Calendar size={15} className="text-[#8037f4]" />
+                      Từ đặt lịch
+                    </span>
+                    <span className="font-headline text-sm font-bold text-slate-900">
+                      {formatMoney(bookingIncome)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 pl-[23px] text-xs text-slate-400">
+                    <span>Doanh thu gốc {formatMoney(bookingGross)}</span>
+                    <span className="text-rose-500">−{formatMoney(bookingFee)} hoa hồng</span>
+                  </div>
                 </li>
-                <li className="flex items-center justify-between gap-3 py-3">
-                  <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                    <BookOpen size={15} className="text-[#8037f4]" />
-                    Từ khóa học
-                  </span>
-                  <span className="font-headline text-sm font-bold text-slate-900">
-                    {formatMoney(courseIncome)}
-                  </span>
+                <li className="flex flex-col gap-1.5 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                      <BookOpen size={15} className="text-[#8037f4]" />
+                      Từ khóa học
+                    </span>
+                    <span className="font-headline text-sm font-bold text-slate-900">
+                      {formatMoney(courseIncome)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 pl-[23px] text-xs text-slate-400">
+                    <span>Doanh thu gốc {formatMoney(courseGross)}</span>
+                    <span className="text-rose-500">−{formatMoney(courseFee)} hoa hồng</span>
+                  </div>
                 </li>
               </ul>
             </div>

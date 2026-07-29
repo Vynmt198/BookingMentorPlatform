@@ -2,11 +2,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://prointerview-backend-xm5q.onrender.com/api/:path*"
+      "destination": "https://prointerview-backend.onrender.com/api/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://prointerview-backend-xm5q.onrender.com/uploads/:path*"
+      "destination": "https://prointerview-backend.onrender.com/uploads/:path*"
     }
   ],
   "headers": [

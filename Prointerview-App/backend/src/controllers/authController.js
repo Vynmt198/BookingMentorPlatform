@@ -81,6 +81,8 @@ export class AuthController {
         refreshToken: result.refreshToken,
         expiresIn: result.expiresIn,
         user: result.user,
+        isNewGoogleUser: Boolean(result.isNewGoogleUser),
+        initialPasswordEmailed: Boolean(result.initialPasswordEmailed),
       });
     } catch (err) {
       next(err);

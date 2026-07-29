@@ -48,6 +48,7 @@ adminRouter.get("/content/stats", asyncHandler(AdminController.getContentStats))
 adminRouter.get("/content/course-media", asyncHandler(AdminController.getCourseMediaOverview));
 adminRouter.get("/finance/courses", asyncHandler(AdminController.getCourseFinanceSummary));
 adminRouter.get("/finance/platform-summary", asyncHandler(AdminController.getPlatformFinanceSummary));
+adminRouter.get("/finance/overview", asyncHandler(AdminController.getFinanceOverview));
 adminRouter.patch(
   "/bookings/:id/confirm-transfer-payment",
   asyncHandler(AdminController.confirmBookingTransferPayment),

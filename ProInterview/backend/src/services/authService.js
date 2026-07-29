@@ -13,6 +13,7 @@ import {
   shouldEnforceSessionFingerprint,
 } from "../utils/securityGuards.js";
 import { isAccessTokenJtiRevoked, revokeAccessTokenJti } from "./accessTokenBlacklist.js";
+import { ensureWelcomeNotification } from "./notificationDeliveryService.js";
 
 const SALT_ROUNDS = 10;
 const MIN_PASSWORD = 6;
@@ -24,6 +25,17 @@ const VERIFY_TOKEN_DAYS = 3;
 
 function sha256Hex(input) {
   return crypto.createHash("sha256").update(String(input ?? ""), "utf8").digest("hex");
+}
+
+/** Sinh mật khẩu khởi tạo dễ đọc (bỏ ký tự dễ nhầm 0/O, 1/l/I) cho tài khoản tạo qua Google. */
+function generateInitialPassword(length = 10) {
+  const charset = "ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    out += charset[bytes[i] % charset.length];
+  }
+  return out;
 }
 
 function accessExpiresIn() {
@@ -489,6 +501,12 @@ export async function registerUser(body) {
     
     await emailService.sendVerificationEmail(trimmedEmail, trimmedName, verifyUrl);
 
+    try {
+      await ensureWelcomeNotification(newUser._id, { name: trimmedName });
+    } catch (e) {
+      console.warn("[auth/register] welcome notification:", e?.message || e);
+    }
+
     return { ok: true, verifyToken: verifyToken }; // Trả về token ở dev để dễ test
   } catch (err) {
     if (err.code === 11000) {
@@ -604,11 +622,20 @@ export async function loginUser(body, req) {
     return { ok: false, status: 403, error: "Tài khoản đã bị khóa. Liên hệ quản trị viên." };
   }
 
+  const isFirstLogin = !user.lastLoginAt;
   user.failedLoginAttempts = 0;
   user.lockUntil = null;
   user.lastLoginAt = new Date();
   const { refreshToken } = pushNewSession(user, req);
   await user.save();
+
+  if (isFirstLogin) {
+    try {
+      await ensureWelcomeNotification(user._id, { name: user.name });
+    } catch (e) {
+      console.warn("[auth/login] welcome notification:", e?.message || e);
+    }
+  }
 
   const access = issueAccessToken(user);
   if (!access.ok) return access;
@@ -711,28 +738,61 @@ export async function loginWithGoogle(body, req) {
     }
   }
 
+  let isNewGoogleUser = false;
+  let initialPasswordEmailed = false;
+
   if (!user) {
-    const passwordHash = await bcrypt.hash(crypto.randomBytes(48).toString("hex"), SALT_ROUNDS);
+    const initialPassword = generateInitialPassword();
+    const passwordHash = await bcrypt.hash(initialPassword, SALT_ROUNDS);
     user = await User.create({
       email,
       passwordHash,
       name,
       role: "customer",
       googleId: sub,
+      mustChangePassword: true,
+      isEmailVerified: true,
       avatar: typeof payload.picture === "string" ? upgradeGooglePhotoRes(payload.picture) : undefined,
     });
     user = await User.findById(user._id).select("+googleSub +authSessions");
+    isNewGoogleUser = true;
+    try {
+      const mailRes = await emailService.sendInitialPasswordEmail(email, name, initialPassword);
+      initialPasswordEmailed = Boolean(mailRes?.ok);
+      if (!mailRes?.ok) {
+        console.error(
+          "[auth/google] Gửi mật khẩu khởi tạo thất bại:",
+          mailRes?.error || "unknown",
+        );
+      }
+    } catch (err) {
+      console.error("[auth/google] sendInitialPasswordEmail threw:", err?.message || err);
+    }
+    try {
+      await ensureWelcomeNotification(user._id, { name: user.name || name });
+    } catch (e) {
+      console.warn("[auth/google] welcome notification:", e?.message || e);
+    }
   }
 
   if (user.isActive === false) {
     return { ok: false, status: 403, error: "Tài khoản đã bị khóa. Liên hệ quản trị viên." };
   }
 
+  const isFirstGoogleLogin = !user.lastLoginAt;
   user.failedLoginAttempts = 0;
   user.lockUntil = null;
   user.lastLoginAt = new Date();
   const { refreshToken } = pushNewSession(user, req);
   await user.save();
+
+  if (isFirstGoogleLogin) {
+    try {
+      await ensureWelcomeNotification(user._id, { name: user.name || name });
+    } catch (e) {
+      console.warn("[auth/google] welcome notification (first login):", e?.message || e);
+    }
+  }
 
   const access = issueAccessToken(user);
   if (!access.ok) return access;
@@ -742,6 +802,8 @@ export async function loginWithGoogle(body, req) {
     refreshToken,
     expiresIn: accessExpiresInSeconds(access.token),
     user: access.user,
+    isNewGoogleUser,
+    initialPasswordEmailed,
   };
 }
 
@@ -788,6 +850,7 @@ export async function patchMeUser(userId, body, req, options = {}) {
     }
     user.passwordHash = await bcrypt.hash(trimmedNew, SALT_ROUNDS);
     user.markModified("passwordHash");
+    user.mustChangePassword = false;
     passwordChanged = true;
   }
 
