@@ -20,6 +20,9 @@ function addYears(date, years) {
   return d;
 }
 
+/** Số tiền rút tối thiểu mỗi lần (VND). Dùng chung giữa `requestPayout` và bảng chính sách. */
+export const MIN_PAYOUT_VND = 100_000;
+
 export function mentorCommissionConfig() {
   const bookingStandardRate = parseRate(process.env.BOOKING_PLATFORM_FEE_RATE, 0.3);
   const bookingEarlyRate = parseRate(process.env.BOOKING_PLATFORM_FEE_RATE_EARLY_MENTOR, 0.2);

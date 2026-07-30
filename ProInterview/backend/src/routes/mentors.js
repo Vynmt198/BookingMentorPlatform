@@ -8,6 +8,8 @@ import { MentorMeController } from "../controllers/mentorMeController.js";
 export const mentorsRouter = express.Router();
 
 mentorsRouter.get("/", asyncHandler(MentorsController.list));
+/** Công khai — trang đăng ký mentor đọc để hiển thị đúng % hoa hồng đang áp dụng. */
+mentorsRouter.get("/commission-policy", asyncHandler(MentorsController.commissionPolicy));
 mentorsRouter.post("/apply", authJwt, asyncHandler(MentorsController.apply));
 /** Đọc hồ sơ mentor của chính mình (kể cả customer đang chờ duyệt) — không dùng requireMentor. */
 mentorsRouter.get("/me", authJwt, asyncHandler(MentorMeController.getMe));
