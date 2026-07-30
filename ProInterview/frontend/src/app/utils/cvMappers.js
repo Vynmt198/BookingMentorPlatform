@@ -110,6 +110,8 @@ export function mapAnalysisDocToHistoryItem(doc) {
     position: doc.position || r._ui?.position || null,
     cvFileName: doc.cvFileName || "cv",
     jdFileName: doc.jdFileName || null,
+    cvFileUrl: doc.cvFileUrl || r._ui?.cvFileUrl || null,
+    jdFileUrl: doc.jdFileUrl || r._ui?.jdFileUrl || null,
     matchScore: match.score ?? r.matchScore ?? r._ui?.matchScore ?? 0,
     matchedKeywords: match.matchedKeywords || r._ui?.matchedKeywords || [],
     missingKeywords: match.missingKeywords || r._ui?.missingKeywords || [],
