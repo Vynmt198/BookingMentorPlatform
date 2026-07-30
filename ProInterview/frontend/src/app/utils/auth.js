@@ -427,7 +427,7 @@ export async function restoreSession() {
       const res = await fetch(apiUrl("/api/auth/me"), { headers: bearerHeaders() });
       const ok = await finishMe(res);
       if (ok === true) return true;
-      if (ok === false) {
+      if (ok === false && !hasRefresh) {
         clearAuthStorage();
         return false;
       }
