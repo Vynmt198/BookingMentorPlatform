@@ -18,7 +18,8 @@ import {
   Trophy,
   Sprout as Plant,
   CheckCircle,
-  AlertTriangle
+  AlertTriangle,
+  HelpCircle
 } from "lucide-react";
 import {
   getPlans,
@@ -44,6 +45,7 @@ import {
   ProfileCvStaticSection,
   ProfileCvTextarea,
 } from "../../components/profile/ProfileCvSection";
+import { MentorPolicyModal } from "../../components/modals/MentorPolicyModal";
 import { ProfileWorkHistoryEditor } from "../../components/profile/ProfileWorkHistoryEditor";
 import { ProfileEducationHistoryEditor } from "../../components/profile/ProfileEducationHistoryEditor";
 import { uploadFile } from "../../utils/uploadApi";
@@ -229,6 +231,7 @@ export function Profile() {
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
   const [mentorApplyError, setMentorApplyError] = useState("");
+  const [policyOpen, setPolicyOpen] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(user?.avatar || "");
   const [avatarBroken, setAvatarBroken] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -1103,18 +1106,31 @@ export function Profile() {
                     )}
                   </button>
                   {!isMentor && (
-                    <button
-                      type="button"
-                      disabled={applying}
-                      onClick={handleSidebarMentorRegister}
-                      className="profile-btn-lime flex w-full flex-1 items-center justify-center rounded-2xl py-4 text-sm font-bold transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50"
-                    >
-                      {applying ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#2D1B69]/25 border-t-[#2D1B69]" />
-                      ) : (
-                        "Đăng ký làm Mentor"
-                      )}
-                    </button>
+                    <div className="flex w-full flex-1 items-stretch gap-2">
+                      <button
+                        type="button"
+                        disabled={applying}
+                        onClick={handleSidebarMentorRegister}
+                        className="profile-btn-lime flex flex-1 items-center justify-center rounded-2xl py-4 text-sm font-bold transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-50"
+                      >
+                        {applying ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#2D1B69]/25 border-t-[#2D1B69]" />
+                        ) : (
+                          "Đăng ký làm Mentor"
+                        )}
+                      </button>
+                      {/* Hoa hồng, thời gian giữ tiền và điều kiện đóng tài khoản đều ràng buộc
+                          thật — phải đọc được TRƯỚC khi bấm đăng ký. */}
+                      <button
+                        type="button"
+                        onClick={() => setPolicyOpen(true)}
+                        aria-label="Xem chính sách hoa hồng và lưu ý trước khi đăng ký làm cố vấn"
+                        title="Chính sách hoa hồng & lưu ý"
+                        className="flex w-14 shrink-0 items-center justify-center rounded-2xl border-2 border-[#2D1B69]/15 bg-white text-[#2D1B69] transition-all hover:border-[#2D1B69]/40 hover:bg-[#fafef5] active:scale-[0.97]"
+                      >
+                        <HelpCircle size={20} />
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -1124,6 +1140,8 @@ export function Profile() {
           </div>
         </div>
       </div>
+
+      {policyOpen ? <MentorPolicyModal onClose={() => setPolicyOpen(false)} /> : null}
     </MentorPageShell>
   );
 }

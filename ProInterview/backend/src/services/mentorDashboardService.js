@@ -14,6 +14,7 @@ import {
   resolveBookingPlatformFeeRate,
   resolveCoursePlatformFeeRate,
   isEarlyMentorRateActive,
+  MIN_PAYOUT_VND,
 } from "./mentorCommissionService.js";
 import { EARNINGS_HOLD_DAYS, resolveCourseFee } from "./mentorEarningsService.js";
 
@@ -868,7 +869,13 @@ export async function requestPayout(userId, body) {
   if (!mentor?._id) return { ok: false, status: 404, error: "Không tìm thấy hồ sơ mentor." };
   const amount = Number(body?.amount);
   if (!Number.isFinite(amount) || amount <= 0) return { ok: false, status: 400, error: "amount không hợp lệ." };
-  if (amount < 100000) return { ok: false, status: 400, error: "Số tiền rút tối thiểu là 100.000đ." };
+  if (amount < MIN_PAYOUT_VND) {
+    return {
+      ok: false,
+      status: 400,
+      error: `Số tiền rút tối thiểu là ${MIN_PAYOUT_VND.toLocaleString("vi-VN")}đ.`,
+    };
+  }
   const roundedAmount = Math.round(amount);
 
   const accountId = sanitizeText(body?.accountId);
