@@ -1,11 +1,10 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   Calendar as CalendarBlank,
   Clock,
   Upload as UploadSimple,
   FileText,
-  Check,
   ChevronRight as CaretRight,
   Video as VideoCamera,
   Bell,
@@ -25,8 +24,10 @@ import { fetchBookedSlots, fetchRebookCredit } from "../../utils/bookingsApi";
 import { toastApiError, toastApiSuccess } from "../../utils/apiToast";
 import { uploadFile } from "../../utils/uploadApi";
 import { getSuggestedBookingDataAsync, saveUploadedCV, saveUploadedJD } from "../../utils/history";
+import { fetchReusableBookingDocs } from "../../utils/bookingDocuments";
 import { MentorPageShell } from "../../components/mentor/MentorPageShell";
 import { BookingStepBar } from "../../components/booking/BookingStepBar";
+import { BookingDocumentField } from "../../components/booking/BookingDocumentField";
 import { CUSTOMER_SHELL_GUTTER, CUSTOMER_SHELL_MAX } from "../../components/layout/customerShellLayout";
 import { BookingPolicySummary } from "../../components/booking/BookingPolicySummary";
 import { BRAND_CTA_LIME_STYLE } from "../../constants/brandColors";
@@ -155,8 +156,11 @@ export function Booking() {
   const [selectedJdFile, setSelectedJdFile] = useState("");
   const [selectedJdUrl, setSelectedJdUrl] = useState("");
   const [jdUploading, setJdUploading] = useState(false);
-  const cvInputRef = useRef(null);
-  const jdInputRef = useRef(null);
+  const [cvFromHistory, setCvFromHistory] = useState(false);
+  const [jdFromHistory, setJdFromHistory] = useState(false);
+  const [reusableCvOptions, setReusableCvOptions] = useState([]);
+  const [reusableJdOptions, setReusableJdOptions] = useState([]);
+  const [reusableDocsLoading, setReusableDocsLoading] = useState(true);
   const calendarWeeks = useMemo(() => {
     const now = new Date();
     const thisWeekStart = startOfIsoWeek(now);
@@ -169,6 +173,21 @@ export function Booking() {
       setSuggestedData(suggested);
       if (suggested?.position) setShowSmartBanner(true);
     });
+  }, []);
+
+  // CV/JD đã upload ở các lần phân tích trước — cho phép dùng lại, không cần upload lại
+  useEffect(() => {
+    let alive = true;
+    setReusableDocsLoading(true);
+    void fetchReusableBookingDocs().then((res) => {
+      if (!alive) return;
+      setReusableCvOptions(res.cvOptions);
+      setReusableJdOptions(res.jdOptions);
+      setReusableDocsLoading(false);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -189,23 +208,45 @@ export function Booking() {
 
   const handleUseSmartFill = () => {
     if (!suggestedData) return;
-    setForm({ ...form, position: suggestedData.position || "", cv: !!suggestedData.cvFile, jd: !!suggestedData.jdFile });
-    if (suggestedData.cvFile) setSelectedCvFile(suggestedData.cvFile);
-    if (suggestedData.jdFile) setSelectedJdFile(suggestedData.jdFile);
+    const cvOption =
+      reusableCvOptions.find((o) => o.name === suggestedData.cvFile) || reusableCvOptions[0] || null;
+    const jdOption = suggestedData.jdFile
+      ? reusableJdOptions.find((o) => o.name === suggestedData.jdFile) || reusableJdOptions[0] || null
+      : null;
+
+    setForm((prev) => ({
+      ...prev,
+      position: suggestedData.position || prev.position,
+      cv: prev.cv || !!cvOption,
+      jd: prev.jd || !!jdOption,
+    }));
+    if (cvOption) {
+      setSelectedCvFile(cvOption.name);
+      setSelectedCvUrl(cvOption.url);
+      setCvFromHistory(true);
+    }
+    if (jdOption) {
+      setSelectedJdFile(jdOption.name);
+      setSelectedJdUrl(jdOption.url);
+      setJdFromHistory(true);
+    }
     setShowSmartBanner(false);
+    if (!cvOption && suggestedData.cvFile) {
+      toastApiError("Bản phân tích gần nhất không lưu file CV trên server — vui lòng tải CV lên.");
+    }
   };
 
-  const handleCvFileChange = async (e) => {
-    const file = e.target.files?.[0];
+  const handleCvFileSelect = async (file) => {
     if (!file) return;
     setCvUploading(true);
+    setCvFromHistory(false);
     setSelectedCvFile(file.name);
     setSelectedCvUrl("");
     const res = await uploadFile(file, "cv");
     setCvUploading(false);
-    e.target.value = "";
     if (!res.success || !res.url) {
       setSelectedCvFile("");
+      setForm((prev) => ({ ...prev, cv: false }));
       toastApiError(res.error, "Không tải CV lên được.");
       return;
     }
@@ -216,17 +257,17 @@ export function Booking() {
     toastApiSuccess("Đã tải CV lên, mentor có thể mở khi xem buổi hẹn.");
   };
 
-  const handleJdFileChange = async (e) => {
-    const file = e.target.files?.[0];
+  const handleJdFileSelect = async (file) => {
     if (!file) return;
     setJdUploading(true);
+    setJdFromHistory(false);
     setSelectedJdFile(file.name);
     setSelectedJdUrl("");
     const res = await uploadFile(file, "jd");
     setJdUploading(false);
-    e.target.value = "";
     if (!res.success || !res.url) {
       setSelectedJdFile("");
+      setForm((prev) => ({ ...prev, jd: false }));
       toastApiError(res.error, "Không tải JD lên được.");
       return;
     }
@@ -235,6 +276,36 @@ export function Booking() {
     setForm((prev) => ({ ...prev, jd: true }));
     saveUploadedJD({ name: file.name, size: file.size, type: file.type });
     toastApiSuccess("Đã tải JD lên.");
+  };
+
+  const handleReuseCv = (option) => {
+    setSelectedCvFile(option.name);
+    setSelectedCvUrl(option.url);
+    setCvFromHistory(true);
+    setForm((prev) => ({ ...prev, cv: true, position: prev.position || option.position || "" }));
+    toastApiSuccess("Đã dùng lại CV từ lịch sử phân tích.");
+  };
+
+  const handleReuseJd = (option) => {
+    setSelectedJdFile(option.name);
+    setSelectedJdUrl(option.url);
+    setJdFromHistory(true);
+    setForm((prev) => ({ ...prev, jd: true, position: prev.position || option.position || "" }));
+    toastApiSuccess("Đã dùng lại JD từ lịch sử phân tích.");
+  };
+
+  const handleClearCv = () => {
+    setSelectedCvFile("");
+    setSelectedCvUrl("");
+    setCvFromHistory(false);
+    setForm((prev) => ({ ...prev, cv: false }));
+  };
+
+  const handleClearJd = () => {
+    setSelectedJdFile("");
+    setSelectedJdUrl("");
+    setJdFromHistory(false);
+    setForm((prev) => ({ ...prev, jd: false }));
   };
 
   const handleProceed = () => {
@@ -739,100 +810,45 @@ export function Booking() {
                   />
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
-                    Tải lên CV <span className="font-normal normal-case text-slate-600">(bắt buộc)</span>
-                  </label>
-                  <input
-                    ref={cvInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword"
-                    className="hidden"
-                    onChange={handleCvFileChange}
-                  />
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => cvInputRef.current?.click()}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") cvInputRef.current?.click();
-                    }}
-                    className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all ${
-                      form.cv && selectedCvFile
-                        ? "border-lime-400 bg-lime-50"
-                        : "border-slate-300 hover:border-violet-300 hover:bg-violet-50/40"
-                    }`}
-                  >
-                    {cvUploading ? (
-                      <p className="text-sm font-medium text-violet-700">Đang tải CV lên server…</p>
-                    ) : form.cv && selectedCvFile ? (
-                      <div className="flex flex-col items-center gap-1">
-                        <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#2f4200]">
-                          <Check className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-                          <span className="truncate max-w-[280px]" title={selectedCvFile}>
-                            {selectedCvFile}
-                          </span>
-                        </div>
-                        {selectedCvUrl ? (
-                          <p className="text-xs text-slate-500">Mentor sẽ mở được file sau khi đặt lịch</p>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-3">
-                        <FileText className="h-6 w-6 text-slate-400" />
-                        <div className="text-left">
-                          <p className="text-sm font-semibold text-slate-800">Nhấn để tải lên CV</p>
-                          <p className="text-xs text-slate-500">PDF, DOC (tối đa 5MB)</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <BookingDocumentField
+                  label="Tải lên CV"
+                  hint="bắt buộc"
+                  icon={FileText}
+                  emptyTitle="Nhấn để tải lên CV"
+                  emptySubtitle="PDF, DOC (tối đa 5MB)"
+                  uploadingText="Đang tải CV lên server…"
+                  selectedText="Mentor sẽ mở được file sau khi đặt lịch"
+                  reuseLabel="Hoặc dùng lại CV đã phân tích"
+                  fileName={form.cv ? selectedCvFile : ""}
+                  fileUrl={selectedCvUrl}
+                  fromHistory={cvFromHistory}
+                  uploading={cvUploading}
+                  options={reusableCvOptions}
+                  optionsLoading={reusableDocsLoading}
+                  onFileSelect={handleCvFileSelect}
+                  onPickOption={handleReuseCv}
+                  onClear={handleClearCv}
+                />
 
-                <div>
-                  <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">
-                    Tải lên JD <span className="font-normal normal-case text-slate-600">(khuyến khích)</span>
-                  </label>
-                  <input
-                    ref={jdInputRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword"
-                    className="hidden"
-                    onChange={handleJdFileChange}
-                  />
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => jdInputRef.current?.click()}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") jdInputRef.current?.click();
-                    }}
-                    className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all ${
-                      form.jd && selectedJdFile
-                        ? "border-lime-400 bg-lime-50"
-                        : "border-slate-300 hover:border-violet-300 hover:bg-violet-50/40"
-                    }`}
-                  >
-                    {jdUploading ? (
-                      <p className="text-sm font-medium text-violet-700">Đang tải JD lên server…</p>
-                    ) : form.jd && selectedJdFile ? (
-                      <div className="flex items-center justify-center gap-2 text-sm font-bold text-[#2f4200]">
-                        <Check className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-                        <span className="truncate max-w-[280px]" title={selectedJdFile}>
-                          {selectedJdFile}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center gap-3">
-                        <UploadSimple className="h-6 w-6 text-slate-400" />
-                        <div className="text-left">
-                          <p className="text-sm font-semibold text-slate-800">Nhấn để tải lên JD</p>
-                          <p className="text-xs text-slate-500">Giúp mentor chuẩn bị câu hỏi phù hợp hơn</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <BookingDocumentField
+                  label="Tải lên JD"
+                  hint="khuyến khích"
+                  icon={UploadSimple}
+                  emptyTitle="Nhấn để tải lên JD"
+                  emptySubtitle="Giúp mentor chuẩn bị câu hỏi phù hợp hơn"
+                  uploadingText="Đang tải JD lên server…"
+                  selectedText="Mentor sẽ mở được file sau khi đặt lịch"
+                  reuseLabel="Hoặc dùng lại JD đã phân tích"
+                  fileName={form.jd ? selectedJdFile : ""}
+                  fileUrl={selectedJdUrl}
+                  fromHistory={jdFromHistory}
+                  uploading={jdUploading}
+                  options={reusableJdOptions}
+                  optionsLoading={reusableDocsLoading}
+                  onFileSelect={handleJdFileSelect}
+                  onPickOption={handleReuseJd}
+                  onClear={handleClearJd}
+                />
 
                 <div>
                   <label className="mb-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">Ghi chú (nếu có)</label>
